@@ -6,6 +6,7 @@ class SystemDefinitionsRepository {
   SystemDefinitionsRepository(this.apiService);
 
   Future<http.Response> getUserPlanningSystemDefinition(body) async {
+    print(body);
     return await apiService.postRequest('/user/planning/systemDefinition/get', body);
   }
 

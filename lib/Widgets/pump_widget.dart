@@ -149,30 +149,55 @@ class PumpWidget extends StatelessWidget {
 
             if (pump.onDelayLeft != '00:00:00' && Formatters().isValidTimeFormat(pump.onDelayLeft))
               Positioned(
-                top: isMobile? 20:40,
+                top: isMobile ? 20 : 40,
                 left: 7.5,
-                child: Container(
-                  width: 55,
-                  decoration: BoxDecoration(
-                    color: Colors.greenAccent,
-                    borderRadius: const BorderRadius.all(Radius.circular(2)),
-                    border: Border.all(color: Colors.green, width: 0.5),
-                  ),
-                  child: ChangeNotifierProvider(
-                    create: (_) => DecreaseDurationNotifier(pump.onDelayLeft),
-                    child: Consumer<DecreaseDurationNotifier>(
-                      builder: (context, notifier, _) {
-                        return Center(
+                child: ChangeNotifierProvider(
+                  create: (_) => DecreaseDurationNotifier(pump.onDelayLeft),
+                  child: Consumer<DecreaseDurationNotifier>(
+                    builder: (context, notifier, _) {
+                      // Hide the widget when countdown reaches 00:00:00
+                      if (notifier.onDelayLeft == '00:00:00') {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Container(
+                        width: 55,
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(2),
+                          ),
+                          border: Border.all(
+                            color: Colors.green,
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Center(
                           child: Column(
                             children: [
-                              const Text("On delay", style: TextStyle(fontSize: 10, color: Colors.black)),
-                              const Divider(height: 0, color: Colors.grey),
-                              Text(notifier.onDelayLeft, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+                              const Text(
+                                "On delay",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.black,
+                                ),
+                              ),
+                              const Divider(
+                                height: 0,
+                                color: Colors.grey,
+                              ),
+                              Text(
+                                notifier.onDelayLeft,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
                             ],
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

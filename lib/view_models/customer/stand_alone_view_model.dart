@@ -394,8 +394,14 @@ class StandAloneViewModel extends ChangeNotifier {
                 if (_validateTime(_hoursController.text, 'hours') &&
                     _validateTime(_minutesController.text, 'minutes') &&
                     _validateTime(_secondsController.text, 'seconds')) {
-                  durationValue = '${_hoursController.text}:${_minutesController.text}:${_secondsController.text}';
-                  segmentSelectionCallbackFunction(segmentWithFlow.index, durationValue , selectedIrLine);
+
+                  // Pad each value to 2 digits with leading zeros
+                  String hours = _hoursController.text.padLeft(2, '0');
+                  String minutes = _minutesController.text.padLeft(2, '0');
+                  String seconds = _secondsController.text.padLeft(2, '0');
+
+                  durationValue = '$hours:$minutes:$seconds';
+                  segmentSelectionCallbackFunction(segmentWithFlow.index, durationValue, selectedIrLine);
                   Navigator.of(context).pop();
                 }
                 else{

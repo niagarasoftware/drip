@@ -750,35 +750,32 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                   ),
                                 ),
                               //Todo : level and moisture condition
-                              // if(returnMoistureCondition(programPvd.apiData['moisture']).length!= 1)
-                              //   ListTile(
-                              //     title: const Text('Moisture Condition',style: TextStyle(color: Colors.black,fontSize: 14),),
-                              //     leading: SizedBox(
-                              //       width: 30,
-                              //       height: 30,
-                              //       child: SvgPicture.asset(
-                              //         '${AppConstants.svgObjectPath}moisture_condition.svg',
-                              //       ),
-                              //     ),
-                              //     trailing: DropdownButton(
-                              //       icon: const Icon(Icons.keyboard_arrow_down,color: Colors.black,size: 15,),
-                              //       dropdownColor: Colors.white,
-                              //       value: programPvd.sequenceData[programPvd.selectedGroup]['moistureCondition'],
-                              //       underline: Container(),
-                              //       items: returnMoistureCondition(programPvd.apiData['moisture']).map((items) {
-                              //         return DropdownMenuItem(
-                              //           value: items['name'],
-                              //           child: Text(
-                              //             items['name'],
-                              //             style: const TextStyle(fontSize: 14, color: Colors.black),
-                              //           ),
-                              //         );
-                              //       }).toList(),
-                              //       onChanged: (value) {
-                              //         programPvd.editGroupSiteInjector('applyMoisture', returnMoistureCondition(programPvd.apiData['moisture']).where((element) => element['name'] == value).toList()[0]);
-                              //       },
-                              //     ),
-                              //   ),
+                              ListTile(
+                                title: const Text(
+                                  'Moisture ',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                leading: SizedBox(
+                                  width: 30,
+                                  height: 30,
+                                  child: SvgPicture.asset(
+                                    '${AppConstants.svgObjectPath}moisture_condition.svg',
+                                  ),
+                                ),
+                                trailing: Switch(
+                                  value:  false,
+                                  onChanged: (bool value) {
+                                    programPvd.editGroupSiteInjector(
+                                      'applyMoisture',
+                                      value,
+                                    );
+                                  },
+                                ),
+                              ),
+
                               // if(returnMoistureCondition(programPvd.apiData['level']).length != 1)
                               //   ListTile(
                               //     title: const Text('Level Condition',style: TextStyle(color: Colors.black,fontSize: 14),),
@@ -1157,6 +1154,13 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                               child: Text('Value',style: TextStyle(fontSize: 16,color: Colors.white),),
                                             ),
                                           ),
+                                          SizedBox(
+                                            width: 100,
+                                            height: 40,
+                                            child: Center(
+                                              child: Text('Tank',style: TextStyle(fontSize: 16,color: Colors.white),),
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -1301,6 +1305,66 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                                     ),
                                                   ),
                                                 )
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 140,
+                                            height: 40,
+                                            child: Center(
+                                              child: DropdownButton<dynamic>(
+                                                isExpanded: true,
+                                                dropdownColor: Colors.white,
+
+                                                value: (
+                                                    programPvd.sequenceData[programPvd.selectedGroup]
+                                                    [programPvd.segmentedControlCentralLocal == 0
+                                                        ? 'centralDosing'
+                                                        : 'localDosing'][0]
+                                                    ['fertilizer'][index]['source'] as List?
+                                                )?.isNotEmpty == true
+                                                    ? programPvd.sequenceData[programPvd.selectedGroup]
+                                                [programPvd.segmentedControlCentralLocal == 0
+                                                    ? 'centralDosing'
+                                                    : 'localDosing'][0]
+                                                ['fertilizer'][index]['source'][0]
+                                                    : null,
+
+                                                underline: Container(),
+
+                                                hint: const Text(
+                                                  'Select Tank',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+
+                                                items: (programPvd.tank ?? []).map((tankItem) {
+                                                  return DropdownMenuItem<dynamic>(
+                                                    value: tankItem.tank.sNo,
+                                                    child: Text(
+                                                      tankItem.tank.name ?? '',
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.black,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }).toList(),
+
+                                                onChanged: (value) {
+                                                  programPvd.editParticularChannelDetails(
+                                                    'source',
+                                                    programPvd.segmentedControlCentralLocal == 0
+                                                        ? 'centralDosing'
+                                                        : 'localDosing',
+                                                    value,
+                                                    index,
+                                                  );
+                                                  print('value : $value');
+                                                },
+                                              ),
                                             ),
                                           ),
                                         ],

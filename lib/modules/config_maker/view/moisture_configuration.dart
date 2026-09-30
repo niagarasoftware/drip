@@ -78,7 +78,11 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
                             // ),
                             Padding(
                               padding: const EdgeInsets.all(8.0),
-                              child: getValve(moistureSensor: moistureSensor, valveList: moistureSensor.valves),
+                              child: getObject(moistureSensor: moistureSensor, list: moistureSensor.valves, objectId: AppConstants.valveObjectId),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: getObject(moistureSensor: moistureSensor, list: moistureSensor.soilTemperature, objectId: AppConstants.soilTemperatureObjectId),
                             ),
                           ],
                         ),
@@ -88,48 +92,49 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
               ],
             ),
           ),
-
         );
       }),
     );
   }
 
-  Widget getValve({
+  Widget getObject({
     required MoistureModel moistureSensor,
-    required List<double> valveList
+    required List<double> list,
+    required int objectId,
 }){
+    String name = objectId == AppConstants.valveObjectId ? 'Valve' : 'Soil Temperature';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
+        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedImage(
-              imagePath: '${AppConstants.svgObjectPath}objectId_13.svg',
+              imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
             color: Colors.black,
           ),
           const SizedBox(width: 20,),
-          const Text('Valves : ', style: AppProperties.listTileBlackBoldStyle,),
+          Text('$name : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(valveList.isEmpty ? '-' : valveList.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(list.isEmpty ? '-' : list.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){
                 setState(() {
                   widget.configPvd.listOfSelectedSno.clear();
-                  widget.configPvd.listOfSelectedSno.addAll(valveList);
+                  widget.configPvd.listOfSelectedSno.addAll(list);
                 });
                 selectionDialogBox(
                     context: context,
-                    title: 'Select Valve',
+                    title: 'Select $name',
                     singleSelection: false,
-                    listOfObject: widget.configPvd.listOfGeneratedObject.where((object) => object.objectId == AppConstants.valveObjectId).toList(),
+                    listOfObject: widget.configPvd.listOfGeneratedObject.where((object) => object.objectId == objectId).toList(),
                     onPressed: (){
                       setState(() {
-                        widget.configPvd.updateSelectionInMoisture(moistureSensor.commonDetails.sNo!,);
+                        widget.configPvd.updateSelectionInMoisture(moistureSensor.commonDetails.sNo!, objectId);
                       });
                       Navigator.pop(context);
                     }
@@ -141,5 +146,4 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
       ),
     );
   }
-
 }

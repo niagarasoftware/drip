@@ -6,6 +6,8 @@ class AppConstants {
   static String apiUrl = Environment.apiUrl;
   static const int timeoutDuration = 30;
   static String mqttUrlMobile = Environment.mqttMobileUrl;
+  static String userManualBaseUrl = Environment.userManualBaseUrl;
+
 
   static String mqttUrl = Environment.mqttWebUrl;
   static int mqttWebPort = Environment.mqttWebPort;
@@ -40,6 +42,9 @@ class AppConstants {
 
   static const String boreWellFirst = "dp_bore_well_first.png";
   static const String boreWellCenter = "dp_bore_well_center.png";
+
+  static const String tankFirst = "dp_tank_first.png";
+  static const String tankCenter = "dp_tank_center.png";
 
   static const String mobileBoreWellFirst = "m_bore_well_first.png";
   static const String mobileBoreWellCenter= "m_bore_well_center.png";
@@ -359,11 +364,11 @@ class AppConstants {
   static String _getSourceImagePath(int type, String position) {
     switch (position) {
       case 'First':
-        return type==4 ? boreWellFirst : type==3 ? wellFirst : sumpFirst;
+        return type==4 ? boreWellFirst : type==3 ? wellFirst : type==1 ? tankFirst : sumpFirst;
       case 'Center':
-        return type==4 ? boreWellCenter : type==3 ? wellCenter : sumpCenter;
+        return type==4 ? boreWellCenter : type==3 ? wellCenter : type==1 ? tankCenter : sumpCenter;
       case 'Last':
-        return type==3 ? wellLast : sumpLast;
+        return type==4 ? boreWellCenter : type==3 ? wellLast :  type==1 ? tankCenter : sumpLast;
       case 'After Valve':
         return sumpFirstCWS;
       default:
@@ -378,7 +383,7 @@ class AppConstants {
       case 'Center':
         return type==4 ? mobileBoreWellCenter : type==3 ? mobileWellCenter : mobileSumpCenter;
       case 'Last':
-        return type==3 ? mobileWellCenter : mobileSumpCenter;
+        return type==4 ? mobileBoreWellCenter : type==3 ? mobileWellCenter : mobileSumpCenter;
       case 'After Valve':
         return sumpFirstCWS;
       default:
@@ -839,6 +844,13 @@ class AppConstants {
     }
   }
 
+  static String buildUserManualUrl(String? link) {
+    if (link == null || link.isEmpty) return '';
+    if (link.startsWith('http')) return link;
+    if (userManualBaseUrl.isEmpty) return link;
+    return '$userManualBaseUrl/${link.replaceFirst(RegExp(r'^/+'), '')}';
+  }
+
   static Color outputColor = const Color(0xff14AE5C);
   static Color commonObjectColor = const Color(0xff0070D8);
   static String analogCode = '3';
@@ -905,11 +917,12 @@ class AppConstants {
   static int lightObjectId = 19;
   static int gateObjectId = 43;
   static int flowControlValveObjectId = 45;
+  static int dosingMeterObjectId = 47;
 
   static List<int> smartPlusEcPhModel = [33];
   static List<int> ecModel = [64];
   static List<int> phModel = [65];
-  static List<int> pumpWithValveModelList = [48, 49, 52, 53, 54, 55, ...pumpWithLightModelList];
+  static List<int> pumpWithValveModelList = [48, 49, 52, 53, 54, 55, ...pumpWithLightModelList, ...singlePhaseShineModel, ...singlePhaseElitePlusModel];
   static List<int> pumpWithLightModelList = [76,77];
   static List<int> shine2V = [48, 49];
   static List<int> shine4V = [52, 53];
@@ -917,18 +930,32 @@ class AppConstants {
   static List<int> ecoGemFlowControlValveModel = [89, 90];
   static List<int> omsGemList = [91];
   static List<int> omsRtuList = [92];
-  static List<int> ecoGemModelList = [56, 57, 58, 59, 60, 61, 62, 63, ...ecoGemFlowControlValveModel];
+  static List<int> ecoGemModelList = [56, 57, 58, 59, 60, 61, 62, 63, ...ecoGemFlowControlValveModel, ...singlePhaseEcoGemModel, ...singlePhaseEcoGemPlusModel];
   static List<int> ecoGemPlusModelList = [60, 61, 62, 63];
   static List<int> ecoGemAndPlusModelList = [...ecoGemModelList, ...ecoGemPlusModelList];
   static List<int> gemModelList = [1, 2, 4, 72, 73, 74, 75];
   static List<int> weatherModelList = [13, 14];
   static List<int> weatherGsmModelList = [14];
   static List<int> gsmModelList = [6, 9, 94, 67, 70];
-  static List<int> pumpModelList = [5, 6, 7, ...pumpPlusModelList, ...wlcModelList, ...aquaculturePumpModelList];
+  static List<int> pumpModelList = [5, 6, 7, ...pumpPlusModelList, ...wlcModelList, ...aquaculturePumpModelList, ...singlePhasePumpModel, ...singlePhasePumpPlusModel];
+  static List<int> singlePhasePumpModel = [66, 67, 68];
+  static List<int> singlePhasePumpPlusModel = [69, 70, 71];
+  static List<int> singlePhaseShineModel = [96, 97, 98, 99];
+  static List<int> singlePhaseElitePlusModel = [100, 101];
+  static List<int> singlePhaseEcoGemModel = [102, 103, 104, 105];
+  static List<int> singlePhaseEcoGemPlusModel = [106, 107, 108, 109];
   static List<int> pumpPlusModelList = [8, 9, 10, ...wlcModelList, ...aquaculturePumpModelList];
-  static List<int> wlcModelList = [76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86];
+  static List<int> wlcModelList = [76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88];
+  static List<int> wlc1010sdModelList = [87, ];
   static List<int> pumpWifiDefault = [7, 10];
-  static List<int> pumpList = [...pumpWithValveModelList, ...pumpModelList, ...shine2V, ...shine4V, ...elite10V, ...pumpPlusModelList];
+  static List<int> pumpList = [
+    ...pumpWithValveModelList,
+    ...pumpModelList,
+    ...shine2V,
+    ...shine4V,
+    ...elite10V,
+    ...pumpPlusModelList
+  ];
   static List<int> senseModelList = [41, 42, 43, 44, 45];
   static List<int> ecoNodeList = [36];
   static List<int> extendLoraList = [46];
@@ -936,16 +963,16 @@ class AppConstants {
   static List<int> extendList = [...extendLoraList, ...extendGsmList];
   static List<int> aquacultureModelList = [72];
   static List<int> aquaculturePumpModelList = [93, 94, 95];
-  static List<int> twoPhaseSetting = [201, 601, 701, 801, 901];
-  static List<int> timerSetting = [202, 602, 702, 802, 902];
-  static List<int> currentSetting = [203, 603, 703, 803, 903];
-  static List<int> voltageSetting = [204, 604, 704, 804, 904];
-  static List<int> additionalSetting = [205, 605, 705, 805, 905];
-  static List<int> otherSetting = [206, 606, 706, 806, 906];
-  static List<int> levelSetting = [207, 607, 707, 807, 907];
-  static List<int> voltageCalibration = [208, 608, 708, 808, 908];
-  static List<int> currentCalibration = [209, 609, 709, 809, 909];
-  static List<int> otherCalibration = [210, 610, 710, 810, 910];
+  static List<int> twoPhaseSetting = [201, 601, 701, 801, 901, 1001, 1101, 1201, 1301, 1401, 1501, 1601, 1701, 1801, 1901, 2001, 2101, 2201];
+  static List<int> timerSetting = [202, 602, 702, 802, 902, 1002, 1102, 1202, 1302, 1402, 1502, 1602, 1702, 1802, 1902, 2002, 2102, 2202];
+  static List<int> currentSetting = [203, 603, 703, 803, 903, 1003, 1103, 1203, 1303, 1403, 1503, 1603, 1703, 1803, 1903, 2003, 2103, 2203];
+  static List<int> voltageSetting = [204, 604, 704, 804, 904, 1004, 1104, 1204, 1304, 1404, 1504, 1604, 1704, 1804, 1904, 2004, 2104, 2204];
+  static List<int> additionalSetting = [205, 605, 705, 805, 905, 1005, 1105, 1205, 1305, 1405, 1505, 1605, 1705, 1805, 1905, 2005, 2105, 2205];
+  static List<int> otherSetting = [206, 606, 706, 806, 906, 1006, 1106, 1206, 1306, 1406, 1506, 1606, 1706, 1806, 1906, 2006, 2106, 2206];
+  static List<int> levelSetting = [207, 607, 707, 807, 907, 1007, 1107, 1207, 1307, 1407, 1507, 1607, 1707, 1807, 1907, 2007, 2107, 2207];
+  static List<int> voltageCalibration = [208, 608, 708, 808, 908, 1008, 1108, 1208, 1308, 1408, 1508, 1608, 1708, 1808, 1908, 2008, 2108, 2208];
+  static List<int> currentCalibration = [209, 609, 709, 809, 909, 1009, 1109, 1209, 1309, 1409, 1509, 1609, 1709, 1809, 1909, 2009, 2109, 2209];
+  static List<int> otherCalibration = [210, 610, 710, 810, 910, 1010, 1110, 1210, 1310, 1410, 1510, 1610, 1710, 1810, 1910, 2010, 2110, 2210];
   static List<int> singlePhaseWlcModelList = [78, 79, 87, 88];
   static List<int> threePhaseWlcModelList = [80, 83, 84, 85];
   static List<int> singleOrThreePhaseWlcModelList = [81, 82, 86];

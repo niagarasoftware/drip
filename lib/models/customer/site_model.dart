@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart';
+
 import '../../modules/PumpController/model/pump_controller_data_model.dart';
 import '../../utils/constants.dart';
 
@@ -73,6 +75,8 @@ class MasterControllerModel {
   final String analogInput;
   final String digitalInput;
 
+  final String? userManualLink;
+
   int? communicationMode;
   List<ConfigObject> configObjects;
   List<NodeListModel> nodeList;
@@ -114,6 +118,7 @@ class MasterControllerModel {
     required this.configObjects,
     required this.ioConnection,
     required this.isSubUser,
+    required this.userManualLink,
 
     required this.ecSensors,
     required this.phSensors,
@@ -160,7 +165,7 @@ class MasterControllerModel {
         json['modelId'] ?? 0);
 
     // STEP 5: Only add "All" line if there are multiple permitted lines
-    if(filteredIrrigationLines.isNotEmpty && filteredIrrigationLines.length > 1){
+    if(filteredIrrigationLines.isNotEmpty && filteredIrrigationLines.length > 1) {
       var allLine = {
         "objectId": 0,
         "sNo": 0,
@@ -206,6 +211,9 @@ class MasterControllerModel {
     final filterSiteRaw = config['filterSite'] as List? ?? [];
     final fertilizerSiteRaw = config['fertilizerSite'] as List? ?? [];
     final moistureSensorRaw = config['moistureSensor'] as List? ?? [];
+    final valveRaw = config['valve'] as List? ?? [];
+
+    final pumpRaw = (config['pump'] as List?) ?? [];
 
     List<ConfigObject> configObjectsR = json["config"] != null &&
         json["config"] is Map<String, dynamic> &&
@@ -220,7 +228,7 @@ class MasterControllerModel {
         .toList();
 
     List<WaterSourceModel> waterSources = waterSourcesRaw
-        .map((item) => WaterSourceModel.fromJson(item, configObjects))
+        .map((item) => WaterSourceModel.fromJson(item, configObjects, pumpRaw))
         .toList();
     WaterSourceModel.assignFloatSwitchesToWaterSources(waterSources, config, configObjects);
 
@@ -238,7 +246,7 @@ class MasterControllerModel {
 
     // STEP 6: Create IrrigationLineModel from filtered list
     List<IrrigationLineModel> irrigationLines = filteredIrrigationLines
-        .map((item) => IrrigationLineModel.fromJson(item, configObjects, moistureSensorRaw, waterSources))
+        .map((item) => IrrigationLineModel.fromJson(item, configObjects, moistureSensorRaw, waterSources, valveRaw))
         .toList();
 
     for (var line in irrigationLines) {
@@ -319,6 +327,7 @@ class MasterControllerModel {
       isSubUser: isSubUser,
       ecSensors: ecSensors,
       phSensors: phSensors,
+      userManualLink: json['userManualLink'] as String?,
     );
   }
 }
@@ -356,22 +365,40 @@ class WaterSourceModel {
     required this.floatSwitches,
   });
 
-  factory WaterSourceModel.fromJson(Map<String, dynamic> json, List<ConfigObject> configObjects) {
+  factory WaterSourceModel.fromJson(Map<String, dynamic> json,
+      List<ConfigObject> configObjects, List<dynamic> pumpRaw,) {
+
+    final pumpRawBySNo = <double, Map<String, dynamic>>{
+      for (var raw in pumpRaw)
+        if (raw is Map && raw['sNo'] != null)
+          (raw['sNo'] as num).toDouble(): raw as Map<String, dynamic>
+    };
 
     final inletPumps = ((json['inletPump'] as List?) ?? []).map((e) => e).toSet();
+
     final iPumps = configObjects.where((obj) => inletPumps.contains(obj.sNo))
-        .map(PumpModel.fromConfigObject)
+        .map((obj) => PumpModel.fromConfigObject(obj, configObjects, pumpRawBySNo[obj.sNo]))
         .toList();
+
+    /*final iPumps = configObjects.where((obj) => inletPumps.contains(obj.sNo))
+        .map(PumpModel.fromConfigObject)
+        .toList();*/
 
     final outletPumps = ((json['outletPump'] as List?) ?? []).map((e) => e).toSet();
     final oPumps = configObjects.where((obj) => outletPumps.contains(obj.sNo))
-        .map(PumpModel.fromConfigObject)
+        .map((obj) => PumpModel.fromConfigObject(obj, configObjects, pumpRawBySNo[obj.sNo]))
         .toList();
+    /*final oPumps = configObjects.where((obj) => outletPumps.contains(obj.sNo))
+        .map(PumpModel.fromConfigObject)
+        .toList();*/
 
     final aeratorPumps = ((json['aerator'] as List?) ?? []).map((e) => e).toSet();
     final aPumps = configObjects.where((obj) => aeratorPumps.contains(obj.sNo))
-        .map(PumpModel.fromConfigObject)
+        .map((obj) => PumpModel.fromConfigObject(obj, configObjects, pumpRawBySNo[obj.sNo]))
         .toList();
+    /*final aPumps = configObjects.where((obj) => aeratorPumps.contains(obj.sNo))
+        .map(PumpModel.fromConfigObject, )
+        .toList();*/
 
     final levelSNoSet = (json['level'] is List)
         ? (json['level'] as List).map((e) => (e as num).toDouble()).toSet()
@@ -516,7 +543,7 @@ class IrrigationLineModel {
   });
 
   factory IrrigationLineModel.fromJson(Map<String, dynamic> json, List<ConfigObject> configObjects,
-      var moistureSensorRaw, List<WaterSourceModel> waterSources) {
+      var moistureSensorRaw, List<WaterSourceModel> waterSources, var valveRaw) {
 
     final sourcePumpList = (json['sourcePump'] as List?) ?? [];
     final sourcePumpSet = sourcePumpList.map((e) => (e as num).toDouble()).toSet();
@@ -605,24 +632,119 @@ class IrrigationLineModel {
         .map((obj) => FCValveModel.fromConfigObject(obj))
         .toList();
 
+
+    // Map valve SNo → Valve model (for O(1) lookup)
+
+    // Build a lookup: pressure sensor sNo → ConfigObject (objectId 24 = Pressure Sensor)
+    final pressureSensorBySNo = <double, ConfigObject>{
+      for (var obj in configObjects)
+        if (obj.objectId == 24)
+          obj.sNo: obj
+    };
+
+// Build a lookup: raw valve sNo → raw valve json (to get inputPressure/lateralPressure sNo lists)
+    final valveRawBySNo = <double, Map<String, dynamic>>{
+      for (var raw in valveRaw)
+        if (raw is Map && raw['sNo'] != null)
+          (raw['sNo'] as num).toDouble(): raw as Map<String, dynamic>
+    };
+
+// Assign directly to each ValveModel already in `valves`
+    for (var valve in valves) {
+      final raw = valveRawBySNo[valve.sNo];
+      if (raw == null) continue;
+
+      final inputPressureSNos   = (raw['inputPressure']   as List?) ?? [];
+      final lateralPressureSNos = (raw['lateralPressure'] as List?) ?? [];
+
+      valve.inputPressure = inputPressureSNos
+          .whereType<num>()
+          .map((sNo) => sNo.toDouble())
+          .where((sNo) => pressureSensorBySNo.containsKey(sNo))
+          .map((sNo) => PressureSensor.fromConfigObject(pressureSensorBySNo[sNo]!))
+          .toList();
+
+      valve.lateralPressure = lateralPressureSNos
+          .whereType<num>()
+          .map((sNo) => sNo.toDouble())
+          .where((sNo) => pressureSensorBySNo.containsKey(sNo))
+          .map((sNo) => PressureSensor.fromConfigObject(pressureSensorBySNo[sNo]!))
+          .toList();
+    }
+    //prs end------------------
+
+    // Lookup for resolving soil-temp sensor S/N -> ConfigObject
+    final configBySNo = <double, ConfigObject>{
+      for (var obj in configObjects) obj.sNo: obj,
+    };
+
     final Map<double, List<MoistureSensorModel>> valveToMoistureSensors = {};
+    final Map<double, List<SensorModel>> valveToSoilTemperature = {};
 
     for (var sensor in moistureSensorRaw) {
       final sensorSNo = (sensor['sNo'] as num).toDouble();
       final sensorName = sensor['name'] as String;
-      final sensorValves = sensor['valves'] as List;
 
-      for (var valve in sensorValves) {
-        final valveSNo = (valve as num).toDouble();
+      final valveSNos = ((sensor['valves'] as List?) ?? [])
+          .map((e) => (e as num).toDouble())
+          .toList();
+
+      // soilTemperature entries are SENSOR S/Ns (e.g. 30.001), not valve S/Ns
+      final soilTempSNos = ((sensor['soilTemperature'] as List?) ?? [])
+          .map((e) => (e as num).toDouble())
+          .toList();
+
+      // Resolve each soil-temp S/N to a real SensorModel via configObjects
+      final soilTempSensors = soilTempSNos
+          .where(configBySNo.containsKey)
+          .map((sNo) => SensorModel.fromConfigObject(configBySNo[sNo]!))
+          .toList();
+
+      // Attach to every valve this moisture sensor is linked to
+      for (final valveSNo in valveSNos) {
         valveToMoistureSensors
             .putIfAbsent(valveSNo, () => [])
             .add(MoistureSensorModel(sNo: sensorSNo, name: sensorName));
+
+        valveToSoilTemperature
+            .putIfAbsent(valveSNo, () => [])
+            .addAll(soilTempSensors);
       }
     }
 
     for (var valve in valves) {
       valve.moistureSensors = valveToMoistureSensors[valve.sNo] ?? [];
+      valve.soilTemperature = valveToSoilTemperature[valve.sNo] ?? [];
     }
+
+    /*final Map<double, List<MoistureSensorModel>> valveToMoistureSensors = {};
+    final Map<double, List<SensorModel>> valveToSoilTemperature = {};
+
+    for (var sensor in moistureSensorRaw) {
+      final sensorSNo = (sensor['sNo'] as num).toDouble();
+      final sensorName = sensor['name'] as String;
+      final valves = sensor['valves'] as List;
+      final vlvSoilTemperature = sensor['soilTemperature'] as List;
+
+      for (var valve in valves) {
+        final valveSNo = (valve as num).toDouble();
+        valveToMoistureSensors
+            .putIfAbsent(valveSNo, () => [])
+            .add(MoistureSensorModel(sNo: sensorSNo, name: sensorName));
+      }
+
+      for (var valve in vlvSoilTemperature) {
+        final valveSNo = (valve as num).toDouble();
+        valveToSoilTemperature
+            .putIfAbsent(valveSNo, () => [])
+            .add(SensorModel(sNo: sensorSNo, name: sensorName));
+      }
+    }
+
+    for (var valve in valves) {
+      valve.moistureSensors = valveToMoistureSensors[valve.sNo] ?? [];
+      valve.soilTemperature = valveToSoilTemperature[valve.sNo] ?? [];
+    }*/
 
     final pressureSwitchSNoList = (json['pressureSwitch'] is List)
         ? (json['pressureSwitch'] as List).map((e) => (e as num).toDouble()).toSet()
@@ -889,9 +1011,12 @@ class PumpModel {
   String actualValue;
   String phase;
 
+  final List<SensorModel> waterMeter;
+
   PumpModel({
     required this.sNo,
     required this.name,
+    required this.waterMeter,
     this.status=0,
     this.selected=false,
     this.onDelayLeft='00:00:00',
@@ -903,14 +1028,42 @@ class PumpModel {
     this.phase='0',
   });
 
-  factory PumpModel.fromConfigObject(ConfigObject obj) {
+  factory PumpModel.fromConfigObject(
+      ConfigObject obj,
+      List<ConfigObject> allConfigObjects,
+      Map<String, dynamic>? pumpRaw, // this pump's entry from config['pump']
+      ) {
+    List<SensorModel> waterMeter = [];
+
+    final waterMeterSNo = (pumpRaw?['waterMeter'] as num?)?.toDouble() ?? 0;
+
+    if (waterMeterSNo != 0) {
+      final match = allConfigObjects.firstWhere(
+            (c) => c.sNo == waterMeterSNo,
+        orElse: () => ConfigObject.empty(),
+      );
+      if (match.sNo != 0) {
+        waterMeter = [SensorModel.fromConfigObject(match)];
+      }
+    }
+
     return PumpModel(
       sNo: obj.sNo,
       name: obj.name,
+      waterMeter: waterMeter,
     );
   }
-
 }
+
+  /*factory PumpModel.fromConfigObject(ConfigObject obj) {
+
+    return PumpModel(
+      sNo: obj.sNo,
+      name: obj.name,
+      waterMeter: waterMeter,
+    );
+  }
+}*/
 
 class FilterSiteModel {
   final double sNo;
@@ -1099,15 +1252,25 @@ class FertilizerSiteModel {
         .map((obj) => CheSelector.fromConfigObject(obj))
         .toList();
 
+    final agitatorSNoSet = ((json['agitator'] as List?) ?? [])
+        .map((e) => (e as num).toDouble())
+        .toSet();
 
-    final agitatorList = json['agitator'] as List?;
-    final agitatorSNo = (agitatorList != null && agitatorList.isNotEmpty)
-        ? agitatorList.first as num
-        : 0;
     final agitator = configObjects
-        .where((obj) => agitatorSNo == obj.sNo)
+        .where((obj) => agitatorSNoSet.contains(obj.sNo))
         .map(Agitator.fromConfigObject)
         .toList();
+
+
+    // final agitatorList = json['agitator'] as List?;
+    // final agitatorSNo = (agitatorList != null && agitatorList.isNotEmpty)
+    //     ? agitatorList.first as num
+    //     : 0;
+    //
+    // final agitator = configObjects
+    //     .where((obj) => agitatorSNo == obj.sNo)
+    //     .map(Agitator.fromConfigObject)
+    //     .toList();
 
     final ecSNoSet = ((json['ec'] as List?) ?? []).map((e) => e).toSet();
     final ecSensor = configObjects.where((obj) => ecSNoSet.contains(obj.sNo))
@@ -1580,7 +1743,11 @@ class ValveModel {
   int status;
   int completePercent;
   bool isOn;
+  String lastRunningDT;
   List<MoistureSensorModel> moistureSensors = [];
+  List<SensorModel> soilTemperature = [];
+  List<PressureSensor> inputPressure = [];
+  List<PressureSensor> lateralPressure = [];
 
   ValveModel({
     required this.sNo,
@@ -1589,6 +1756,7 @@ class ValveModel {
     this.status = 0,
     this.completePercent = 0,
     this.isOn = false,
+    this.lastRunningDT = '0000-00-00 00:00',
   });
 
   factory ValveModel.fromConfigObject(ConfigObject obj, List<WaterSourceModel> ws) {
@@ -1633,12 +1801,16 @@ class MainValveModel {
   int completePercent;
   bool selected;
 
+  String lastRunningDT;
+  List<PressureSensor> inputPressure = [];
+
   MainValveModel({
     required this.sNo,
     required this.name,
     this.status = 0,
     this.completePercent = 0,
     this.selected = false,
+    this.lastRunningDT = '0000-00-00 00:00',
   });
 
   factory MainValveModel.fromConfigObject(ConfigObject obj, List<WaterSourceModel> ws) {
@@ -1898,6 +2070,7 @@ class LiveMessage {
 
   factory LiveMessage.fromJson(Map<String, dynamic> json) {
     try {
+      debugPrint("json : $json");
       return LiveMessage(
         cC: json['cC']?.toString() ?? '',
         cM: json['cM'] is Map<String, dynamic>
@@ -2195,16 +2368,19 @@ class ProgramList {
 class Sequence {
   final String sNo;
   final String name;
+  final bool isActive;
 
   Sequence({
     required this.sNo,
     required this.name,
+    required this.isActive,
   });
 
   factory Sequence.fromJson(Map<String, dynamic> json) {
     return Sequence(
       sNo: json['sNo'] ?? '',
       name: json['name'] ?? '',
+      isActive: false,
     );
   }
 

@@ -10,7 +10,8 @@ class SensorChip extends StatelessWidget {
   final WeatherDeviceList device;
   final bool isNarrow;
 
-  const SensorChip({super.key,
+  const SensorChip({
+    super.key,
     required this.sensor,
     required this.vm,
     required this.device,
@@ -25,13 +26,15 @@ class SensorChip extends StatelessWidget {
       objectSno: sensor.sNo,
       controllerId: device.controllerId,
     );
-    print("serialNumber:${device.serialNumber}");
-    print("objectName:${sensor.objectName}");
-    print("sensor.name:${sensor.name}");
-    print("live.value:${live?.value}");
 
+    final model = vm.weatherModel;
+    if (live == null || model == null) {
+      return const SizedBox.shrink();
+    }
 
-    if (live == null) return const SizedBox.shrink();
+    final last7Days = model.getLast7DaysStats(sensor.sNo);
+    final last30Days = model.getLast30DaysStats(sensor.sNo);
+
     return Container(
       width: isNarrow ? double.infinity : 230,
       padding: const EdgeInsets.all(10),
@@ -45,25 +48,38 @@ class SensorChip extends StatelessWidget {
         title: sensor.name,
         statusCode: live.status,
         value: live.value,
-        unit: unit(sensor.objectName),
+        unit: _unit(sensor.objectName),
+
+        // Current/live values
         minValue: live.min,
         maxValue: live.max,
-        otherValue: "${live.avg}",
+        otherValue: live.avg.toString(),
+
+        // JSON last7Days values
+        last7DaysMin: last7Days.min,
+        last7DaysMax: last7Days.max,
+        last7DaysAverage: last7Days.average,
+
+        // JSON last30Days values
+        last30DaysMin: last30Days.min,
+        last30DaysMax: last30Days.max,
+        last30DaysAverage: last30Days.average,
       ),
     );
   }
 
-  String unit(String type) {
-     type = type.toLowerCase();
-     if (type.contains('moisture')) return 'CB';
-    if (type.contains('temperature')) return '°C';
-    if (type.contains('humidity')) return '%';
-    if (type.contains('co2')) return 'ppm';
-    if (type.contains('direction')) return '°';
-    if (type.contains('Wind')) return 'km/h';
-    if (type.contains('rain')) return 'mm';
-    if (type.contains('lux')) return 'Lu';
+  String _unit(String type) {
+    final normalizedType = type.toLowerCase();
+
+    if (normalizedType.contains('moisture')) return 'CB';
+    if (normalizedType.contains('temperature')) return '°C';
+    if (normalizedType.contains('humidity')) return '%';
+    if (normalizedType.contains('co2')) return 'ppm';
+    if (normalizedType.contains('direction')) return '°';
+    if (normalizedType.contains('wind')) return 'km/h';
+    if (normalizedType.contains('rain')) return 'mm';
+    if (normalizedType.contains('lux')) return 'Lu';
+
     return '';
   }
 }
-

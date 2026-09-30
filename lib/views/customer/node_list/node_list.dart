@@ -4,11 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/models/customer/site_model.dart';
 import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/view/node_connection_page.dart';
 import 'package:oro_drip_irrigation/services/http_service.dart';
+import 'package:oro_drip_irrigation/utils/Theme/agritel_theme.dart';
+import 'package:oro_drip_irrigation/utils/helpers/mc_permission_helper.dart';
 import 'package:oro_drip_irrigation/views/customer/widgets/relay_status_avatar.dart';
 import 'package:provider/provider.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
+import '../../../modules/bluetooth_low_energy/state_management/ble_service.dart';
 import '../../../providers/user_provider.dart';
 import '../../../repository/repository.dart';
+import '../../../services/bluetooth/bluetooth_ble_service.dart';
+import '../../../services/bluetooth/bluetooth_classic_service.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/snack_bar.dart';
 import '../../../view_models/customer/node_list_view_model.dart';
@@ -78,7 +83,11 @@ class NodeList extends StatelessWidget {
               buildHeader(context),
               const Divider(height: 0, thickness: 0.4),
               buildStatusHeaderRow(context, vm, isNova ? true:false),
-              const Divider(height: 0),
+
+              if (!isNova) ...[
+                const Divider(height: 0),
+              ],
+
 
               if (isNova) ...[
                 _buildRelayGrid(masterData.ioConnection, vm),
@@ -92,7 +101,7 @@ class NodeList extends StatelessWidget {
                     horizontalMargin: 0,
                     minWidth: 400,
                     headingRowHeight: 35.0,
-                    headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColorDark.withValues(alpha: 0.3)),
+                    headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColorDark.withOpacity(0.3)),
                     columns: const [
                       DataColumn2(
                           label: Center(child: Text('SR.No', style: TextStyle(fontWeight: FontWeight.normal, fontSize: 13, color: Colors.black),)),
@@ -198,6 +207,7 @@ class NodeList extends StatelessWidget {
                           "customerId" : customerId,
                           "controllerId" : masterData.controllerId
                         },
+                        connectMode: ConnectMode.normal,
                       )));
                     }, icon: const Icon(Icons.bluetooth))
                   ],
@@ -397,47 +407,51 @@ class NodeList extends StatelessWidget {
   }
 
   Widget _buildRelayGrid(List<RelayStatus> rlyStatus, NodeListViewModel vm) {
-    return SizedBox(
+    return Container(
+      color: Colors.grey.shade100,
       width: double.infinity,
       height: vm.calculateGridHeight(rlyStatus.length),
-      child: GridView.builder(
-        itemCount: rlyStatus.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 5,
-          crossAxisSpacing: 5.0,
-          mainAxisSpacing: 5.0,
-          childAspectRatio: 1.47,
-        ),
-        itemBuilder: (BuildContext context, int indexGv) {
-          final rly = rlyStatus[indexGv];
-          return Column(
-            children: [
-              Selector<MqttPayloadProvider, String?>(
-                selector: (_, provider) => provider.getSensorUpdatedValve(rly.sNo!.toString()),
-                builder: (_, status, __) {
-                  final statusParts = status?.split(',') ?? [];
-                  if (statusParts.isNotEmpty) {
-                    if(rly.sNo!.toString().startsWith('23.')){
-                      rly.status = (int.tryParse(statusParts[1]) ?? 0) == 1 ? 0 : 1;
-                    }else{
-                      rly.status = int.tryParse(statusParts[1]) ?? 0;
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: GridView.builder(
+          itemCount: rlyStatus.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            crossAxisSpacing: 5.0,
+            mainAxisSpacing: 5.0,
+            childAspectRatio: 1.47,
+          ),
+          itemBuilder: (BuildContext context, int indexGv) {
+            final rly = rlyStatus[indexGv];
+            return Column(
+              children: [
+                Selector<MqttPayloadProvider, String?>(
+                  selector: (_, provider) => provider.getSensorUpdatedValve(rly.sNo!.toString()),
+                  builder: (_, status, __) {
+                    final statusParts = status?.split(',') ?? [];
+                    if (statusParts.isNotEmpty) {
+                      if(rly.sNo!.toString().startsWith('23.')){
+                        rly.status = (int.tryParse(statusParts[1]) ?? 0) == 1 ? 0 : 1;
+                      }else{
+                        rly.status = int.tryParse(statusParts[1]) ?? 0;
+                      }
                     }
-                  }
 
-                  return RelayStatusAvatar(
-                    status: rly.status,
-                    rlyNo: rly.rlyNo,
-                    objType: rly.objType,
-                    sNo: rly.sNo!,
-                  );
-                },
-              ),
-              Text((rly.swName?.isNotEmpty ?? false ? rly.swName : rly.name).toString(),
-                style: const TextStyle(color: Colors.black, fontSize: 9),
-              ),
-            ],
-          );
-        },
+                    return RelayStatusAvatar(
+                      status: rly.status,
+                      rlyNo: rly.rlyNo,
+                      objType: rly.objType,
+                      sNo: rly.sNo!,
+                    );
+                  },
+                ),
+                Text((rly.swName?.isNotEmpty ?? false ? rly.swName : rly.name).toString(),
+                  style: const TextStyle(color: Colors.black, fontSize: 9),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -450,6 +464,64 @@ class NodeList extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+
+          if(AppConstants.pumpWifiDefault.contains(node.modelId))...[
+            InkWell(
+              onTap: () async {
+
+                final bleService = BluetoothBleService();
+                final blueService = BluetoothClassicService();
+
+                if (bleService.isConnected) {
+                  final connectedBleDevice = bleService.connectedDevice;
+                  if (connectedBleDevice != null) {
+                    debugPrint('🔌 BLE device connected - disconnecting before update');
+                    await bleService.disconnect(connectedBleDevice);
+                  }
+                }
+
+                if (blueService.isConnected) {
+                  debugPrint('🔌 Classic Bluetooth device connected - disconnecting before update');
+                  await blueService.disconnect();
+                }
+
+                if (!context.mounted) return;
+
+                final Map<String, dynamic> data = {
+                  'controllerId': node.controllerId,
+                  'deviceId':  node.deviceId,
+                  'deviceName':  node.deviceName,
+                  'categoryId': node.categoryId,
+                  'categoryName': node.categoryName,
+                  'modelId': node.modelId,
+                  'modelName': node.deviceName,
+                  'InterfaceType': 1,
+                  'interface': 'GSM',
+                  'relayOutput': 3,
+                  'latchOutput': 0,
+                  'analogInput': 8,
+                  'digitalInput': 4,
+                };
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => NodeConnectionPage(
+                      nodeData: data,
+                      masterData: {
+                        "userId": userId,
+                        "customerId": customerId,
+                        "controllerId": masterData.controllerId,
+                      },
+                      connectMode: ConnectMode.pumpWifiDefault,
+                    ),
+                  ),
+                );
+              },
+              child: const Icon(Icons.bluetooth_audio),
+            ),
+            const SizedBox(width: 8),
+          ],
+
           // node.rlyStatus.any((rly) => rly.status == 2 || rly.status == 3) ?
           // const Icon(Icons.warning, color: Colors.orangeAccent) :
           InkWell(
@@ -464,6 +536,7 @@ class NodeList extends StatelessWidget {
                       "customerId": customerId,
                       "controllerId": masterData.controllerId,
                     },
+                    connectMode: ConnectMode.normal,
                   ),
                 ),
               );
@@ -527,17 +600,18 @@ class NodeList extends StatelessWidget {
         ),
       ),
       children: [
-        SizedBox(
+        Container(
+          color: Colors.teal.shade50,
           width: double.infinity,
           height: vm.calculateDynamicHeight(node) + 20,
           child: Column(
             children: [
               Container(
                 color: Colors.teal.shade100,
-                width: MediaQuery.sizeOf(context).width - 35,
+                width: MediaQuery.sizeOf(context).width ,
                 height: 25,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
                       const Text('Missed communication',
@@ -555,7 +629,9 @@ class NodeList extends StatelessWidget {
               ),
               ListTile(
                 contentPadding: const EdgeInsets.only(left: 8),
-                tileColor: Theme.of(context).primaryColor,
+                // tileColor: Theme.of(context).primaryColor,
+
+                tileColor: Colors.white,
                 title: const Text('Last feedback',
                     style: TextStyle(fontSize: 12)),
                 subtitle: Text(vm.formatDateTime(node.lastFeedbackReceivedTime),
@@ -577,8 +653,7 @@ class NodeList extends StatelessWidget {
                           GlobalSnackBar.show(
                               context, 'Your comment sent successfully', 200);
                         },
-                        icon: Icon(Icons.fact_check_outlined,
-                            color: Theme.of(context).primaryColor),
+                        icon: const Icon(Icons.fact_check_outlined),
                       ),
                     ]else...[const SizedBox(width: 5)],
                   ],
@@ -630,6 +705,7 @@ class NodeList extends StatelessWidget {
                             "customerId": customerId,
                             "controllerId": masterData.controllerId,
                           },
+                          connectMode: ConnectMode.normal,
                         ),
                       ),
                     );

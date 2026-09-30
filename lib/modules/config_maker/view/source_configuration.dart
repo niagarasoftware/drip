@@ -138,7 +138,9 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                 trailing: IntrinsicWidth(
                                   child: CustomDropDownButton(
                                       value: getTankCodeToString(source.sourceType),
-                                      list: const ['Tank', 'Sump', 'Well', 'Bore', 'Others'],
+                                      list: const ['Tank', 'Sump', 'Well', 'Bore',
+                                        'Fertilizer Source', 'Fertilizer Tank',
+                                        'Others'],
                                       onChanged: (value){
                                         setState(() {
                                           source.sourceType = getTankStringToCode(value!);
@@ -295,7 +297,54 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                     ],
                                   if(![4,5].contains(source.sourceType))
                                     for(var mode in [1,2,3,4,5,6])
-                                      getLevelAndFloatSelection(source, mode)
+                                      getLevelAndFloatSelection(source, mode),
+                                  if([6,7].contains(source.sourceType))
+                                    ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(8),
+                                          color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SizedImage(imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.agitatorObjectId}.svg', color: Colors.black,),
+                                            const SizedBox(width: 20,),
+                                            const Text('Agitator : ', style: AppProperties.listTileBlackBoldStyle,),
+                                            Expanded(
+                                              child: Center(
+                                                child: Text(source.agitator.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis),),
+                                              ),
+                                            ),
+                                            IconButton(
+                                                onPressed: (){
+                                                  setState(() {
+                                                    widget.configPvd.listOfSelectedSno.clear();
+                                                    widget.configPvd.listOfSelectedSno.addAll(source.agitator);
+                                                  });
+                                                  selectionDialogBox(
+                                                      context: context,
+                                                      title: 'Select Agitator',
+                                                      singleSelection: false,
+                                                      listOfObject: widget.configPvd.listOfGeneratedObject.where((object) => (object.objectId == AppConstants.agitatorObjectId )).toList(),
+                                                      onPressed: (){
+                                                        setState(() {
+                                                          source.agitator.clear();
+                                                          source.agitator.addAll(widget.configPvd.listOfSelectedSno);
+                                                          widget.configPvd.updateAssignObject(sNo: source.commonDetails.sNo!, objectId: AppConstants.agitatorObjectId,listOfSerialNo: widget.configPvd.listOfSelectedSno);
+                                                          widget.configPvd.listOfSelectedSno.clear();
+                                                        });
+                                                        Navigator.pop(context);
+                                                      }
+                                                  );
+                                                },
+                                                icon: Icon(Icons.touch_app, color: Theme.of(context).primaryColor, size: 20,)
+                                            )
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                 ],
                               ),
                             ),
@@ -887,9 +936,21 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
       height: 120 * configPvd.ratio,
     );
   }
-  else{
+  else if(source.sourceType == 5){
     return SvgPicture.asset(
       'assets/Images/Source/pond_1.svg',
+      width: 120,
+      height: 120* configPvd.ratio,
+    );
+  }else if(source.sourceType == 6){
+    return SvgPicture.asset(
+      'assets/Images/Source/fertilizer_source.svg',
+      width: 120,
+      height: 120* configPvd.ratio,
+    );
+  }else{
+    return SvgPicture.asset(
+      'assets/Images/Source/fertilizer_tank.svg',
       width: 120,
       height: 120* configPvd.ratio,
     );

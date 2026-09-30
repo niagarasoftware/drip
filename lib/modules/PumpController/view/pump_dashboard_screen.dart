@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
+import 'package:flutter_material_design_icons/flutter_material_design_icons.dart';
 import 'package:oro_drip_irrigation/Constants/constants.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/view/pump_with_valves.dart';
@@ -212,7 +212,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                                 children: [
                                   Text(widget.masterData.deviceName, style: themeData.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.bold),),
                                   Badge(
-                                    alignment: const Alignment(-3.5, -1),
+                                      alignment: const Alignment(-3.1, -1),
                                     smallSize: 0.1,
                                     backgroundColor: Colors.transparent,
                                     label: Text("${snapshot.data?.signalStrength ?? "0"}%", style: const TextStyle(fontSize: 8, color: Colors.red, fontWeight: FontWeight.bold),),
@@ -235,7 +235,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                                         decoration: BoxDecoration(
                                             color: const Color(0xffFFFACD),
                                             border: Border.all(color: const Color(0xffEB7C17)),
-                                            borderRadius: BorderRadius.circular(10)
+                                              borderRadius: BorderRadius.circular(10)
                                         ),
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         child: Text('CVS : ${(snapshot.data!.version.toString().split(',').length > 1
@@ -339,23 +339,32 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                for(var index = 0; index < 3; index++)
+                if (AppConstants.singlePhaseWlcModelList.contains(widget.masterData.modelId))
                   buildContainer(
-                    title: title != null ? title[index] : null,
-                    value: value != null ? value[index] : null,
-                    value2: value2 != null ? value2[index] : null,
-                    // value: snapshot.data!.voltage.split(',')[index],
-                    color1: [
-                      Colors.redAccent.shade100,
-                      Colors.amberAccent.shade100,
-                      Colors.lightBlueAccent.shade100,
-                    ][index],
-                    color2: [
-                      Colors.redAccent.shade700,
-                      Colors.amberAccent.shade700,
-                      Colors.lightBlueAccent.shade700,
-                    ][index],
+                    title: title != null ? title[0] : null,
+                    value: value != null ? value[0] : null,
+                    value2: value2 != null ? value2[0] : null,
+                    color1: Colors.redAccent.shade100,
+                    color2: Colors.redAccent.shade700,
                   )
+                else
+                  for(var index = 0; index < 3; index++)
+                    buildContainer(
+                      title: title != null ? title[index] : null,
+                      value: value != null ? value[index] : null,
+                      value2: value2 != null ? value2[index] : null,
+                      // value: snapshot.data!.voltage.split(',')[index],
+                      color1: [
+                        Colors.redAccent.shade100,
+                        Colors.amberAccent.shade100,
+                        Colors.lightBlueAccent.shade100,
+                      ][index],
+                      color2: [
+                        Colors.redAccent.shade700,
+                        Colors.amberAccent.shade700,
+                        Colors.lightBlueAccent.shade700,
+                      ][index],
+                    )
               ],
             )
           else
@@ -542,38 +551,38 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                   ],
                 ),
               ),
-              if(![30, 31, 100].contains(pumpItem.reasonCode))
-                Flexible(
-                  child: Container(
-                    // width: double.maxFinite,
-                    // color: pumpItem.reasonCode == 0
-                    //     ? (pumpItem.status == 1
-                    //     ? Colors.green.shade50
-                    //     : Colors.red.shade50)
-                    //     : (pumpItem.reason.contains('on') ? Colors.green.shade50 : Colors.red.shade50),
-                    // // padding: const EdgeInsets.all(8),
-                    margin: const EdgeInsets.symmetric(horizontal: 15),
-                    child: Text(
-                      pumpItem.reasonCode == 0
-                          ? (pumpItem.status == 1 ? "Turned on through the mobile" : "Turned off through the mobile").toUpperCase()
-                          : pumpItem.reason.toUpperCase(),
-                      style: TextStyle(
-
-                          overflow: TextOverflow.ellipsis,
-                          color: pumpItem.reasonCode == 0
-                              ? (pumpItem.status == 1
-                              ? Colors.green.shade700
-                              : Colors.red.shade700)
-                              : (pumpItem.reason.contains('on') ? Colors.green.shade700 : Colors.red.shade700),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12
-                        // fontSize: titleFontSize
-                      ),
-                      textAlign: TextAlign.right,
-                      // overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
+              // if(![30, 31, 100].contains(pumpItem.reasonCode))
+              //   Flexible(
+              //     child: Container(
+              //       // width: double.maxFinite,
+              //       // color: pumpItem.reasonCode == 0
+              //       //     ? (pumpItem.status == 1
+              //       //     ? Colors.green.shade50
+              //       //     : Colors.red.shade50)
+              //       //     : (pumpItem.reason.contains('on') ? Colors.green.shade50 : Colors.red.shade50),
+              //       // // padding: const EdgeInsets.all(8),
+              //       margin: const EdgeInsets.symmetric(horizontal: 15),
+              //       child: Text(
+              //         pumpItem.reasonCode == 0
+              //             ? (pumpItem.status == 1 ? "Turned on through the mobile" : "Turned off through the mobile").toUpperCase()
+              //             : pumpItem.reason.toUpperCase(),
+              //         style: TextStyle(
+              //
+              //             overflow: TextOverflow.ellipsis,
+              //             color: pumpItem.reasonCode == 0
+              //                 ? (pumpItem.status == 1
+              //                 ? Colors.green.shade700
+              //                 : Colors.red.shade700)
+              //                 : (pumpItem.reason.contains('on') ? Colors.green.shade700 : Colors.red.shade700),
+              //             fontWeight: FontWeight.bold,
+              //             fontSize: 12
+              //           // fontSize: titleFontSize
+              //         ),
+              //         textAlign: TextAlign.right,
+              //         // overflow: TextOverflow.ellipsis,
+              //       ),
+              //     ),
+              //   ),
             ],
           ),
         ),
@@ -748,64 +757,73 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                       Column(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          if(int.parse(pumpData.numberOfPumps) == 1)
-                            for(var i = 0; i < pumpData.current.toString().split(',').length; i++)
-                              buildCurrentContainer(
-                                title: ['RC : ', 'YC : ', 'BC : '][i],
-                                value: "${pumpData.current.toString().split(',')[i].substring(2)} A",
-                                color1: [
-                                  Colors.redAccent.shade100,
-                                  Colors.amberAccent.shade100,
-                                  Colors.lightBlueAccent.shade100,
-                                ][i],
-                                color2: [
-                                  Colors.redAccent.shade700,
-                                  Colors.amberAccent.shade700,
-                                  Colors.lightBlueAccent.shade700,
-                                ][i],
-                              ),
-                          if(int.parse(pumpData.numberOfPumps) == 2 && index == 0)
-                            for(var i = 0; i < int.parse(pumpData.numberOfPumps); i++)
-                              buildCurrentContainer(
-                                title: ['RC : ', 'YC : '][i],
-                                value: "${pumpData.current.toString().split(',')[i].substring(2)} A",
-                                color1: [
-                                  Colors.redAccent.shade100,
-                                  Colors.amberAccent.shade100,
-                                ][i],
-                                color2: [
-                                  Colors.redAccent.shade700,
-                                  Colors.amberAccent.shade700,
-                                ][i],
-                              ),
-                          if(int.parse(pumpData.numberOfPumps) == 2 && index == 1)
+                          if(AppConstants.singlePhaseWlcModelList.contains(widget.masterData.modelId))
                             buildCurrentContainer(
                               title: 'BC : ',
-                              value: "${pumpData.current.toString().split(',').last.substring(2)} A",
-                              color1: Colors.lightBlueAccent.shade100,
-                              color2: Colors.lightBlueAccent.shade700,
-                            ),
-                          if(int.parse(pumpData.numberOfPumps) == 3 && index == 0)
-                            buildCurrentContainer(
-                              title: 'RC : ',
                               value: "${pumpData.current.toString().split(',').first.substring(2)} A",
-                              color1: Colors.redAccent.shade100,
-                              color2: Colors.redAccent.shade700,
-                            ),
-                          if(int.parse(pumpData.numberOfPumps) == 3 && index == 1)
-                            buildCurrentContainer(
-                              title: 'YC : ',
-                              value: "${pumpData.current.toString().split(',')[1].substring(2)} A",
-                              color1: Colors.amberAccent.shade100,
-                              color2: Colors.amberAccent.shade700,
-                            ),
-                          if(int.parse(pumpData.numberOfPumps) == 3 && index == 2)
-                            buildCurrentContainer(
-                              title: 'BC : ',
-                              value: "${pumpData.current.toString().split(',').last.substring(2)} A",
                               color1: Colors.lightBlueAccent.shade100,
                               color2: Colors.lightBlueAccent.shade700,
-                            ),
+                            )
+                          else ...[
+                            if(int.parse(pumpData.numberOfPumps) == 1)
+                              for(var i = 0; i < pumpData.current.toString().split(',').length; i++)
+                                buildCurrentContainer(
+                                  title: ['RC : ', 'YC : ', 'BC : '][i],
+                                  value: "${pumpData.current.toString().split(',')[i].substring(2)} A",
+                                  color1: [
+                                    Colors.redAccent.shade100,
+                                    Colors.amberAccent.shade100,
+                                    Colors.lightBlueAccent.shade100,
+                                  ][i],
+                                  color2: [
+                                    Colors.redAccent.shade700,
+                                    Colors.amberAccent.shade700,
+                                    Colors.lightBlueAccent.shade700,
+                                  ][i],
+                                ),
+                            if(int.parse(pumpData.numberOfPumps) == 2 && index == 0)
+                              for(var i = 0; i < int.parse(pumpData.numberOfPumps); i++)
+                                buildCurrentContainer(
+                                  title: ['RC : ', 'YC : '][i],
+                                  value: "${pumpData.current.toString().split(',')[i].substring(2)} A",
+                                  color1: [
+                                    Colors.redAccent.shade100,
+                                    Colors.amberAccent.shade100,
+                                  ][i],
+                                  color2: [
+                                    Colors.redAccent.shade700,
+                                    Colors.amberAccent.shade700,
+                                  ][i],
+                                ),
+                            if(int.parse(pumpData.numberOfPumps) == 2 && index == 1)
+                              buildCurrentContainer(
+                                title: 'BC : ',
+                                value: "${pumpData.current.toString().split(',').last.substring(2)} A",
+                                color1: Colors.lightBlueAccent.shade100,
+                                color2: Colors.lightBlueAccent.shade700,
+                              ),
+                            if(int.parse(pumpData.numberOfPumps) == 3 && index == 0)
+                              buildCurrentContainer(
+                                title: 'RC : ',
+                                value: "${pumpData.current.toString().split(',').first.substring(2)} A",
+                                color1: Colors.redAccent.shade100,
+                                color2: Colors.redAccent.shade700,
+                              ),
+                            if(int.parse(pumpData.numberOfPumps) == 3 && index == 1)
+                              buildCurrentContainer(
+                                title: 'YC : ',
+                                value: "${pumpData.current.toString().split(',')[1].substring(2)} A",
+                                color1: Colors.amberAccent.shade100,
+                                color2: Colors.amberAccent.shade700,
+                              ),
+                            if(int.parse(pumpData.numberOfPumps) == 3 && index == 2)
+                              buildCurrentContainer(
+                                title: 'BC : ',
+                                value: "${pumpData.current.toString().split(',').last.substring(2)} A",
+                                color1: Colors.lightBlueAccent.shade100,
+                                color2: Colors.lightBlueAccent.shade700,
+                              ),
+                          ],
                         ],
                       )
                     else
@@ -1346,10 +1364,14 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
   }
 
   Widget _buildPumpControlButton({required String label, required Color color, required String command, required int delay, required PumpControllerData pumpData, required int index}) {
+    bool isWlc = AppConstants.wlcModelList.contains(widget.masterData.modelId);
+    bool isAutoMode = pumpData.manualMode.toUpperCase() == '1' || pumpData.manualMode.toUpperCase() == 'AUTO';
+    bool isDisabled = (isWlc && isAutoMode) || pumpData.dataFetchingStatus != 1;
+
     return BounceEffectButton(
       label: label,
       textColor: color,
-      onTap: pumpData.dataFetchingStatus == 1 ? () async {
+      onTap: !isDisabled ? () async {
         setState(() => pumpData.pumps[index].status = 2);
         var data = {
           "userId": widget.customerId,
@@ -1364,7 +1386,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
         String? wlcCommand = '*$normalCommand#';
         final result = await context.read<CommunicationService>().sendCommand(
           serverMsg: '',
-          payload: AppConstants.wlcModelList.contains(widget.masterData.modelId) ? wlcCommand : normalCommand,
+          payload: isWlc ? wlcCommand : normalCommand,
         );
         debugPrint("motor on/off result => $result");
         // await mqttService.topicToPublishAndItsMessage(jsonEncode({"sentSms": "motor${index+1}$command"}), "${Environment.mqttPublishTopic}/${widget.masterData.deviceId}",);

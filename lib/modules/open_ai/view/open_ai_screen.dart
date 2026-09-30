@@ -190,7 +190,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
           const SnackBar(content: Text('Verifying image...'), duration: Duration(seconds: 1)),
         );
 
-        final bool isCrop = await ImageVerificationService.isCropImage(_selectedImage!.path);
+        // final bool isCrop = await ImageVerificationService.isCropImage(_selectedImage!.path);
+        final bool isCrop = true;
 
         if (!isCrop) {
           if (mounted) {

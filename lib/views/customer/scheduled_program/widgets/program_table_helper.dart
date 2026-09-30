@@ -206,7 +206,6 @@ class ProgramTableHelper {
                   icon: const Icon(Icons.more_vert),
                   onSelected: (result) async{
                     if (result == 'Edit program') {
-                      bool hasConditions = program.conditions.isNotEmpty;
                       await context.read<IrrigationProgramMainProvider>().programLibraryData(customerId, controllerId);
                       Navigator.push(
                         context,
@@ -254,16 +253,16 @@ class ProgramTableHelper {
                                 items: program.sequence.asMap().entries.map((entry) {
                                   final index = entry.key;
                                   final seq = entry.value;
-                                  final seqName = seq.name; // or whatever your display property is
+                                  final seqName = seq.name;
+                                  final seqStatus = seq.isActive;
 
                                   return PopupMenuItem<String>(
                                     value: seqName,
-                                    child: Text(seqName),
+                                    child: Text(seqName, style: TextStyle(color: seq.isActive? Colors.blue:Colors.black),),
                                     onTap: () {
                                       final payload = '${program.serialNumber},${index + 1}';
                                       final payLoadFinal = jsonEncode({"6700": {"6701": payload}});
-                                      Provider.of<CommunicationService>(context, listen: false)
-                                          .sendCommand(
+                                      Provider.of<CommunicationService>(context, listen: false).sendCommand(
                                         serverMsg: '${program.programName} Changed to $seqName',
                                         payload: payLoadFinal,
                                       );

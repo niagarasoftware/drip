@@ -19,6 +19,7 @@ import '../../../customer/widgets/my_material_button.dart';
 import '../../../customer/widgets/sensor_widget_mobile.dart';
 import '../widgets/aquaculture_line.dart';
 import '../widgets/irrigation_line_narrow.dart';
+import '../widgets/oms_line.dart';
 import '../widgets/pump_station_mobile.dart';
 import '../widgets/valve_status_legend.dart';
 
@@ -36,6 +37,8 @@ class CustomerHomeNarrow extends StatelessWidget {
     bool isNova = [...AppConstants.ecoGemModelList].contains(cM.modelId);
     bool isAquaculture = [...AppConstants.aquacultureModelList].contains(
         cM.modelId);
+
+    bool isOMS = [...AppConstants.omsGemList].contains(cM.modelId);
 
     final linesToDisplay = (viewModel.myCurrentIrrLine == "All irrigation line" ||
         viewModel.myCurrentIrrLine == "All Aquaculture line" || viewModel.myCurrentIrrLine.isEmpty)
@@ -55,7 +58,8 @@ class CustomerHomeNarrow extends StatelessWidget {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 130),
-          child: Column(
+          child: isOMS ? buildOMSLine (cM, customerId, cM.controllerId, cM.modelId, cM.deviceId,
+              viewModel.mySiteList.data[viewModel.sIndex].groupId) : Column(
             children: [
 
               Consumer<CustomerScreenControllerViewModel>(
@@ -327,6 +331,13 @@ class CustomerHomeNarrow extends StatelessWidget {
     );
   }
 
+  Widget buildOMSLine(MasterControllerModel master,
+      int customerId, int controllerId, int modelId, String deviceId, int groupId){
+
+    return OmsLine(customerId: customerId,
+        controllerId: controllerId, modelId: modelId, deviceId: deviceId, master: master, groupId: groupId, isNarrow: true);
+
+  }
 
   List<Widget> _buildSensorItems(List<SensorModel> sensors, String type, String imagePath, bool isAvailFertilizer,
       int customerId, int controllerId) {

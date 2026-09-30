@@ -6,6 +6,7 @@ class ServiceRequest {
   final List<IssueType> issueType;
   final List<IssueStatus> issueStatus;
   final List<TicketHandler> ticketHandler;
+  final List<String> images;
 
   ServiceRequest({
     required this.ticketId,
@@ -15,6 +16,7 @@ class ServiceRequest {
     required this.issueType,
     required this.issueStatus,
     required this.ticketHandler,
+    this.images = const [],
   });
 
   factory ServiceRequest.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class ServiceRequest {
       ticketHandler: (json['ticketHandler'] as List? ?? [])
           .map((e) => TicketHandler.fromJson(e))
           .toList(),
+      images: List<String>.from(json['images'] ?? []),
     );
   }
 
@@ -43,6 +46,7 @@ class ServiceRequest {
     'issueType': issueType.map((e) => e.toJson()).toList(),
     'issueStatus': issueStatus.map((e) => e.toJson()).toList(),
     'ticketHandler': ticketHandler.map((e) => e.toJson()).toList(),
+    'images': images,
   };
 }
 

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:loading_indicator/loading_indicator.dart';
+import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/state_management/ble_service.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../Screens/Dealer/controllerverssionupdate.dart';
+import '../../../../StateManagement/mqtt_payload_provider.dart';
 import '../../../../models/customer/controller_context.dart';
 import '../../../../modules/bluetooth_low_energy/view/node_connection_page.dart';
 import '../../../../providers/user_provider.dart';
@@ -33,19 +35,63 @@ class GeneralSettingsNarrow extends StatefulWidget {
 }
 
 class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
+
+  // Don't create a new instance - use the singleton
+  final BluetoothBleService bleService = BluetoothBleService();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize the service with the provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<MqttPayloadProvider>(context, listen: false);
+      bleService.initializeBleService(state: provider);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
 
     final loggedInUser = Provider.of<UserProvider>(context).loggedInUser;
 
-
-    return ChangeNotifierProvider(
-      create: (_) => GeneralSettingViewModel(Repository(HttpService()))
-        ..initIds(customerId: widget.customerId, controllerId: widget.controllerId, userId: widget.userId, isSubUser: widget.isSubUser)
-        ..getControllerInfo()
-        ..getSubUserList(),
-      child: Consumer<GeneralSettingViewModel>(
-        builder: (context, viewModel, _) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => GeneralSettingViewModel(Repository(HttpService()))
+            ..initIds(
+              customerId: widget.customerId,
+              controllerId: widget.controllerId,
+              userId: widget.userId,
+              isSubUser: widget.isSubUser,
+            )
+            ..getControllerInfo()
+            ..getSubUserList(),
+        ),
+      ],
+      child: Consumer2<GeneralSettingViewModel, MqttPayloadProvider>(
+        builder: (context, viewModel, mqttProvider, _) {
+          // Listen for WiFi update messages from the provider
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mqttProvider.wifiUpdateMessage != null && mounted) {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    mqttProvider.wifiUpdateMessage!,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  backgroundColor: mqttProvider.wifiUpdateSuccess ? Colors.green : Colors.red,
+                  duration: const Duration(seconds: 5),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              );
+              mqttProvider.hideWifiUpdateResult();
+            }
+          });
 
           final bool isEcoMdl = [...AppConstants.ecoGemModelList, ...AppConstants.pumpList].contains(viewModel.modelId);
 
@@ -63,6 +109,7 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
                           userId: widget.customerId,
                           controllerId: widget.controllerId,
                           deviceID: viewModel.deviceId,
+                          modeID: viewModel.modelId,
                         ),
                       ),
                     );
@@ -178,6 +225,7 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
                                       "customerId": widget.customerId,
                                       "controllerId": widget.ctx.controllerId,
                                     },
+                                    connectMode: ConnectMode.normal,
                                   ),
                                 ),
                               );
@@ -187,18 +235,87 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(8),
-                                    color: Colors.green
+                                    color: Colors.black
                                 ),
                                 child: const Row(
                                   children: [
-                                    Icon(Icons.bluetooth, color: Colors.white,),
-                                    Text("Update", style: TextStyle(color: Colors.white,),),
+                                    Text("⚙️ Update", style: TextStyle(color: Colors.white,),),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                        )
+                        ),
+                        if(AppConstants.pumpWifiDefault.contains(widget.ctx.modelId))
+                          ListTile(
+                            leading: const Icon(Icons.wifi, color: Colors.black,),
+                            title: const Text('Update WiFi Credential', style: TextStyle(color: Colors.black),),
+                            trailing: InkWell(
+                              onTap: () async {
+                                final bleService = BluetoothBleService();
+                                final blueService = BluetoothClassicService();
+
+                                // Ensure Bluetooth isn't already connected to a device
+                                // before starting the update flow.
+                                if (bleService.isConnected) {
+                                  final connectedBleDevice = bleService.connectedDevice;
+                                  if (connectedBleDevice != null) {
+                                    debugPrint('🔌 BLE device connected - disconnecting before update');
+                                    await bleService.disconnect(connectedBleDevice);
+                                  }
+                                }
+
+                                if (blueService.isConnected) {
+                                  debugPrint('🔌 Classic Bluetooth device connected - disconnecting before update');
+                                  await blueService.disconnect();
+                                }
+
+                                if (!context.mounted) return;
+
+                                final Map<String, dynamic> data = {
+                                  'controllerId': widget.ctx.controllerId,
+                                  'deviceId': widget.ctx.imeiNo,
+                                  'deviceName': widget.ctx.deviceName,
+                                  'categoryId': widget.ctx.categoryId,
+                                  'categoryName': widget.ctx.categoryName,
+                                  'modelId': widget.ctx.modelId,
+                                  'modelName': widget.ctx.deviceName,
+                                  'InterfaceType': 1,
+                                  'interface': 'GSM',
+                                  'relayOutput': 3,
+                                  'latchOutput': 0,
+                                  'analogInput': 8,
+                                  'digitalInput': 4,
+                                };
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => NodeConnectionPage(
+                                      nodeData: data,
+                                      masterData: {
+                                        "userId": loggedInUser.id,
+                                        "customerId": widget.customerId,
+                                        "controllerId": widget.ctx.controllerId,
+                                      },
+                                      connectMode: ConnectMode.pumpWifiDefault,
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: IntrinsicWidth(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(8),
+                                      color: Colors.black
+                                  ),
+                                  child: const Text("🌐 Update", style: TextStyle(color: Colors.white,),),
+                                ),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 60,)
+
                       ],
                     ),
                   ),
@@ -209,6 +326,7 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
         },
       ),
     );
+
   }
 
   Widget buildLoadingIndicator(bool isVisible, double width) {

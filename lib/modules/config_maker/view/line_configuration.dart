@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:oro_drip_irrigation/app.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/fertigation_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/pump_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
@@ -94,9 +95,10 @@ class _LineConfigurationState extends State<LineConfiguration> {
                                                 );
                                               }
                                           );
-                                        }, icon: const Icon(Icons.dataset)
+                                        },
+                                        icon: const Icon(Icons.dataset)
                                     ),
-                                    if(availability(AppConstants.sourceObjectId))
+                                    if(availability(AppConstants.sourceObjectId) && !AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId']))
                                       getLineParameter(
                                           line: selectedIrrigationLine,
                                           currentParameterValue: selectedIrrigationLine.waterSource,
@@ -104,13 +106,6 @@ class _LineConfigurationState extends State<LineConfiguration> {
                                           objectId: AppConstants.sourceObjectId,
                                           objectName: 'Source only for monitoring',
                                           listOfObject: widget.configPvd.listOfGeneratedObject.where((object){
-                                            // bool sourceThatOnlyForMonitoring = false;
-                                            // for(var src in widget.configPvd.source){
-                                            //   if(src.commonDetails.sNo == object.sNo && src.inletPump.isEmpty && src.outletPump.isEmpty && src.valves.isEmpty){
-                                            //     sourceThatOnlyForMonitoring = true;
-                                            //   }
-                                            // }
-                                            // return sourceThatOnlyForMonitoring;
                                             return object.objectId == AppConstants.sourceObjectId;
                                           }).toList(),
                                           validateAllLine: false

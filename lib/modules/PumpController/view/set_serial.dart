@@ -261,7 +261,8 @@ class _SetSerialScreenState extends State<SetSerialScreen> {
                               ),
                             ),
                             ListTile(
-                              tileColor: Theme.of(context).primaryColor,
+                              tileColor: Colors.white,
+                              // tileColor: Theme.of(context).primaryColor,
                               textColor: Colors.black,
                               title: const Text('Last feedback', style: TextStyle(fontSize: 10)),
                               subtitle: Text(

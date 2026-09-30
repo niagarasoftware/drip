@@ -90,6 +90,7 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
         'userId' : widget.userData['customerId'],
         'controllerId' : widget.userData['controllerId'],
       };
+      debugPrint("body getUserLogConfig: $body");
       var response = await IrrigationRepository().getUserLogConfig(body);
       var configResponse = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
@@ -109,7 +110,7 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
           print('serverData => $serverData');
         }
         setState(() {
-          irrigationLogParameterFromServer = serverData['default'];
+          irrigationLogParameterFromServer = mergeDefaultLogParameters(serverData['default']);
         });
         irrigationParameterArray.editParameter(irrigationLogParameterFromServer);
         irrigationParameterArrayDuplicate.editParameter(irrigationLogParameterFromServer);
@@ -275,7 +276,7 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                 ),
                                                 onPressed: ()async{
                                                   setState(() {
-                                                    selectedIrrigationParameterArray.editParameter(serverData['logConfig'][i]['irrigationLog']);
+                                                    selectedIrrigationParameterArray.editParameter(mergeDefaultLogParameters(serverData['logConfig'][i]['irrigationLog']));
                                                     setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.generalParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.generalParameterList);
                                                     setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.waterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.waterParameterList);
                                                     setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.prePostParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.prePostParameterList);
@@ -374,7 +375,7 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                               ),
                                               onPressed: ()async{
                                                 setState(() {
-                                                  selectedIrrigationParameterArray.editParameter(serverData['logConfig'][i]['irrigationLog']);
+                                                  selectedIrrigationParameterArray.editParameter(mergeDefaultLogParameters(serverData['logConfig'][i]['irrigationLog']));
                                                   setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.generalParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.generalParameterList);
                                                   setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.waterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.waterParameterList);
                                                   setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.prePostParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.prePostParameterList);

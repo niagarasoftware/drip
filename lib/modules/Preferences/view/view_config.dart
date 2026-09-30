@@ -150,9 +150,7 @@ class _ViewConfigState extends State<ViewConfig> {
 
   void updateViewPayloads(String pumpConfigValue) {
     int numberOfPumps = int.tryParse(pumpConfigValue) ?? 1;
-    print("numberOfPumps : $numberOfPumps");
     configs = generateDynamicConfigs(numberOfPumps);
-    print("configs => $configs");
     setState(() {});
   }
 
@@ -391,7 +389,7 @@ class _ViewConfigState extends State<ViewConfig> {
   }
 
   bool _hasPayload(String key, MqttPayloadProvider provider, String deviceId) {
-    print("key : $key");
+    print("key : ${key}");
     if (widget.isLora) {
       String mqttKey = key;
       if (key.startsWith('currentconfig')) mqttKey = 'currentconfig';
@@ -644,7 +642,7 @@ class _ViewConfigState extends State<ViewConfig> {
                       // [...AppConstants.voltageSetting, ...AppConstants.voltageCalibration, ...AppConstants.currentCalibration, ...AppConstants.otherCalibration].contains(setting.type) ? setting.setting.length : values.length,
                       range,
                           (i) {
-                        print("$i = ${setting.setting[i].title}    ${setting.setting.length}  ${setting.type}");
+                        print("${i} = ${setting.setting[i].title}    ${setting.setting.length}  ${setting.type}");
                             if(i < values.length && i < setting.setting.length){
                               return _buildListTile(setting.setting[i].title, values[i]);
                             }else{

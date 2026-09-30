@@ -78,14 +78,14 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
                   margin: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width * 0.05, vertical: MediaQuery.of(context).size.width * 0.025),
                   child: ListView(
                     children: [
-                      for(var index = 0; index < ((widget.isIrrigationProgram && !isEcoGem) ? 13 : 3); index++)
+                      for(var index = 0; index < ((widget.isIrrigationProgram && !isEcoGem) ? 14 : 3); index++)
                         Column(
                           children: [
                             buildListTile(
                               padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.width > 1200 ? 8 : 0),
                               context: context,
                               title: isEcoGem ? ['Program Name', 'Valve Off Delay', 'Scale factor'][index].toUpperCase()
-                                  : ['Program Name', 'Priority', 'Valve Off Delay', 'Scale factor', 'Cyclic OnTime', 'Cyclic OffTime', 'Enable Pressure', 'Pressure Value', 'Control Mode', 'Set Pressure', 'Pressure Tolerance', 'Set Flow', 'Flow Tolerance'][index].toUpperCase(),
+                                  : ['Program Name', 'Priority', 'Valve Off Delay', 'Scale factor', 'Cyclic OnTime', 'Cyclic OffTime', 'Enable Pressure', 'Pressure Value', 'Control Mode', 'Set Pressure', 'Pressure Tolerance', 'Set Flow', 'Flow Tolerance', 'Flow Scan Time'][index].toUpperCase(),
                               subTitle: isEcoGem ? [tempProgramName != '' ? tempProgramName : widget.serialNumber == 0
                                   ? "Program ${doneProvider.programCount}"
                                   : doneProvider.programDetails!.programName.isNotEmpty ? programName : doneProvider.programDetails!.defaultProgramName,
@@ -93,11 +93,11 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
                                   : [tempProgramName != '' ? tempProgramName : widget.serialNumber == 0
                                   ? "Program ${doneProvider.programCount}"
                                   : doneProvider.programDetails!.programName.isNotEmpty ? programName : doneProvider.programDetails!.defaultProgramName,
-                                'Prioritize the program to run', 'Set valve off delay', 'Adjust duration or flow', 'Set Cyclic On Time', 'Set Cyclic Off Time', 'Enable Pressure', 'Set Pressure Value', 'Choose control mode', 'Set Pressure Value', 'Set Pressure Tolerance', 'Set Flow Value', 'Set Flow Tolerance'][index],
+                                'Prioritize the program to run', 'Set valve off delay', 'Adjust duration or flow', 'Set Cyclic On Time', 'Set Cyclic Off Time', 'Enable Pressure', 'Set Pressure Value', 'Choose control mode', 'Set Pressure Value', 'Set Pressure Tolerance', 'Set Flow Value', 'Set Flow Tolerance', 'Set Scan Time'][index],
                               textColor: Colors.black,
                               icon: isEcoGem
                                   ? [Icons.drive_file_rename_outline_rounded, Icons.timer_outlined, Icons.safety_check][index]
-                                  : [Icons.drive_file_rename_outline_rounded, Icons.priority_high, Icons.timer_outlined, Icons.safety_check, Icons.timer, Icons.timer, Icons.check_box, Icons.speed, Icons.speed, Icons.speed, Icons.speed, Icons.speed, Icons.speed][index],
+                                  : [Icons.drive_file_rename_outline_rounded, Icons.priority_high, Icons.timer_outlined, Icons.safety_check, Icons.timer, Icons.timer, Icons.check_box, Icons.speed, Icons.speed, Icons.speed, Icons.speed, Icons.speed, Icons.speed, Icons.timelapse][index],
                               trailing: isEcoGem ? [
                                 InkWell(
                                   child: Icon(Icons.drive_file_rename_outline_rounded, color: Theme.of(context).primaryColor,),
@@ -450,6 +450,15 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
                                       Text("%", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: Theme.of(context).textTheme.bodyLarge!.fontSize),)
                                     ],
                                   ),
+                                ),
+                                CustomNativeTimePicker(
+                                  initialValue: Constants.showHourAndMinuteOnly(doneProvider.flowScanTime, widget.modelId),
+                                  is24HourMode: false,
+                                  style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold, fontSize: Theme.of(context).textTheme.bodyLarge!.fontSize),
+                                  onChanged: (newTime){
+                                    doneProvider.updateProgramName(newTime, 'flowScanTime');
+                                  },
+                                  modelId: widget.modelId,
                                 ),
                               ][index],
                             ),

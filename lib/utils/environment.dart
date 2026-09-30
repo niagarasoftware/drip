@@ -6,6 +6,7 @@ class Environment {
   static Map<String, Map<String, dynamic>> config = <String, Map<String, dynamic>>{
     'oroDevelopment' : {
       'apiUrl': 'http://192.168.1.85:5000/api/v1',
+      'userManualBaseUrl': 'http://192.168.1.85:5000',
       'apiKey': 'dev-api-key',
       'mqttWebUrl': 'ws://192.168.68.141',
       'mqttMobileUrl': '192.168.68.141',
@@ -18,14 +19,15 @@ class Environment {
     },
     'smartComm' : {
       'apiUrl': 'https://smartcomm-wms.com:5000/api/v1',
+      'userManualBaseUrl': 'https://smartcomm-wms.com:5000',
       'apiKey': 'prod-api-key',
-      // 'mqttWebUrl': 'wss://smartcomm-wms.com:9443/mqtt',
-      'mqttWebUrl': 'ws://52.172.214.208:9001/mqtt',
+      'mqttWebUrl': 'wss://smartcomm-wms.com:9443/mqtt',
+      // 'mqttWebUrl': 'ws://52.172.214.208:9001/mqtt',
       'mqttMobileUrl': '52.172.214.208',
       'publishTopic': 'AppToFirmware',
       'subscribeTopic': 'FirmwareToApp',
-      // 'mqttWebPort': 9443,
-      'mqttWebPort': 9001,
+      'mqttWebPort': 9443,
+      // 'mqttWebPort': 9001,
       'mqttMobilePort': 1883,
       'sftpIpAddress': '54.179.114.89',
       'sftpPort': 22,
@@ -35,6 +37,7 @@ class Environment {
     },
     'oroProduction': {
       'apiUrl': 'http://13.203.84.47:5000/api/v1',
+      'userManualBaseUrl': 'http://13.203.84.47:5000',
       'apiKey': 'prod-api-key',
       'mqttWebUrl': 'ws://13.235.254.21/mqtt',
       //'mqttWebUrl': 'wss://irrigationcare.niagaraautomation.com/mqtt',
@@ -52,6 +55,7 @@ class Environment {
     },
     'agritel': {
       'apiUrl': 'http://13.235.254.21:8000/api/v1',
+      'userManualBaseUrl': 'http://13.235.254.21:8000',
       'apiKey': 'dev-api-key',
       'mqttWebUrl': 'ws://13.235.254.21/mqtt',
       'mqttMobileUrl': '13.235.254.21',
@@ -69,6 +73,7 @@ class Environment {
 
   static String get apiUrl => config[F.name]?['apiUrl'] ?? '';
   static String get apiKey => config[currentEnvironment]?['apiKey'] ?? '';
+  static String get userManualBaseUrl => config[F.name]?['userManualBaseUrl'] ?? '';
 
   static String get mqttWebUrl => config[F.name]?['mqttWebUrl'] ?? '';
   static String get mqttMobileUrl => config[F.name]?['mqttMobileUrl'] ?? '';

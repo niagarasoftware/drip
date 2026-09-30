@@ -80,6 +80,9 @@ class RelayStatusAvatar extends StatelessWidget {
     }else if (objType == "3") {
       return 'Ai-$no';
     }else if (objType == "4") {
+      if(no=='5' && sNo.toString().startsWith('23.')){
+        return 'Di-6';
+      }
       return 'Di-$no';
     }else if (objType == "5") {
       return 'Mi-$no';

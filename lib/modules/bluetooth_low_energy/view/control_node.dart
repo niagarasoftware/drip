@@ -341,6 +341,31 @@ class _ControlNodeState extends State<ControlNode> {
               commonParameterWidget(title: 'Mfr Date', value: bleService.nodeDataFromHw['MFD']),
             if(bleService.nodeDataFromHw.containsKey('REP'))
               commonParameterWidget(title: 'Repeater', value: bleService.nodeDataFromHw['REP'] == '1' ? 'ON' : 'OFF'),
+            if(bleService.nodeDataFromHw.containsKey('SOL'))
+              commonParameterWidget(title: 'Solar', value: bleService.nodeDataFromHw['SOL']),
+            if(bleService.nodeDataFromHw.containsKey('STM'))
+              commonParameterWidget(title: 'Soil Temp.', value: bleService.nodeDataFromHw['STM']),
+            if(bleService.nodeDataFromHw.containsKey('CO2'))
+              commonParameterWidget(title: 'CO2', value: bleService.nodeDataFromHw['CO2']),
+            if(bleService.nodeDataFromHw.containsKey('HUM'))
+              commonParameterWidget(title: 'Humidity', value: bleService.nodeDataFromHw['HUM']),
+            if(bleService.nodeDataFromHw.containsKey('TEM'))
+              commonParameterWidget(title: 'Temperature', value: bleService.nodeDataFromHw['TEM']),
+            if(bleService.nodeDataFromHw.containsKey('LDR'))
+              commonParameterWidget(title: 'LDR', value: bleService.nodeDataFromHw['LDR']),
+            if(bleService.nodeDataFromHw.containsKey('LUX'))
+              commonParameterWidget(title: 'LUX', value: bleService.nodeDataFromHw['LUX']),
+            if(bleService.nodeDataFromHw.containsKey('WDR'))
+              commonParameterWidget(title: 'Wind Direction', value: bleService.nodeDataFromHw['WDR']),
+            if(bleService.nodeDataFromHw.containsKey('WSD'))
+              commonParameterWidget(title: 'Wind Speed', value: bleService.nodeDataFromHw['WSD']),
+            if(bleService.nodeDataFromHw.containsKey('RFL'))
+              commonParameterWidget(title: 'Rain Fall', value: bleService.nodeDataFromHw['RFL']),
+            if(bleService.nodeDataFromHw.containsKey('LFW'))
+              commonParameterWidget(title: 'Leaf Wetness', value: bleService.nodeDataFromHw['LFW']),
+            if(bleService.nodeDataFromHw.containsKey('MOS'))
+              for(var ms = 0;ms < bleService.nodeDataFromHw['MOS'].split(',').length;ms++)
+                commonParameterWidget(title: 'Moisture ${ms + 1}', value: bleService.nodeDataFromHw['MOS'].split(',')[ms]),
             commonParameterWidget(title: 'Interface', value: bleService.nodeDataFromServer['interface']),
           ],
         )
@@ -349,7 +374,6 @@ class _ControlNodeState extends State<ControlNode> {
   }
 
   Widget analogDetailsWidget(){
-    print("bleService.nodeDataFromServer : ${bleService.nodeDataFromServer}");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

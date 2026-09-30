@@ -9,6 +9,7 @@ import 'package:linked_scroll_controller/linked_scroll_controller.dart';
 import 'package:loading_indicator/loading_indicator.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
 import 'package:oro_drip_irrigation/Widgets/custom_buttons.dart';
+import 'package:oro_drip_irrigation/modules/irrigation_report/view/reason_lookup.dart';
 import 'package:oro_drip_irrigation/modules/irrigation_report/view/scrollingTable.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
@@ -20,6 +21,7 @@ import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dar
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
 import '../repository/irrigation_repository.dart';
+import 'package:oro_drip_irrigation/Screens/Logs/sensor_graph_log.dart';
 
 class LogHome extends StatefulWidget {
   final dynamic serverData;
@@ -62,7 +64,8 @@ class _LogHomeState extends State<LogHome> {
   List<dynamic> status = [];
   List<dynamic> statusDuplicate = [];
   List<dynamic> parameters = [
-    'Date','Status','ProgramS_No','ProgramCategory','ScheduledStartTime',
+    'Date','Status','ProgramS_No','ProgramCategory','ZoneS_No','ZoneName','ScheduledStartTime',
+    'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
     'CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
@@ -75,14 +78,17 @@ class _LogHomeState extends State<LogHome> {
     'general' : {
       'ProgramName' : ['Program',true,1],
       'Status' : ['Status',true,1],
-      'SequenceData' : ['Valve',true,1],
+      'ZoneS_No' : ['Sequence',true,1],
+      'SequenceData' : ['Valves',true,1],
       // 'ZoneName' : ['Sequence',true,1],
       'Date' : ['Date',true,1],
       'ProgramCategoryName' : ['Line',true,1],
-      'ScheduledStartTime' : ['Start Time',true,1],
+      'ActualStartTime' : ['Actual Start Time',true,1],
+      'ActualEndTime' : ['Actual End Time',true,1],
+      'ActualStartReason' : ['Actual Start Reason',true,1],
+      'ActualStopReason' : ['Actual Stop Reason',true,1],
       'Pump' : ['Pump',true,1],
-      'ProgramStartStopReason' : ['Start Stop Reason',true,1],
-      'ProgramPauseResumeReason' : ['Pause Resume Reason',true,1],
+      'ScheduledStartTime' : ['Start Time',false,1],
       'overAll' : ['over all',true,1],
     },
     'irrigation' : {
@@ -191,7 +197,7 @@ class _LogHomeState extends State<LogHome> {
         dateDuplicate = [];
         status = [];
         statusDuplicate = [];
-        IrrigationLogParameterFromServer = widget.serverData['irrigationLog'];
+        IrrigationLogParameterFromServer = mergeDefaultLogParameters(widget.serverData['irrigationLog']);
         for(var globalParameter in IrrigationLogParameterFromServer.keys){
           for(var localParameter in IrrigationLogParameterFromServer[globalParameter].keys){
             var data = IrrigationLogParameterFromServer[globalParameter][localParameter];
@@ -857,7 +863,32 @@ class _LogHomeState extends State<LogHome> {
                               localChannel8Column: dataToShow['localChannel8Column'],
                               localChannel8ColumnData: filterDataByPages(data: dataToShow['localChannel8ColumnData']),
                               graphData: dataToShow['graphData'],
+                              onSequenceClicked: (sequenceName) {
+                                DateTime date1 = DateTime.now();
+                                DateTime date2 = DateTime.now();
+                                try {
+                                  String dateString1 = _selectedDate.split(' - ')[0];
+                                  String dateString2 = _selectedDate.split(' - ')[1];
+                                  List<String> parts1 = dateString1.split('/');
+                                  List<String> parts2 = dateString2.split('/');
+                                  date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+                                  date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+                                } catch (e) {
+                                  // Fallback to now if parse fails
+                                }
 
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SensorGraphLog(
+                                      userId: widget.userData['customerId'],
+                                      controllerId: widget.userData['controllerId'],
+                                      fromDate: date1,
+                                      toDate: date2,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                         ],
                       ),

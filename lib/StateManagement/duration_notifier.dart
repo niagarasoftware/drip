@@ -27,6 +27,55 @@ class DecreaseDurationNotifier extends ChangeNotifier {
   String get onDelayLeft => _formatTime(_duration);
 
   void _startTimer() {
+    _timer = Timer.periodic(
+      const Duration(seconds: 1),
+          (timer) {
+        if (_duration.inSeconds > 0) {
+          _duration -= const Duration(seconds: 1);
+          notifyListeners();
+        } else {
+          _timer.cancel();
+          notifyListeners();
+        }
+      },
+    );
+  }
+
+  Duration _parseTime(String time) {
+    final parts = time.split(':');
+
+    return Duration(
+      hours: int.parse(parts[0]),
+      minutes: int.parse(parts[1]),
+      seconds: int.parse(parts[2]),
+    );
+  }
+
+  String _formatTime(Duration duration) {
+    return "${duration.inHours.toString().padLeft(2, '0')}:"
+        "${(duration.inMinutes % 60).toString().padLeft(2, '0')}:"
+        "${(duration.inSeconds % 60).toString().padLeft(2, '0')}";
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+}
+
+/*class DecreaseDurationNotifier extends ChangeNotifier {
+  late Duration _duration;
+  late Timer _timer;
+
+  DecreaseDurationNotifier(String timeLeft) {
+    _duration = _parseTime(timeLeft);
+    _startTimer();
+  }
+
+  String get onDelayLeft => _formatTime(_duration);
+
+  void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_duration.inSeconds > 0) {
         _duration -= const Duration(seconds: 1);
@@ -58,7 +107,7 @@ class DecreaseDurationNotifier extends ChangeNotifier {
     _timer.cancel();
     super.dispose();
   }
-}
+}*/
 
 class IncreaseDurationNotifier extends ChangeNotifier {
   late Duration _duration;

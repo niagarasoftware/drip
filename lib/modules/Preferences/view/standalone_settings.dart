@@ -65,14 +65,17 @@ class _StandAloneSettingsState extends State<StandAloneSettings> {
             padding: const EdgeInsets.all(10),
             child: Column(
               children: [
-                if (widget.selectedIndex == 2) ...[
-                  CustomSegmentedControl(
-                    segmentTitles: const {0: "Valve settings", 1: "Moisture settings"},
-                    groupValue: _selectedSetting,
-                    onChanged: (value) => setState(() => _selectedSetting = value!),
-                  ),
-                  const SizedBox(height: 10),
-                ],
+                // if (widget.selectedIndex == 2) ...[
+                //   CustomSegmentedControl(
+                //     segmentTitles: const {
+                //       0: "Valve settings",
+                //       1: "Moisture settings"
+                //     },
+                //     groupValue: _selectedSetting,
+                //     onChanged: (value) => setState(() => _selectedSetting = value!),
+                //   ),
+                //   const SizedBox(height: 10),
+                // ],
                 Expanded(
                   child: _selectedSetting == 0
                       ? _buildValveSettings(context, valves, provider)

@@ -59,28 +59,14 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
   late List<String> labels;
   late List<IconData> icons;
   late MqttPayloadProvider mqttPayloadProvider;
+  bool _isDialogShowing = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     final irrigationProvider = Provider.of<IrrigationProgramMainProvider>(context, listen: false);
-    print(
-      {
-        'userId': widget.userId,
-        'customerId': widget.customerId,
-        'groupId': widget.groupId,
-        'categoryId': widget.categoryId,
-        'controllerId': widget.controllerId,
-        'deviceId': widget.deviceId,
-        'serialNumber': widget.serialNumber,
-        'programType': widget.programType,
-        'fromDealer': widget.fromDealer,
-        'toDashboard': widget.toDashboard,
-        'modelId': widget.modelId,
-        'deviceName': widget.deviceName,
-        'categoryName': widget.categoryName,
-      }
-    );
+    
     mqttPayloadProvider = Provider.of<MqttPayloadProvider>(context, listen: false);
 
     final result = irrigationProvider.getLabelAndIcon(
@@ -91,33 +77,122 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
     labels = result.labels;
     icons = result.icons;
 
+    _tabController = TabController(length: labels.length, vsync: this);
+    _tabController.addListener(() {
+      irrigationProvider.updateTabIndex(_tabController.index);
+    });
+
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        irrigationProvider.updateTabIndex(0);
-        irrigationProvider.doneData(widget.customerId, widget.controllerId, widget.serialNumber);
-        irrigationProvider.getUserProgramSequence(
-          userId: widget.customerId,
-          controllerId: widget.controllerId,
-          serialNumber: widget.serialNumber,
-          groupId: widget.groupId,
-          categoryId: widget.categoryId,
-          modelId: widget.modelId,
-        );
-        irrigationProvider.scheduleData(widget.customerId, widget.controllerId, widget.serialNumber);
-        irrigationProvider.getUserProgramCondition(widget.customerId, widget.controllerId, widget.serialNumber);
+        _fetchData();
+      });
+    }
+  }
+
+  void _showLoadingDialog() {
+    if (_isDialogShowing) return;
+    _isDialogShowing = true;
+    showAdaptiveDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text("Loading program data...", style: TextStyle(fontWeight: FontWeight.w500)),
+              SizedBox(height: 8),
+              Text("Please wait while we sync your settings", style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _hideLoadingDialog() {
+    if (_isDialogShowing) {
+      Navigator.of(context, rootNavigator: true).pop();
+      _isDialogShowing = false;
+    }
+  }
+
+  Future<void> _fetchData() async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    _showLoadingDialog();
+
+    try {
+      final irrigationProvider = Provider.of<IrrigationProgramMainProvider>(context, listen: false);
+      irrigationProvider.updateTabIndex(0);
+
+      // Fetch sequence data first as other data might depend on it
+      await irrigationProvider.getUserProgramSequence(
+        userId: widget.customerId,
+        controllerId: widget.controllerId,
+        serialNumber: widget.serialNumber,
+        groupId: widget.groupId,
+        categoryId: widget.categoryId,
+        modelId: widget.modelId,
+      );
+
+      // Fetch other data in parallel
+      await Future.wait([
+        irrigationProvider.doneData(widget.customerId, widget.controllerId, widget.serialNumber),
+        irrigationProvider.scheduleData(widget.customerId, widget.controllerId, widget.serialNumber),
+        irrigationProvider.getUserProgramCondition(widget.customerId, widget.controllerId, widget.serialNumber),
         irrigationProvider.getWaterAndFertData(
           userId: widget.customerId,
           controllerId: widget.controllerId,
           serialNumber: widget.serialNumber,
-        );
-        irrigationProvider.getUserProgramSelection(widget.customerId, widget.controllerId, widget.serialNumber);
-        irrigationProvider.getUserProgramAlarm(widget.customerId, widget.controllerId, widget.serialNumber);
-      });
-      _tabController = TabController(length: labels.length, vsync: this);
-      _tabController.addListener(() {
-        irrigationProvider.updateTabIndex(_tabController.index);
-      });
+        ),
+        irrigationProvider.getUserProgramSelection(widget.customerId, widget.controllerId, widget.serialNumber),
+        irrigationProvider.getUserProgramAlarm(widget.customerId, widget.controllerId, widget.serialNumber),
+      ]);
+
+      if (mounted) {
+        _hideLoadingDialog();
+      }
+    } catch (e) {
+      if (mounted) {
+        _hideLoadingDialog();
+        setState(() {
+          _errorMessage = "Failed to load irrigation program data.";
+        });
+        _showErrorDialog();
+      }
     }
+  }
+
+  void _showErrorDialog() {
+    showAdaptiveDialog(
+      context: context,
+      builder: (context) => CustomAlertDialog(
+        title: "Error",
+        content: "Some data failed to load. Would you like to try again or go back?",
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _fetchData();
+            },
+            child: const Text("Try Again"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text("Go Back", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -315,6 +390,41 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
     final mainProvider = Provider.of<IrrigationProgramMainProvider>(context);
     mqttPayloadProvider = Provider.of<MqttPayloadProvider>(context, listen: true);
 
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Error"),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: _fetchData,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Try Again"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     if (mainProvider.irrigationLine != null && mainProvider.programDetails != null) {
       final isIrrigationProgram = (mainProvider.programDetails!.programType == "Irrigation Program") ||
           (mainProvider.selectedProgramType == "Irrigation Program");
@@ -473,7 +583,20 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
         },
       );
     } else {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      final title = widget.serialNumber == 0 ? "New Program" : "Program ${widget.serialNumber}";
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(title),
+          centerTitle: true,
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+          ),
+        ),
+        body: Container(
+          color: Colors.grey[50],
+        ),
+      );
     }
   }
 

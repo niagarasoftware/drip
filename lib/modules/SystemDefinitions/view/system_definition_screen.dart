@@ -561,8 +561,8 @@ class _SystemDefinitionState extends State<SystemDefinition> {
               );
               await Future.delayed(const Duration(seconds: 1), () async {
                 final createUserPlanningSystemDefinition = await repository.createUserPlanningSystemDefinition(userData);
-                // print(userData['systemDefinition']);
-                final response = jsonDecode(createUserPlanningSystemDefinition.body);
+                 final response = jsonDecode(createUserPlanningSystemDefinition.body);
+                print('response:$response');
                 if(createUserPlanningSystemDefinition.statusCode == 200) {
                   ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: response['message']));
                 }

@@ -66,7 +66,7 @@ class EnergySaveSettings {
 
   factory EnergySaveSettings.fromJson(Map<String, dynamic> json) {
     return EnergySaveSettings(
-      status: json['Status'],
+      status: json['status'] ?? false,
       startDayTime: json['startDayTime'],
       stopDayTime: json['stopDayTime'],
       pauseMainLine: json['pauseMainLine'],
@@ -83,7 +83,7 @@ class EnergySaveSettings {
 
   Map<String, dynamic> toJson() {
     return {
-      'Status': status,
+      'status': status,
       'startDayTime': startDayTime,
       'stopDayTime': stopDayTime,
       'pauseMainLine': pauseMainLine,

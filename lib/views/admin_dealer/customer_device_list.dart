@@ -164,7 +164,12 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
     }
 
     String searchText = "";
-    List<StockModel> filteredList = List.from(widget.productStockList);
+    // Keep each item paired with its ORIGINAL index so filtering never has
+    // to guess a position back via indexOf (which breaks whenever two items
+    // are equal by value, e.g. duplicate categoryName/imeiNo).
+    final List<MapEntry<int, StockModel>> indexedList =
+    widget.productStockList.asMap().entries.toList();
+    List<MapEntry<int, StockModel>> filteredList = List.from(indexedList);
 
     return [
       PopupMenuItem(
@@ -172,11 +177,11 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
         child: StatefulBuilder(
           builder: (context, setState) {
             return SizedBox(
-              width: 200,
+              width: 220,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if(widget.productStockList.length > 15)...[
+                  if(widget.productStockList.length > 8)...[
                     TextField(
                       decoration: const InputDecoration(
                         prefixIcon: Icon(Icons.search),
@@ -187,7 +192,8 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
                       onChanged: (value) {
                         setState(() {
                           searchText = value.toLowerCase();
-                          filteredList = widget.productStockList.where((item) {
+                          filteredList = indexedList.where((entry) {
+                            final item = entry.value;
                             return item.categoryName.toLowerCase().contains(searchText) ||
                                 item.imeiNo.toLowerCase().contains(searchText);
                           }).toList();
@@ -199,11 +205,14 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
 
                   SizedBox(
                     height: 350,
-                    child: ListView.builder(
+                    child: filteredList.isEmpty
+                        ? const Center(child: Text('No matching products'))
+                        : ListView.builder(
                       itemCount: filteredList.length,
                       itemBuilder: (context, index) {
-                        final item = filteredList[index];
-                        final originalIndex = widget.productStockList.indexOf(item);
+                        final entry = filteredList[index];
+                        final originalIndex = entry.key;
+                        final item = entry.value;
 
                         return CheckboxListTile(
                           title: Text(item.categoryName),
@@ -250,114 +259,119 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
     ];
   }
 
-  /*List<PopupMenuEntry> _buildProductListPopup(BuildContext context) {
-
-    if (widget.productStockList.isEmpty) {
-      return [const PopupMenuItem(child: Text('No stock available'))];
-    }
-
-    return List.generate(widget.productStockList.length + 1, (index) {
-      if (index == widget.productStockList.length) {
-        return PopupMenuItem(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              MaterialButton(
-                color: Colors.red,
-                textColor: Colors.white,
-                child: const Text('CANCEL'),
-                onPressed: () => Navigator.pop(context),
-              ),
-              MaterialButton(
-                color: Colors.green,
-                textColor: Colors.white,
-                child: const Text('ADD'),
-                onPressed: () => viewModel.addProductToCustomer(context, widget.productStockList),
-              ),
-            ],
-          ),
-        );
-      }
-
-      return PopupMenuItem(
-        child: StatefulBuilder(
-          builder: (context, setState) {
-            return CheckboxListTile(
-              title: Text(widget.productStockList[index].categoryName),
-              subtitle: Text(widget.productStockList[index].imeiNo),
-              value: viewModel.selectedProducts[index],
-              onChanged: (value) {
-                setState(() {
-                  viewModel.toggleProductSelection(index);
-                });
-              },
-            );
-          },
-        ),
-      );
-    });
-  }*/
-
-
-
   List<PopupMenuEntry> _buildMasterSitePopup(BuildContext context) {
     if (viewModel.myMasterControllerList.isEmpty) {
       return [const PopupMenuItem(child: Text('No master available to create site'))];
     }
 
-    return List.generate(viewModel.myMasterControllerList.length + 1, (index) {
-      if (index == viewModel.myMasterControllerList.length) {
-        return PopupMenuItem(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              MaterialButton(
-                color: Colors.red,
-                textColor: Colors.white,
-                child: const Text('CANCEL'),
-                onPressed: () => Navigator.pop(context),
-              ),
-              MaterialButton(
-                color: Colors.green,
-                textColor: Colors.white,
-                child: const Text('CREATE'),
-                onPressed: () {
-                  Navigator.pop(context);
-                  final selected = viewModel.myMasterControllerList[viewModel.selectedRadioTile];
-                  viewModel.displayCustomerSiteDialog(
-                    context,
-                    selected.categoryName,
-                    selected.model,
-                    selected.imeiNo.toString(),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      }
+    String searchText = "";
+    // Pair each master controller with its ORIGINAL index up front so the
+    // filtered list never needs indexOf to find its way back (indexOf breaks
+    // if two entries are equal by value).
+    final List<MapEntry<int, dynamic>> indexedList =
+    viewModel.myMasterControllerList.asMap().entries.toList();
+    List<MapEntry<int, dynamic>> filteredList = List.from(indexedList);
 
-      final master = viewModel.myMasterControllerList[index];
+    return [
+      PopupMenuItem(
+        enabled: false,
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return SizedBox(
+              width: 220,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (viewModel.myMasterControllerList.length > 8) ...[
+                    TextField(
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search master...',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          searchText = value.toLowerCase();
+                          filteredList = indexedList.where((entry) {
+                            final item = entry.value;
+                            return item.categoryName.toLowerCase().contains(searchText) ||
+                                item.imeiNo.toLowerCase().contains(searchText);
+                          }).toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
 
-      return PopupMenuItem(
-        value: index,
-        child: AnimatedBuilder(
-          animation: viewModel.selectedItem,
-          builder: (context, child) {
-            return RadioListTile(
-              value: MasterController.values[index],
-              groupValue: viewModel.selectedItem.value,
-              title: Text(master.categoryName),
-              subtitle: Text(master.imeiNo),
-              onChanged: (value) {
-                viewModel.selectedItem.value = value!;
-                viewModel.selectedRadioTile = value.index;
-              },
+                  SizedBox(
+                    height: 300,
+                    child: filteredList.isEmpty
+                        ? const Center(child: Text('No matching master'))
+                        : AnimatedBuilder(
+                      animation: viewModel.selectedItem,
+                      builder: (context, _) {
+                        return ListView.builder(
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final entry = filteredList[index];
+                            final originalIndex = entry.key;
+                            final master = entry.value;
+
+                            return RadioListTile(
+                              value: MasterController.values[originalIndex],
+                              groupValue: viewModel.selectedItem.value,
+                              title: Text(master.categoryName),
+                              subtitle: Text(master.imeiNo),
+                              onChanged: (value) {
+                                setState(() {
+                                  viewModel.selectedItem.value = value!;
+                                  viewModel.selectedRadioTile = value.index;
+                                });
+                              },
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      MaterialButton(
+                        color: Colors.red,
+                        textColor: Colors.white,
+                        child: const Text('CANCEL'),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      MaterialButton(
+                        color: Colors.green,
+                        textColor: Colors.white,
+                        child: const Text('CREATE'),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          final selected =
+                          viewModel.myMasterControllerList[viewModel.selectedRadioTile];
+                          viewModel.displayCustomerSiteDialog(
+                            context,
+                            selected.categoryName,
+                            selected.model,
+                            selected.imeiNo.toString(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             );
           },
         ),
-      );
-    });
+      ),
+    ];
   }
 }
 
@@ -553,43 +567,98 @@ class AddMasterPopup extends StatelessWidget {
           return [const PopupMenuItem(child: Text('No master controller available'))];
         }
 
-        return List.generate(viewModel.myMasterControllerList.length, (index) {
-          final controller = viewModel.myMasterControllerList[index];
-          return PopupMenuItem(
-            value: index,
-            child: Column(
-              children: [
-                RadioListTile<int>(
-                  value: index,
-                  groupValue: viewModel.selectedRadioTile,
-                  title: Text(controller.categoryName),
-                  subtitle: Text(controller.imeiNo),
-                  onChanged: (value) {
-                    viewModel.selectedRadioTile = value!;
-                  },
-                ),
-                if (index == viewModel.myMasterControllerList.length - 1)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+        String searchText = "";
+        // Same fix as the other popups: keep original indices attached
+        // instead of looking them up with indexOf after filtering.
+        final List<MapEntry<int, dynamic>> indexedList =
+        viewModel.myMasterControllerList.asMap().entries.toList();
+        List<MapEntry<int, dynamic>> filteredList = List.from(indexedList);
+
+        return [
+          PopupMenuItem(
+            enabled: false,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return SizedBox(
+                  width: 220,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      MaterialButton(
-                        color: Colors.red,
-                        textColor: Colors.white,
-                        child: const Text('CANCEL'),
-                        onPressed: () => Navigator.pop(context),
+                      if (viewModel.myMasterControllerList.length > 8) ...[
+                        TextField(
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.search),
+                            hintText: 'Search master...',
+                            isDense: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              searchText = value.toLowerCase();
+                              filteredList = indexedList.where((entry) {
+                                final item = entry.value;
+                                return item.categoryName.toLowerCase().contains(searchText) ||
+                                    item.imeiNo.toLowerCase().contains(searchText);
+                              }).toList();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+
+                      SizedBox(
+                        height: 300,
+                        child: filteredList.isEmpty
+                            ? const Center(child: Text('No matching master controller'))
+                            : ListView.builder(
+                          itemCount: filteredList.length,
+                          itemBuilder: (context, index) {
+                            final entry = filteredList[index];
+                            final originalIndex = entry.key;
+                            final controller = entry.value;
+
+                            return RadioListTile<int>(
+                              value: originalIndex,
+                              groupValue: viewModel.selectedRadioTile,
+                              title: Text(controller.categoryName),
+                              subtitle: Text(controller.imeiNo),
+                              onChanged: (value) {
+                                setState(() {
+                                  viewModel.selectedRadioTile = value!;
+                                });
+                              },
+                            );
+                          },
+                        ),
                       ),
-                      MaterialButton(
-                        color: Colors.teal,
-                        textColor: Colors.white,
-                        child: const Text('ADD'),
-                        onPressed: () => viewModel.createNewMaster(context, viewModel.selectedRadioTile),
+
+                      const SizedBox(height: 5),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          MaterialButton(
+                            color: Colors.red,
+                            textColor: Colors.white,
+                            child: const Text('CANCEL'),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                          MaterialButton(
+                            color: Colors.teal,
+                            textColor: Colors.white,
+                            child: const Text('ADD'),
+                            onPressed: () =>
+                                viewModel.createNewMaster(context, viewModel.selectedRadioTile),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-              ],
+                );
+              },
             ),
-          );
-        });
+          ),
+        ];
       },
     );
   }

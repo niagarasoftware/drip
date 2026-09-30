@@ -4,12 +4,14 @@ class BadgeButton extends StatelessWidget {
   final VoidCallback onPressed;
   final IconData icon;
   final int badgeNumber;
+  final bool isOMS;
 
   const BadgeButton({
     super.key,
     required this.onPressed,
     required this.icon,
     required this.badgeNumber,
+    required this.isOMS,
   });
 
   @override
@@ -19,8 +21,8 @@ class BadgeButton extends StatelessWidget {
         IconButton(
           tooltip: 'Alarm',
           onPressed: onPressed,
-          icon: Icon(icon, color: Colors.white,),
-          hoverColor: Theme.of(context).primaryColorLight,
+          icon: Icon(icon, color: isOMS ? Colors.black : Colors.white,),
+          hoverColor: isOMS ? Colors.black12: Theme.of(context).primaryColorLight,
         ),
         if (badgeNumber > 0)
           Positioned(

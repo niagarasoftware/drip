@@ -78,7 +78,6 @@ FutureOr<void> main() async {
   // CRITICAL: Initialize binding FIRST, before any other setup
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Set up error handling AFTER binding initialization
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.dumpErrorToConsole(details);
   };

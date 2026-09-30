@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/model/valve_configuration.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/product_limit.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
 import 'package:oro_drip_irrigation/Widgets/sized_image.dart';
@@ -14,6 +15,7 @@ import '../../../Widgets/status_box.dart';
 import '../../../flavors.dart';
 import '../../Preferences/view/preference_main_screen.dart';
 import '../../constant/view/constant_base_page.dart';
+import '../model/channel_config_model.dart';
 import '../model/device_model.dart';
 import '../model/ec_model.dart';
 import '../model/fertigation_model.dart';
@@ -21,6 +23,7 @@ import '../model/filtration_model.dart';
 import '../model/irrigation_line_model.dart';
 import '../model/moisture_model.dart';
 import '../model/ph_model.dart';
+import '../model/pressure_model.dart';
 import '../model/pump_model.dart';
 import '../model/source_model.dart';
 import '../repository/config_maker_repository.dart';
@@ -29,6 +32,7 @@ import '../../../Widgets/custom_buttons.dart';
 import '../../../Widgets/custom_side_tab.dart';
 import '../../../Widgets/title_with_back_button.dart';
 import '../../../utils/constants.dart';
+import '../../../Constants/dialog_boxes.dart';
 import 'config_base_page.dart';
 import 'config_mobile_view.dart';
 import 'connection.dart';
@@ -189,7 +193,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       canPop: false,
       onPopInvokedWithResult: _onPopInvokedWithResult,
       child: Scaffold(
-        backgroundColor: themeData.primaryColorDark.withValues(alpha: themeMode ? 1.0 : 0.2),
+        backgroundColor: themeData.primaryColorDark.withOpacity(themeMode ? 1.0 : 0.2),
         floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
         floatingActionButton: Row(
           spacing: 20,
@@ -496,7 +500,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                                           onPressed: (){
                                             Navigator.of(context).pop();
                                           },
-                                          child: const Text('Cancel')
+                                          child: Text('Cancel')
                                       ),
                                       CustomMaterialButton(
                                         onPressed: () {
@@ -508,7 +512,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                                             Navigator.of(context).pop();
                                           }
                                         },
-                                        child: const Text('Ok', style: TextStyle(color: Colors.white),),
+                                        child: Text('Ok', style: TextStyle(color: Colors.white),),
                                       ),
                                     ],
                                   );
@@ -533,7 +537,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                             spacing: 10,
                             children: [
                               CircleAvatar(
-                                backgroundColor: clearOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withValues(alpha: 0.5),
+                                backgroundColor: clearOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withOpacity(0.5),
                                 radius: 20,
                                 child: SizedImageSmall(imagePath: '${AppConstants.svgObjectPath}clear.svg',color:  Colors.white,),
                               ),
@@ -548,6 +552,15 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                             });
                           },
                           onTap: (){
+                            String? validationError = configPvd.validateGemConfiguration();
+                            if (validationError != null) {
+                              simpleDialogBox(
+                                context: context,
+                                title: 'Alert',
+                                message: validationError,
+                              );
+                              return;
+                            }
                             setState(() {
                               payloadSendState = PayloadSendState.idle;
                             });
@@ -558,7 +571,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                             spacing: 10,
                             children: [
                               CircleAvatar(
-                                backgroundColor: sendOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withValues(alpha: 0.5),
+                                backgroundColor: sendOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withOpacity(0.5),
                                 radius: 20,
                                 child: SizedImageSmall(imagePath: '${AppConstants.svgObjectPath}send.svg',color:  Colors.white,),
                               ),
@@ -621,6 +634,9 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   }
 
   void sendToMqtt(){
+    String? validationError = configPvd.validateGemConfiguration();
+    if (validationError != null) return;
+    configPvd.updateObjectDetails();
     setState(() {
       listOfPayload.clear();
       listOfPayload.addAll(configPvd.getOroPumpPayload());
@@ -645,6 +661,10 @@ class _ConfigWebViewState extends State<ConfigWebView> {
             '106' : configPvd.getFertilizerInjectorPayload(),
           if(gem && !omsGem)
             '107' : configPvd.getIrrigationLinePayload(),
+          if(gem && !omsGem && configPvd.valveConfig.any((valve) => !valve.valveModelParameterIsEmpty()))
+            '108' : configPvd.getValveConfigPayload(),
+          if(gem && !omsGem && configPvd.moisture.any((moisture) => !moisture.isMoistureModelParameterIsEmpty()))
+            '109' : configPvd.getMoisturePayload(),
         }
       };
       setState(() {
@@ -661,8 +681,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         });
       });
     }
-    // MqttManager().topicToPublishAndItsMessage('${Environment.mqttWebPublishTopic}/${configPvd.masterData['deviceId']}', jsonEncode(configMakerPayload));
-    print("listOfPayload ==> $listOfPayload");
+    debugPrint("listOfPayload ==> $listOfPayload");
     payloadAlertBox();
   }
 
@@ -720,7 +739,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                       CustomMaterialButton(
                         onPressed: ()async{
                           payloadLoop : for(var payload in listOfPayload){
-                            print("payload : $payload");
+                            print("payload : ${payload}");
                             if(!payload['selected']){
                               continue payloadLoop;
                             }
@@ -802,7 +821,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   }
 
   Widget payloadAcknowledgementWidget(HardwareAcknowledgementState state){
-    print('state : ${state.name}');
     late Color color;
     if(state == HardwareAcknowledgementState.notSent){
       color = Colors.grey;
@@ -835,7 +853,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
+          color: color.withOpacity(0.1),
           border: Border.all(color: color),
           borderRadius: BorderRadius.circular(5)
       ),
@@ -845,7 +863,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   }
 
   void sendToHttp()async{
-    print('sendToHttp called.....');
+    String? validationError = configPvd.validateGemConfiguration();
+    if (validationError != null) return;
     var listOfSampleObjectModel = configPvd.listOfSampleObjectModel.map((object){
       return object.toJson();
     }).toList();
@@ -870,6 +889,15 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     var moisture = configPvd.moisture.cast<MoistureModel>().map((object){
       return object.toJson();
     }).toList();
+    var pressure = configPvd.pressureSensor.cast<PressureModel>().map((object){
+      return object.toJson();
+    }).toList();
+    var valve = configPvd.valveConfig.cast<ValveConfigModel>().map((object){
+      return object.toJson();
+    }).toList();
+    var channel = configPvd.channelConfig.cast<ChannelConfigModel>().map((object){
+      return object.toJson();
+    }).toList();
     var line = configPvd.line.cast<IrrigationLineModel>().map((object){
       return object.toJson();
     }).toList();
@@ -879,8 +907,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     var phSensor = configPvd.ph.cast<PhModel>().map((object){
       return object.toJson();
     }).toList();
-    print('ecSensor : $ecSensor');
-    print('phSensor : $phSensor');
     var body = {
       "userId" : configPvd.masterData['customerId'],
       "controllerId" : configPvd.masterData['controllerId'],
@@ -894,6 +920,9 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       "filterSite" : filtration,
       "fertilizerSite" : fertilization,
       "moistureSensor" : moisture,
+      "pressureSensor" : pressure,
+      "valve" : valve,
+      "fertilizerChannel" : channel,
       "irrigationLine" : line,
       "ecSensor" : ecSensor,
       "phSensor" : phSensor,
@@ -924,10 +953,12 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     body['configObject'] = configPvd.listOfGeneratedObject.map((object){
       return object.toJson(data: body);
     }).toList();
-    var response = await ConfigMakerRepository().createUserConfigMaker(body);
-    print('body : ${jsonEncode(body)}');
-    print('body configMaker: ${jsonEncode(body)}');
-    print('response : ${response.body}');
+    try{
+      var response = await ConfigMakerRepository().createUserConfigMaker(body);
+      debugPrint('response : ${response.body}');
+    }catch(e){
+      debugPrint('createUserConfigMaker error : $e');
+    }
   }
 
   Widget sideNavigationWidget(screenWidth, screenHeight){

@@ -20,11 +20,13 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 class ResetVerssion extends StatefulWidget {
   const ResetVerssion(
-      {super.key,
+      {Key? key,
         required this.userId,
         required this.controllerId,
-        required this.deviceID});
-  final userId, controllerId, deviceID;
+        required this.deviceID,
+        required this.modeID,
+      });
+  final userId, controllerId, deviceID,modeID;
 
   @override
   _ResetVerssionState createState() => _ResetVerssionState();
@@ -48,37 +50,27 @@ class _ResetVerssionState extends State<ResetVerssion> {
 
   valAssing(List<dynamic> data) {
     mergedList = [];
-    for (var group in data) {
-      var userGroupId = group['userGroupId'];
-      var groupName = group['groupName'];
-      var active = group['active'];
-      var masterList = group['master'];
-
-      for (var device in masterList) {
-        mergedList.add({
-          'userGroupId': userGroupId,
-          'groupName': groupName,
-          'active': active,
-          'controllerId': device['controllerId'],
-          'deviceId': device['deviceId'],
-          'deviceName': device['deviceName'],
-          'categoryId': device['categoryId'],
-          'categoryName': device['categoryName'],
-          'modelId': device['modelId'],
-          'modelName': device['modelName'],
-          'loraFrequency': device['loraFrequency'],
-          'latestVersion': device['latestVersion'] ?? '',
-          'currentVersion': device['currentVersion'] ?? '',
-          'status': 'Status',
-        });
-      }
+    for (var device in data) {
+      mergedList.add({
+        'controllerId': device['controllerId'],
+        'deviceId': device['deviceId'],
+        'deviceName': device['deviceName'],
+        'categoryId': device['categoryId'],
+        'categoryName': device['categoryName'],
+        'modelId': device['modelId'],
+        'modelName': device['modelName'],
+        'loraFrequency': device['loraFrequency'],
+        'latestVersion': device['latestVersion'] ?? '',
+        'currentVersion': device['currentVersion'] ?? '',
+        'status': 'Status',
+      });
     }
   }
 
   Future<void> fetchData() async {
     try{
       final Repository repository = Repository(HttpService());
-      var response = await repository.getUserDeviceFirmwareDetails({"userId": widget.userId});
+      var response = await repository.getUserDeviceFirmwareDetails({"userId": widget.userId,"controllerId": widget.controllerId});
       if (response.statusCode == 200) {
         setState(() {
           AppLog.log("widget.userId:${widget.userId}");
@@ -94,7 +86,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
     }
     catch (e, stackTrace) {
       AppLog.log(' Error overAll getData => ${e.toString()}');
-      AppLog.log(' trace overAll getData  => $stackTrace');
+      AppLog.log(' trace overAll getData  => ${stackTrace}');
     }
 
 
@@ -104,7 +96,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
   void initState() {
     // TODO: implement initState
     super.initState();
-    mqttPayloadProvider =
+     mqttPayloadProvider =
         Provider.of<MqttPayloadProvider>(context, listen: false);
     fetchData();
     checkrole().then((role) {
@@ -244,7 +236,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
                             message: "Controller Log",
                             child: IconButton(
                               style: ButtonStyle(
-                                  backgroundColor: WidgetStateProperty.all(
+                                  backgroundColor: MaterialStateProperty.all(
                                       Colors.teal.shade100)),
                               onPressed: () {
                                 setState(() {
@@ -262,13 +254,15 @@ class _ResetVerssionState extends State<ResetVerssion> {
                               icon: const Icon(Icons.arrow_circle_right_outlined),
                             ),
                           ),
-                          Padding(
+                    if(![...AppConstants.ecoGemModelList,
+                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                    .contains(widget.modeID))...[   Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Tooltip(
                               message: "Config Hardware",
                               child: IconButton(
                                 style: ButtonStyle(
-                                    backgroundColor: WidgetStateProperty.all(
+                                    backgroundColor: MaterialStateProperty.all(
                                         Colors.teal.shade100)),
                                 onPressed: () {
                                   setState(() {
@@ -301,14 +295,14 @@ class _ResetVerssionState extends State<ResetVerssion> {
                                 icon: const Icon(Icons.settings_outlined),
                               ),
                             ),
-                          ) ,
+                          ) ,],
                           Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Tooltip(
                               message: "LoRa Frequency Set ",
                               child: IconButton(
                                 style: ButtonStyle(
-                                    backgroundColor: WidgetStateProperty.all(
+                                    backgroundColor: MaterialStateProperty.all(
                                         Colors.teal.shade100)),
 
                                 onPressed: () {
@@ -344,7 +338,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
                               message: "LoRa Update ",
                               child: IconButton(
                                 style: ButtonStyle(
-                                    backgroundColor: WidgetStateProperty.all(
+                                    backgroundColor: MaterialStateProperty.all(
                                         Colors.teal.shade100)),
                                 onPressed: () {
                                   setState(() {
@@ -374,12 +368,12 @@ class _ResetVerssionState extends State<ResetVerssion> {
                         style:
                         const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),),
 
-                      const SizedBox(height: 10),
-                      Text(
-                        'SiteName:${mergedList[index]['groupName'] ?? ''}',
-                        style:
-                        const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                      ),
+                      // const SizedBox(height: 10),
+                      // Text(
+                      //   'SiteName:${mergedList[index]['groupName'] ?? ''}',
+                      //   style:
+                      //   const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      // ),
 
                       const SizedBox(height: 10),
                       Text(
@@ -394,15 +388,17 @@ class _ResetVerssionState extends State<ResetVerssion> {
                         const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
-                      Text(
+                    if(![...AppConstants.ecoGemModelList,
+                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                    .contains(widget.modeID))...[ Text(
                         'Server version:${mergedList[index]['latestVersion']!}',
                         style:
                         const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                      ),
+                      ),],
                       const SizedBox(height: 10),
                       imeicheck != mergedList[index]['deviceId']!
                           ? mergedList[index]['status'] != 'Status'
-                          ? SizedBox(
+                          ? Container(
                         width: 200,
                         child: Icon(
                           iconData,
@@ -412,13 +408,15 @@ class _ResetVerssionState extends State<ResetVerssion> {
                       )
                           : Container()
                           : Container(),
-                      imeicheck != mergedList[index]['deviceId']!
+                    if(![...AppConstants.ecoGemModelList,
+                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                    .contains(widget.modeID))...[  imeicheck != mergedList[index]['deviceId']!
                           ? Text(
                         '${mergedList[index]['status']}',
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.bold),
                       )
-                          : const Text('Status'),
+                          : const Text('Status'),],
 
                       mergedList[index]['status'] != 'Status'
                           ?  Padding(
@@ -442,10 +440,10 @@ class _ResetVerssionState extends State<ResetVerssion> {
                                 value: progressValue,
                                 minHeight: 8,
                                 backgroundColor: Colors.grey[300],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             // Text('${(0.6 * 100).toStringAsFixed(0)}%'),
                             Text('${ mqttPayloadProvider.proogressstatus}'),
                           ],
@@ -457,51 +455,57 @@ class _ResetVerssionState extends State<ResetVerssion> {
                         height: 1,
                         color: Colors.grey,
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(0.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            FilledButton(
-                              style: ButtonStyle(
-                                  backgroundColor: checkupdatediable == 0
-                                      ? WidgetStateProperty.all(Colors.red)
-                                      : WidgetStateProperty.all(Colors.grey)),
-                              onPressed: () {
-                                selectindex = index;
-                                checkupdatediable == 0
-                                    ? resetItem(index)
-                                    : _showSnackBar("Please wait ....");
-                              },
-                              child: const Text('Restart'),
-                            ),
-                            const SizedBox(width: 10),
-                            FilledButton(
-                              style: ButtonStyle(
-                                  backgroundColor: checkupdatediable == 0
-                                      ? WidgetStateProperty.all(Colors.green)
-                                      : WidgetStateProperty.all(Colors.grey)),
-                              onPressed: () {
-                                selectindex = index;
-                                checkupdatediable == 0
-                                    ? updateItem(index)
-                                    : _showSnackBar("Please wait ....");
-                              },
-                              child: checkupdatediable == 0
-                                  ? mergedList[index]['currentVersion'] !=
-                                  mergedList[index]['latestVersion']
-                                  ? const BlinkingText(
-                                text: 'Update!', // Provide text here
-                                style: TextStyle(color: Colors.white),
-                                blinkDuration:
-                                Duration(milliseconds: 500),
-                              )
-                                  : const Text("Update")
-                                  : const Text("Update"),
-                            ),
-                          ],
+                      if(![...AppConstants.ecoGemModelList,
+                        ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                          .contains(widget.modeID))...[
+
+                        Padding(
+                          padding: const EdgeInsets.all(0.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              FilledButton(
+                                style: ButtonStyle(
+                                    backgroundColor: checkupdatediable == 0
+                                        ? MaterialStateProperty.all(Colors.red)
+                                        : MaterialStateProperty.all(Colors.grey)),
+                                onPressed: () {
+                                  selectindex = index;
+                                  checkupdatediable == 0
+                                      ? resetItem(index)
+                                      : _showSnackBar("Please wait ....");
+                                },
+                                child: const Text('Restart'),
+                              ),
+                              const SizedBox(width: 10),
+                              FilledButton(
+                                style: ButtonStyle(
+                                    backgroundColor: checkupdatediable == 0
+                                        ? MaterialStateProperty.all(Colors.green)
+                                        : MaterialStateProperty.all(Colors.grey)),
+                                onPressed: () {
+                                  selectindex = index;
+                                  checkupdatediable == 0
+                                      ? updateItem(index)
+                                      : _showSnackBar("Please wait ....");
+                                },
+                                child: checkupdatediable == 0
+                                    ? mergedList[index]['currentVersion'] !=
+                                    mergedList[index]['latestVersion']
+                                    ? const BlinkingText(
+                                  text: 'Update!', // Provide text here
+                                  style: TextStyle(color: Colors.white),
+                                  blinkDuration:
+                                  Duration(milliseconds: 500),
+                                )
+                                    : const Text("Update")
+                                    : const Text("Update"),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+
                       // SizedBox(height: 10),
                     ],
                   ),
@@ -526,7 +530,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
   sendHttp(String val, String msgstatus) async {
     Map<String, dynamic> payLoadFinal = {
       "5700":
-      {"5701": val},
+      {"5701": "$val"},
 
     };
     Map<String, dynamic> body = {
@@ -630,7 +634,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
     number *= 10;
     String result = number.toStringAsFixed(0);
     while (result.length < 4) {
-      result = '0$result';
+      result = '0' + result;
     }
     String firstPart = result.substring(0, 2);
     String secondPart = result.substring(2, 4);
@@ -830,7 +834,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
                           },
                           child: const Text('Send'),
                         ),],),
-                      const Text("View to Lora Details:"),
+                      Text("View to Lora Details:"),
                       Text(mqttPayloadProvider.Loara1verssion)
 
                     ],
@@ -867,7 +871,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
                           )),
                         ],
                       ),
-                      const Text("View to Lora Details:"),
+                      Text("View to Lora Details:"),
                       Text(mqttPayloadProvider.Loara2verssion)
                     ],
                   ),
@@ -941,11 +945,11 @@ class BlinkingText extends StatefulWidget {
   final Duration blinkDuration;
 
   const BlinkingText({
-    super.key,
+    Key? key,
     required this.text,
     this.style = const TextStyle(fontSize: 20, color: Colors.red),
     this.blinkDuration = const Duration(milliseconds: 500),
-  });
+  }) : super(key: key);
 
   @override
   _BlinkingTextState createState() => _BlinkingTextState();

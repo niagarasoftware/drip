@@ -10,6 +10,7 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../../models/customer/site_model.dart';
 import '../../../providers/user_provider.dart';
 import '../../../view_models/customer/customer_screen_controller_view_model.dart';
+import '../../../views/common/user_dashboard/widgets/valve_status_legend.dart';
 import '../../../views/customer/controller_settings/settings_menu_narrow.dart';
 import '../../Logs/view/power_graph_screen.dart';
 import '../../Logs/view/pump_log.dart';
@@ -68,6 +69,7 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
   @override
   Widget build(BuildContext context) {
     final isSmallScreen = MediaQuery.of(context).size.width <= 600;
+
     return WillPopScope(
       onWillPop: () async {
         if (_selectedIndex != 0) {
@@ -78,17 +80,55 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
         return true;
       },
       child: Scaffold(
-        body: isSmallScreen ? _buildSmallScreen(): _buildLargeScreen(),
+        body: Column(
+          children: [
+            if (AppConstants.pumpWithValveModelList
+                .contains(widget.masterData.modelId))
+              buildValveStatusLegend(false),
+
+            Expanded(
+              child: isSmallScreen
+                  ? _buildSmallScreen()
+                  : _buildLargeScreen(),
+            ),
+          ],
+        ),
+
         bottomNavigationBar: !kIsWeb ? BottomNavigationBar(
           items: [
-            const BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), activeIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-            if(isPumpWithValveModel)...[
-              const BottomNavigationBarItem(icon: Icon(Icons.touch_app_outlined), activeIcon: Icon(Icons.touch_app_rounded), label: 'Standalone'),
-              if(!AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId))
-                const BottomNavigationBarItem(icon: Icon(Icons.schedule_outlined), activeIcon: Icon(Icons.schedule_rounded), label: 'Program'),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_outlined),
+              activeIcon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+
+            if (isPumpWithValveModel) ...[
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.touch_app_outlined),
+                activeIcon: Icon(Icons.touch_app_rounded),
+                label: 'Standalone',
+              ),
+
+              if (!AppConstants.pumpWithLightModelList
+                  .contains(widget.masterData.modelId))
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.schedule_outlined),
+                  activeIcon: Icon(Icons.schedule_rounded),
+                  label: 'Program',
+                ),
             ],
-            const BottomNavigationBarItem(icon: Icon(Icons.assessment_outlined), activeIcon: Icon(Icons.assessment), label: 'Logs'),
-            const BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), activeIcon: Icon(Icons.settings), label: 'Settings'),
+
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.assessment_outlined),
+              activeIcon: Icon(Icons.assessment),
+              label: 'Logs',
+            ),
+
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
           ],
           currentIndex: _selectedIndex,
           backgroundColor: Theme.of(context).primaryColorDark,
@@ -97,7 +137,8 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
           type: BottomNavigationBarType.fixed,
           elevation: 8.0,
           onTap: _onItemTapped,
-        ) : null,
+        )
+            : null,
       ),
     );
   }
@@ -207,10 +248,6 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
   }
 
   Widget _buildSmallScreen() {
-    final userProvider = context.read<UserProvider>();
-    final loggedInUser = userProvider.loggedInUser;
-
-    final vm = context.watch<CustomerScreenControllerViewModel>();
 
     return PageView(
       physics: const NeverScrollableScrollPhysics(),

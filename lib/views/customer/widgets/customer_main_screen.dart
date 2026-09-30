@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/irrigation_report/view/oms_log.dart';
-import '../../../modules/service_request/view/service_request_screen.dart';
+import '../../../Screens/Dealer/sevicecustomer.dart';
 import '../../../Screens/Logs/irrigation_and_pump_log.dart';
 import '../../../Screens/Map/oro_map/map_areator.dart';
 import '../../../Screens/Map/oro_map/map_oro.dart';
@@ -101,17 +101,15 @@ Widget buildCustomerMainScreen({required int index, required UserRole role, requ
         groupId: cSite.groupId,
         groupName: cSite.groupName,
       ) :
-      ServiceRequestScreen(
+      TicketHomePage(
         userId: cSite.customerId,
         controllerId: cMaster.controllerId,
       );
-
     case 6:
-      return ServiceRequestScreen(
+      return TicketHomePage(
         userId: cSite.customerId,
         controllerId: cMaster.controllerId,
       );
-
     case 7:
       return isAquaculture ? MapScreenValve(customerId: cSite.customerId,
         controllerId: cMaster.controllerId,

@@ -48,6 +48,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
   void initState() {
     // TODO: implement initState
     super.initState();
+    debugPrint("widget.userData : ${widget.userData}");
     fertilizerSetResponse = getFertilizerSetData(widget.userData);
   }
 

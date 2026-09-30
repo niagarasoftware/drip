@@ -38,6 +38,10 @@ class ServiceRequestRepository {
               {'sNo': 2, 'name': 'RAHUL', 'mobileNumber': '9876543212', 'statusMessage': 'Technician'},
             ]
           }
+        ],
+        'images': [
+          'https://picsum.photos/400/300?random=1',
+          'https://picsum.photos/400/300?random=2',
         ]
       },
       {
@@ -52,7 +56,10 @@ class ServiceRequestRepository {
           {'sNo': 1, 'name': 'Customer Raised Complaint', 'value': true, 'display': true},
           {'sNo': 2, 'name': 'Ticket Responsible Person', 'value': false, 'display': true},
         ],
-        'ticketHandler': []
+        'ticketHandler': [],
+        'images': [
+          'https://picsum.photos/400/300?random=3',
+        ]
       }
     ];
 

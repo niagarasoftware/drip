@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/ec_configuration.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/ph_configuration.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/view/pressure_configuration.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/pump_configuration.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/source_configuration.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/view/valve_configuration.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
+import 'channel_configuration.dart';
 import 'fertilization_configuration.dart';
 import 'filtration_configuration.dart';
 import 'line_configuration.dart';
@@ -55,10 +58,16 @@ class _SiteConfigureState extends State<SiteConfigure> {
                     : widget.configPvd.selectedConfigurationTab == 4 
                     ? MoistureConfiguration(configPvd: widget.configPvd)
                     : widget.configPvd.selectedConfigurationTab == 5
-                    ? LineConfiguration(configPvd: widget.configPvd)
-                    : widget.configPvd.selectedConfigurationTab == 6
                     ? EcConfiguration(configPvd: widget.configPvd,)
-                    : PhConfiguration(configPvd: widget.configPvd,)
+                    : widget.configPvd.selectedConfigurationTab == 6
+                    ? PhConfiguration(configPvd: widget.configPvd,)
+                    : widget.configPvd.selectedConfigurationTab == 7 ?
+                    PressureConfiguration(configPvd: widget.configPvd) :
+                    widget.configPvd.selectedConfigurationTab == 8 ?
+                    ValveConfiguration(configPvd: widget.configPvd) :
+                    widget.configPvd.selectedConfigurationTab == 9 ?
+                    ChannelConfiguration(configPvd: widget.configPvd)
+                        : LineConfiguration(configPvd: widget.configPvd)
               )
             ],
           ),
@@ -125,7 +134,7 @@ class _SiteConfigureState extends State<SiteConfigure> {
   bool showTabForAquaCulture(int tabKey){
     bool isAquaCultureGem = AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId']);
     if(!isAquaCultureGem) return true;
-    List<int> tabKeyNotToShowForAquaCulture = [1, 2, 3, 4, 6, 7];
+    List<int> tabKeyNotToShowForAquaCulture = [1, 2, 3, 4, 5, 6, 7];
     if(tabKeyNotToShowForAquaCulture.contains(tabKey)) {
       print("these tab not to show aqua culture..");
       return false;

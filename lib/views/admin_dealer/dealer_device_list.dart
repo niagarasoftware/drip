@@ -17,7 +17,6 @@ class DealerDeviceList extends StatelessWidget {
     required this.productStockList,
     required this.fromAdminPage,
     //required this.onDeviceListAdded,
-
   });
 
   final int userId, customerId;
@@ -30,7 +29,8 @@ class DealerDeviceList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) {
-        final viewModel = DealerDeviceListViewModel(Repository(HttpService()), userId, customerId, productStockList.length);
+        final viewModel = DealerDeviceListViewModel(
+            Repository(HttpService()), userId, customerId, productStockList.length);
         viewModel.loadDeviceList(1);
         return viewModel;
       },
@@ -51,98 +51,49 @@ class DealerDeviceList extends StatelessWidget {
                 },
               ),
               actions: [
-                PopupMenuButton(
-                  tooltip: 'Add new product to $customerName',
-                  color: Colors.white,
-                  child: MaterialButton(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3),
-                      side: const BorderSide(color: Colors.white54, width: 0.5),
-                    ),
-                    onPressed: null,
-                    textColor: Colors.white,
-                    child: const Row(
-                      children: [
-                        Text('Add New Product'),
-                        SizedBox(width: 3),
-                        Icon(Icons.arrow_drop_down, color: Colors.white),
-                      ],
-                    ),
+                MaterialButton(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(3),
+                    side: const BorderSide(color: Colors.white54, width: 0.5),
                   ),
-                  onCanceled: () {
-                    viewModel.selectedProducts = List<bool>.filled(productStockList.length, false);
-                  },
-                  itemBuilder: (context) {
-                    return List.generate(productStockList.length + 1, (index) {
-                      if (productStockList.isEmpty) {
-                        return const PopupMenuItem(
-                          child: Text('No stock available to add in the site'),
-                        );
-                      } else if (productStockList.length == index) {
-                        return PopupMenuItem(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              MaterialButton(
-                                color: Colors.red,
-                                textColor: Colors.white,
-                                child: const Text('CANCEL'),
-                                onPressed: () {
-                                  Navigator.pop(context);
-                                },
-                              ),
-                              const SizedBox(width: 5),
-                              MaterialButton(
-                                color: Colors.green,
-                                textColor: Colors.white,
-                                child: const Text('ADD'),
-                                onPressed: () => viewModel.addProductToDealer(context, productStockList, /*onDeviceListAdded*/fromAdminPage),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      return PopupMenuItem(
-                        child: StatefulBuilder(
-                          builder: (context, setState) {
-                            return CheckboxListTile(
-                              title: Text(productStockList[index].categoryName),
-                              subtitle: Text(productStockList[index].imeiNo),
-                              value: viewModel.selectedProducts[index],
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  viewModel.toggleProductSelection(index);
-                                });
-                              },
-                            );
-                          },
-                        ),
-                      );
-                    });
-                  },
+                  textColor: Colors.white,
+                  onPressed: () => _showAddProductDialog(
+                    context,
+                    viewModel,
+                    productStockList,
+                    fromAdminPage,
+                  ),
+                  child: const Row(
+                    children: [
+                      Text('Add New Product'),
+                      SizedBox(width: 3),
+                      Icon(Icons.arrow_drop_down, color: Colors.white),
+                    ],
+                  ),
                 ),
                 const SizedBox(width: 20),
               ],
             ),
-            body: viewModel.isLoading ? const Center(
+            body: viewModel.isLoading
+                ? const Center(
               child: CircularProgressIndicator(),
-            ):
-            Column(
+            )
+                : Column(
               children: [
                 Expanded(
-                  child: viewModel.dealerDeviceList.isNotEmpty? DataTable2(
+                  child: viewModel.dealerDeviceList.isNotEmpty
+                      ? DataTable2(
                     scrollController: viewModel.scrollController,
                     columnSpacing: 12,
                     horizontalMargin: 12,
                     headingRowHeight: 30,
-                    headingRowColor: WidgetStateProperty.all<
-                        Color>(Theme.of(context).primaryColorDark.withAlpha(1)),
+                    headingRowColor: WidgetStateProperty.all<Color>(
+                        Theme.of(context).primaryColorDark.withAlpha(1)),
                     dataRowHeight: 35,
                     minWidth: 580,
                     columns: const [
                       DataColumn2(
-                        label: Text('S.No',),
+                        label: Text('S.No'),
                         fixedWidth: 40,
                       ),
                       DataColumn2(
@@ -176,24 +127,30 @@ class DealerDeviceList extends StatelessWidget {
                               style: viewModel.commonTextStyle,
                             ),
                           )),
-                          DataCell(Text(viewModel.dealerDeviceList[index].categoryName,
+                          DataCell(Text(
+                              viewModel.dealerDeviceList[index].categoryName,
                               style: viewModel.commonTextStyle)),
                           DataCell(Text(viewModel.dealerDeviceList[index].model,
                               style: viewModel.commonTextStyle)),
-                          DataCell(SelectableText(viewModel.dealerDeviceList[index].deviceId,
+                          DataCell(SelectableText(
+                              viewModel.dealerDeviceList[index].deviceId,
                               style: viewModel.commonTextStyle)),
                           DataCell(Center(
                             child: Row(
                               children: [
                                 CircleAvatar(
                                   radius: 5,
-                                  backgroundColor: viewModel.dealerDeviceList[index]
-                                      .productStatus ==
+                                  backgroundColor:
+                                  viewModel.dealerDeviceList[index].productStatus ==
                                       1
                                       ? Colors.pink
-                                      : viewModel.dealerDeviceList[index].productStatus == 2
+                                      : viewModel.dealerDeviceList[index]
+                                      .productStatus ==
+                                      2
                                       ? Colors.blue
-                                      : viewModel.dealerDeviceList[index].productStatus == 3
+                                      : viewModel.dealerDeviceList[index]
+                                      .productStatus ==
+                                      3
                                       ? Colors.purple
                                       : Colors.green,
                                 ),
@@ -201,9 +158,13 @@ class DealerDeviceList extends StatelessWidget {
                                 Text(
                                   viewModel.dealerDeviceList[index].productStatus == 1
                                       ? 'In-Stock'
-                                      : viewModel.dealerDeviceList[index].productStatus == 2
+                                      : viewModel.dealerDeviceList[index]
+                                      .productStatus ==
+                                      2
                                       ? 'Stock'
-                                      : viewModel.dealerDeviceList[index].productStatus == 3
+                                      : viewModel.dealerDeviceList[index]
+                                      .productStatus ==
+                                      3
                                       ? 'Free'
                                       : 'Active',
                                   style: viewModel.commonTextStyle,
@@ -213,28 +174,239 @@ class DealerDeviceList extends StatelessWidget {
                           )),
                           DataCell(
                             Text(
-                              Formatters().formatDate(viewModel.dealerDeviceList[index].modifyDate),
+                              Formatters()
+                                  .formatDate(viewModel.dealerDeviceList[index].modifyDate),
                               style: viewModel.commonTextStyle,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ):
-                  const Center(child: Text('No device available'),),
+                  )
+                      : const Center(
+                    child: Text('No device available'),
+                  ),
                 ),
-                viewModel.isLoading? Container(
+                viewModel.isLoading
+                    ? Container(
                   width: double.infinity,
                   height: 30,
                   color: Colors.white,
                   padding: const EdgeInsets.fromLTRB(300, 0, 300, 0),
                   child: const CircularProgressIndicator(),
-                ):
-                Container(),
+                )
+                    : Container(),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showAddProductDialog(
+      BuildContext context,
+      DealerDeviceListViewModel viewModel,
+      List<StockModel> productStockList,
+      bool fromAdminPage,
+      ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => _AddProductDialog(
+        viewModel: viewModel,
+        productStockList: productStockList,
+        fromAdminPage: fromAdminPage,
+      ),
+    );
+  }
+}
+
+class _AddProductDialog extends StatefulWidget {
+  const _AddProductDialog({
+    required this.viewModel,
+    required this.productStockList,
+    required this.fromAdminPage,
+  });
+
+  final DealerDeviceListViewModel viewModel;
+  final List<StockModel> productStockList;
+  final bool fromAdminPage;
+
+  @override
+  State<_AddProductDialog> createState() => _AddProductDialogState();
+}
+
+class _AddProductDialogState extends State<_AddProductDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// Original indices into productStockList / viewModel.selectedProducts,
+  /// filtered by the search query and sorted so checked items float to top.
+  List<int> get _visibleIndices {
+    final all = List<int>.generate(widget.productStockList.length, (i) => i);
+
+    final filtered = _query.trim().isEmpty
+        ? all
+        : all.where((i) {
+      final item = widget.productStockList[i];
+      final q = _query.trim().toLowerCase();
+      return item.categoryName.toLowerCase().contains(q) ||
+          item.imeiNo.toLowerCase().contains(q);
+    }).toList();
+
+    filtered.sort((a, b) {
+      final aChecked = widget.viewModel.selectedProducts[a];
+      final bChecked = widget.viewModel.selectedProducts[b];
+      if (aChecked == bChecked) return 0;
+      return aChecked ? -1 : 1;
+    });
+
+    return filtered;
+  }
+
+  void _cancel() {
+    setState(() {
+      widget.viewModel.selectedProducts =
+      List<bool>.filled(widget.productStockList.length, false);
+    });
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final indices = _visibleIndices;
+    final selectedCount =
+        widget.viewModel.selectedProducts.where((v) => v).length;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Add New Product',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  if (selectedCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$selectedCount selected',
+                        style: const TextStyle(fontSize: 12, color: Colors.green),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Search by category or IMEI',
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _searchController.clear();
+                        _query = '';
+                      });
+                    },
+                  ),
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: widget.productStockList.isEmpty
+                    ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text('No stock available to add in the site'),
+                  ),
+                )
+                    : indices.isEmpty
+                    ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('No matching products')),
+                )
+                    : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: indices.length,
+                  itemBuilder: (context, listIndex) {
+                    final i = indices[listIndex];
+                    final item = widget.productStockList[i];
+                    final checked = widget.viewModel.selectedProducts[i];
+                    return CheckboxListTile(
+                      dense: true,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(item.categoryName),
+                      subtitle: Text(item.imeiNo),
+                      value: checked,
+                      onChanged: (_) {
+                        setState(() {
+                          widget.viewModel.toggleProductSelection(i);
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  MaterialButton(
+                    color: Colors.red,
+                    textColor: Colors.white,
+                    onPressed: _cancel,
+                    child: const Text('CANCEL'),
+                  ),
+                  const SizedBox(width: 8),
+                  MaterialButton(
+                    color: Colors.green,
+                    textColor: Colors.white,
+                    onPressed: widget.productStockList.isEmpty
+                        ? null
+                        : () {
+                      widget.viewModel.addProductToDealer(
+                        context,
+                        widget.productStockList,
+                        widget.fromAdminPage,
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: const Text('ADD'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

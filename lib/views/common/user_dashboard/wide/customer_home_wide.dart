@@ -236,7 +236,7 @@ class CustomerHomeWide extends StatelessWidget {
       int customerId, int controllerId, int modelId, String deviceId, int groupId){
 
     return OmsLine(customerId: customerId,
-        controllerId: controllerId, modelId: modelId, deviceId: deviceId, master: master, groupId: groupId);
+        controllerId: controllerId, modelId: modelId, deviceId: deviceId, master: master, groupId: groupId, isNarrow: false);
 
   }
 
@@ -299,6 +299,3 @@ class CustomerHomeWide extends StatelessWidget {
     );
   }
 }
-
-
-

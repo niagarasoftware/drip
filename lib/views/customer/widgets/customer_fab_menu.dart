@@ -12,6 +12,7 @@ import '../../../StateManagement/customer_provider.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
 import '../../../modules/IrrigationProgram/view/program_library.dart';
 import '../../../modules/ScheduleView/view/schedule_view_screen.dart';
+import '../../../modules/bluetooth_low_energy/state_management/ble_service.dart';
 import '../../../modules/bluetooth_low_energy/view/node_connection_page.dart';
 import '../../../services/bluetooth/bluetooth_ble_service.dart';
 import '../../../services/communication_service.dart';
@@ -46,6 +47,7 @@ class CustomerFabMenu extends StatelessWidget {
     final isGem = [...AppConstants.gemModelList, ...AppConstants.omsGemList].contains(currentMaster.modelId);
     final isGemNova = [...AppConstants.ecoGemModelList].contains(currentMaster.modelId);
     final isWlc = [...AppConstants.wlcModelList].contains(currentMaster.modelId);
+    bool isOMS = [...AppConstants.omsGemList].contains(currentMaster.modelId);
 
     if (!isGem && !isGemNova && !isWlc) return const SizedBox.shrink();
 
@@ -55,8 +57,7 @@ class CustomerFabMenu extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if(!isWlc)
-          ...[
+        if(!isWlc && !isOMS)...[
             FloatingActionButton(
               heroTag: null,
               onPressed: null,
@@ -379,12 +380,12 @@ class CustomerFabMenu extends StatelessWidget {
                               "customerId" : customerId,
                               "controllerId" : currentMaster.controllerId
                             },
+                            connectMode: ConnectMode.normal,
                           )));
                         },
                       ),
                     ]
                     else...[
-
                       if([75, ...AppConstants.wlcModelList].contains(currentMaster.modelId))...[
                         BleScanTile (vm: vm),
                         const SizedBox(height: 10),

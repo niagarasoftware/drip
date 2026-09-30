@@ -497,6 +497,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
         "cyclicOffTime": mainProvider.programDetails!.cyclicOffTime,
         "isPressureEnabled": mainProvider.programDetails!.enablePressure ? '1' : '0',
         "pressure": mainProvider.programDetails!.pressureValue,
+        "flowScanTime": mainProvider.programDetails!.flowScanTime,
         "incompleteRestart": mainProvider.isCompletionEnabled ? "1" : "0",
         "controllerReadStatus": '0',
         "programType": mainProvider.selectedProgramType,

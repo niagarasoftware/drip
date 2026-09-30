@@ -61,6 +61,20 @@ class _BleScanTileState extends State<BleScanTile>
         _MessageType.warning,
       );
     };
+
+    // ---- Bluetooth turned off / unavailable ----
+    widget.vm.bluetoothBleService.onBluetoothDisabled = (message) {
+      if (!mounted) return;
+      stopScan(); // stop the spinning icon since scanning can't continue
+      _showMessage(message, _MessageType.warning);
+    };
+
+    // ---- Wi-Fi credential update result ----
+    widget.vm.bluetoothBleService.onWifiUpdateResult = (message, success) {
+      if (!mounted) return;
+      _showMessage(message, success ? _MessageType.info : _MessageType.error);
+    };
+
   }
 
   void _showMessage(String message, _MessageType type, {int seconds = 5}) {
@@ -131,6 +145,7 @@ class _BleScanTileState extends State<BleScanTile>
     widget.vm.bluetoothBleService.onNoDeviceFound = null;
     widget.vm.bluetoothBleService.onConnectionError = null;
     widget.vm.bluetoothBleService.onPairingRequired = null;
+    widget.vm.bluetoothBleService.onWifiUpdateResult = null; // 👈 add this
     _controller.dispose();
     super.dispose();
   }
@@ -190,8 +205,7 @@ class _BleScanTileState extends State<BleScanTile>
         ),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 200),
-          child: statusMessage == null
-              ? const SizedBox.shrink()
+          child: statusMessage == null ? const SizedBox.shrink()
               : Container(
             key: ValueKey(statusMessage),
             width: double.infinity,

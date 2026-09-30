@@ -1,7 +1,6 @@
-
 import 'device_object_model.dart';
 
-class IrrigationLineModel{
+class IrrigationLineModel {
   DeviceObjectModel commonDetails;
   List<double> sourcePump;
   List<double> waterSource;
@@ -72,126 +71,159 @@ class IrrigationLineModel{
     required this.weatherStation,
   });
 
-
-
-  factory IrrigationLineModel.fromJson(data){
-    DeviceObjectModel deviceObjectModel = DeviceObjectModel.fromJson(data);
-
+  factory IrrigationLineModel.fromJson(Map<String, dynamic> data) {
     return IrrigationLineModel(
-        commonDetails: deviceObjectModel,
-        waterSource: data['waterSource'] != null ? (data['waterSource'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
-        sourcePump: (data['sourcePump'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        irrigationPump: (data['irrigationPump'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        aerator: data.containsKey('aerator') && data['aerator'] != null
-            ? (data['aerator'] as List<dynamic>).map((sNo) => sNo as double).toList()
-            : [],
-        centralFiltration: intOrDoubleValidate(data['centralFiltration']),
-        localFiltration: intOrDoubleValidate(data['localFiltration']),
-        centralFertilization: intOrDoubleValidate(data['centralFertilization']),
-        localFertilization: intOrDoubleValidate(data['localFertilization']),
-        valve: (data['valve'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        mainValve: (data['mainValve'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        light: data['light'] == null ? [] : (data['light'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        gate: data['gate'] == null ? [] : (data['gate'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        fan: (data['fan'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        fogger: (data['fogger'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        mist: data['mist'] == null ? [] : (data['mist'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        pesticides: (data['pesticides'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        heater: (data['heater'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        screen: (data['screen'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        vent: (data['vent'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        flowControlValve: data['flowControlValve'] != null ? (data['flowControlValve'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
-        powerSupply: intOrDoubleValidate(data['powerSupply']),
-        pressureSwitch: intOrDoubleValidate(data['pressureSwitch']),
-        waterMeter: intOrDoubleValidate(data['waterMeter']),
-        analogWaterMeter: data['analogWaterMeter'] != null ? intOrDoubleValidate(data['analogWaterMeter']) : 0.0,
-        pressureIn: intOrDoubleValidate(data['pressureIn']),
-        pressureOut: intOrDoubleValidate(data['pressureOut']),
-        moisture: (data['moisture'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        temperature: (data['temperature'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        soilTemperature: (data['soilTemperature'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        humidity: (data['humidity'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        co2: (data['co2'] as List<dynamic>).map((sNo) => sNo as double).toList(),
-        weatherStation: data['weatherStation'] != null ? (data['weatherStation'] as List<dynamic>).map((controllerNo) => controllerNo as int).toList() : []
+      commonDetails: DeviceObjectModel.fromJson(data),
+      waterSource: _toDoubleList(data['waterSource']),
+      sourcePump: _toDoubleList(data['sourcePump']),
+      irrigationPump: _toDoubleList(data['irrigationPump']),
+      aerator: _toDoubleList(data['aerator']),
+      centralFiltration: intOrDoubleValidate(data['centralFiltration']),
+      localFiltration: intOrDoubleValidate(data['localFiltration']),
+      centralFertilization: intOrDoubleValidate(data['centralFertilization']),
+      localFertilization: intOrDoubleValidate(data['localFertilization']),
+      valve: _toDoubleList(data['valve']),
+      flowControlValve: _toDoubleList(data['flowControlValve']),
+      mainValve: _toDoubleList(data['mainValve']),
+      light: _toDoubleList(data['light']),
+      gate: _toDoubleList(data['gate']),
+      fan: _toDoubleList(data['fan']),
+      fogger: _toDoubleList(data['fogger']),
+      mist: _toDoubleList(data['mist']),
+      pesticides: _toDoubleList(data['pesticides']),
+      heater: _toDoubleList(data['heater']),
+      screen: _toDoubleList(data['screen']),
+      vent: _toDoubleList(data['vent']),
+      powerSupply: intOrDoubleValidate(data['powerSupply']),
+      pressureSwitch: intOrDoubleValidate(data['pressureSwitch']),
+      waterMeter: intOrDoubleValidate(data['waterMeter']),
+      analogWaterMeter: intOrDoubleValidate(data['analogWaterMeter']),
+      pressureIn: intOrDoubleValidate(data['pressureIn']),
+      pressureOut: intOrDoubleValidate(data['pressureOut']),
+      moisture: _toDoubleList(data['moisture']),
+      temperature: _toDoubleList(data['temperature']),
+      soilTemperature: _toDoubleList(data['soilTemperature']),
+      humidity: _toDoubleList(data['humidity']),
+      co2: _toDoubleList(data['co2']),
+      weatherStation: _toIntList(data['weatherStation']),
     );
   }
 
-  Map<String, dynamic> toJson(){
+  Map<String, dynamic> toJson() {
     var commonInfo = commonDetails.toJson();
     commonInfo.addAll({
-      'waterSource' : waterSource,
-      'sourcePump' : sourcePump,
-      'irrigationPump' : irrigationPump,
-      'aerator' : aerator,
-      'centralFiltration' : centralFiltration,
-      'localFiltration' : localFiltration,
-      'centralFertilization' : centralFertilization,
-      'localFertilization' : localFertilization,
-      'valve' : valve,
-      'mainValve' : mainValve,
-      'flowControlValve' : flowControlValve,
-      'light' : light,
-      'gate' : gate,
-      'fan' : fan,
-      'fogger' : fogger,
-      'mist' : mist,
-      'pesticides' : pesticides,
-      'heater' : heater,
-      'screen' : screen,
-      'vent' : vent,
-      'powerSupply' : powerSupply,
-      'pressureSwitch' : pressureSwitch,
-      'waterMeter' : waterMeter,
-      'analogWaterMeter' : analogWaterMeter,
-      'pressureIn' : pressureIn,
-      'pressureOut' : pressureOut,
-      'moisture' : moisture,
-      'temperature' : temperature,
-      'soilTemperature' : soilTemperature,
-      'humidity' : humidity,
-      'co2' : co2,
-      'weatherStation' : weatherStation,
+      'waterSource': waterSource,
+      'sourcePump': sourcePump,
+      'irrigationPump': irrigationPump,
+      'aerator': aerator,
+      'centralFiltration': centralFiltration,
+      'localFiltration': localFiltration,
+      'centralFertilization': centralFertilization,
+      'localFertilization': localFertilization,
+      'valve': valve,
+      'mainValve': mainValve,
+      'flowControlValve': flowControlValve,
+      'light': light,
+      'gate': gate,
+      'fan': fan,
+      'fogger': fogger,
+      'mist': mist,
+      'pesticides': pesticides,
+      'heater': heater,
+      'screen': screen,
+      'vent': vent,
+      'powerSupply': powerSupply,
+      'pressureSwitch': pressureSwitch,
+      'waterMeter': waterMeter,
+      'analogWaterMeter': analogWaterMeter,
+      'pressureIn': pressureIn,
+      'pressureOut': pressureOut,
+      'moisture': moisture,
+      'temperature': temperature,
+      'soilTemperature': soilTemperature,
+      'humidity': humidity,
+      'co2': co2,
+      'weatherStation': weatherStation,
     });
     return commonInfo;
   }
 
-  void updateObjectIdIfDeletedInProductLimit(List<double> objectIdToBeDeleted){
-    sourcePump = sourcePump.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    irrigationPump = irrigationPump.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    valve = valve.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    mainValve = mainValve.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    light = light.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    gate = gate.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    fan = fan.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    fogger = fogger.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    mist = mist.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    pesticides = pesticides.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    heater = heater.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    screen = screen.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    vent = vent.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    moisture = moisture.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    temperature = temperature.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    soilTemperature = soilTemperature.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    humidity = humidity.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    co2 = co2.where((objectId) => !objectIdToBeDeleted.contains(objectId)).toList();
-    centralFiltration = objectIdToBeDeleted.contains(centralFiltration) ? 0.0 : centralFiltration;
-    localFiltration = objectIdToBeDeleted.contains(localFiltration) ? 0.0 : localFiltration;
-    centralFertilization = objectIdToBeDeleted.contains(centralFertilization) ? 0.0 : centralFertilization;
-    localFertilization = objectIdToBeDeleted.contains(localFertilization) ? 0.0 : localFertilization;
-    powerSupply = objectIdToBeDeleted.contains(powerSupply) ? 0.0 : powerSupply;
-    pressureSwitch = objectIdToBeDeleted.contains(pressureSwitch) ? 0.0 : pressureSwitch;
-    waterMeter = objectIdToBeDeleted.contains(waterMeter) ? 0.0 : waterMeter;
-    pressureIn = objectIdToBeDeleted.contains(pressureIn) ? 0.0 : pressureIn;
-    pressureOut = objectIdToBeDeleted.contains(pressureOut) ? 0.0 : pressureOut;
+  void updateObjectIdIfDeletedInProductLimit(List<double> objectIdToBeDeleted) {
+    final deletedSet = objectIdToBeDeleted.toSet();
+
+    List<double> filterList(List<double> list) =>
+        list.where((id) => !deletedSet.contains(id)).toList();
+
+    sourcePump = filterList(sourcePump);
+    irrigationPump = filterList(irrigationPump);
+    valve = filterList(valve);
+    mainValve = filterList(mainValve);
+    light = filterList(light);
+    gate = filterList(gate);
+    fan = filterList(fan);
+    fogger = filterList(fogger);
+    mist = filterList(mist);
+    pesticides = filterList(pesticides);
+    heater = filterList(heater);
+    screen = filterList(screen);
+    vent = filterList(vent);
+    moisture = filterList(moisture);
+    temperature = filterList(temperature);
+    soilTemperature = filterList(soilTemperature);
+    humidity = filterList(humidity);
+    co2 = filterList(co2);
+
+    if (deletedSet.contains(centralFiltration)) centralFiltration = 0.0;
+    if (deletedSet.contains(localFiltration)) localFiltration = 0.0;
+    if (deletedSet.contains(centralFertilization)) centralFertilization = 0.0;
+    if (deletedSet.contains(localFertilization)) localFertilization = 0.0;
+    if (deletedSet.contains(powerSupply)) powerSupply = 0.0;
+    if (deletedSet.contains(pressureSwitch)) pressureSwitch = 0.0;
+    if (deletedSet.contains(waterMeter)) waterMeter = 0.0;
+    if (deletedSet.contains(pressureIn)) pressureIn = 0.0;
+    if (deletedSet.contains(pressureOut)) pressureOut = 0.0;
+  }
+
+  bool isLineModelParameterIsEmpty() {
+    final objectLists = [
+      waterSource, sourcePump, irrigationPump, aerator, valve,
+      flowControlValve, mainValve, light, gate, fan, fogger,
+      mist, pesticides, heater, screen, vent, moisture,
+      temperature, soilTemperature, humidity, co2, weatherStation
+    ];
+
+    final scalarValues = [
+      centralFiltration, localFiltration, centralFertilization,
+      localFertilization, powerSupply, pressureSwitch, waterMeter,
+      analogWaterMeter, pressureIn, pressureOut
+    ];
+
+    return objectLists.every((list) => list.isEmpty) &&
+        scalarValues.every((value) => value == 0.0);
+  }
+
+  static List<double> _toDoubleList(dynamic list) {
+    if (list is! List) return [];
+    return list.map((e) => intOrDoubleValidate(e)).toList();
+  }
+
+  static List<int> _toIntList(dynamic list) {
+    if (list is! List) return [];
+    return list.map((e) => (e is num) ? e.toInt() : (int.tryParse(e.toString()) ?? 0)).toList();
   }
 }
 
-double intOrDoubleValidate(value){
-  if(value is int){
-    return value.toDouble();
-  }else{
-    return value;
-  }
+double intOrDoubleValidate(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0.0;
+  return 0.0;
 }
 
-enum LineParameter{source, sourcePump, irrigationPump, aerator, centralFiltration, localFiltration, centralFertilization, localFertilization, valve, flowControlValve, mainValve, light, gate, fan, fogger,mist, pesticides, heater, screen, vent, powerSupply, pressureSwitch, waterMeter, analogWaterMeter, pressureIn, pressureOut, moisture, temperature, soilTemperature, humidity, co2}
+enum LineParameter {
+  source, sourcePump, irrigationPump, aerator, centralFiltration,
+  localFiltration, centralFertilization, localFertilization, valve,
+  flowControlValve, mainValve, light, gate, fan, fogger, mist,
+  pesticides, heater, screen, vent, powerSupply, pressureSwitch,
+  waterMeter, analogWaterMeter, pressureIn, pressureOut, moisture,
+  temperature, soilTemperature, humidity, co2
+}

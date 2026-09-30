@@ -146,6 +146,8 @@ class IrrigationLineWide extends StatelessWidget {
       ...gateWidgets,
     ];
 
+    print(allItems);
+
     int cFrtChannelCount = 0;
     int lFrtChannelCount = 0;
 
@@ -193,7 +195,94 @@ class IrrigationLineWide extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildWaterSource(BuildContext context, List<WaterSourceModel> waterSources,
+  List<Widget> _buildWaterSource(
+      BuildContext context,
+      List<WaterSourceModel> waterSources,
+      bool isAvailInlet,
+      bool isInlet,
+      bool isAvailFertilizer,
+      ) {
+    final List<Widget> gridItems = [];
+
+    for (int index = 0; index < waterSources.length; index++) {
+      final source = waterSources[index];
+
+      // --------------------------------------------------
+      // WATER SOURCE
+      // --------------------------------------------------
+      gridItems.add(
+        Padding(
+          padding: EdgeInsets.only(
+            top: isAvailFertilizer ? 38.5 : 8,
+          ),
+          child: SourceColumnWidget(
+            source: source,
+            isInletSource: isInlet,
+            isAvailInlet: isAvailInlet,
+            index: index,
+            total: waterSources.length,
+            popoverUpdateNotifier: popoverUpdateNotifier,
+            deviceId: deviceId,
+            customerId: customerId,
+            controllerId: controllerId,
+            modelId: modelId,
+            isMobile: false,
+            isAvailFrtSite:
+            (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
+          ),
+        ),
+      );
+
+      // --------------------------------------------------
+      // PUMP + WATER METER
+      // --------------------------------------------------
+      for (final pump in source.outletPump) {
+        gridItems.add(
+          Padding(
+            padding: EdgeInsets.only(
+              top: isAvailFertilizer ? 38.5 : 8,
+            ),
+            child: PumpWidget(
+              pump: pump,
+              isSourcePump: isInlet,
+              deviceId: deviceId,
+              customerId: customerId,
+              controllerId: controllerId,
+              isMobile: false,
+              modelId: modelId,
+              pumpPosition: 'First',
+              isNova: false,
+              isAvailFrtSite:
+              (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
+            ),
+          ),
+        );
+
+        // Water Meter — only if this pump actually has one
+        if (pump.waterMeter.isNotEmpty) {
+          gridItems.add(
+            Padding(
+              padding: EdgeInsets.only(
+                top: isAvailFertilizer ? 30.5 : 8,
+              ),
+              child: SensorWidget(
+                sensor: pump.waterMeter.first,
+                sensorType: 'Water Meter',
+                imagePath: 'assets/png/water_meter_wj.png',
+                customerId: customerId,
+                controllerId: controllerId,
+              ),
+            ),
+          );
+        }
+      }
+
+    }
+
+    return gridItems;
+  }
+
+ /* List<Widget> _buildWaterSource(BuildContext context, List<WaterSourceModel> waterSources,
       bool isAvailInlet, bool isInlet, bool isAvailFertilizer) {
 
     final List<Widget> gridItems = [];
@@ -233,7 +322,7 @@ class IrrigationLineWide extends StatelessWidget {
       )));
     }
     return gridItems;
-  }
+  }*/
 
   List<Widget> _buildSensorItems(List<SensorModel> sensors, String type, String imagePath) {
     return sensors.map((sensor) {
@@ -247,7 +336,167 @@ class IrrigationLineWide extends StatelessWidget {
     }).toList();
   }
 
-  List<Widget> _buildFertilizer(BuildContext context,
+
+  List<Widget> _buildFertilizer(
+      BuildContext context,
+      List<FertilizerSiteModel> fertilizerSite,
+      bool isNova,
+      ) {
+    return List.generate(fertilizerSite.length, (siteIndex) {
+      final site = fertilizerSite[siteIndex];
+      final widgets = <Widget>[];
+
+      // Vertical line before each site except the first.
+      if (siteIndex != 0) {
+        widgets.add(_buildVerticalLine(height: 120));
+      }
+
+      // Booster pump.
+      widgets.add(
+        BoosterWidget(
+          fertilizerSite: site,
+          isMobile: false,
+        ),
+      );
+
+      // Channels.
+      for (int channelIndex = 0;
+      channelIndex < site.channel.length;
+      channelIndex++) {
+        final channel = site.channel[channelIndex];
+
+        widgets.add(
+          ChannelWidget(
+            channel: channel,
+            cIndex: channelIndex,
+            channelLength: site.channel.length,
+            agitator: site.agitator,
+            siteSno: site.sNo.toString(),
+            isMobile: false,
+          ),
+        );
+      }
+
+      // Multiple agitators.
+      if (site.agitator.isNotEmpty) {
+        widgets.add(
+          AgitatorWidget(
+            fertilizerSite: site,
+            isMobile: false,
+          ),
+        );
+      }
+
+      // Ending vertical line on web.
+      if (kIsWeb) {
+        widgets.add(_buildVerticalLine(height: 130));
+      }
+
+      /*// Calculate widths.
+      final boosterPumpWidth = site.boosterPump.length * 70.0;
+      final channelWidth = site.channel.length * 70.0;
+      final agitatorWidth = site.agitator.isNotEmpty ? 57.5 : 0.0;
+      final totalWidth = boosterPumpWidth + channelWidth + agitatorWidth;*/
+
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Stack(
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: widgets,
+            ),
+            Positioned(
+              left: 3,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.grey,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  site.name,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      return SizedBox(
+        //width: agitatorWidth > 0 ? totalWidth : totalWidth + 5.5,
+        child: Stack(
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: widgets.map((widget) {
+                return InkWell(
+                  onTap: () {
+                    final customerVM =
+                    context.read<CustomerScreenControllerViewModel>();
+
+                    showRightSheet(
+                      context,
+                      ChangeNotifierProvider.value(
+                        value: customerVM,
+                        child: FertilizerLivePanel(
+                          deviceId: deviceId,
+                          controllerId: controllerId,
+                          customerId: customerId,
+                          isWide: true,
+                        ),
+                      ),
+                    );
+                  },
+                  child: widget,
+                );
+              }).toList(),
+            ),
+            // Site name.
+            Positioned(
+              left: 3,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.grey,
+                    width: 0.5,
+                  ),
+                ),
+                child: Text(
+                  site.name,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  /*List<Widget> _buildFertilizer(BuildContext context,
       List<FertilizerSiteModel> fertilizerSite, bool isNova) {
     return List.generate(fertilizerSite.length, (siteIndex) {
       final site = fertilizerSite[siteIndex];
@@ -283,8 +532,15 @@ class IrrigationLineWide extends StatelessWidget {
         widgets.add(_buildVerticalLine(height: 130));
       }
 
+      final boosterPumpWidth = site.boosterPump.length * 70.0;
+      final channelWidth = site.channel.length * 70.0;
+      final agitatorWidth = site.agitator.length * 57.5;
+
+      final totalWidth = boosterPumpWidth + channelWidth + agitatorWidth;
+
       return SizedBox(
-        width: ((site.boosterPump.length + site.channel.length + site.agitator.length ) * 70) + 5,
+        width: agitatorWidth>0? totalWidth : totalWidth+5.5,
+        //width: ((site.boosterPump.length + site.channel.length + site.agitator.length ) * 70) + 5,
         child: Stack(
           children: [
             Row(
@@ -334,7 +590,7 @@ class IrrigationLineWide extends StatelessWidget {
       );
 
     }).toList();
-  }
+  }*/
 
   Widget _buildVerticalLine({required double height}) {
     return SizedBox(
@@ -343,18 +599,19 @@ class IrrigationLineWide extends StatelessWidget {
       child: const Row(
         children: [
           Padding(
-            padding: EdgeInsets.only(top: 42),
+            padding: EdgeInsets.only(top: 42.0, bottom: 5),
             child: VerticalDivider(width: 0, color: Colors.black12),
           ),
           SizedBox(width: 4.5),
           Padding(
-            padding: EdgeInsets.only(top: 45),
+            padding: EdgeInsets.only(top: 46.0, bottom: 2),
             child: VerticalDivider(width: 0, color: Colors.black12),
           ),
         ],
       ),
     );
   }
+
 
   void showRightSheet(BuildContext context, Widget child) {
     showGeneralDialog(

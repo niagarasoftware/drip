@@ -186,12 +186,9 @@ class MqttService {
       _subscription = _client?.updates?.listen(
             (List<MqttReceivedMessage<MqttMessage?>>? c) {
           if (c != null && c.isNotEmpty) {
-            final MqttPublishMessage recMess =
-            c[0].payload as MqttPublishMessage;
+            final MqttPublishMessage recMess = c[0].payload as MqttPublishMessage;
 
-            final String pt =
-            MqttPublishPayload.bytesToStringAsString(
-                recMess.payload.message);
+            final String pt = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
             if(pt.isNotEmpty && pt[0] =='*' && pt[pt.length-1] == '#'){
               String sliced = pt.substring(1, pt.length - 1);
               debugPrint("sliced : $sliced");

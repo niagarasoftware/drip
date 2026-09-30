@@ -77,6 +77,7 @@ extension _ServiceRequestX on ServiceRequest {
     issueType: issueType,
     issueStatus: issueStatus,
     ticketHandler: handlers,
+    images: images,
   );
 }
 
@@ -145,8 +146,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     });
   }
 
-  /// Appends a new handler to the ticket's handler list (a ticket can now
-  /// have any number of handlers, each with their own service persons).
   void _addHandler(TicketHandler handler) {
     if (_selected == null) return;
     final handlers = [..._selected!.ticketHandler, handler];
@@ -154,8 +153,6 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
     // TODO: persist via _repository once an "add handler" endpoint exists.
   }
 
-  /// Adds a service person under a *specific* handler, identified by its
-  /// position in the ticket's handler list.
   void _addServicePerson(int handlerIndex, SalesPerson person) {
     if (_selected == null) return;
     final handlers = [..._selected!.ticketHandler];
@@ -195,7 +192,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
         children: [
           _buildSidebar(),
           Expanded(
-            flex: 3,
+            flex: 2,
             child: _selected == null ? const _EmptyState() : _TimelineCard(ticket: _selected!),
           ),
           Expanded(
@@ -659,9 +656,9 @@ class _DetailsPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      handlers.length > 1 ? 'Ticket handlers' : 'Ticket handler details',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _Palette.ink, letterSpacing: -0.5),
+                    const Text(
+                      'Ticket details',
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _Palette.ink, letterSpacing: -0.5),
                     ),
                     const SizedBox(height: 4),
                     Text('#TCK-${ticket.ticketId}', style: const TextStyle(color: _Palette.mutedLight, fontSize: 14)),
@@ -671,8 +668,14 @@ class _DetailsPanel extends StatelessWidget {
               if (handlers.isNotEmpty) _SummaryPill(handlerCount: handlers.length, personnelCount: totalPersonnel),
             ],
           ),
-          const SizedBox(height: 26),
-
+          const SizedBox(height: 32),
+          _IssueDetailsSection(ticket: ticket, category: category),
+          const SizedBox(height: 40),
+          Text(
+            handlers.length > 1 ? 'Ticket handlers' : 'Ticket handler details',
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _Palette.ink, letterSpacing: -0.5),
+          ),
+          const SizedBox(height: 20),
           if (handlers.isEmpty)
             _AddHandlerPlaceholder(onTap: onAddHandler)
           else ...[
@@ -690,8 +693,104 @@ class _DetailsPanel extends StatelessWidget {
               onTap: onAddHandler,
             ),
           ],
-
           const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+}
+
+class _IssueDetailsSection extends StatelessWidget {
+  final ServiceRequest ticket;
+  final String category;
+  const _IssueDetailsSection({required this.ticket, required this.category});
+
+  @override
+  Widget build(BuildContext context) {
+    final activeTypes = ticket.issueType.where((t) => t.value).map((t) => t.type).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _InfoChip(label: category, icon: Icons.category_outlined),
+            const SizedBox(width: 12),
+            _InfoChip(label: ticket.mobileNumber, icon: Icons.phone_android_rounded),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Text('Issue description',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _Palette.inkSoft)),
+        const SizedBox(height: 8),
+        Text(
+          ticket.issueDescription,
+          style: const TextStyle(color: _Palette.muted, fontSize: 14, height: 1.6),
+        ),
+        if (activeTypes.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          const Text('Reported issues',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _Palette.inkSoft)),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: activeTypes
+                .map((t) => Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _Palette.field,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _Palette.border),
+                      ),
+                      child: Text(t, style: const TextStyle(color: _Palette.inkSoft, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                    ))
+                .toList(),
+          ),
+        ],
+        if (ticket.images.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          const Text('Uploaded images',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _Palette.inkSoft)),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: ticket.images.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) => Container(
+                width: 160,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _Palette.border),
+                  image: DecorationImage(image: NetworkImage(ticket.images[i]), fit: BoxFit.cover),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  const _InfoChip({required this.label, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(color: _Palette.field, borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: _Palette.muted),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(color: _Palette.inkSoft, fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );

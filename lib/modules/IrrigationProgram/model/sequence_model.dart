@@ -594,6 +594,7 @@ class ProgramDetails {
   String pressureTolerance;
   String setFlow;
   String flowTolerance;
+  String flowScanTime;
 
   ProgramDetails(
       {
@@ -616,6 +617,7 @@ class ProgramDetails {
         required this.pressureTolerance,
         required this.setFlow,
         required this.flowTolerance,
+        required this.flowScanTime,
       });
 
   factory ProgramDetails.fromJson(Map<String, dynamic> json) {
@@ -638,6 +640,7 @@ class ProgramDetails {
         pressureTolerance: json["data"]["pressureTolerance"] ?? "0",
         setFlow: json["data"]["setFlow"] ?? "0",
         flowTolerance: json["data"]["flowTolerance"] ?? "0",
+        flowScanTime: json["data"]["flowScanTime"] ?? "00:00:00",
         controllerReadStatus: json['data']['controllerReadStatus'] ?? "0"
     );
   }

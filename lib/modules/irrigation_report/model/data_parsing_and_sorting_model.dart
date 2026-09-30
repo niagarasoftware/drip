@@ -1,6 +1,227 @@
 import 'package:flutter/material.dart';
 import '../../../Constants/data_convertion.dart';
+import '../view/reason_lookup.dart';
 import 'general_parameter_model.dart';
+
+String formatSingleTime(dynamic raw) {
+  if (raw == null) return '-';
+  var text = raw.toString().trim();
+  if (text.isEmpty || text == '-') return '-';
+  var parts = text.split(':');
+  if (parts.length < 2) return text;
+  int? hour = int.tryParse(parts[0]);
+  int? minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return text;
+  var second = parts.length > 2 ? parts[2] : null;
+  var suffix = hour >= 12 ? 'PM' : 'AM';
+  var hour12 = hour % 12;
+  if (hour12 == 0) hour12 = 12;
+  var minuteStr = minute.toString().padLeft(2, '0');
+  return second != null
+      ? '$hour12:$minuteStr:$second $suffix'
+      : '$hour12:$minuteStr $suffix';
+}
+
+String formatMultiTime(dynamic val) {
+  if (val == null || val.toString().trim().isEmpty || val.toString() == '-') {
+    return '-';
+  }
+  return val.toString().split('_').map(formatSingleTime).join('\n');
+}
+
+String formatMultiReason(dynamic val) {
+  if (val == null || val.toString().trim().isEmpty || val.toString() == '-') {
+    return '-';
+  }
+  List<String> parts = val.toString().split('_');
+  List<String> formatted = parts.map((part) {
+    if (part == '-' || part.trim().isEmpty) return '-';
+    int? code = int.tryParse(part.trim());
+    if (code != null) {
+      return programStartStopReason(code: code);
+    }
+    return part;
+  }).toList();
+  return formatted.join('\n');
+}
+
+Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
+  Map<String, dynamic> defaults = {
+    'general' : {
+      'ProgramName' : ['Program',true,1],
+      'Status' : ['Status',true,1],
+      'ZoneS_No' : ['Sequence',true,1],
+      'SequenceData' : ['Valves',true,1],
+      'Date' : ['Date',true,1],
+      'ProgramCategoryName' : ['Line',true,1],
+      'ActualStartTime' : ['Actual Start Time',true,1],
+      'ActualEndTime' : ['Actual End Time',true,1],
+      'ActualStartReason' : ['Actual Start Reason',true,1],
+      'ActualStopReason' : ['Actual Stop Reason',true,1],
+      'Pump' : ['Pump',true,1],
+      'ScheduledStartTime' : ['Start Time',false,1],
+      'overAll' : ['over all',true,1],
+    },
+    'irrigation' : {
+      'IrrigationMethod' : ['Method',true,2],
+      'IrrigationDuration_Quantity' : ['Planned',true,2],
+      'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
+      'overAll' : ['over all',true,1]
+    },
+    'prePost' : {
+      'PrePostMethod' : ['Method',true,2],
+      'Pretime/PreQty' : ['Pre',true,2],
+      'PostTime/PostQty' : ['Post',true,2],
+      'overAll' : ['over all',true,1]
+    },
+    'centralEcPh' : {
+      'CentralPhSetValue' : ['Central Ph Avg',true,3],
+      'CentralEcSetValue' : ['Central Ec Avg',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH1>' : {
+      'CentralFertChannelName' : ['Channel1 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH2>' : {
+      'CentralFertChannelName' : ['Channel2 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH3>' : {
+      'CentralFertChannelName' : ['Channel3 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH4>' : {
+      'CentralFertChannelName' : ['Channel4 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH5>' : {
+      'CentralFertChannelName' : ['Channel5 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH6>' : {
+      'CentralFertChannelName' : ['Channel6 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH7>' : {
+      'CentralFertChannelName' : ['Channel7 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH8>' : {
+      'CentralFertChannelName' : ['Channel8 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+  };
+
+  if (incoming == null) return defaults;
+
+  Map<String, dynamic> merged = Map<String, dynamic>.from(incoming);
+  defaults.forEach((category, paramMap) {
+    if (!merged.containsKey(category) || merged[category] == null) {
+      merged[category] = Map<String, dynamic>.from(paramMap);
+    } else {
+      Map<String, dynamic> categoryMap = Map<String, dynamic>.from(merged[category]);
+      paramMap.forEach((key, val) {
+        if (!categoryMap.containsKey(key)) {
+          categoryMap[key] = val;
+        }
+      });
+      merged[category] = categoryMap;
+    }
+  });
+
+  if (merged['general'] is Map) {
+    Map<String, dynamic> genMap = Map<String, dynamic>.from(merged['general']);
+    if (genMap.containsKey('ProgramCategory') && genMap.containsKey('ProgramCategoryName')) {
+      genMap.remove('ProgramCategory');
+    }
+    if (genMap.containsKey('SequenceData') && genMap.containsKey('ZoneName')) {
+      genMap.remove('ZoneName');
+    }
+    if (genMap.containsKey('ZoneS_No') && genMap.containsKey('ZoneName')) {
+      genMap.remove('ZoneName');
+    }
+    genMap.remove('ProgramStartStopReason');
+    genMap.remove('ProgramPauseResumeReason');
+    merged['general'] = _repositionActualTimeColumns(genMap);
+  }
+
+  return merged;
+}
+
+/// Older saved log configs were created before the "Actual Start/End Time" and
+/// "Actual Start/Stop Reason" columns existed, so a plain key-merge just tacks
+/// them onto the end of the general column list. This moves them back to sit
+/// right where "Start Time" used to be, and hides "Start Time" from the data
+/// rows (it stays in the map so it still shows up as a toggle in the column
+/// settings list).
+Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMap) {
+  const preferredOrder = [
+    'ProgramName',
+    'Status',
+    'ProgramCategoryName',
+    'ProgramCategory',
+    'Date',
+    'ZoneS_No',
+    'ZoneName',
+    'SequenceData',
+    'ActualStartTime',
+    'ActualEndTime',
+    'ActualStartReason',
+    'ActualStopReason',
+    'Pump',
+    'ScheduledStartTime',
+    'overAll',
+  ];
+
+  Map<String, dynamic> reordered = {};
+
+  for (final key in preferredOrder) {
+    if (generalMap.containsKey(key)) {
+      if (key == 'ScheduledStartTime') {
+        var startTimeVal = generalMap[key] is List ? List.from(generalMap[key]) : generalMap[key];
+        if (startTimeVal is List && startTimeVal.length > 1) {
+          startTimeVal[1] = false;
+        }
+        reordered[key] = startTimeVal;
+      } else {
+        reordered[key] = generalMap[key];
+      }
+    }
+  }
+
+  generalMap.forEach((key, val) {
+    if (!reordered.containsKey(key)) {
+      reordered[key] = val;
+    }
+  });
+
+  return reordered;
+}
 
 class IrrigationLogModel {
   List<GeneralParameterModel> generalParameterList = [];
@@ -216,20 +437,23 @@ class IrrigationLogModel {
     return name;
   }
 
-  String getSequenceName(List<dynamic> data, int sNo){
+  String getSequenceName(List<dynamic> data, dynamic sNo){
     var name = '';
+    if (sNo == null) return '-';
     for(var sequence in data){
-      if(sequence['sNo'] == sNo){
-        name = sequence['name'];
+      if(sequence['sNo'].toString() == sNo.toString() || sequence['id'].toString() == sNo.toString()){
+        name = sequence['name'] ?? '';
+        break;
       }
     }
-    return name;
+    return name.isEmpty ? sNo.toString() : name;
   }
 
   String getName(dynamic sNo){
     var name = '';
-
+    debugPrint("$sNo = ${sNo.runtimeType}  | ${sNo.toString().length}");
     if(sNo is String && !sNo.toString().contains('_')){
+      print("names : $names");
       for(var n in names){
         if(n['sNo'].toString() == sNo.toString()){
           name = n['name'];
@@ -291,8 +515,7 @@ class IrrigationLogModel {
     var localChannel8ColumnData = [];
     var graphData = [];
     var fixedColumn = 'Valve';
-    generalColumn.remove('Valve');
-    generalColumn.remove('Sequence');
+    generalColumn.removeWhere((item) => item == 'Valve' || item == 'Valves' || item == 'Sequence');
     for(var findValve in noOfValve){
       if(findValve['show'] == true){
         graphData.add({
@@ -312,104 +535,115 @@ class IrrigationLogModel {
                 var centralEcPhList = [];
                 var localEcPhList = [];
                 var filterList = [];
+                var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
-                  if(parameter.payloadKey == 'ProgramName') {
-                    if(parameter.show == true){
+                  if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
+                    addedUiKeys.add(parameter.uiKey);
+                    if(parameter.payloadKey == 'ProgramName') {
                       myList.add(getProgramName(dataSource['default']['program'], date['irrigation']['ProgramS_No'][howManyValve]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Status') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'Status') {
                       myList.add(date['irrigation']['Status'][howManyValve]);
                     }
-                  }
-                  if(parameter.payloadKey == 'Date') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'SequenceData') {
+                      myList.add(getName(date['irrigation']['SequenceData'][howManyValve]));
+                    }
+                    else if(parameter.payloadKey == 'ZoneS_No' || parameter.payloadKey == 'ZoneName') {
+                      if(date['irrigation']['ZoneName'] != null && howManyValve < date['irrigation']['ZoneName'].length && date['irrigation']['ZoneName'][howManyValve] != null && date['irrigation']['ZoneName'][howManyValve].toString().isNotEmpty && date['irrigation']['ZoneName'][howManyValve].toString() != '-'){
+                        myList.add(date['irrigation']['ZoneName'][howManyValve]);
+                      }else if(date['irrigation']['ZoneS_No'] != null && howManyValve < date['irrigation']['ZoneS_No'].length && date['irrigation']['ZoneS_No'][howManyValve] != null){
+                        myList.add(getSequenceName(dataSource['default']?['sequence'] ?? [], date['irrigation']['ZoneS_No'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Date') {
                       myList.add(date['irrigation']['Date'][howManyValve]);
                     }
-                  }
-                  if(parameter.payloadKey == 'HeadUnit') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ProgramCategoryName' || parameter.payloadKey == 'ProgramCategory') {
+                      if(date['irrigation']['ProgramCategoryName'] != null && howManyValve < date['irrigation']['ProgramCategoryName'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategoryName'][howManyValve]));
+                      }else if(date['irrigation']['ProgramCategory'] != null && howManyValve < date['irrigation']['ProgramCategory'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategory'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'HeadUnit') {
                       myList.add(getName(date['irrigation']['HeadUnit'][howManyValve]));
                     }
-                  }
-                  if(parameter.payloadKey == 'ScheduledStartTime') {
-                    if(parameter.show == true){
-                      myList.add(date['irrigation']['ScheduledStartTime'][howManyValve]);
+                    else if(parameter.payloadKey == 'ScheduledStartTime') {
+                      myList.add(formatSingleTime(date['irrigation']['ScheduledStartTime'][howManyValve]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Pump') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ActualStartTime') {
+                      if(date['irrigation']['ActualStartTime'] != null && howManyValve < date['irrigation']['ActualStartTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualStartTime'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualEndTime') {
+                      if(date['irrigation']['ActualEndTime'] != null && howManyValve < date['irrigation']['ActualEndTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualEndTime'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStartReason') {
+                      if(date['irrigation']['ActualStartReason'] != null && howManyValve < date['irrigation']['ActualStartReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStartReason'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStopReason') {
+                      if(date['irrigation']['ActualStopReason'] != null && howManyValve < date['irrigation']['ActualStopReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStopReason'][howManyValve]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Pump') {
                       myList.add(getName(date['irrigation']['Pump'][howManyValve]));
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyValve < date['irrigation']['PumpCtAverage'].length){
                         myList.add(date['irrigation']['PumpCtAverage'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMaximum') {
                       if(howManyValve < date['irrigation']['PumpCtMaximum'].length){
                         myList.add(date['irrigation']['PumpCtMaximum'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMinimum') {
                       if(howManyValve < date['irrigation']['PumpCtMinimum'].length){
                         myList.add(date['irrigation']['PumpCtMinimum'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureAverage') {
                       if(howManyValve < date['irrigation']['PressureAverage'].length){
                         myList.add(date['irrigation']['PressureAverage'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMaximum') {
                       if(howManyValve < date['irrigation']['PressureMaximum'].length){
                         myList.add(date['irrigation']['PressureMaximum'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMinimum') {
                       if(howManyValve < date['irrigation']['PressureMinimum'].length){
                         myList.add(date['irrigation']['PressureMinimum'][howManyValve]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramStartStopReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramStartStopReason'].length > howManyValve){
-                        myList.add(date['irrigation']['ProgramStartStopReason'][howManyValve]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramPauseResumeReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramPauseResumeReason'].length > howManyValve){
-                        myList.add(date['irrigation']['ProgramPauseResumeReason'][howManyValve]);
                       }else{
                         myList.add('-');
                       }
@@ -431,7 +665,7 @@ class IrrigationLogModel {
                             planned: date['irrigation']['IrrigationDuration_Quantity'][howManyValve],
                             actualDuration: date['irrigation']['IrrigationDurationCompleted'][howManyValve],
                             actualLiters: date['irrigation']['IrrigationQuantityCompleted'][howManyValve],
-                        flowRate: date['irrigation']['ValveFlowrate'][howManyValve],
+                            flowRate: date['irrigation']['ValveFlowrate'][howManyValve],
                             name: '${date['irrigation']['Date'][howManyValve]}\n${date['irrigation']['ScheduledStartTime'][howManyValve]}'
                         )
                     );
@@ -760,8 +994,7 @@ class IrrigationLogModel {
     var localChannel8ColumnData = [];
     var graphData = [];
     var fixedColumn = 'Line';
-    generalColumn.remove('Line');
-    generalColumn.remove('Valve');
+    generalColumn.removeWhere((item) => item == 'Line');
     for(var findLine in noOfLine){
       if(findLine['show'] == true){
         graphData.add({
@@ -781,104 +1014,115 @@ class IrrigationLogModel {
                 var centralEcPhList = [];
                 var localEcPhList = [];
                 var filterList = [];
+                var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
-                  if(parameter.payloadKey == 'ProgramName') {
-                    if(parameter.show == true){
+                  if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
+                    addedUiKeys.add(parameter.uiKey);
+                    if(parameter.payloadKey == 'ProgramName') {
                       myList.add(getProgramName(dataSource['default']['program'], date['irrigation']['ProgramS_No'][howManyLine]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Status') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'Status') {
                       myList.add(date['irrigation']['Status'][howManyLine]);
                     }
-                  }
-                  if(parameter.payloadKey == 'SequenceData') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'SequenceData') {
                       myList.add(getName(date['irrigation']['SequenceData'][howManyLine]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Date') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ZoneS_No' || parameter.payloadKey == 'ZoneName') {
+                      if(date['irrigation']['ZoneName'] != null && howManyLine < date['irrigation']['ZoneName'].length && date['irrigation']['ZoneName'][howManyLine] != null && date['irrigation']['ZoneName'][howManyLine].toString().isNotEmpty && date['irrigation']['ZoneName'][howManyLine].toString() != '-'){
+                        myList.add(date['irrigation']['ZoneName'][howManyLine]);
+                      }else if(date['irrigation']['ZoneS_No'] != null && howManyLine < date['irrigation']['ZoneS_No'].length && date['irrigation']['ZoneS_No'][howManyLine] != null){
+                        myList.add(getSequenceName(dataSource['default']?['sequence'] ?? [], date['irrigation']['ZoneS_No'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Date') {
                       myList.add(date['irrigation']['Date'][howManyLine]);
                     }
-                  }
-                  if(parameter.payloadKey == 'ScheduledStartTime') {
-                    if(parameter.show == true){
-                      myList.add(date['irrigation']['ScheduledStartTime'][howManyLine]);
+                    else if(parameter.payloadKey == 'ProgramCategoryName' || parameter.payloadKey == 'ProgramCategory') {
+                      if(date['irrigation']['ProgramCategoryName'] != null && howManyLine < date['irrigation']['ProgramCategoryName'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategoryName'][howManyLine]));
+                      }else if(date['irrigation']['ProgramCategory'] != null && howManyLine < date['irrigation']['ProgramCategory'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategory'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
                     }
-                  }
-                  if(parameter.payloadKey == 'Pump') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'HeadUnit') {
+                      myList.add(getName(date['irrigation']['HeadUnit'][howManyLine]));
+                    }
+                    else if(parameter.payloadKey == 'ScheduledStartTime') {
+                      myList.add(formatSingleTime(date['irrigation']['ScheduledStartTime'][howManyLine]));
+                    }
+                    else if(parameter.payloadKey == 'ActualStartTime') {
+                      if(date['irrigation']['ActualStartTime'] != null && howManyLine < date['irrigation']['ActualStartTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualStartTime'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualEndTime') {
+                      if(date['irrigation']['ActualEndTime'] != null && howManyLine < date['irrigation']['ActualEndTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualEndTime'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStartReason') {
+                      if(date['irrigation']['ActualStartReason'] != null && howManyLine < date['irrigation']['ActualStartReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStartReason'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStopReason') {
+                      if(date['irrigation']['ActualStopReason'] != null && howManyLine < date['irrigation']['ActualStopReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStopReason'][howManyLine]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Pump') {
                       myList.add(getName(date['irrigation']['Pump'][howManyLine]));
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyLine < date['irrigation']['PumpCtAverage'].length){
                         myList.add(date['irrigation']['PumpCtAverage'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMaximum') {
                       if(howManyLine < date['irrigation']['PumpCtMaximum'].length){
                         myList.add(date['irrigation']['PumpCtMaximum'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMinimum') {
                       if(howManyLine < date['irrigation']['PumpCtMinimum'].length){
                         myList.add(date['irrigation']['PumpCtMinimum'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureAverage') {
                       if(howManyLine < date['irrigation']['PressureAverage'].length){
                         myList.add(date['irrigation']['PressureAverage'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMaximum') {
                       if(howManyLine < date['irrigation']['PressureMaximum'].length){
                         myList.add(date['irrigation']['PressureMaximum'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMinimum') {
                       if(howManyLine < date['irrigation']['PressureMinimum'].length){
                         myList.add(date['irrigation']['PressureMinimum'][howManyLine]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramStartStopReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramStartStopReason'].length > howManyLine){
-                        myList.add(date['irrigation']['ProgramStartStopReason'][howManyLine]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramPauseResumeReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramPauseResumeReason'].length > howManyLine){
-                        myList.add(date['irrigation']['ProgramPauseResumeReason'][howManyLine]);
                       }else{
                         myList.add('-');
                       }
@@ -1232,8 +1476,7 @@ class IrrigationLogModel {
     var graphData = [];
 
     var fixedColumn = 'Program';
-    generalColumn.remove('Program');
-    generalColumn.remove('Valve');
+    generalColumn.removeWhere((item) => item == 'Program');
     for(var findProgram in noOfProgram){
       if(findProgram['show'] == true){
         graphData.add({
@@ -1253,104 +1496,115 @@ class IrrigationLogModel {
                 var centralEcPhList = [];
                 var localEcPhList = [];
                 var filterList = [];
+                var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
-                  if(parameter.payloadKey == 'Status') {
-                    if(parameter.show == true){
+                  if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
+                    addedUiKeys.add(parameter.uiKey);
+                    if(parameter.payloadKey == 'ProgramName') {
+                      myList.add(getProgramName(dataSource['default']['program'], date['irrigation']['ProgramS_No'][howManyProgram]));
+                    }
+                    else if(parameter.payloadKey == 'Status') {
                       myList.add(date['irrigation']['Status'][howManyProgram]);
                     }
-                  }
-                  if(parameter.payloadKey == 'SequenceData') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'SequenceData') {
                       myList.add(getName(date['irrigation']['SequenceData'][howManyProgram]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Date') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ZoneS_No' || parameter.payloadKey == 'ZoneName') {
+                      if(date['irrigation']['ZoneName'] != null && howManyProgram < date['irrigation']['ZoneName'].length && date['irrigation']['ZoneName'][howManyProgram] != null && date['irrigation']['ZoneName'][howManyProgram].toString().isNotEmpty && date['irrigation']['ZoneName'][howManyProgram].toString() != '-'){
+                        myList.add(date['irrigation']['ZoneName'][howManyProgram]);
+                      }else if(date['irrigation']['ZoneS_No'] != null && howManyProgram < date['irrigation']['ZoneS_No'].length && date['irrigation']['ZoneS_No'][howManyProgram] != null){
+                        myList.add(getSequenceName(dataSource['default']?['sequence'] ?? [], date['irrigation']['ZoneS_No'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Date') {
                       myList.add(date['irrigation']['Date'][howManyProgram]);
                     }
-                  }
-                  if(parameter.payloadKey == 'HeadUnit') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ProgramCategoryName' || parameter.payloadKey == 'ProgramCategory') {
+                      if(date['irrigation']['ProgramCategoryName'] != null && howManyProgram < date['irrigation']['ProgramCategoryName'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategoryName'][howManyProgram]));
+                      }else if(date['irrigation']['ProgramCategory'] != null && howManyProgram < date['irrigation']['ProgramCategory'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategory'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'HeadUnit') {
                       myList.add(getName(date['irrigation']['HeadUnit'][howManyProgram]));
                     }
-                  }
-                  if(parameter.payloadKey == 'ScheduledStartTime') {
-                    if(parameter.show == true){
-                      myList.add(date['irrigation']['ScheduledStartTime'][howManyProgram]);
+                    else if(parameter.payloadKey == 'ScheduledStartTime') {
+                      myList.add(formatSingleTime(date['irrigation']['ScheduledStartTime'][howManyProgram]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Pump') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ActualStartTime') {
+                      if(date['irrigation']['ActualStartTime'] != null && howManyProgram < date['irrigation']['ActualStartTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualStartTime'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualEndTime') {
+                      if(date['irrigation']['ActualEndTime'] != null && howManyProgram < date['irrigation']['ActualEndTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualEndTime'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStartReason') {
+                      if(date['irrigation']['ActualStartReason'] != null && howManyProgram < date['irrigation']['ActualStartReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStartReason'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStopReason') {
+                      if(date['irrigation']['ActualStopReason'] != null && howManyProgram < date['irrigation']['ActualStopReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStopReason'][howManyProgram]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Pump') {
                       myList.add(getName(date['irrigation']['Pump'][howManyProgram]));
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyProgram < date['irrigation']['PumpCtAverage'].length){
                         myList.add(date['irrigation']['PumpCtAverage'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMaximum') {
                       if(howManyProgram < date['irrigation']['PumpCtMaximum'].length){
                         myList.add(date['irrigation']['PumpCtMaximum'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMinimum') {
                       if(howManyProgram < date['irrigation']['PumpCtMinimum'].length){
                         myList.add(date['irrigation']['PumpCtMinimum'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureAverage') {
                       if(howManyProgram < date['irrigation']['PressureAverage'].length){
                         myList.add(date['irrigation']['PressureAverage'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMaximum') {
                       if(howManyProgram < date['irrigation']['PressureMaximum'].length){
                         myList.add(date['irrigation']['PressureMaximum'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMinimum') {
                       if(howManyProgram < date['irrigation']['PressureMinimum'].length){
                         myList.add(date['irrigation']['PressureMinimum'][howManyProgram]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramStartStopReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramStartStopReason'].length > howManyProgram){
-                        myList.add(date['irrigation']['ProgramStartStopReason'][howManyProgram]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramPauseResumeReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramPauseResumeReason'].length > howManyProgram){
-                        myList.add(date['irrigation']['ProgramPauseResumeReason'][howManyProgram]);
                       }else{
                         myList.add('-');
                       }
@@ -1701,9 +1955,8 @@ class IrrigationLogModel {
     var localChannel8ColumnData = [];
     var graphData = [];
     var fixedColumn = 'Date';
-    generalColumn.remove('Date');
-    generalColumn.remove('Valve');
-    print("noOfDate  => $noOfDate");
+    generalColumn.removeWhere((item) => item == 'Date');
+    print("noOfDate  => ${noOfDate}");
     for(var findDate in noOfDate){
       if(findDate['show'] == true){
         graphData.add({
@@ -1723,104 +1976,115 @@ class IrrigationLogModel {
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
+                var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
-                  if(parameter.payloadKey == 'ProgramName') {
-                    if(parameter.show == true){
+                  if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
+                    addedUiKeys.add(parameter.uiKey);
+                    if(parameter.payloadKey == 'ProgramName') {
                       myList.add(getProgramName(dataSource['default']['program'], date['irrigation']['ProgramS_No'][howManyDate]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Status') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'Status') {
                       myList.add(date['irrigation']['Status'][howManyDate]);
                     }
-                  }
-                  if(parameter.payloadKey == 'SequenceData') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'SequenceData') {
                       myList.add(getName(date['irrigation']['SequenceData'][howManyDate]));
                     }
-                  }
-                  if(parameter.payloadKey == 'HeadUnit') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ZoneS_No' || parameter.payloadKey == 'ZoneName') {
+                      if(date['irrigation']['ZoneName'] != null && howManyDate < date['irrigation']['ZoneName'].length && date['irrigation']['ZoneName'][howManyDate] != null && date['irrigation']['ZoneName'][howManyDate].toString().isNotEmpty && date['irrigation']['ZoneName'][howManyDate].toString() != '-'){
+                        myList.add(date['irrigation']['ZoneName'][howManyDate]);
+                      }else if(date['irrigation']['ZoneS_No'] != null && howManyDate < date['irrigation']['ZoneS_No'].length && date['irrigation']['ZoneS_No'][howManyDate] != null){
+                        myList.add(getSequenceName(dataSource['default']?['sequence'] ?? [], date['irrigation']['ZoneS_No'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Date') {
+                      myList.add(date['irrigation']['Date'][howManyDate]);
+                    }
+                    else if(parameter.payloadKey == 'ProgramCategoryName' || parameter.payloadKey == 'ProgramCategory') {
+                      if(date['irrigation']['ProgramCategoryName'] != null && howManyDate < date['irrigation']['ProgramCategoryName'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategoryName'][howManyDate]));
+                      }else if(date['irrigation']['ProgramCategory'] != null && howManyDate < date['irrigation']['ProgramCategory'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategory'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'HeadUnit') {
                       myList.add(getName(date['irrigation']['HeadUnit'][howManyDate]));
                     }
-                  }
-                  if(parameter.payloadKey == 'ScheduledStartTime') {
-                    if(parameter.show == true){
-                      myList.add(date['irrigation']['ScheduledStartTime'][howManyDate]);
+                    else if(parameter.payloadKey == 'ScheduledStartTime') {
+                      myList.add(formatSingleTime(date['irrigation']['ScheduledStartTime'][howManyDate]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Pump') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ActualStartTime') {
+                      if(date['irrigation']['ActualStartTime'] != null && howManyDate < date['irrigation']['ActualStartTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualStartTime'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualEndTime') {
+                      if(date['irrigation']['ActualEndTime'] != null && howManyDate < date['irrigation']['ActualEndTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualEndTime'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStartReason') {
+                      if(date['irrigation']['ActualStartReason'] != null && howManyDate < date['irrigation']['ActualStartReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStartReason'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStopReason') {
+                      if(date['irrigation']['ActualStopReason'] != null && howManyDate < date['irrigation']['ActualStopReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStopReason'][howManyDate]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Pump') {
                       myList.add(getName(date['irrigation']['Pump'][howManyDate]));
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyDate < date['irrigation']['PumpCtAverage'].length){
                         myList.add(date['irrigation']['PumpCtAverage'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMaximum') {
                       if(howManyDate < date['irrigation']['PumpCtMaximum'].length){
                         myList.add(date['irrigation']['PumpCtMaximum'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMinimum') {
                       if(howManyDate < date['irrigation']['PumpCtMinimum'].length){
                         myList.add(date['irrigation']['PumpCtMinimum'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureAverage') {
                       if(howManyDate < date['irrigation']['PressureAverage'].length){
                         myList.add(date['irrigation']['PressureAverage'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMaximum') {
                       if(howManyDate < date['irrigation']['PressureMaximum'].length){
                         myList.add(date['irrigation']['PressureMaximum'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMinimum') {
                       if(howManyDate < date['irrigation']['PressureMinimum'].length){
                         myList.add(date['irrigation']['PressureMinimum'][howManyDate]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramStartStopReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramStartStopReason'].length > howManyDate){
-                        myList.add(date['irrigation']['ProgramStartStopReason'][howManyDate]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramPauseResumeReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramPauseResumeReason'].length > howManyDate){
-                        myList.add(date['irrigation']['ProgramPauseResumeReason'][howManyDate]);
                       }else{
                         myList.add('-');
                       }
@@ -2173,8 +2437,7 @@ class IrrigationLogModel {
     var localChannel8ColumnData = [];
     var graphData = [];
     var fixedColumn = 'Status';
-    generalColumn.remove('Status');
-    generalColumn.remove('Valve');
+    generalColumn.removeWhere((item) => item == 'Status');
 
     for(var findStatus in noOfStatus){
       if(findStatus['show'] == true){
@@ -2195,104 +2458,115 @@ class IrrigationLogModel {
                 var centralEcPhList = [];
                 var localEcPhList = [];
                 var filterList = [];
+                var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
-                  if(parameter.payloadKey == 'ProgramName') {
-                    if(parameter.show == true){
+                  if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
+                    addedUiKeys.add(parameter.uiKey);
+                    if(parameter.payloadKey == 'ProgramName') {
                       myList.add(getProgramName(dataSource['default']['program'], date['irrigation']['ProgramS_No'][howManyStatus]));
                     }
-                  }
-                  if(parameter.payloadKey == 'SequenceData') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'Status') {
+                      myList.add(date['irrigation']['Status'][howManyStatus]);
+                    }
+                    else if(parameter.payloadKey == 'SequenceData') {
                       myList.add(getName(date['irrigation']['SequenceData'][howManyStatus]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Date') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ZoneS_No' || parameter.payloadKey == 'ZoneName') {
+                      if(date['irrigation']['ZoneName'] != null && howManyStatus < date['irrigation']['ZoneName'].length && date['irrigation']['ZoneName'][howManyStatus] != null && date['irrigation']['ZoneName'][howManyStatus].toString().isNotEmpty && date['irrigation']['ZoneName'][howManyStatus].toString() != '-'){
+                        myList.add(date['irrigation']['ZoneName'][howManyStatus]);
+                      }else if(date['irrigation']['ZoneS_No'] != null && howManyStatus < date['irrigation']['ZoneS_No'].length && date['irrigation']['ZoneS_No'][howManyStatus] != null){
+                        myList.add(getSequenceName(dataSource['default']?['sequence'] ?? [], date['irrigation']['ZoneS_No'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Date') {
                       myList.add(date['irrigation']['Date'][howManyStatus]);
                     }
-                  }
-                  if(parameter.payloadKey == 'HeadUnit') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ProgramCategoryName' || parameter.payloadKey == 'ProgramCategory') {
+                      if(date['irrigation']['ProgramCategoryName'] != null && howManyStatus < date['irrigation']['ProgramCategoryName'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategoryName'][howManyStatus]));
+                      }else if(date['irrigation']['ProgramCategory'] != null && howManyStatus < date['irrigation']['ProgramCategory'].length){
+                        myList.add(getName(date['irrigation']['ProgramCategory'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'HeadUnit') {
                       myList.add(getName(date['irrigation']['HeadUnit'][howManyStatus]));
                     }
-                  }
-                  if(parameter.payloadKey == 'ScheduledStartTime') {
-                    if(parameter.show == true){
-                      myList.add(date['irrigation']['ScheduledStartTime'][howManyStatus]);
+                    else if(parameter.payloadKey == 'ScheduledStartTime') {
+                      myList.add(formatSingleTime(date['irrigation']['ScheduledStartTime'][howManyStatus]));
                     }
-                  }
-                  if(parameter.payloadKey == 'Pump') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'ActualStartTime') {
+                      if(date['irrigation']['ActualStartTime'] != null && howManyStatus < date['irrigation']['ActualStartTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualStartTime'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualEndTime') {
+                      if(date['irrigation']['ActualEndTime'] != null && howManyStatus < date['irrigation']['ActualEndTime'].length){
+                        myList.add(formatMultiTime(date['irrigation']['ActualEndTime'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStartReason') {
+                      if(date['irrigation']['ActualStartReason'] != null && howManyStatus < date['irrigation']['ActualStartReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStartReason'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'ActualStopReason') {
+                      if(date['irrigation']['ActualStopReason'] != null && howManyStatus < date['irrigation']['ActualStopReason'].length){
+                        myList.add(formatMultiReason(date['irrigation']['ActualStopReason'][howManyStatus]));
+                      }else{
+                        myList.add('-');
+                      }
+                    }
+                    else if(parameter.payloadKey == 'Pump') {
                       myList.add(getName(date['irrigation']['Pump'][howManyStatus]));
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyStatus < date['irrigation']['PumpCtAverage'].length){
                         myList.add(date['irrigation']['PumpCtAverage'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMaximum') {
                       if(howManyStatus < date['irrigation']['PumpCtMaximum'].length){
                         myList.add(date['irrigation']['PumpCtMaximum'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PumpCtMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PumpCtMinimum') {
                       if(howManyStatus < date['irrigation']['PumpCtMinimum'].length){
                         myList.add(date['irrigation']['PumpCtMinimum'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureAverage') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureAverage') {
                       if(howManyStatus < date['irrigation']['PressureAverage'].length){
                         myList.add(date['irrigation']['PressureAverage'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMaximum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMaximum') {
                       if(howManyStatus < date['irrigation']['PressureMaximum'].length){
                         myList.add(date['irrigation']['PressureMaximum'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
                     }
-                  }
-                  if(parameter.payloadKey == 'PressureMinimum') {
-                    if(parameter.show == true){
+                    else if(parameter.payloadKey == 'PressureMinimum') {
                       if(howManyStatus < date['irrigation']['PressureMinimum'].length){
                         myList.add(date['irrigation']['PressureMinimum'][howManyStatus]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramStartStopReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramStartStopReason'].length > howManyStatus){
-                        myList.add(date['irrigation']['ProgramStartStopReason'][howManyStatus]);
-                      }else{
-                        myList.add('-');
-                      }
-                    }
-                  }
-                  if(parameter.payloadKey == 'ProgramPauseResumeReason') {
-                    if(parameter.show == true){
-                      if(date['irrigation']['ProgramPauseResumeReason'].length > howManyStatus){
-                        myList.add(date['irrigation']['ProgramPauseResumeReason'][howManyStatus]);
                       }else{
                         myList.add('-');
                       }
@@ -2600,6 +2874,7 @@ class IrrigationLogModel {
     List<dynamic> list = [];
     try{
       for(var parameter in channelParameterList){
+        debugPrint("parameter => ${parameter.payloadKey} = ${parameter.show}");
         if(date['irrigation']['${central ? 'Central' : 'Local'}FertOnOff'][howMany] == 1){
           if(parameter.payloadKey == '${central ? 'Central' : 'Local'}FertMethod') {
             if(parameter.show == true){
@@ -2636,7 +2911,9 @@ class IrrigationLogModel {
     for(var parameter in parameterList){
       if(parameter.show == true){
         if(parameter.payloadKey != 'overAll'){
-          list.add(parameter.uiKey);
+          if (!list.contains(parameter.uiKey)) {
+            list.add(parameter.uiKey);
+          }
         }
       }
     }
@@ -2672,10 +2949,10 @@ GraphData getGraphData({required method, required planned, required actualDurati
   var plannedInLiters = finalMethod == 1 ? (plannedSeconds * flowRateForPerSec) : planned;
   var actualInLiters =  finalMethod == 1 ? (actualSeconds * flowRateForPerSec) : actualLiters;
   if(plannedInLiters is String){
-    plannedInLiters = int.parse(plannedInLiters);
+    plannedInLiters = double.parse(plannedInLiters).toInt();
   }
   if(actualInLiters is String){
-    actualInLiters = int.parse(actualInLiters);
+    actualInLiters = double.parse(actualInLiters).toInt();
   }
   dynamic preFrom = 0;
   dynamic preTo = 0;
@@ -2721,84 +2998,4 @@ GraphData getGraphData({required method, required planned, required actualDurati
       plannedTo: plannedTo,
       seqName: name
   );
-}
-
-dynamic getStatus(code){
-  String statusString = '';
-  Color innerCircleColor = Colors.grey;
-  switch (code.toString()) {
-    case "0":
-      innerCircleColor = Colors.grey;
-      statusString = "Pending";
-      break;
-    case "1":
-      innerCircleColor = Colors.orange;
-      statusString = "Running";
-      break;
-    case "2":
-      innerCircleColor = Colors.green;
-      statusString = "Completed";
-      break;
-    case "3":
-      innerCircleColor = Colors.yellow;
-      statusString = "Skipped by user";
-      break;
-    case "4":
-      innerCircleColor = Colors.orangeAccent;
-      statusString = "Day schedule pending";
-      break;
-    case "5":
-      innerCircleColor = const Color(0xFF0D5D9A);
-      statusString = "Day schedule running";
-      break;
-    case "6":
-      innerCircleColor = Colors.yellowAccent;
-      statusString = "Day schedule completed";
-      break;
-    case "7":
-      innerCircleColor = Colors.red;
-      statusString = "Day schedule skipped";
-      break;
-    case "8":
-      innerCircleColor = Colors.redAccent;
-      statusString = "Postponed partially to tomorrow";
-      break;
-    case "9":
-      innerCircleColor = Colors.green;
-      statusString = "Postponed fully to tomorrow";
-      break;
-    case "10":
-      innerCircleColor = Colors.amberAccent;
-      statusString = "RTC off time reached";
-      break;
-    case "11":
-      innerCircleColor = Colors.blueGrey;
-      statusString = "RTC max time reached";
-      break;
-    case "12":
-      innerCircleColor = Colors.redAccent;
-      statusString = "High Flow";
-      break;
-    case "13":
-      innerCircleColor = Colors.orangeAccent;
-      statusString = "Low Flow";
-      break;
-    case "14":
-      innerCircleColor = Colors.purple;
-      statusString = "No Flow";
-      break;
-    case "15":
-      innerCircleColor = Colors.blue;
-      statusString = "Skipped by Global Limit";
-      break;
-    case "16":
-      innerCircleColor = Colors.black;
-      statusString = "Stopped Manually";
-      break;
-    default:
-      innerCircleColor = Colors.amber;
-      statusString = "RTC max time reached";
-      break;
-  }
-  return {'status' : statusString,'color':innerCircleColor};
 }

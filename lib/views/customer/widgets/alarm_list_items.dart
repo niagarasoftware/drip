@@ -12,13 +12,13 @@ import '../../../utils/my_function.dart';
 class AlarmListItems extends StatelessWidget {
   const AlarmListItems({super.key, required this.alarm, required this.deviceID,
     required this.customerId, required this.controllerId, required this.irrigationLine,
-    this.show = true, required this.isNarrow});
+    this.show = true, required this.isNarrow, required this.isOMS});
   final List<String> alarm;
   final List<IrrigationLineModel> irrigationLine;
   final String deviceID;
   final int customerId, controllerId;
   final bool show;
-  final bool isNarrow;
+  final bool isNarrow, isOMS;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +35,7 @@ class AlarmListItems extends StatelessWidget {
             children: List.generate(alarm.length, (index) {
               List<String> values = alarm[index].split(',');
 
-              final line = irrigationLine.firstWhere(
+              final line = isOMS ? null: irrigationLine.firstWhere(
                     (line) => line.sNo.toString() == values[1],
               );
 
@@ -53,7 +53,10 @@ class AlarmListItems extends StatelessWidget {
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Location: ${line.name}'),
+                    if(!isOMS)...[
+                      Text('Location: ${line!.name}'),
+                    ],
+
                     Text('Time: ${Formatters().formatRelativeTime('${values[5]} ${values[6]}')}'),
                   ],
                 ),
@@ -124,7 +127,7 @@ class AlarmListItems extends StatelessWidget {
         return DataRow(cells: [
           DataCell(Icon(Icons.warning_amber, color: values[7]=='1' ? Colors.orangeAccent : Colors.redAccent,)),
           DataCell(Text(MyFunction().getAlarmMessage(int.parse(values[2])))),
-          DataCell(Text(irrigationLine.firstWhere(
+          DataCell(Text(isOMS? '':irrigationLine.firstWhere(
                 (line) => line.sNo.toString() == values[1],
           ).name)),
           DataCell(Text(Formatters().formatRelativeTime('${values[5]} ${values[6]}'))),

@@ -53,6 +53,9 @@ enum FileMode{
   bootFail,
 }
 
+
+enum ConnectMode{pumpWifiDefault, normal}
+
 class BleProvider extends ChangeNotifier {
   BleNodeState bleNodeState = BleNodeState.bluetoothOff;
   TraceMode traceMode = TraceMode.traceOff;
@@ -64,6 +67,7 @@ class BleProvider extends ChangeNotifier {
   List<BluetoothDevice> _systemDevices = [];
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
+  ConnectMode bleConnectMode = ConnectMode.normal;
 
   /* connecting variables*/
   BluetoothDevice? device;
@@ -162,10 +166,11 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  void autoScanAndFoundDevice({required String macAddressToConnect, required int modelIdToUpdate}) async{
+  void autoScanAndFoundDevice({required String macAddressToConnect, required int modelIdToUpdate, required ConnectMode connectMode}) async{
     modelId = modelIdToUpdate;
     bleNodeState = BleNodeState.scanning;
     forceStop = false;
+    bleConnectMode = connectMode;
     notifyListeners();
     startListeningDevice();
     startScan();
@@ -179,7 +184,11 @@ class BleProvider extends ChangeNotifier {
         var adv = result.advertisementData;
         String upComingMacAddress = result.device.remoteId.toString().split(':').join('');
         debugPrint("upComingMacAddress : $upComingMacAddress");
-        if(macAddressToConnect == upComingMacAddress){
+        bool filterByCondition = connectMode == ConnectMode.pumpWifiDefault;
+        debugPrint("filterByCondition : $filterByCondition");
+        if(macAddressToConnect == upComingMacAddress && (filterByCondition ? result.device.platformName.contains('WIFI_') : result.device.platformName.contains('NIA_'))){
+          debugPrint("result.device.platformName : ${result.device.platformName}");
+          debugPrint("device : ${result.device}");
           device = result.device;
           bleNodeState = BleNodeState.deviceFound;
           notifyListeners();
@@ -396,7 +405,7 @@ class BleProvider extends ChangeNotifier {
     for (var s in _services) {
       debugPrint('service => $s');
     }
-    print("modelId : $modelId");
+    print("modelId : ${modelId}");
     final isWlc = AppConstants.wlcModelList.contains(modelId);
     final isPumpWifi = AppConstants.pumpWifiDefault.contains(modelId);
 
@@ -404,8 +413,9 @@ class BleProvider extends ChangeNotifier {
     if (isWlc) {
       debugPrint("connect to wlc model....");
       myService = _services[2];
-    } else if (isPumpWifi) {
+    } else if (isPumpWifi && bleConnectMode == ConnectMode.pumpWifiDefault) {
       debugPrint("connect to pumpWifiDefault model....");
+      debugPrint("_services : ${_services.length}");
       myService = _services[2];
     } else {
       debugPrint("connect to node model....");
@@ -427,7 +437,7 @@ class BleProvider extends ChangeNotifier {
             !props.writeWithoutResponse &&
                 !props.write &&
                 props.notify;
-      } else if (isPumpWifi) {
+      } else if (isPumpWifi && bleConnectMode == ConnectMode.pumpWifiDefault) {
         isReadCharacteristic =
             props.writeWithoutResponse &&
                 !props.write &&
@@ -514,7 +524,7 @@ class BleProvider extends ChangeNotifier {
               if (value.isNotEmpty) {
                 readFromHardwareStringValue += String.fromCharCodes(value);
               }
-              if(value[value.length - 1] == 125){
+              if(value.isNotEmpty && value[value.length - 1] == 125){
                 if(readFromHardwareStringValue[0] == '{'){
                   if(readFromHardwareStringValue.contains('MID')){
                     nodeDataFromHw = jsonDecode(readFromHardwareStringValue);
@@ -790,10 +800,10 @@ class BleProvider extends ChangeNotifier {
       }
       notifyListeners();
       
-    }catch(e){
+    }catch(e, backTrace){
       fileMode = FileMode.errorOnWhileGetFileName;
       if (kDebugMode) {
-        debugPrint('Error on getting File Name :: $e');
+        debugPrint('Error on getting File Name :: ${e}');
       }
       rethrow;
     }
@@ -909,9 +919,9 @@ class BleProvider extends ChangeNotifier {
 
   void sendCalculatedCrc({required int lengthOfFile})async{
     try {
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(Duration(seconds: 1));
       if (kDebugMode) {
-        debugPrint('addingResult === > $addingResult');
+        debugPrint('addingResult === > ${addingResult}');
         debugPrint('result is : ${addingResult.toRadixString(16).toUpperCase()}');
       }
 
@@ -951,7 +961,7 @@ class BleProvider extends ChangeNotifier {
       }
       int fileSize = ((lengthOfFile) * 16).toInt();
       if (kDebugMode) {
-        debugPrint('fileSize => $fileSize');
+        debugPrint('fileSize => ${fileSize}');
       }
       String fileSizeString = fileSize.toRadixString(16).toUpperCase();
       var fileSizeStringList = fileSizeString.split('');
@@ -973,7 +983,7 @@ class BleProvider extends ChangeNotifier {
         }
       }
       if (kDebugMode) {
-        debugPrint('fileSizeStringList => $fileSizeStringList');
+        debugPrint('fileSizeStringList => ${fileSizeStringList}');
       }
       List<int> crcFormatFileSizeStringList = [];
       for (var cfsf = 0; cfsf < fileSizeStringList.length; cfsf += 2) {
@@ -1000,9 +1010,9 @@ class BleProvider extends ChangeNotifier {
       }
       sentAndReceive.add(beforeConversion);
       for (var crc in finalOutPutOfCrcAndFileSize) {
-        sentAndReceive.add(crc.toRadixString(16).padLeft(2, '0'));
+        sentAndReceive.add('${crc.toRadixString(16).padLeft(2, '0')}');
       }
-      sentAndReceive.add('file size ==> $fileSize');
+      sentAndReceive.add('file size ==> ${fileSize}');
       waitingForCrcPassOrCrcFail();
       notifyListeners();
     } catch (e) {
@@ -1088,10 +1098,13 @@ class BleProvider extends ChangeNotifier {
     return Future.delayed(const Duration(seconds: 1));
   }
 
+
+
   void sendDataToHw(List<int> dataToSend) async {
     if (sendToHardware == null) return;
     String pumpWifiDefaultServiceUuid = '49535343-FE7D-4AE5-8FA9-9FAFD205E455';
-    if(myService!.uuid.toString().toUpperCase() == pumpWifiDefaultServiceUuid){
+    // if(myService!.uuid.toString().toUpperCase() == pumpWifiDefaultServiceUuid){
+    if(bleConnectMode == ConnectMode.pumpWifiDefault){
       const int chunkSize = 20;
       for (int i = 0; i < dataToSend.length; i += chunkSize) {
         final chunk = dataToSend.sublist(

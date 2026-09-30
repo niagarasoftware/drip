@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:oro_drip_irrigation/views/common/user_dashboard/widgets/sensor_widget.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../Widgets/pump_widget.dart';
@@ -38,7 +39,6 @@ class PumpStationMobile extends StatelessWidget {
   });
 
   final ValueNotifier<int> popoverUpdateNotifier = ValueNotifier<int>(0);
-
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +170,69 @@ class PumpStationMobile extends StatelessWidget {
       bool isAvailInlet, bool isInlet) {
 
     final List<Widget> gridItems = [];
+
     for (int index = 0; index < waterSources.length; index++) {
+      final source = waterSources[index];
+
+      // --------------------------------------------------
+      // WATER SOURCE
+      // --------------------------------------------------
+      gridItems.add(
+        SourceColumnWidget(
+          source: source,
+          isInletSource: isInlet,
+          isAvailInlet: isAvailInlet,
+          index: index,
+          total: waterSources.length,
+          popoverUpdateNotifier: popoverUpdateNotifier,
+          deviceId: deviceId,
+          customerId: customerId,
+          controllerId: controllerId,
+          modelId: modelId,
+          isMobile: true,
+          isAvailFrtSite:
+          (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
+        ),
+      );
+
+      // --------------------------------------------------
+      // PUMP + WATER METER
+      // --------------------------------------------------
+      for (final pump in source.outletPump) {
+        // Pump
+        gridItems.add(
+          PumpWidget(
+            pump: pump,
+            isSourcePump: isInlet,
+            deviceId: deviceId,
+            customerId: customerId,
+            controllerId: controllerId,
+            isMobile: true,
+            modelId: modelId,
+            pumpPosition: 'First',
+            isAvailFrtSite:
+            (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
+            isNova: isNova,
+          ),
+        );
+
+        // Water Meter — only if this pump actually has one
+        if (pump.waterMeter.isNotEmpty) {
+          gridItems.add(
+            SensorWidget(
+              sensor: pump.waterMeter.first,
+              sensorType: 'Water Meter',
+              imagePath: 'assets/png/mobile/m_water_meter_pmp.png',
+              customerId: customerId,
+              controllerId: controllerId,
+            ),
+          );
+        }
+      }
+    }
+
+
+    /*for (int index = 0; index < waterSources.length; index++) {
       final source = waterSources[index];
       gridItems.add(SourceColumnWidget(
         source: source,
@@ -186,6 +248,7 @@ class PumpStationMobile extends StatelessWidget {
         isMobile: true,
         isAvailFrtSite: (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
       ));
+
       gridItems.addAll(source.outletPump.map((pump) => PumpWidget(
         pump: pump,
         isSourcePump: isInlet,
@@ -198,7 +261,8 @@ class PumpStationMobile extends StatelessWidget {
         isAvailFrtSite: (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
         isNova: isNova,
       )));
-    }
+    }*/
+
     return gridItems;
   }
 
@@ -230,6 +294,7 @@ class PumpStationMobile extends StatelessWidget {
           ));
         }
       }
+      //
 
       widgets.add(BoosterWidget(
         fertilizerSite: site,

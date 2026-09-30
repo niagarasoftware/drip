@@ -158,6 +158,16 @@ class _ProductLimitGridListTileState extends State<ProductLimitGridListTile> wit
       }else{
         visible = false;
       }
+    }else if(AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId'])){
+      if (kDebugMode) {
+        print('master ::: BCH gem');
+      }
+      List<int> objectThatConfigureToBchModel = [1, 2, 5, 40];
+      if(objectThatConfigureToBchModel.contains(objectId)){
+        visible = true;
+      }else{
+        visible = false;
+      }
     }
     else{
       if (kDebugMode) {

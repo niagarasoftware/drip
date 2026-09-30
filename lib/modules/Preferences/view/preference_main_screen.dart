@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
-import 'package:oro_drip_irrigation/Constants/properties.dart';
+import 'package:flutter_material_design_icons/flutter_material_design_icons.dart';
+import 'package:oro_drip_irrigation/app.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/view/view_config.dart';
 import 'package:oro_drip_irrigation/services/communication_service.dart';
 import 'package:oro_drip_irrigation/services/http_service.dart';
@@ -10,6 +10,7 @@ import 'package:oro_drip_irrigation/services/mqtt_service.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
+import '../../../Constants/properties.dart' show AppProperties;
 import '../../../StateManagement/mqtt_payload_provider.dart';
 import '../../../Widgets/custom_animated_switcher.dart';
 import '../../IrrigationProgram/view/schedule_screen.dart';
@@ -441,14 +442,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                                       pumpIndex: commonSettingIndex
                                   )
                               else if(selectedSetting == 1)
-                                for(var pumpSettingIndex = 0; pumpSettingIndex < preferenceProvider.individualPumpSetting!.length; pumpSettingIndex++)
-                                  buildSettingsCategory(
-                                      context: context,
-                                      settingList: preferenceProvider.individualPumpSetting![pumpSettingIndex].settingList,
-                                      constraints: constraints,
-                                      pumpIndex: pumpSettingIndex
-                                  )
-                             /* else if(selectedSetting == 3 && isValveSetting)
+                                  for(var pumpSettingIndex = 0; pumpSettingIndex < preferenceProvider.individualPumpSetting!.length; pumpSettingIndex++)
+                                    buildSettingsCategory(
+                                        context: context,
+                                        settingList: preferenceProvider.individualPumpSetting![pumpSettingIndex].settingList,
+                                        constraints: constraints,
+                                        pumpIndex: pumpSettingIndex
+                                    )
+                              /* else if(selectedSetting == 3 && isValveSetting)
                                 ValveSettings(
                                   masterData: widget.masterData,
                                   selectedMode: widget.selectedIndex,
@@ -608,6 +609,12 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
               ),
               color: Theme.of(context).primaryColor,
               onPressed: () async {
+                final rtcError = validateAllRtcSettings();
+                print("rtcError : ${rtcError}");
+                if (rtcError != null) {
+                  _showRtcErrorDialog(rtcError);
+                  return;
+                }
                 await Future.delayed(Duration.zero, () {
                   setState(() {
                     // oroPumpList.clear();
@@ -632,7 +639,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                     List common = preferenceProvider.commonPumpSettings!.where((element) =>
                         element.settingList.any((e) => e.changed == true)).toList().map((e) =>e.deviceId).toList();
                     List individual = preferenceProvider.individualPumpSetting!.where((element) =>
-                        element.settingList.any((e) => e.changed == true)).toList().map((e) =>e.deviceId).toList();
+                        element.settingList.any((e) => e.changed == true)).toList().map((e) =>e.deviceId).toList();;
                     if(preferenceProvider.commonPumpSettings!.any((element) => element.settingList.any((e) => e.changed == true)) || preferenceProvider.individualPumpSetting!.any((element) => element.settingList.any((e) => e.changed == true))) {
                       selectedOroPumpList.clear();
                       if(selectedOroPumpList.isEmpty) {
@@ -646,7 +653,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                 }
               },
               child: Text(preferenceProvider.passwordValidationCode == 200
-                  ? "Send calibration" 
+                  ? "Send calibration"
                   : isValveSetting
                   ? "Send"
                   : "Send preference", style: const TextStyle(color: Colors.white),),
@@ -667,76 +674,76 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
 
   Widget _getDefaultTabController() {
     return DefaultTabController(
-        length: selectedSetting != 1 ? preferenceProvider.commonPumpSettings!.length: preferenceProvider.individualPumpSetting!.length,
-        child: Column(
-          children: [
-            const SizedBox(height: 10,),
-            Container(
-              color: Theme.of(context).primaryColor,
-              child: TabBar(
-                controller: selectedSetting != 1 ? commonPumpTabController : individualPumpTabController,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 10.0),
-                indicatorColor: Colors.white,
-                tabAlignment: TabAlignment.start,
-                labelColor: Colors.white,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal,color: Colors.grey.shade400),
-                dividerColor: Colors.transparent,
-                isScrollable: true,
-                onTap: (value) async{
-                  preferenceProvider.updateTabIndex(commonPumpTabController.index);
-                  if(selectedSetting == 2 && isToGem) {
-                    mqttPayloadProvider.viewSettingsList.clear();
-                    final oroPumpSerialNumber = preferenceProvider.commonPumpSettings![commonPumpTabController.index].serialNumber;
-                    final referenceNumber = preferenceProvider.commonPumpSettings![commonPumpTabController.index].referenceNumber;
-                    final deviceId = preferenceProvider.commonPumpSettings![commonPumpTabController.index].deviceId;
-                    final interfaceType = preferenceProvider.commonPumpSettings![commonPumpTabController.index].interfaceTypeId;
-                    final categoryId = preferenceProvider.commonPumpSettings![commonPumpTabController.index].categoryId;
-                    final payload = jsonEncode({"sentSms": "viewconfig"});
-                    final payload2 = jsonEncode({"0": payload});
-                    final viewConfig = {"5900": {
-                      "5901": "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId",
-                      }};
-                    final result = await context.read<CommunicationService>().sendCommand(
-                      serverMsg: '',
-                      payload: isWlc ? Constants.sendPayloadWithCrc(payload) : jsonEncode(viewConfig),
-                    );
-                    // mqttService.topicToPublishAndItsMessage(isWlc ? Constants.sendPayloadWithCrc(payload) : jsonEncode(viewConfig),
-                    //     "${Environment.mqttPublishTopic}/${widget.masterData['deviceId']}");
-                  }
-                },
-                tabs: [
-                  if(selectedSetting != 1)
-                    ...preferenceProvider.commonPumpSettings!.asMap().entries.map((entry) {
-                      final element = entry.value;
-                      return preferenceProvider.commonPumpSettings!.length > 1 ? Tab(
-                        text: "${element.deviceName}\n${element.deviceId}",
-                      ) : Container();
-                    })
-                  else
-                    ...preferenceProvider.individualPumpSetting!.asMap().entries.map((entry) {
-                      final element = entry.value;
+      length: selectedSetting != 1 ? preferenceProvider.commonPumpSettings!.length: preferenceProvider.individualPumpSetting!.length,
+      child: Column(
+        children: [
+          const SizedBox(height: 10,),
+          Container(
+            color: Theme.of(context).primaryColor,
+            child: TabBar(
+              controller: selectedSetting != 1 ? commonPumpTabController : individualPumpTabController,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 10.0),
+              indicatorColor: Colors.white,
+              tabAlignment: TabAlignment.start,
+              labelColor: Colors.white,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+              unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal,color: Colors.grey.shade400),
+              dividerColor: Colors.transparent,
+              isScrollable: true,
+              onTap: (value) async{
+                preferenceProvider.updateTabIndex(commonPumpTabController.index);
+                if(selectedSetting == 2 && isToGem) {
+                  mqttPayloadProvider.viewSettingsList.clear();
+                  final oroPumpSerialNumber = preferenceProvider.commonPumpSettings![commonPumpTabController.index].serialNumber;
+                  final referenceNumber = preferenceProvider.commonPumpSettings![commonPumpTabController.index].referenceNumber;
+                  final deviceId = preferenceProvider.commonPumpSettings![commonPumpTabController.index].deviceId;
+                  final interfaceType = preferenceProvider.commonPumpSettings![commonPumpTabController.index].interfaceTypeId;
+                  final categoryId = preferenceProvider.commonPumpSettings![commonPumpTabController.index].categoryId;
+                  final payload = jsonEncode({"sentSms": "viewconfig"});
+                  final payload2 = jsonEncode({"0": payload});
+                  final viewConfig = {"5900": {
+                    "5901": "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId",
+                  }};
+                  final result = await context.read<CommunicationService>().sendCommand(
+                    serverMsg: '',
+                    payload: isWlc ? Constants.sendPayloadWithCrc(payload) : jsonEncode(viewConfig),
+                  );
+                  // mqttService.topicToPublishAndItsMessage(isWlc ? Constants.sendPayloadWithCrc(payload) : jsonEncode(viewConfig),
+                  //     "${Environment.mqttPublishTopic}/${widget.masterData['deviceId']}");
+                }
+              },
+              tabs: [
+                if(selectedSetting != 1)
+                  ...preferenceProvider.commonPumpSettings!.asMap().entries.map((entry) {
+                    final element = entry.value;
+                    return preferenceProvider.commonPumpSettings!.length > 1 ? Tab(
+                      text: "${element.deviceName}\n${element.deviceId}",
+                    ) : Container();
+                  })
+                else
+                  ...preferenceProvider.individualPumpSetting!.asMap().entries.map((entry) {
+                    final element = entry.value;
 
-                      CommonPumpSetting? matchingCommonPump;
-                      try {
-                        matchingCommonPump = preferenceProvider.commonPumpSettings!
-                            .firstWhere((common) => common.deviceId == element.deviceId);
-                      } catch (e) {
-                        matchingCommonPump = null;
-                      }
+                    CommonPumpSetting? matchingCommonPump;
+                    try {
+                      matchingCommonPump = preferenceProvider.commonPumpSettings!
+                          .firstWhere((common) => common.deviceId == element.deviceId);
+                    } catch (e) {
+                      matchingCommonPump = null;
+                    }
 
-                      return preferenceProvider.individualPumpSetting!.length > 1 ? Tab(
-                        text: (preferenceProvider.commonPumpSettings!.length > 1 &&
-                            matchingCommonPump != null)
-                            ? "${element.name}\n${matchingCommonPump.deviceId}"
-                            : element.name,
-                      ) : Container();
-                    })
-                ],
-              ),
+                    return preferenceProvider.individualPumpSetting!.length > 1 ? Tab(
+                      text: (preferenceProvider.commonPumpSettings!.length > 1 &&
+                          matchingCommonPump != null)
+                          ? "${element.name}\n${matchingCommonPump.deviceId}"
+                          : element.name,
+                    ) : Container();
+                  })
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -752,7 +759,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                     ...AppConstants.wlcModelList
                   ].contains(widget.masterData['modelId']) && AppConstants.otherCalibration.contains(settingList[categoryIndex].type))
                     Container()
-                    else if([
+                  else if([
                     ...AppConstants.singlePhaseWlcModelList,
                     ...AppConstants.threePhaseWlcModelList,
                   ].contains(widget.masterData['modelId']) && AppConstants.otherSetting.contains(settingList[categoryIndex].type))
@@ -761,83 +768,84 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                       ...AppConstants.singleOrThreePhaseWlcModelList,
                     ].contains(widget.masterData['modelId']) && AppConstants.additionalSetting.contains(settingList[categoryIndex].type))
                       Container()
-                  else if((AppConstants.levelSetting.contains(settingList[categoryIndex].type) && isToGem) ? preferenceProvider.individualPumpSetting![pumpIndex].controlGem : true)
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      width: constraints.maxWidth < 700 ? constraints.maxWidth : (constraints.maxWidth/2) - 40,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          IntrinsicWidth(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 15),
-                              height: 30,
-                              decoration: BoxDecoration(
-                                  color: Theme.of(context).primaryColorLight,
-                                  borderRadius: const BorderRadius.only(topRight: Radius.circular(20), topLeft: Radius.circular(3))
-                              ),
-                              child: Center(
-                                child: Text(
-                                  settingList[categoryIndex].name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white,),
+                    else if((AppConstants.levelSetting.contains(settingList[categoryIndex].type) && isToGem) ? preferenceProvider.individualPumpSetting![pumpIndex].controlGem : true)
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          width: constraints.maxWidth < 700 ? constraints.maxWidth : (constraints.maxWidth/2) - 40,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              IntrinsicWidth(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                      color: Theme.of(context).primaryColorLight,
+                                      borderRadius: const BorderRadius.only(topRight: Radius.circular(20), topLeft: Radius.circular(3))
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      settingList[categoryIndex].name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white,),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                              // Text(settingList[categoryIndex].name, style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),),
+                              // const SizedBox(height: 10,),
+                              Container(
+                                decoration: BoxDecoration(
+                                    borderRadius: const BorderRadius.only(topRight: Radius.circular(10), bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
+                                    color: Colors.white,
+                                    border: Border.all(color: Theme.of(context).primaryColorLight, width: 0.3)
+                                  // boxShadow: AppProperties.customBoxShadowLiteTheme
+                                ),
+                                child: Column(
+                                  children: [
+                                    for(var settingIndex = 0; settingIndex < settingList[categoryIndex].setting.length; settingIndex++)
+                                      if(settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "RTC TIMER")
+                                        _buildRtcTimer(categoryIndex, settingIndex, pumpIndex, settingList)
+                                      else if(settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "2 PHASE"
+                                          || settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "AUTO RESTART 2 PHASE"
+                                          || (settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "AUTO RESTART" && settingList[categoryIndex].setting[settingIndex].serialNumber == 8)
+                                          || (isNova && (
+                                              settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "UPPER TANK LINEAR LEVEL SENSOR" ||
+                                                  settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "LOWER TANK LINEAR LEVEL SENSOR"
+                                          ))
+                                      )
+                                        _buildTwoPhaseCard(categoryIndex, settingIndex, pumpIndex, settingList)
+                                      else
+                                        buildCustomListTileWidget(
+                                          context: context,
+                                          title: settingList[categoryIndex].setting[settingIndex].title,
+                                          widgetType: _getWidgetType(categoryIndex, settingIndex, settingList),
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter.deny(RegExp('[^0-9.]')),
+                                            LengthLimitingTextInputFormatter(6),
+                                          ],
+                                          dataList: settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "SENSOR HEIGHT"
+                                              ? ["20", "35"] : settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == 'CABLE SELECT' ? ['0', '1', '2', '3'] : ["10", "12"],
+                                          value: _getInitialValue(categoryIndex, settingIndex, settingList, pumpIndex),
+                                          leading: _buildLeading(categoryIndex, settingIndex, settingList),
+                                          onValueChange: (newValue) => onChangeValue(categoryIndex, settingIndex, settingList, newValue),
+                                          conditionToShow: getConditionToShow(type: settingList[categoryIndex].type, serialNumber: settingList[categoryIndex].setting[settingIndex].serialNumber, value: settingList[categoryIndex].setting[settingIndex].value,),
+                                          subTitle: _getSubTitle(categoryIndex, settingIndex, settingList, pumpIndex),
+                                          display: settingList[categoryIndex].setting[settingIndex].display,
+                                          hidden: (settingList[categoryIndex].setting[settingIndex].title == "Schedule by Days"
+                                              || (!isNova && AppConstants.otherCalibration.contains(settingList[categoryIndex].type) && [7,8].contains(settingList[categoryIndex].setting[settingIndex].serialNumber)))
+                                              ? true
+                                              : settingList[categoryIndex].setting[settingIndex].hidden,
+                                          enabled: true, modelId: widget.masterData['modelId'],
+                                        )
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10,),
+                              if(categoryIndex == settingList.length - 1)
+                                const SizedBox(height: 50,)
+                            ],
                           ),
-                          // Text(settingList[categoryIndex].name, style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),),
-                          // const SizedBox(height: 10,),
-                          Container(
-                            decoration: BoxDecoration(
-                                borderRadius: const BorderRadius.only(topRight: Radius.circular(10), bottomLeft: Radius.circular(10), bottomRight: Radius.circular(10)),
-                                color: Colors.white,
-                                border: Border.all(color: Theme.of(context).primaryColorLight, width: 0.3)
-                                // boxShadow: AppProperties.customBoxShadowLiteTheme
-                            ),
-                            child: Column(
-                              children: [
-                                for(var settingIndex = 0; settingIndex < settingList[categoryIndex].setting.length; settingIndex++)
-                                  if(settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "RTC TIMER")
-                                    _buildRtcTimer(categoryIndex, settingIndex, pumpIndex, settingList)
-                                  else if(settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "2 PHASE"
-                                      || settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "AUTO RESTART 2 PHASE"
-                                      || (isNova && (
-                                          settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "UPPER TANK LINEAR LEVEL SENSOR" ||
-                                              settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "LOWER TANK LINEAR LEVEL SENSOR"
-                                      ))
-                                  )
-                                    _buildTwoPhaseCard(categoryIndex, settingIndex, pumpIndex, settingList)
-                                  else
-                                    buildCustomListTileWidget(
-                                      context: context,
-                                      title: settingList[categoryIndex].setting[settingIndex].title,
-                                      widgetType: _getWidgetType(categoryIndex, settingIndex, settingList),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.deny(RegExp('[^0-9.]')),
-                                        LengthLimitingTextInputFormatter(6),
-                                      ],
-                                      dataList: settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "SENSOR HEIGHT"
-                                          ? ["20", "35"] : settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == 'CABLE SELECT' ? ['0', '1', '2', '3'] : ["10", "12"],
-                                      value: _getInitialValue(categoryIndex, settingIndex, settingList, pumpIndex),
-                                      leading: _buildLeading(categoryIndex, settingIndex, settingList),
-                                      onValueChange: (newValue) => onChangeValue(categoryIndex, settingIndex, settingList, newValue),
-                                      conditionToShow: getConditionToShow(type: settingList[categoryIndex].type, serialNumber: settingList[categoryIndex].setting[settingIndex].serialNumber, value: settingList[categoryIndex].setting[settingIndex].value,),
-                                      subTitle: _getSubTitle(categoryIndex, settingIndex, settingList, pumpIndex),
-                                      display: settingList[categoryIndex].setting[settingIndex].display,
-                                      hidden: (settingList[categoryIndex].setting[settingIndex].title == "Schedule by Days"
-                                          || (!isNova && AppConstants.otherCalibration.contains(settingList[categoryIndex].type) && [7,8].contains(settingList[categoryIndex].setting[settingIndex].serialNumber)))
-                                          ? true
-                                          : settingList[categoryIndex].setting[settingIndex].hidden,
-                                      enabled: true, modelId: widget.masterData['modelId'],
-                                    )
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10,),
-                          if(categoryIndex == settingList.length - 1)
-                            const SizedBox(height: 50,)
-                        ],
-                      ),
-                    ),
+                        ),
                 for(var categoryIndex = 0; categoryIndex < settingList.length; categoryIndex++)
                   if(!((AppConstants.levelSetting.contains(settingList[categoryIndex].type) && isToGem) ? preferenceProvider.individualPumpSetting![pumpIndex].controlGem : true))
                     const SizedBox(height: 50,)
@@ -869,7 +877,136 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
     );
   }
 
+  int _rtcTimeToSeconds(String timeStr) {
+    if (timeStr.isEmpty) return 0;
+    final parts = timeStr.split(':');
+    if (parts.length < 2) return 0;
+    int hours = int.tryParse(parts[0]) ?? 0;
+    int minutes = int.tryParse(parts[1]) ?? 0;
+    int seconds = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  String? _validateSingleRtcList(List<RtcTimeSetting> rtcSettings, {String? pumpName, bool isLiveEdit = false}) {
+    int? lastActiveOffTimeSeconds;
+    int? lastActiveIndex;
+
+    for (int i = 0; i < rtcSettings.length; i++) {
+      final rtc = rtcSettings[i];
+      final onSeconds = _rtcTimeToSeconds(rtc.onTime);
+      final offSeconds = _rtcTimeToSeconds(rtc.offTime);
+
+      if (onSeconds == 0 && offSeconds == 0) {
+        continue;
+      }
+
+      final prefix = pumpName != null ? "$pumpName - RTC ${i + 1}" : "RTC ${i + 1}";
+
+      if (offSeconds > 0 || !isLiveEdit) {
+        if (offSeconds <= onSeconds) {
+          return "$prefix: Off time must be greater than On time.";
+        }
+      }
+
+      if (lastActiveOffTimeSeconds != null && onSeconds < lastActiveOffTimeSeconds) {
+        final prevPrefix = "RTC ${lastActiveIndex! + 1}";
+        return "$prefix: On time must be greater than or equal to $prevPrefix Off time.";
+      }
+
+      if (offSeconds > 0) {
+        lastActiveOffTimeSeconds = offSeconds;
+        lastActiveIndex = i;
+      }
+    }
+    return null;
+  }
+
+  void _showRtcErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red),
+              SizedBox(width: 8),
+              Text("Invalid RTC Setting"),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String? validateAllRtcSettings() {
+    if (preferenceProvider.individualPumpSetting != null) {
+      for (var individualPump in preferenceProvider.individualPumpSetting!) {
+        final pumpName = preferenceProvider.individualPumpSetting!.length > 1 ? individualPump.name : null;
+        for (var settingCategory in individualPump.settingList) {
+          if (AppConstants.timerSetting.contains(settingCategory.type)) {
+            bool isRtcEnabled = true;
+            List<RtcTimeSetting>? rtcSettings;
+
+            for (var setting in settingCategory.setting) {
+              if (setting.title.toUpperCase() == "RTC") {
+                isRtcEnabled = setting.value == true;
+              }
+              if (setting.title.toUpperCase() == "RTC TIMER" && setting.rtcSettings != null) {
+                rtcSettings = setting.rtcSettings;
+              }
+            }
+
+            if (isRtcEnabled && rtcSettings != null) {
+              final error = _validateSingleRtcList(rtcSettings, pumpName: pumpName);
+              if (error != null) {
+                return error;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (preferenceProvider.commonPumpSettings != null) {
+      for (var commonSetting in preferenceProvider.commonPumpSettings!) {
+        for (var settingCategory in commonSetting.settingList) {
+          if (AppConstants.timerSetting.contains(settingCategory.type)) {
+            bool isRtcEnabled = true;
+            List<RtcTimeSetting>? rtcSettings;
+
+            for (var setting in settingCategory.setting) {
+              if (setting.title.toUpperCase() == "RTC") {
+                isRtcEnabled = setting.value == true;
+              }
+              if (setting.title.toUpperCase() == "RTC TIMER" && setting.rtcSettings != null) {
+                rtcSettings = setting.rtcSettings;
+              }
+            }
+
+            if (isRtcEnabled && rtcSettings != null) {
+              final error = _validateSingleRtcList(rtcSettings);
+              if (error != null) {
+                return error;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   Widget _buildRtcTimer(int categoryIndex, int settingIndex, int pumpIndex, List settingList) {
+    final rtcSettings = settingList[categoryIndex].setting[settingIndex].rtcSettings as List<RtcTimeSetting>?;
+
     return CustomAnimatedSwitcher(
       condition: (conditions['rtc'] ?? false),
       child: Column(
@@ -885,8 +1022,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
           const SizedBox(height: 20,),
           Column(
             children: [
-              if (settingList[categoryIndex].setting[settingIndex].rtcSettings != null)
-                ...settingList[categoryIndex].setting[settingIndex].rtcSettings!.asMap().entries.map((entry) {
+              if (rtcSettings != null)
+                ...rtcSettings.asMap().entries.map((entry) {
                   final int rtcIndex = entry.key;
                   final rtcSetting = entry.value;
 
@@ -908,12 +1045,21 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                               child: CustomNativeTimePicker(
                                 initialValue: rtcSetting.onTime.isNotEmpty ? rtcSetting.onTime : "00:00:00",
                                 onChanged: (newTime) {
-                                  setState(() {
-                                    settingList[categoryIndex].setting[settingIndex].isChanged = true;
-                                    settingList[categoryIndex].changed = true;
-                                    rtcSetting.onTime = newTime;
-                                  });
-                                  // print(settingList[categoryIndex].changed);
+                                  final oldTime = rtcSetting.onTime;
+                                  rtcSetting.onTime = newTime;
+                                  final error = _validateSingleRtcList(rtcSettings, isLiveEdit: true);
+                                  if (error != null) {
+                                    rtcSetting.onTime = oldTime;
+                                    Future.delayed(const Duration(milliseconds: 100), () {
+                                      if (mounted) _showRtcErrorDialog(error);
+                                    });
+                                    setState(() {});
+                                  } else {
+                                    setState(() {
+                                      settingList[categoryIndex].setting[settingIndex].isChanged = true;
+                                      settingList[categoryIndex].changed = true;
+                                    });
+                                  }
                                 },
                                 is24HourMode: true, modelId: 1,
                               ),
@@ -924,10 +1070,20 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                               child: CustomNativeTimePicker(
                                 initialValue: rtcSetting.offTime.isNotEmpty ? rtcSetting.offTime : "00:00:00",
                                 onChanged: (newTime) {
-                                  setState(() {
-                                    settingList[categoryIndex].changed = true;
-                                    rtcSetting.offTime = newTime;
-                                  });
+                                  final oldTime = rtcSetting.offTime;
+                                  rtcSetting.offTime = newTime;
+                                  final error = _validateSingleRtcList(rtcSettings, isLiveEdit: true);
+                                  if (error != null) {
+                                    rtcSetting.offTime = oldTime;
+                                    Future.delayed(const Duration(milliseconds: 100), () {
+                                      if (mounted) _showRtcErrorDialog(error);
+                                    });
+                                    setState(() {});
+                                  } else {
+                                    setState(() {
+                                      settingList[categoryIndex].changed = true;
+                                    });
+                                  }
                                 },
                                 is24HourMode: true, modelId: 1,
                               ),
@@ -938,7 +1094,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                       const SizedBox(height: 15),
                     ],
                   );
-                })
+                }),
             ],
           )
         ],
@@ -947,47 +1103,64 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
   }
 
   Widget _buildTwoPhaseCard(int categoryIndex, int settingIndex, int pumpIndex, List settingList) {
+    bool singlePhaseModel = [
+      ...AppConstants.singlePhasePumpModel,
+      ...AppConstants.singlePhasePumpPlusModel,
+      ...AppConstants.singlePhaseShineModel,
+      ...AppConstants.singlePhaseElitePlusModel,
+      ...AppConstants.singlePhaseEcoGemModel,
+      ...AppConstants.singlePhaseEcoGemPlusModel].contains(widget.masterData['modelId']);
+    bool showTitle = true;
+    bool showPumpList = true;
+    if(singlePhaseModel){
+      if(settingList[categoryIndex].setting[settingIndex].title.contains("2 Phase")){
+        showTitle = false;
+        showPumpList = false;
+      }
+    }
     return Column(
       children: [
-        ListTile(
-          leading: Container(
-              decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white
-                // gradient: linearGradientLeading,
-              ),
-              child: CircleAvatar(
-                  backgroundColor: cardColor,
-                  child: Icon(otherSettingsIcons[settingIndex], color: Theme.of(context).primaryColor)
-              )
+        if(showTitle)
+          ListTile(
+            leading: Container(
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white
+                  // gradient: linearGradientLeading,
+                ),
+                child: CircleAvatar(
+                    backgroundColor: cardColor,
+                    child: Icon(otherSettingsIcons[settingIndex], color: Theme.of(context).primaryColor)
+                )
+            ),
+            title: Text(settingList[categoryIndex].setting[settingIndex].title, style: Theme.of(context).textTheme.titleMedium!.copyWith(color: Theme.of(context).primaryColorLight, fontWeight: FontWeight.bold),),
           ),
-          title: Text(settingList[categoryIndex].setting[settingIndex].title, style: Theme.of(context).textTheme.titleMedium!.copyWith(color: Theme.of(context).primaryColorLight, fontWeight: FontWeight.bold),),
-        ),
-        Column(
-          children: [
-            for (int index = 0; index < (isToGem ? preferenceProvider.individualPumpSetting!
-                .where((e) => e.deviceId == preferenceProvider.commonPumpSettings![pumpIndex].deviceId).length : preferenceProvider.individualPumpSetting!.length); index++)
-              SwitchListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-                  secondary: const SizedBox(
-                    width: 40,
-                    height: 40,
-                  ),
-                  title: Text(isToGem ? preferenceProvider.individualPumpSetting!
-                      .where((e) => e.deviceId == preferenceProvider.commonPumpSettings![pumpIndex].deviceId)
-                      .elementAt(index)
-                      .name : preferenceProvider.individualPumpSetting![index].name),
-                  value: settingList[categoryIndex].setting[settingIndex].value[index],
-                  onChanged: (newValue) {
-                    setState(() {
-                      settingList[categoryIndex].setting[settingIndex].value[index] = newValue;
-                      settingList[categoryIndex].setting[settingIndex].isChanged = true;
-                      settingList[categoryIndex].changed = true;
-                    });
-                  }
-              ),
-          ],
-        )
+        if(showPumpList)
+          Column(
+            children: [
+              for (int index = 0; index < (isToGem ? preferenceProvider.individualPumpSetting!
+                  .where((e) => e.deviceId == preferenceProvider.commonPumpSettings![pumpIndex].deviceId).length : preferenceProvider.individualPumpSetting!.length); index++)
+                SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    secondary: const SizedBox(
+                      width: 40,
+                      height: 40,
+                    ),
+                    title: Text(isToGem ? preferenceProvider.individualPumpSetting!
+                        .where((e) => e.deviceId == preferenceProvider.commonPumpSettings![pumpIndex].deviceId)
+                        .elementAt(index)
+                        .name : preferenceProvider.individualPumpSetting![index].name),
+                    value: settingList[categoryIndex].setting[settingIndex].value[index],
+                    onChanged: (newValue) {
+                      setState(() {
+                        settingList[categoryIndex].setting[settingIndex].value[index] = newValue;
+                        settingList[categoryIndex].setting[settingIndex].isChanged = true;
+                        settingList[categoryIndex].changed = true;
+                      });
+                    }
+                ),
+            ],
+          )
       ],
     );
   }
@@ -1144,9 +1317,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
           decode.forEach((key, value) {
             switch (type) {
               case 202:
-              if (key == "rtcconfig") rtcTimeTemp = value;
-              valueToShow = delayTimeTemp+rtcTimeTemp;
-              break;
+                if (key == "rtcconfig") rtcTimeTemp = value;
+                valueToShow = delayTimeTemp+rtcTimeTemp;
+                break;
             }
           });
         }
@@ -1269,7 +1442,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
                           children: [
                             for(var i = 0; i < preferenceProvider.commonPumpSettings!.length; i++)
                               CheckboxListTile(
-                                dense: false,
+                                  dense: false,
                                   contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 10),
                                   title: Text(preferenceProvider.commonPumpSettings![i].deviceName),
                                   subtitle: Text(preferenceProvider.commonPumpSettings![i].deviceId),
@@ -1332,6 +1505,12 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
   };
 
   Future<void> sendFunction() async {
+    final rtcError = validateAllRtcSettings();
+    debugPrint("rtcError : $rtcError");
+    if (rtcError != null) {
+      _showRtcErrorDialog(rtcError);
+      return;
+    }
     // mqttPayloadProvider.preferencePayload = {};
     breakLoop = false;
     Map<String, dynamic> userData = {
@@ -1354,8 +1533,6 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
         ? getFailedPayload(isToGem: isToGem, sendAll: true).split("?")[0].split(';')
         : getPayload(isToGem: isToGem, sendAll: true).split("?")[0].split(';')
         : payloadParts;
-    print('start sendFunction');
-    print("payloadForGem : $payloadForGem");
     try {
       bool isLevelSettingChanged = preferenceProvider.individualPumpSetting!.any((pump) => pump.settingList.any((setting) => AppConstants.levelSetting.contains(setting.type) && setting.changed));
       bool isAnyOtherChanged = preferenceProvider.commonPumpSettings!.any((pump) => pump.settingList.any((setting) => setting.changed));
@@ -1469,7 +1646,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
         final message = jsonDecode(createUserPreference.body);
         await showSnackBar(message: message['message']);
       });
-      
+
     } catch (error, stackTrace) {
       showSnackBar(message: "Failed to update due to: $error");
       debugPrint("Error in preference sending: $error");
@@ -1525,11 +1702,11 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
 
   String onDelayTimer() {
     List<String> result = [];
-    for (var element in preferenceProvider.individualPumpSetting!) {
+    preferenceProvider.individualPumpSetting!.forEach((element) {
       String combinedResult = '${element.toGem()},${element.oDt()}';
       // String combinedResult = element.oDt();
       result.add(combinedResult);
-    }
+    });
 
     return result.join(';');
   }
@@ -1556,7 +1733,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
           }
         }
 
-       /* if(isPumpWithValveModel && selectedSetting == 3 && isValveSetting) {
+        /* if(isPumpWithValveModel && selectedSetting == 3 && isValveSetting) {
           for (var settingCategory in [preferenceProvider.valveSettings!]) {
             if ([211].contains(settingCategory.type)) {
               final payload = jsonEncode({"55": jsonEncode({"sentSms": '${preferenceProvider.mode == "Duration" ? 'valvesetting' : 'standalone'},${getSettingValue(settingCategory)}'})});
@@ -1686,79 +1863,79 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
         int pumpIndex = 0;
         for (var individualPump in preferenceProvider.individualPumpSetting ?? []) {
           if ((isPumpWithValveModel || !isToGem || isPumpOnly) ? true : commonSetting.deviceId == individualPump.deviceId) {          List<String> currentConfigList = [];
-            List<String> delayConfigList = [];
-            List<String> rtcConfigList = [];
-            List<String> scheduleConfigList = [];
-            if(individualPump.output != null) {
-              pumpIndex = individualPump.output;
-            } else {
-              pumpIndex++;
-            }
-            for (var individualPumpSetting in individualPump.settingList) {
-              final conditionToSend = (!sendAll ? individualPumpSetting.controllerReadStatus == "0" : true);
-              if (AppConstants.currentSetting.contains(individualPumpSetting.type)) {
-                if (conditionToSend) {
-                  final payload = jsonEncode({
-                    "400-$pumpIndex": jsonEncode({
-                      "sentSms": 'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
-                    })
-                  });
-                  currentConfigList.add(
-                    isToGem
-                        ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
-                        : payload,
-                  );
-                }
-              } else if (AppConstants.timerSetting.contains(individualPumpSetting.type)) {
-                if (conditionToSend) {
-                  final payload = jsonEncode({
-                    "300-$pumpIndex": jsonEncode({
-                      "sentSms": 'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
-                    })
-                  });
-                  delayConfigList.add(
-                    isToGem
-                        ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
-                        : payload,
-                  );
-
-                  final payload2 = jsonEncode({
-                    "500-$pumpIndex": jsonEncode({
-                      "sentSms": 'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
-                    })
-                  });
-                  rtcConfigList.add(
-                    isToGem
-                        ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId2"
-                        : payload2,
-                  );
-                }
-              } else if (AppConstants.additionalSetting.contains(individualPumpSetting.type)) {
-                if (conditionToSend) {
-                  int index = preferenceProvider.individualPumpSetting!
-                      .indexWhere((e) => e.deviceId == commonSetting.deviceId);
-
-                  final payload = jsonEncode({
-                    "600-$pumpIndex": jsonEncode({
-                      "sentSms":
-                      'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
-                    })
-                  });
-
-                  scheduleConfigList.add(
-                    isToGem
-                        ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
-                        : payload,
-                  );
-                }
+          List<String> delayConfigList = [];
+          List<String> rtcConfigList = [];
+          List<String> scheduleConfigList = [];
+          if(individualPump.output != null) {
+            pumpIndex = individualPump.output;
+          } else {
+            pumpIndex++;
+          }
+          for (var individualPumpSetting in individualPump.settingList) {
+            final conditionToSend = (!sendAll ? individualPumpSetting.controllerReadStatus == "0" : true);
+            if (AppConstants.currentSetting.contains(individualPumpSetting.type)) {
+              if (conditionToSend) {
+                final payload = jsonEncode({
+                  "400-$pumpIndex": jsonEncode({
+                    "sentSms": 'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                  })
+                });
+                currentConfigList.add(
+                  isToGem
+                      ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
+                      : payload,
+                );
               }
+            } else if (AppConstants.timerSetting.contains(individualPumpSetting.type)) {
+              if (conditionToSend) {
+                final payload = jsonEncode({
+                  "300-$pumpIndex": jsonEncode({
+                    "sentSms": 'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                  })
+                });
+                delayConfigList.add(
+                  isToGem
+                      ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
+                      : payload,
+                );
 
+                final payload2 = jsonEncode({
+                  "500-$pumpIndex": jsonEncode({
+                    "sentSms": 'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
+                  })
+                });
+                rtcConfigList.add(
+                  isToGem
+                      ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId2"
+                      : payload2,
+                );
+              }
+            } else if (AppConstants.additionalSetting.contains(individualPumpSetting.type)) {
+              if (conditionToSend) {
+                int index = preferenceProvider.individualPumpSetting!
+                    .indexWhere((e) => e.deviceId == commonSetting.deviceId);
+
+                final payload = jsonEncode({
+                  "600-$pumpIndex": jsonEncode({
+                    "sentSms":
+                    'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
+                  })
+                });
+
+                scheduleConfigList.add(
+                  isToGem
+                      ? "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload+$categoryId2"
+                      : payload,
+                );
+              }
             }
 
-            if (currentConfigList.isNotEmpty) temp.add(currentConfigList.join('_'));
-            if (delayConfigList.isNotEmpty) temp.add(delayConfigList.join('_'));
-            if (rtcConfigList.isNotEmpty) temp.add(rtcConfigList.join('_'));
-            if (scheduleConfigList.isNotEmpty) temp.add(scheduleConfigList.join('_'));
+          }
+
+          if (currentConfigList.isNotEmpty) temp.add(currentConfigList.join('_'));
+          if (delayConfigList.isNotEmpty) temp.add(delayConfigList.join('_'));
+          if (rtcConfigList.isNotEmpty) temp.add(rtcConfigList.join('_'));
+          if (scheduleConfigList.isNotEmpty) temp.add(scheduleConfigList.join('_'));
           }
         }
       }
@@ -1952,6 +2129,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
       } else {
         if (setting.title.toUpperCase() == '2 PHASE'
             || setting.title.toUpperCase() == 'AUTO RESTART 2 PHASE'
+            || (setting.title.toUpperCase() == "AUTO RESTART" && setting.serialNumber == 8)
             || setting.title.toUpperCase() == 'UPPER TANK LINEAR LEVEL SENSOR'
             || setting.title.toUpperCase() == 'LOWER TANK LINEAR LEVEL SENSOR'
         ) {
@@ -1974,7 +2152,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen> with Ticker
     return values.join(",");
   }
 
-  /*  Future<void> processPayloads({
+/*  Future<void> processPayloads({
     required BuildContext context,
     required List<String> payload,
     required bool isToGem,
@@ -2014,39 +2192,40 @@ Widget buildCustomListTileWidget({
   required List<TextInputFormatter> inputFormatters,
   required List<String> dataList
 }) {
+  debugPrint("$title == $widgetType ");
   Widget customWidget;
   switch(widgetType) {
     case 1:case 4:
-      customWidget = SizedBox(
-        width: 80,
-        child: TextFormField(
-          key: Key(title),
-          enabled: enabled,
-          initialValue: value is String ? value : "",
-          textAlign: TextAlign.center,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: (widgetType == 1 && AppConstants.gemModelList.contains(modelId)) ? AppProperties.regexForNumbers : inputFormatters,
-          decoration: const InputDecoration(
-            hintText: "000",
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(vertical: 5),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.all(Radius.circular(5)),
-              borderSide: BorderSide.none,
-            ),
-            fillColor: cardColor,
-            filled: true,
-            // errorText: errorText
+    customWidget = SizedBox(
+      width: 80,
+      child: TextFormField(
+        key: Key(title),
+        enabled: enabled,
+        initialValue: value is String ? value : "",
+        textAlign: TextAlign.center,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: (widgetType == 1 && AppConstants.gemModelList.contains(modelId)) ? AppProperties.regexForNumbers : AppProperties.regexForDecimal,
+        decoration: const InputDecoration(
+          hintText: "000",
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(vertical: 5),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(5)),
+            borderSide: BorderSide.none,
           ),
-          onTapOutside: (_) {
-            FocusScope.of(context).unfocus();
-          },
-          onChanged: (newValue) {
-            onValueChange?.call(newValue);
-          },
+          fillColor: cardColor,
+          filled: true,
+          // errorText: errorText
         ),
-      );
-      break;
+        onTapOutside: (_) {
+          FocusScope.of(context).unfocus();
+        },
+        onChanged: (newValue) {
+          onValueChange?.call(newValue);
+        },
+      ),
+    );
+    break;
     case 2:
       customWidget = Switch(
         value: enabled ? (value != "" ? value : false) ?? false : false,
@@ -2092,10 +2271,10 @@ Widget buildCustomListTileWidget({
       customWidget = Text('Unsupported Widget Type: $widgetType');
       break;
   }
-    if(display == false){
-      return Container();
-    }
-    return Visibility(
+  if(display == false){
+    return Container();
+  }
+  return Visibility(
     visible: !hidden,
     child: CustomAnimatedSwitcher(
       condition: conditionToShow,

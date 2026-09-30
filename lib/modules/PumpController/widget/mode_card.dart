@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// The three possible pump modes.
-enum PumpMode { auto, manual, idle }
+enum PumpMode { auto, manual/*, idle*/ }
 
 extension PumpModeX on PumpMode {
   String get label {
@@ -10,8 +10,8 @@ extension PumpModeX on PumpMode {
         return 'Auto Mode';
       case PumpMode.manual:
         return 'Manual Mode';
-      case PumpMode.idle:
-        return 'Idle';
+    // case PumpMode.idle:
+    //   return 'Idle';
     }
   }
 
@@ -22,8 +22,8 @@ extension PumpModeX on PumpMode {
         return const Color(0xFF2F80ED); // blue
       case PumpMode.manual:
         return const Color(0xFF27AE60); // green
-      case PumpMode.idle:
-        return const Color(0xFF9E9E9E); // grey
+    // case PumpMode.idle:
+    //   return const Color(0xFF9E9E9E); // grey
     }
   }
 
@@ -33,8 +33,8 @@ extension PumpModeX on PumpMode {
         return Icons.autorenew;
       case PumpMode.manual:
         return Icons.pan_tool_alt;
-      case PumpMode.idle:
-        return Icons.pause_circle_outline;
+    // case PumpMode.idle:
+    //   return Icons.pause_circle_outline;
     }
   }
 
@@ -49,11 +49,11 @@ extension PumpModeX on PumpMode {
       case '1':
       case 'AUTO':
         return PumpMode.auto;
-      case '2':
-      case 'IDLE':
-        return PumpMode.idle;
+    // case '2':
+    // case 'IDLE':
+    //   return PumpMode.idle;
       default:
-        return PumpMode.idle;
+        return PumpMode.manual; // Defaulting to manual instead of idle
     }
   }
 
@@ -64,8 +64,8 @@ extension PumpModeX on PumpMode {
         return 'OFF';
       case PumpMode.manual:
         return 'ON';
-      case PumpMode.idle:
-        return 'IDLE';
+    // case PumpMode.idle:
+    //   return 'IDLE';
     }
   }
 }
@@ -86,7 +86,7 @@ Widget buildModeCard({
       borderRadius: BorderRadius.circular(10),
       boxShadow: [
         BoxShadow(
-          color: currentMode.color.withValues(alpha: 0.25),
+          color: currentMode.color.withOpacity(0.25),
           blurRadius: 12,
           offset: const Offset(0, 4),
         ),
@@ -123,7 +123,7 @@ Widget buildModeCard({
                           color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: Colors.white.withOpacity(0.6),
                               blurRadius: 6,
                               spreadRadius: 1,
                             ),
@@ -135,9 +135,9 @@ Widget buildModeCard({
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Manual Mode',
-                              style: TextStyle(
+                            Text(
+                              currentMode == PumpMode.manual ? 'Mobile Mode' : currentMode.label,
+                              style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white, // text color white

@@ -160,6 +160,20 @@ class ProgramMoistureSensor {
   }
 }
 
+class FertilizerSourceTank {
+  final DeviceObjectModel tank;
+
+  FertilizerSourceTank({
+    required this.tank,
+  });
+
+  factory FertilizerSourceTank.fromJson(Map<String, dynamic> json) {
+    return FertilizerSourceTank(
+      tank: DeviceObjectModel.fromJson(json),
+    );
+  }
+}
+
 class ProgramIrrigationLine with DiagnosticableTreeMixin {
   final DeviceObjectModel irrigationLine;
   final List<DeviceObjectModel>? source;

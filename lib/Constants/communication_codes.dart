@@ -100,6 +100,10 @@ String getTankCodeToString(int code){
       return 'Bore';
     case 5 :
       return 'Others';
+    case 6 :
+      return 'Fertilizer Source';
+    case 7 :
+      return 'Fertilizer Tank';
     default :
       return '-';
   }
@@ -116,6 +120,10 @@ int getTankStringToCode(String type){
       return 4;
     case 'Others' :
       return 5;
+    case 'Fertilizer Source' :
+      return 6;
+    case 'Fertilizer Tank' :
+      return 7;
     default :
       return 0;
   }

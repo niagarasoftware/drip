@@ -104,6 +104,7 @@ class SettingsScreenFactory {
           'customerId': ctx.customerId,
           'controllerId': ctx.controllerId,
           'deviceId': ctx.imeiNo,
+          'modelId': ctx.modelId,
         });
 
       case 'Valve Group':

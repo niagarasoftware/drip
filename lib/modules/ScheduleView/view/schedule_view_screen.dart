@@ -72,6 +72,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
       "groupId": widget.groupId,
       "categoryId": widget.groupId
     };
+    print(userData);
     var getUserConfigMaker = await IrrigationProgramRepository(HttpService()).getUserConfigMaker(userData);
     Map<String, dynamic> response = jsonDecode(getUserConfigMaker.body);
     selectedHeadUnits.clear();
@@ -104,7 +105,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
     DateTime todayWithoutTime = DateTime(today.year, today.month, today.day);
     // print(selectedDateWithoutTime.isAfter(todayWithoutTime));
     // if (selectedDateWithoutTime.isAfter(todayWithoutTime)) {
-      MqttService().topicToPublishAndItsMessage(jsonEncode(data), '${Environment.mqttPublishTopic}/${widget.deviceId}');
+    MqttService().topicToPublishAndItsMessage(jsonEncode(data), '${Environment.mqttPublishTopic}/${widget.deviceId}');
     // }
   }
 
@@ -184,8 +185,8 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           Container(
             height: 35,
             decoration: BoxDecoration(
-              color: isLargeScreen ? Colors.transparent: Theme.of(context).primaryColorLight,
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(25), bottomLeft: Radius.circular(25))
+                color: isLargeScreen ? Colors.transparent: Theme.of(context).primaryColorLight,
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(25), bottomLeft: Radius.circular(25))
             ),
             child: Row(
               children: [
@@ -252,90 +253,90 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
             ),
           Expanded(
             child: LayoutBuilder(
-              builder: (BuildContext context, BoxConstraints constraints) {
-                return Row(
-                  children: [
-                    if(MediaQuery.of(context).size.width >= 700)
-                      Container(
-                          width: 250,
-                          color: theme.primaryColor,
-                          child: Column(
-                            children: [
-                              Expanded(child: Container()),
-                              _buildCalendar(constraints)
-                            ],
-                          )
-                      ),
-                    Expanded(
-                      child: Center(
-                        child: StreamBuilder<List<Map<String, dynamic>>?>(
-                          stream: MqttService().schedulePayloadStream,
-                          initialData: MqttService().schedulePayload,
-                          builder: (context, snapshot) {
-                            // show loading only if still waiting and there is no cached data
-                            if (snapshot.connectionState == ConnectionState.waiting && (snapshot.data == null)) {
-                              return const CircularProgressIndicator();
-                            }
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  return Row(
+                    children: [
+                      if(MediaQuery.of(context).size.width >= 700)
+                        Container(
+                            width: 250,
+                            color: theme.primaryColor,
+                            child: Column(
+                              children: [
+                                Expanded(child: Container()),
+                                _buildCalendar(constraints)
+                              ],
+                            )
+                        ),
+                      Expanded(
+                        child: Center(
+                            child: StreamBuilder<List<Map<String, dynamic>>?>(
+                              stream: MqttService().schedulePayloadStream,
+                              initialData: MqttService().schedulePayload,
+                              builder: (context, snapshot) {
+                                // show loading only if still waiting and there is no cached data
+                                if (snapshot.connectionState == ConnectionState.waiting && (snapshot.data == null)) {
+                                  return const CircularProgressIndicator();
+                                }
 
-                            // If no data at all
-                            if (!snapshot.hasData || snapshot.data == null || (snapshot.data is List && snapshot.data!.isEmpty)) {
-                              return const Text('No data available');
-                            }
+                                // If no data at all
+                                if (!snapshot.hasData || snapshot.data == null || (snapshot.data is List && snapshot.data!.isEmpty)) {
+                                  return const Text('No data available');
+                                }
 
-                            final data = snapshot.data!;
-                            // If the first element is a server message (error/info), show it
-                            if (data.isNotEmpty && data[0].containsKey('message')) {
-                              return Center(child: Text("${data[0]['message']}"));
-                            }
+                                final data = snapshot.data!;
+                                // If the first element is a server message (error/info), show it
+                                if (data.isNotEmpty && data[0].containsKey('message')) {
+                                  return Center(child: Text("${data[0]['message']}"));
+                                }
 
-                            // --- Derive headUnits from incoming MQTT data if not already present ---
-                            // Only run once (guard with headUnits.isEmpty) and only if configObjects is available
-                            if (data.isNotEmpty && headUnits.isEmpty && configObjects.isNotEmpty) {
-                              final headUnitSnoList = data.map((e) => e['HeadUnit'].toString()).toSet();
-                              final derivedHeadUnits = configObjects
-                                  .where((obj) => headUnitSnoList.contains(obj['sNo'].toString()))
-                                  .map((obj) => {'sNo': obj['sNo'], 'name': obj['name']})
-                                  .toList();
+                                // --- Derive headUnits from incoming MQTT data if not already present ---
+                                // Only run once (guard with headUnits.isEmpty) and only if configObjects is available
+                                if (data.isNotEmpty && headUnits.isEmpty && configObjects.isNotEmpty) {
+                                  final headUnitSnoList = data.map((e) => e['HeadUnit'].toString()).toSet();
+                                  final derivedHeadUnits = configObjects
+                                      .where((obj) => headUnitSnoList.contains(obj['sNo'].toString()))
+                                      .map((obj) => {'sNo': obj['sNo'], 'name': obj['name']})
+                                      .toList();
 
-                              if (derivedHeadUnits.isNotEmpty) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (!mounted) return;
-                                  setState(() {
-                                    headUnits = derivedHeadUnits;
-                                    if (selectedHeadUnits.isEmpty) {
-                                      selectedHeadUnits.add(headUnits[0]);
-                                    }
-                                  });
-                                });
-                              }
-                            }
+                                  if (derivedHeadUnits.isNotEmpty) {
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (!mounted) return;
+                                      setState(() {
+                                        headUnits = derivedHeadUnits;
+                                        if (selectedHeadUnits.isEmpty) {
+                                          selectedHeadUnits.add(headUnits[0]);
+                                        }
+                                      });
+                                    });
+                                  }
+                                }
 
-                            // --- Also derive programs list if empty and defaultData has program list ---
-                            if (data.isNotEmpty && programs.isEmpty && defaultData.isNotEmpty && defaultData['program'] != null) {
-                              final programSnoList = data.map((e) => e['ProgramS_No'].toString()).toSet();
-                              final derivedPrograms = List.from(defaultData['program'])
-                                  .where((program) => programSnoList.contains(program['sNo'].toString()))
-                                  .toList();
-                              if (derivedPrograms.isNotEmpty) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  if (!mounted) return;
-                                  setState(() {
-                                    programs = derivedPrograms;
-                                    // do not auto-select programs — keep current UX (or uncomment to auto-select)
-                                    if (selectedPrograms.isEmpty) selectedPrograms.add(programs[0]);
-                                  });
-                                });
-                              }
-                            }
+                                // --- Also derive programs list if empty and defaultData has program list ---
+                                if (data.isNotEmpty && programs.isEmpty && defaultData.isNotEmpty && defaultData['program'] != null) {
+                                  final programSnoList = data.map((e) => e['ProgramS_No'].toString()).toSet();
+                                  final derivedPrograms = List.from(defaultData['program'])
+                                      .where((program) => programSnoList.contains(program['sNo'].toString()))
+                                      .toList();
+                                  if (derivedPrograms.isNotEmpty) {
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (!mounted) return;
+                                      setState(() {
+                                        programs = derivedPrograms;
+                                        // do not auto-select programs — keep current UX (or uncomment to auto-select)
+                                        if (selectedPrograms.isEmpty) selectedPrograms.add(programs[0]);
+                                      });
+                                    });
+                                  }
+                                }
 
-                            return _buildScheduleView(data, constraints);
-                          },
-                        )
-                      ),
-                    )
-                  ],
-                );
-              }
+                                return _buildScheduleView(data, constraints);
+                              },
+                            )
+                        ),
+                      )
+                    ],
+                  );
+                }
             ),
           ),
         ],
@@ -442,97 +443,97 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
 
   /// Widget for displaying the schedule view
   Widget _buildScheduleView(List<Map<String, dynamic>> data, BoxConstraints constraints) {
-  return Column(
-    children: [
-      const SizedBox(height: 16),
-      Container(
-        margin: EdgeInsets.symmetric(horizontal: constraints.maxWidth >= 700 ? 40 : 10),
-        height: 35,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: headUnits.length,
-          itemBuilder: (BuildContext context, int index) {
-            return Row(
-              children: [
-                _buildOutlineButton(headUnits[index], selectedHeadUnits, item: headUnits[index]),
-                const SizedBox(width: 10,)
-              ],
-            );
-          },
-        ),
-      ),
-      const SizedBox(height: 8),
-      Container(
-        margin: EdgeInsets.symmetric(horizontal: constraints.maxWidth >= 700 ? 20 : 5),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        height: 55,
-        decoration: BoxDecoration(
-          boxShadow: AppProperties.customBoxShadowLiteTheme,
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey[300]!, width: 2),
-        ),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: programs.length,
-          itemBuilder: (BuildContext context, int index) {
-            return Row(
-              children: [
-                _buildOutlineButton(programs[index], selectedPrograms),
-                const SizedBox(width: 10,)
-              ],
-            );
-          },
-        ),
-      ),
-      const SizedBox(height: 16),
-      /// Timeline and program list
-      Expanded(
-        child: ListView.builder(
-          itemCount: data.length,
-          itemBuilder: (context, index) {
-            // Treat empty selectedHeadUnits as "match all"
-            final bool headUnitMatches = selectedHeadUnits.isNotEmpty
-                ? selectedHeadUnits.any((element) => element['sNo'].toString() == data[index]['HeadUnit'].toString())
-                : true;
-
-            final bool programMatches = selectedPrograms.isNotEmpty
-                ? selectedPrograms.any((element) => element['sNo'].toString() == data[index]['ProgramS_No'].toString())
-                : true;
-
-            final bool statusMatches = selectedStatusList.isNotEmpty
-                ? selectedStatusList.contains(data[index]['Status'])
-                : true;
-
-            return Container(
-              margin: constraints.maxWidth >= 700 ? const EdgeInsets.symmetric(horizontal: 20) : const EdgeInsets.only(left: 5, right: 10),
-              child: Column(
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: constraints.maxWidth >= 700 ? 40 : 10),
+          height: 35,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: headUnits.length,
+            itemBuilder: (BuildContext context, int index) {
+              return Row(
                 children: [
-                  if (headUnitMatches && programMatches && statusMatches)
-                    TimeLine(
-                      itemGap: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 0),
-                      indicators: [
-                        _buildTimeLineIndicators(data[index], index, data.length)
-                      ],
-                      children: [
-                        Container(
-                            margin: constraints.maxWidth <= 700 ? const EdgeInsets.only(bottom: 6) : EdgeInsets.zero,
-                            child: _buildScheduleCard(data[index], index, data.length, constraints)
-                        )
-                      ],
-                    ),
-                  if(index == data.length - 1)
-                    const SizedBox(height: 50,)
+                  _buildOutlineButton(headUnits[index], selectedHeadUnits, item: headUnits[index]),
+                  const SizedBox(width: 10,)
                 ],
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
-      ),
-    ],
-  );
-}
+        const SizedBox(height: 8),
+        Container(
+          margin: EdgeInsets.symmetric(horizontal: constraints.maxWidth >= 700 ? 20 : 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          height: 55,
+          decoration: BoxDecoration(
+            boxShadow: AppProperties.customBoxShadowLiteTheme,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[300]!, width: 2),
+          ),
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: programs.length,
+            itemBuilder: (BuildContext context, int index) {
+              return Row(
+                children: [
+                  _buildOutlineButton(programs[index], selectedPrograms),
+                  const SizedBox(width: 10,)
+                ],
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 16),
+        /// Timeline and program list
+        Expanded(
+          child: ListView.builder(
+            itemCount: data.length,
+            itemBuilder: (context, index) {
+              // Treat empty selectedHeadUnits as "match all"
+              final bool headUnitMatches = selectedHeadUnits.isNotEmpty
+                  ? selectedHeadUnits.any((element) => element['sNo'].toString() == data[index]['HeadUnit'].toString())
+                  : true;
+
+              final bool programMatches = selectedPrograms.isNotEmpty
+                  ? selectedPrograms.any((element) => element['sNo'].toString() == data[index]['ProgramS_No'].toString())
+                  : true;
+
+              final bool statusMatches = selectedStatusList.isNotEmpty
+                  ? selectedStatusList.contains(data[index]['Status'])
+                  : true;
+
+              return Container(
+                margin: constraints.maxWidth >= 700 ? const EdgeInsets.symmetric(horizontal: 20) : const EdgeInsets.only(left: 5, right: 10),
+                child: Column(
+                  children: [
+                    if (headUnitMatches && programMatches && statusMatches)
+                      TimeLine(
+                        itemGap: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 0),
+                        indicators: [
+                          _buildTimeLineIndicators(data[index], index, data.length)
+                        ],
+                        children: [
+                          Container(
+                              margin: constraints.maxWidth <= 700 ? const EdgeInsets.only(bottom: 6) : EdgeInsets.zero,
+                              child: _buildScheduleCard(data[index], index, data.length, constraints)
+                          )
+                        ],
+                      ),
+                    if(index == data.length - 1)
+                      const SizedBox(height: 50,)
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 
   /// Widget for displaying the timeline indicators
   Widget _buildTimeLineIndicators(Map<String, dynamic> data, int index, int totalItems) {
@@ -544,7 +545,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
         CustomPaint(
           painter: CheckmarkPainter(color: status.color),
           child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 5),
+              margin: const EdgeInsets.symmetric(vertical: 5),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: status.color,
@@ -566,6 +567,47 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
         )
       ],
     );
+  }
+
+  int parseValue(dynamic value) {
+    if (value == null) {
+      return 0;
+    }
+
+    // Already int
+    if (value is int) {
+      return value;
+    }
+
+    // Double
+    if (value is double) {
+      return value.toInt();
+    }
+
+    // String
+    if (value is String) {
+      final trimmedValue = value.trim();
+
+      // Time format: HH:mm:ss
+      if (RegExp(r'^\d{1,2}:\d{2}:\d{2}$').hasMatch(trimmedValue)) {
+        return durationToSeconds(trimmedValue);
+      }
+
+      // Normal numeric string
+      return double.tryParse(trimmedValue)?.toInt() ?? 0;
+    }
+
+    return 0;
+  }
+
+  int durationToSeconds(String value) {
+    final parts = value.split(':');
+
+    final hours = int.tryParse(parts[0]) ?? 0;
+    final minutes = int.tryParse(parts[1]) ?? 0;
+    final seconds = int.tryParse(parts[2]) ?? 0;
+
+    return (hours * 3600) + (minutes * 60) + seconds;
   }
 
   /// Widget for displaying the schedule card
@@ -594,9 +636,14 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
     final String time12 = DateFormat("hh:mm:ss").format(DateFormat("HH:mm:ss").parse(startTime));
 
     // Calculate progress value
+    print("inputValue:$inputValue");
+    print("completedValue:$completedValue");
+    final int input = parseValue(inputValue);
+    final int completed = parseValue(completedValue);
+
     final double progressValue = method == "1"
         ? _calculateTimeProgress(inputValue, completedValue)
-        : int.parse(completedValue) / int.parse(inputValue);
+        : completed / input;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,11 +704,14 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
                     Icons.edit_note_outlined,
                     (
                         ([0, 1, 4, 5].contains(status.code))
-                            && (scheduleDateWithoutTime.isAfter(todayWithoutTime) || scheduleDateWithoutTime.isAtSameMomentAs(todayWithoutTime)))? () {
+                            || (scheduleDateWithoutTime.isAfter(todayWithoutTime) || scheduleDateWithoutTime.isAtSameMomentAs(todayWithoutTime)))? () {
                       _textController.text = scheduleItem["ScaleFactor"].toString();
-                          _showEditSideSheet(scheduleItem, constraints, index);
-                        } : null
-                ),
+                      _showEditSideSheet(scheduleItem, constraints, index);
+                    } : (){
+                      print('status.code:${status.code}');
+                      print('scheduleDateWithoutTime.isAfter(todayWithoutTime):${scheduleDateWithoutTime.isAfter(todayWithoutTime)}');
+                      print('scheduleDateWithoutTime.isAtSameMomentAs(todayWithoutTime):${scheduleDateWithoutTime.isAtSameMomentAs(todayWithoutTime)}');
+                    }),
                 if(screenSize >= 700)
                   const SizedBox(width: 20),
                 _buildIconButton(
@@ -669,23 +719,23 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
                     (
                         ([0, 1, 4, 5].contains(status.code))
                             && (scheduleDateWithoutTime.isAfter(todayWithoutTime) || scheduleDateWithoutTime.isAtSameMomentAs(todayWithoutTime))) ? () {
-                          setState(() {
-                            scheduleItem["SkipFlag"] = scheduleItem["SkipFlag"] == 0 ? 1 : 0;
-                            if(scheduleItem["SkipFlag"] == 1) {
-                              if(!sentMessage.contains("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped")) {
-                                sentMessage.add("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped");
-                              } else {
-                                sentMessage.remove("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped");
-                              }
-                            } else {
-                              if(!sentMessage.contains("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped")) {
-                                sentMessage.add("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped");
-                              } else {
-                                sentMessage.remove("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped");
-                              }
-                            }
-                          });
-                        } : null
+                      setState(() {
+                        scheduleItem["SkipFlag"] = scheduleItem["SkipFlag"] == 0 ? 1 : 0;
+                        if(scheduleItem["SkipFlag"] == 1) {
+                          if(!sentMessage.contains("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped")) {
+                            sentMessage.add("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped");
+                          } else {
+                            sentMessage.remove("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is skipped");
+                          }
+                        } else {
+                          if(!sentMessage.contains("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped")) {
+                            sentMessage.add("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped");
+                          } else {
+                            sentMessage.remove("${scheduleItem["ProgramName"]} - ${scheduleItem["ZoneName"]} is un skipped");
+                          }
+                        }
+                      });
+                    } : null
                 ),
                 if(screenSize <= 700)
                   _buildMoreOptions(screenSize, index, scheduleItem),
@@ -716,6 +766,21 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
 
     return names.isNotEmpty ? names.join(', ') : "N/A";
   }
+
+  String _getItemNameSingleString(String sNo) {
+    print('call _getItemNameSingleString sNo:-->$sNo');
+    final double? valve = double.tryParse(sNo);
+    if (valve == null) return 'N/A';
+
+    for (final element in configObjects) {
+      print('element-->$element');
+      if (element['sNo'] == valve) {
+        return element['name'] as String;
+      }
+    }
+    return 'N/A';
+  }
+
 
   /// Helper function to get the program name
   String _getProgramName(dynamic sNo) {
@@ -1114,7 +1179,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
     );
   }
 
-  void _showEditSideSheet(scheduleItem, constraints, index) {
+  void _showEditSiderrreSheet(scheduleItem, constraints, index) {
     showGeneralDialog(
       barrierLabel: "Side sheet",
       barrierDismissible: true,
@@ -1189,6 +1254,557 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           child: child,
         );
       },
+    );
+  }
+
+
+
+
+
+  void _showEditSideSheet(
+      dynamic scheduleItem,
+      BoxConstraints constraints,
+      int index,
+      )
+  {
+    print('scheduleItem: $scheduleItem, index: $index');
+
+    String getStringValue(dynamic value) {
+      if (value == null) {
+        return "";
+      }
+
+      return value.toString().trim();
+    }
+
+    // Your API may contain either:
+    // CentralFertilizerSiteName OR CentralFertilizerSite
+    final String centralFertilizerSiteName =
+    getStringValue(
+      scheduleItem["CentralFertilizerSiteName"],
+    ).isNotEmpty
+        ? getStringValue(
+      scheduleItem["CentralFertilizerSiteName"],
+    )
+        : getStringValue(
+      scheduleItem["CentralFertilizerSite"],
+    );
+
+    final String localFertilizerSiteName =
+    getStringValue(
+      scheduleItem["LocalFertilizerSiteName"],
+    ).isNotEmpty
+        ? getStringValue(
+      scheduleItem["LocalFertilizerSiteName"],
+    )
+        : getStringValue(
+      scheduleItem["LocalFertilizerSite"],
+    );
+
+    final String centralFertChannelSelection =
+    getStringValue(
+      scheduleItem["CentralFertChannelSelection"],
+    );
+
+    final String localFertChannelSelection =
+    getStringValue(
+      scheduleItem["LocalFertChannelSelection"],
+    );
+
+    print(
+      "centralFertilizerSiteName: $centralFertilizerSiteName",
+    );
+
+    print("centralFertChannelSelection:$centralFertChannelSelection");
+
+    final centralFertilizerSiteNamewe =  _getItemNameSingleString(centralFertilizerSiteName);
+    print("centralFerxcvdfvdfvfdtilizerSiteName:$centralFertilizerSiteNamewe");
+    print(
+      "localFertilizerSiteName: $localFertilizerSiteName",
+    );
+
+    print(
+      "centralFertChannelSelection: "
+          "$centralFertChannelSelection",
+    );
+
+    print(
+      "localFertChannelSelection: "
+          "$localFertChannelSelection",
+    );
+
+    // ============================================================
+    // SHOW SIDE SHEET
+    // ============================================================
+
+    showGeneralDialog(
+      barrierLabel: "Side sheet",
+      barrierDismissible: true,
+      transitionDuration: const Duration(
+        milliseconds: 300,
+      ),
+      context: context,
+
+      pageBuilder: (
+          context,
+          animation1,
+          animation2,
+          ) {
+        return Align(
+          alignment: Alignment.centerRight,
+
+          child: Material(
+            elevation: 15,
+            color: Colors.transparent,
+
+            child: StatefulBuilder(
+              builder: (
+                  BuildContext context,
+                  StateSetter stateSetter,
+                  ) {
+                return Container(
+                  padding: const EdgeInsets.all(15),
+
+                  height: double.infinity,
+
+                  width: constraints.maxWidth < 600
+                      ? constraints.maxWidth * 0.7
+                      : constraints.maxWidth * 0.2,
+
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                  ),
+
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+
+                        // ==================================================
+                        // SCALE FACTOR
+                        // ==================================================
+
+                        Row(
+                          mainAxisAlignment:
+                          MainAxisAlignment.spaceBetween,
+
+                          children: [
+
+                            const Text(
+                              "Scale Factor",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+
+                            SizedBox(
+                              width: 100,
+
+                              child: TextFormField(
+                                initialValue:
+                                scheduleItem[
+                                "ScaleFactor"]
+                                    ?.toString() ??
+                                    "0",
+
+                                keyboardType:
+                                TextInputType.number,
+
+                                style: TextStyle(
+                                  color: Theme.of(context)
+                                      .primaryColor,
+                                ),
+
+                                decoration:
+                                const InputDecoration(
+                                  suffixText: "%",
+                                ),
+
+                                onChanged: (
+                                    String newValue,
+                                    ) {
+                                  stateSetter(() {
+                                    if (newValue
+                                        .trim()
+                                        .isNotEmpty) {
+                                      scheduleItem[
+                                      "ScaleFactor"] =
+                                          newValue.trim();
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        Divider(
+                          thickness: 0.3,
+                          color:
+                          Theme.of(context).primaryColor,
+                        ),
+
+                        // ==================================================
+                        // CENTRAL FERTILIZER
+                        // ==================================================
+
+                        if (centralFertilizerSiteName
+                            .isNotEmpty)
+                          Column(
+                            children: [
+
+                              // CENTRAL FERTILIZER TITLE + SWITCH
+                              Row(
+                                mainAxisAlignment:
+                                MainAxisAlignment
+                                    .spaceBetween,
+
+                                children: [
+                                  Expanded(
+                                    child: Text(_getItemNameSingleString(centralFertilizerSiteName), style:
+                                    const TextStyle(
+                                      fontWeight:
+                                      FontWeight.w500,
+                                    ),
+                                    ),
+                                  ),
+
+                                  Switch(
+                                    value:
+                                    scheduleItem["CentralFertOnOff"] == 1,
+
+                                    onChanged: (
+                                        bool value,
+                                        ) {
+                                      stateSetter(() {
+
+                                        scheduleItem[
+                                        "CentralFertOnOff"] =
+                                        value ? 1 : 0;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+
+                              // ==================================================
+                              // CENTRAL FERTILIZER CHANNELS
+                              // ==================================================
+
+                              if (scheduleItem[
+                              "CentralFertOnOff"] ==
+                                  1 &&
+                                  centralFertChannelSelection
+                                      .isNotEmpty)
+                                _buildChannelList(
+                                  scheduleItem:
+                                  scheduleItem,
+
+                                  selectionKey:
+                                  "CentralFertChannelSelection",
+
+                                  nameKey:
+                                  "CentralFertChannelName",
+
+                                  stateSetter:
+                                  stateSetter,
+                                ),
+
+                              Divider(
+                                thickness: 0.3,
+                                color:
+                                Theme.of(context)
+                                    .primaryColor,
+                              ),
+                            ],
+                          ),
+
+                        // ==================================================
+                        // LOCAL FERTILIZER
+                        // ==================================================
+
+                        if (localFertilizerSiteName
+                            .isNotEmpty)
+                          Column(
+                            children: [
+
+                              // LOCAL FERTILIZER TITLE + SWITCH
+                              Row(
+                                mainAxisAlignment:
+                                MainAxisAlignment
+                                    .spaceBetween,
+
+                                children: [
+
+                                  Expanded(
+                                    child: Text(
+                                      localFertilizerSiteName,
+
+                                      style:
+                                      const TextStyle(
+                                        fontWeight:
+                                        FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+
+                                  Switch(
+                                    value:
+                                    scheduleItem[
+                                    "LocalFertOnOff"] ==
+                                        1,
+
+                                    onChanged: (
+                                        bool value,
+                                        ) {
+                                      stateSetter(() {
+
+                                        scheduleItem[
+                                        "LocalFertOnOff"] =
+                                        value ? 1 : 0;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+
+                              // ==================================================
+                              // LOCAL FERTILIZER CHANNELS
+                              // ==================================================
+
+                              if (scheduleItem[
+                              "LocalFertOnOff"] ==
+                                  1 &&
+                                  localFertChannelSelection
+                                      .isNotEmpty)
+                                _buildChannelList(
+                                  scheduleItem:
+                                  scheduleItem,
+
+                                  selectionKey:
+                                  "LocalFertChannelSelection",
+
+                                  nameKey:
+                                  "LocalFertChannelName",
+
+                                  stateSetter:
+                                  stateSetter,
+                                ),
+
+                              Divider(
+                                thickness: 0.3,
+                                color:
+                                Theme.of(context)
+                                    .primaryColor,
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+
+      // ============================================================
+      // SLIDE ANIMATION
+      // ============================================================
+
+      transitionBuilder: (
+          context,
+          animation1,
+          animation2,
+          child,
+          ) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(
+              parent: animation1,
+              curve: Curves.easeOut,
+            ),
+          ),
+
+          child: child,
+        );
+      },
+    );
+  }
+
+
+// ============================================================================
+// CHANNEL LIST
+// ============================================================================
+
+  Widget _buildChannelList({
+    required dynamic scheduleItem,
+    required String selectionKey,
+    required String nameKey,
+    required StateSetter stateSetter,
+  }) {
+    // ============================================================
+    // GET CHANNEL SELECTION
+    // ============================================================
+
+    final dynamic selectionValue =
+    scheduleItem[selectionKey];
+
+    // NULL CHECK
+    if (selectionValue == null) {
+      return const SizedBox.shrink();
+    }
+
+    final String selectionString =
+    selectionValue.toString().trim();
+
+    // EMPTY CHECK
+    if (selectionString.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // ============================================================
+    // GET CHANNEL NAMES
+    // ============================================================
+
+    final dynamic nameValue =
+    scheduleItem[nameKey];
+
+    List<String> channelNames = [];
+
+    if (nameValue != null) {
+
+      if (nameValue is List) {
+        channelNames = nameValue
+            .map(
+              (item) =>
+          item?.toString().trim() ?? "",
+        )
+            .toList();
+      } else {
+        final String nameString =
+        nameValue.toString().trim();
+
+        if (nameString.isNotEmpty) {
+          channelNames =
+              nameString.split('_');
+        }
+      }
+    }
+
+    // ============================================================
+    // SELECTION FORMAT
+    //
+    // Example:
+    // 1_1_1_1_1_0_0_0
+    // ============================================================
+
+    final List<String> selections =
+    selectionString.split('_');
+
+    // ============================================================
+    // IF CHANNEL NAMES ARE NOT AVAILABLE
+    // ============================================================
+
+    if (channelNames.isEmpty) {
+      return Column(
+        children: List.generate(
+          selections.length,
+              (channelIndex) {
+
+            final bool isSelected =
+                selections[channelIndex] == "1";
+
+            return CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+
+              title: Text(
+                "Channel ${channelIndex + 1}",
+              ),
+
+              value: isSelected,
+
+              onChanged: (
+                  bool? value,
+                  ) {
+                stateSetter(() {
+
+                  selections[channelIndex] =
+                  value == true ? "1" : "0";
+
+                  scheduleItem[selectionKey] =
+                      selections.join('_');
+                });
+              },
+            );
+          },
+        ),
+      );
+    }
+
+    // ============================================================
+    // CHANNEL NAME + SELECTION
+    // ============================================================
+
+    return Column(
+      children: List.generate(
+        channelNames.length,
+            (channelIndex) {
+
+          final bool isSelected =
+              channelIndex < selections.length &&
+                  selections[channelIndex] == "1";
+
+          final String channelName =
+          channelNames[channelIndex]
+              .trim()
+              .isNotEmpty
+              ? channelNames[channelIndex]
+              : "Channel ${channelIndex + 1}";
+
+          return CheckboxListTile(
+            dense: true,
+
+            contentPadding:
+            EdgeInsets.zero,
+
+            title: Text(
+              channelName,
+
+              style: const TextStyle(
+                fontSize: 14,
+              ),
+            ),
+
+            value: isSelected,
+
+            onChanged: (
+                bool? value,
+                ) {
+              stateSetter(() {
+
+                // Make sure selection list
+                // has enough items
+                while (selections.length <=
+                    channelIndex) {
+                  selections.add("0");
+                }
+
+                selections[channelIndex] =
+                value == true ? "1" : "0";
+
+                // Update original scheduleItem
+                scheduleItem[selectionKey] =
+                    selections.join('_');
+              });
+            },
+          );
+        },
+      ),
     );
   }
 }

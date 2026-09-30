@@ -11,6 +11,7 @@ class PumpControllerData {
   String numberOfPumps;
   int dataFetchingStatus;
   String manualMode;
+  String changeOverMode;
 
   PumpControllerData({
     required this.pumps,
@@ -25,10 +26,11 @@ class PumpControllerData {
     required this.power,
     required this.dataFetchingStatus,
     this.manualMode = '0',
+    this.changeOverMode = '0',
   });
 
   factory PumpControllerData.fromJson(Map<String, dynamic> json, String key, int dataFetchingStatus) {
-    // print("json in the PumpControllerData :: $json");
+    print("json in the PumpControllerData :: $json");
     List<dynamic> pumpsJson = json[key] ?? [];
     dynamic lastElement = {};
 
@@ -60,7 +62,8 @@ class PumpControllerData {
       batteryStrength: lastElement['B'] ?? "",
       numberOfPumps: lastElement['NP'] ?? "0",
       dataFetchingStatus: dataFetchingStatus,
-      manualMode: lastElement['MM'] ?? '0'
+      manualMode: lastElement['MM'] ?? '0',
+      changeOverMode: lastElement['COM'] ?? '0'
     );
   }
 }

@@ -91,7 +91,7 @@ enum PumpReasonCode {
   motorOffUpperTankFull1(2, 'Motor off due to upper tank full'),
   motorOffLowVoltage(3, 'Motor off due to low voltage'),
   motorOffHighVoltage(4, 'Motor off due to high voltage'),
-  motorOffVoltageSPP(5, 'Motor off due to voltage SPP'),
+  motorOffVoltageSPP(5, 'Motor off due to unbalanced voltage'),
   motorOffReversePhase(6, 'Motor off due to reverse phase'),
   motorOffStarterTrip(7, 'Motor off due to starter trip'),
   motorOffDryRun(8, 'Motor off due to dry run'),
@@ -130,7 +130,8 @@ enum PumpReasonCode {
   tankCableDisconnected(39,'Motor off due to tank cable disconnected'),
   sumpFloatFailed(40,'Motor off due to sump float failed'),
   tankFloatFailed(41,'Motor off due to tank float failed'),
-  motorOffCyclicTimeCompleted(42, 'Motor off due to cycle completed');
+  motorOffCyclicTimeCompleted(42, 'Motor off due to cycle completed'),
+  motorOffDryRunOccurrence(43, 'Motor off due to dry run occurrence');
 
   final int code;
   final String content;

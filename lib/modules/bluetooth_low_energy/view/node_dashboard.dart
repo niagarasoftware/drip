@@ -98,13 +98,14 @@ class _NodeDashboardState extends State<NodeDashboard> {
                               minSpacing: 20,
                               desiredItemWidth: 120,
                               children: [
-                                gridItemWidget(
-                                    imagePath: 'assets/Images/Svg/SmartComm/bootMode.svg',
-                                    title: 'Update Firmware',
-                                    onTap: (){
-                                      userAcknowledgementForUpdatingFirmware();
-                                    }
-                                ),
+                                if(bleService.bleConnectMode == ConnectMode.normal)
+                                  gridItemWidget(
+                                      imagePath: 'assets/Images/Svg/SmartComm/bootMode.svg',
+                                      title: 'Update Firmware',
+                                      onTap: (){
+                                        userAcknowledgementForUpdatingFirmware();
+                                      }
+                                  ),
                                 if(showControlAndView())
                                   gridItemWidget(
                                   imagePath: 'assets/Images/Svg/SmartComm/control.svg',
@@ -125,15 +126,16 @@ class _NodeDashboardState extends State<NodeDashboard> {
                                         }));
                                       }
                                   ),
-                                gridItemWidget(
-                                  imagePath: 'assets/Images/Svg/SmartComm/trace_file.svg',
-                                  title: 'Trace',
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                                      return TraceScreen(nodeData: widget.nodeData,);
-                                    }));
-                                  },
-                                ),
+                                if(bleService.bleConnectMode == ConnectMode.normal)
+                                  gridItemWidget(
+                                    imagePath: 'assets/Images/Svg/SmartComm/trace_file.svg',
+                                    title: 'Trace',
+                                    onTap: () {
+                                      Navigator.push(context, MaterialPageRoute(builder: (context){
+                                        return TraceScreen(nodeData: widget.nodeData,);
+                                      }));
+                                    },
+                                  ),
                                 if(showCalibration())
                                   gridItemWidget(
                                   imagePath: 'assets/Images/Svg/SmartComm/calibration.svg',
@@ -186,13 +188,15 @@ class _NodeDashboardState extends State<NodeDashboard> {
       ].contains(bleService.nodeData['modelId'])
     ){
       show = false;
+    }else if(bleService.bleConnectMode == ConnectMode.pumpWifiDefault){
+      show = false;
     }
     return show;
   }
 
   bool showControlAndView(){
     bool show = true;
-    if(bleService.nodeDataFromHw.keys.length < 4){
+    if(bleService.nodeDataFromHw.keys.length < 4 || bleService.bleConnectMode == ConnectMode.pumpWifiDefault){
       show = false;
     }
     return show;

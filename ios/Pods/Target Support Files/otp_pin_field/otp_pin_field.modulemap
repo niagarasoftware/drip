@@ -1,6 +1,0 @@
-framework module otp_pin_field {
-  umbrella header "otp_pin_field-umbrella.h"
-
-  export *
-  module * { export * }
-}
