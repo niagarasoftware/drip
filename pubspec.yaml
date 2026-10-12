@@ -98,6 +98,10 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_flavorizr: ^2.2.3
 
+dependency_overrides:
+  web: 1.0.0
+
+
 flutter:
   uses-material-design: true
   generate: true
