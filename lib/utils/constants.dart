@@ -8,7 +8,6 @@ class AppConstants {
   static String mqttUrlMobile = Environment.mqttMobileUrl;
   static String userManualBaseUrl = Environment.userManualBaseUrl;
 
-
   static String mqttUrl = Environment.mqttWebUrl;
   static int mqttWebPort = Environment.mqttWebPort;
   static int mqttMobilePort = Environment.mqttMobilePort;
@@ -167,7 +166,15 @@ class AppConstants {
   static const String mblFanNotOFF = "m_fan_orange.png";
   static const String mblFanNotON = "m_fan_red.png";
 
+  static const String foggerOFF = "forger_grey.png";
+  static const String foggerON = "fogger_green.png";
+  static const String foggerNotOFF = "fogger_orange.png";
+  static const String foggerNotON = "fogger_red.png";
 
+  static const String mblFoggerOFF = "m_fogger_grey.png";
+  static const String mblFoggerON = "m_fogger_green.png";
+  static const String mblFoggerNotOFF = "m_fogger_orange.png";
+  static const String mblFoggerNotON = "m_fogger_red.png";
 
   static const String gateOFF = "gate_close.png";
   static const String gateON = "gate_open.png";
@@ -310,6 +317,12 @@ class AppConstants {
         break;
       case 'fan_mbl':
         imagePathFinal = _getFanImagePathMobile(keyTwo);
+        break;
+      case 'fogger':
+        imagePathFinal = _getFoggerImagePath(keyTwo);
+        break;
+      case 'fogger_mbl':
+        imagePathFinal = _getFoggerImagePathMobile(keyTwo);
         break;
       case 'gate':
         imagePathFinal = _getGateImagePath(keyTwo);
@@ -717,6 +730,36 @@ class AppConstants {
         return mblFanNotOFF;
       case 3:
         return mblFanNotON;
+      default:
+        return '';
+    }
+  }
+
+  static String _getFoggerImagePath(int status) {
+    switch (status) {
+      case 0:
+        return foggerOFF;
+      case 1:
+        return foggerON;
+      case 2:
+        return foggerNotOFF;
+      case 3:
+        return foggerNotON;
+      default:
+        return '';
+    }
+  }
+
+  static String _getFoggerImagePathMobile(int status) {
+    switch (status) {
+      case 0:
+        return mblFoggerOFF;
+      case 1:
+        return mblFoggerON;
+      case 2:
+        return mblFoggerNotOFF;
+      case 3:
+        return mblFoggerNotON;
       default:
         return '';
     }
