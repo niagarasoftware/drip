@@ -255,6 +255,7 @@ class CustomerHomeNarrow extends StatelessWidget {
                                   lights:line.lightObjects,
                                   fans:line.fanObjects,
                                   gates:line.gateObjects,
+                                  fogger: line.foggerObjects,
                                   pressureIn: line.pressureIn,
                                   pressureOut: line.pressureOut,
                                   waterMeter: line.waterMeter,

@@ -4,6 +4,7 @@ import 'package:oro_drip_irrigation/views/common/user_dashboard/widgets/valve_wi
 
 import '../../../../models/customer/site_model.dart';
 import '../../../customer/widgets/fan_widget.dart';
+import '../../../customer/widgets/fogger_widget.dart';
 import '../../../customer/widgets/gate_widget.dart';
 import '../../../customer/widgets/light_widget.dart';
 import '../../../customer/widgets/main_valve_widget.dart';
@@ -118,5 +119,12 @@ List<Widget> gateList(List<GateModel> gates) {
   return mapWidgets(
     list: gates,
     builder: (gate, _) => GateWidget(objGate: gate),
+  );
+}
+
+List<Widget> foggerList({required List<FoggerModel> list, required bool isWide}) {
+  return mapWidgets(
+    list: list,
+    builder: (fog, _) => FoggerWidget(objFogger: fog, isWide: isWide),
   );
 }
