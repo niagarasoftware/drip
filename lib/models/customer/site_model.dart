@@ -527,6 +527,7 @@ class IrrigationLineModel {
   final List<LightModel> lightObjects;
   final List<FanModel> fanObjects;
   final List<GateModel> gateObjects;
+  final List<FoggerModel> foggerObjects;
   final List<SensorModel> prsSwitch;
   final List<SensorModel> pressureIn;
   final List<SensorModel> pressureOut;
@@ -557,6 +558,7 @@ class IrrigationLineModel {
     required this.lightObjects,
     required this.fanObjects,
     required this.gateObjects,
+    required this.foggerObjects,
     required this.prsSwitch,
     required this.pressureIn,
     required this.pressureOut,
@@ -654,6 +656,13 @@ class IrrigationLineModel {
     final soilTemperature = configObjects
         .where((obj) => soilTemperatureSNoSet.contains(obj.sNo))
         .map((obj) => SensorModel.fromConfigObject(obj))
+        .toList();
+
+
+    final foggerSNoSet = ((json['fogger'] as List?) ?? []).map((e) => e).toSet();
+    final fogger = configObjects
+        .where((obj) => foggerSNoSet.contains(obj.sNo))
+        .map((obj) => FoggerModel.fromConfigObject(obj))
         .toList();
 
     final valveSNoSet = ((json['valve'] as List?) ?? []).map((e) => e).toSet();
@@ -869,6 +878,7 @@ class IrrigationLineModel {
       lightObjects: lights,
       fanObjects: fans,
       gateObjects: gates,
+      foggerObjects: fogger,
       prsSwitch: pressureSwitch,
       pressureIn: pressureIn,
       pressureOut: pressureOut,
@@ -2001,6 +2011,33 @@ class GateModel {
 
   factory GateModel.fromConfigObject(ConfigObject obj) {
     return GateModel(
+      sNo: obj.sNo,
+      name: obj.name,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sNo': sNo,
+      'name': name,
+      "status": status,
+    };
+  }
+}
+
+class FoggerModel {
+  final double sNo;
+  final String name;
+  int status;
+
+  FoggerModel({
+    required this.sNo,
+    required this.name,
+    this.status = 0,
+  });
+
+  factory FoggerModel.fromConfigObject(ConfigObject obj) {
+    return FoggerModel(
       sNo: obj.sNo,
       name: obj.name,
     );
