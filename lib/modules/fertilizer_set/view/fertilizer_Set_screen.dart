@@ -35,8 +35,8 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
   HardwareAcknowledgementState payloadState = HardwareAcknowledgementState.notSent;
   List<Map<String, dynamic>> popUpItemList = [
     {'name' : 'Select', 'mode' : SelectMode.select},
-    {'name' : 'unSelect', 'mode' : SelectMode.unSelect},
-    {'name' : 'selectAll', 'mode' : SelectMode.selectAll},
+    {'name' : 'Unselect', 'mode' : SelectMode.unSelect},
+    {'name' : 'Select All', 'mode' : SelectMode.selectAll},
   ];
   SelectMode popUpSelectedValue = SelectMode.unSelect;
   String name = '';
@@ -183,7 +183,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                                                             width: 120,
                                                             widget : CustomDropDownButton(
                                                               value: channel.method,
-                                                              list: ['Time', 'Pro.time', 'Quantity', 'Pro.quantity', 'Pro.qty per 1000L'],
+                                                              list: ['Time', 'Pro.time', 'Quantity', 'Pro.quantity', 'Pro.quant per 1000L'],
                                                               onChanged: (value) {
                                                                 setState(() {
                                                                   channel.method = value!;
@@ -467,6 +467,23 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
 
   Widget recipeListTile(FertilizerSiteSettingModel recipe){
     return ListTile(
+      onTap: popUpSelectedValue != SelectMode.unSelect
+          ? () {
+              setState(() {
+                recipe.select = !recipe.select;
+              });
+            }
+          : null,
+      leading: popUpSelectedValue != SelectMode.unSelect
+          ? Checkbox(
+              value: recipe.select,
+              onChanged: (bool? value) {
+                setState(() {
+                  recipe.select = value ?? false;
+                });
+              },
+            )
+          : null,
       title: Text(recipe.recipeName, style: themeData.textTheme.labelLarge,),
       trailing: IntrinsicWidth(
         child: Row(
@@ -476,12 +493,70 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                 color: Colors.orange,
                 icon: Icons.edit_note_outlined,
                 onTap: (){
-
+                  editRecipeName(recipe);
                 }
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void editRecipeName(FertilizerSiteSettingModel recipe){
+    final editController = TextEditingController(text: recipe.recipeName);
+    final editFormKey = GlobalKey<FormState>();
+
+    showDialog(
+        context: context,
+        builder: (context){
+          return AlertDialog(
+            title: const Text('Edit Recipe Name'),
+            content: Form(
+              key: editFormKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: editController,
+                    textAlign: TextAlign.center,
+                    cursorHeight: 20,
+                    validator: (value){
+                      if(value == null || value.trim().isEmpty){
+                        return 'Name must not be empty';
+                      }
+                      return null;
+                    },
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.only(bottom: 10),
+                      counterText: '',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              CustomMaterialButton(
+                title: 'Cancel',
+                outlined: true,
+                onPressed: (){
+                  Navigator.pop(context);
+                },
+              ),
+              CustomMaterialButton(
+                title: 'Save',
+                onPressed: (){
+                  if(editFormKey.currentState!.validate()){
+                    setState(() {
+                      recipe.recipeName = editController.text.trim();
+                    });
+                    Navigator.pop(context);
+                  }
+                },
+              )
+            ],
+          );
+        }
     );
   }
 
@@ -518,6 +593,10 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                 onTap: (){
                   setState(() {
                     selectedFertilizerSite = site;
+                    popUpSelectedValue = SelectMode.unSelect;
+                    for(var i in listOfFertilizerSet){
+                      i.select = false;
+                    }
                   });
                 },
                 child: AnimatedContainer(
@@ -621,7 +700,17 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
           popUpSelectedValue = value as SelectMode;
           if(popUpSelectedValue == SelectMode.selectAll){
             for(var i in listOfFertilizerSet){
-              i.select = true;
+              if(listOfFertilizerSite.isNotEmpty && selectedFertilizerSite < listOfFertilizerSite.length){
+                if(i.sNo == listOfFertilizerSite[selectedFertilizerSite].sNo){
+                  i.select = true;
+                }
+              } else {
+                i.select = true;
+              }
+            }
+          } else if(popUpSelectedValue == SelectMode.unSelect || popUpSelectedValue == SelectMode.select){
+            for(var i in listOfFertilizerSet){
+              i.select = false;
             }
           }
         });
@@ -648,7 +737,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                       });
                     },
                     textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
+                    keyboardType: TextInputType.text,
                     cursorHeight: 20,
                     validator: (value){
                       if(value!.isEmpty){

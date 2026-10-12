@@ -7,7 +7,6 @@ import 'package:oro_drip_irrigation/services/mqtt_service.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-
 import '../../../Constants/constants.dart';
 import '../model/sequence_model.dart';
 import '../../config_maker/model/device_object_model.dart';
@@ -18,6 +17,7 @@ import '../widgets/custom_alert_dialog.dart';
 import '../widgets/custom_data_table.dart';
 import '../../SystemDefinitions/widgets/custom_snack_bar.dart';
 import '../../../services/http_service.dart';
+import '../../../utils/network_utils.dart';
 import '../widgets/custom_sliding_button.dart';
 import '../widgets/progress_dialog_ecogem.dart';
 import 'program_library.dart';
@@ -449,6 +449,28 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   void sendFunction() async{
+    bool isOnline = await NetworkUtils.checkNow();
+    if (!isOnline) {
+      if (mounted) {
+        showAdaptiveDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return CustomAlertDialog(
+              title: 'No Internet Connection',
+              content: 'Internet connection is unavailable. Please check your network connection and try again.',
+              actions: [
+                TextButton(
+                  child: const Text('OK'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            );
+          },
+        );
+      }
+      return;
+    }
+
     // print("widget.modelId :::::: ${widget.modelId}");
     final mainProvider = Provider.of<IrrigationProgramMainProvider>(context, listen: false);
     Map<String, dynamic> dataToMqtt = mainProvider.dataToMqtt(widget.serialNumber == 0 ? mainProvider.serialNumberCreation : widget.serialNumber, widget.programType);
@@ -539,17 +561,73 @@ class _PreviewScreenState extends State<PreviewScreen> {
           );
         }
       } catch(error) {
-        ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: 'Failed to update because of $error'));
+        if (mounted) {
+          showAdaptiveDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return CustomAlertDialog(
+                title: 'Error',
+                content: 'Failed to update program settings. Please try again.',
+                actions: [
+                  TextButton(
+                    child: const Text('OK'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              );
+            },
+          );
+        }
       }
 
       Future.delayed(const Duration(milliseconds: 300), () async {
-        final IrrigationProgramRepository repository = IrrigationProgramRepository(HttpService());
-        final createUserProgram = await repository.createUserProgram(userData);
-        final response = jsonDecode(createUserProgram.body);
-        if(createUserProgram.statusCode == 200) {
-          await irrigationProvider.programLibraryData(widget.customerId, widget.controllerId);
-          ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: response['message']));
-          Navigator.of(context).pop();
+        try {
+          final IrrigationProgramRepository repository = IrrigationProgramRepository(HttpService());
+          final createUserProgram = await repository.createUserProgram(userData);
+          final response = jsonDecode(createUserProgram.body);
+          if (createUserProgram.statusCode == 200) {
+            await irrigationProvider.programLibraryData(widget.customerId, widget.controllerId);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: response['message']));
+              Navigator.of(context).pop();
+            }
+          } else {
+            if (mounted) {
+              showAdaptiveDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return CustomAlertDialog(
+                    title: 'Error',
+                    content: response['message'] ?? 'Failed to update program',
+                    actions: [
+                      TextButton(
+                        child: const Text('OK'),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  );
+                },
+              );
+            }
+          }
+        } catch (e) {
+          if (mounted) {
+            showAdaptiveDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return CustomAlertDialog(
+                  title: 'Network Error',
+                  content: 'Unable to connect to server. Please check your network connection and try again.',
+                  actions: [
+                    TextButton(
+                      child: const Text('OK'),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
         }
       });
     }

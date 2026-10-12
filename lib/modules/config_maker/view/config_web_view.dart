@@ -8,6 +8,7 @@ import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dar
 import 'package:oro_drip_irrigation/Widgets/sized_image.dart';
 import 'package:oro_drip_irrigation/modules/constant/state_management/constant_provider.dart';
 import 'package:oro_drip_irrigation/services/mqtt_service.dart';
+import 'package:oro_drip_irrigation/services/communication_service.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
@@ -240,7 +241,10 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                                                         if(delay == 0){
                                                           stateSetter((){
                                                             setState((){
-                                                              mqttService.topicToPublishAndItsMessage(payload, '${Environment.mqttPublishTopic}/${configPvd.masterData['deviceId']}');
+                                                              context.read<CommunicationService>().sendCommand(
+                                                                serverMsg: '',
+                                                                payload: payload,
+                                                              );
                                                               payloadState = HardwareAcknowledgementState.sending;
                                                             });
                                                           });
@@ -258,7 +262,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                                                                 }else{
                                                                   payloadState = HardwareAcknowledgementState.errorOnPayload;
                                                                 }
-                                                                mqttService.acknowledgementPayload == null;
+                                                                mqttService.acknowledgementPayload = null;
                                                               }
                                                             }
                                                           });
@@ -757,12 +761,13 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                                 payload['acknowledgementState'] = HardwareAcknowledgementState.failed;
                               }
                               debugPrint("${payload['hardwareType']}\n sec ${sec + 1}   -- ${payload['deviceId']} \n ${mqttService.acknowledgementPayload }");
-                              if(mqttService.isConnected && mqttAttempt == true){
-                                mqttService.topicToPublishAndItsMessage(
-                                  AppConstants.wlcModelList.contains(configPvd.masterData['modelId'])
+                              if(mqttAttempt == true){
+                                context.read<CommunicationService>().sendCommand(
+                                  serverMsg: '',
+                                  payload: AppConstants.wlcModelList.contains(configPvd.masterData['modelId'])
                                       ? Constants.sendPayloadWithCrc(payload['payload'])
                                       : payload['payload'],
-                                    '${Environment.mqttPublishTopic}/${configPvd.masterData['deviceId']}');
+                                );
                                 mqttAttempt = false;
                               }
                               stateSetter((){

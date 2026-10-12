@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:data_table_2/data_table_2.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/constant/model/object_in_constant_model.dart';
+import 'package:provider/provider.dart';
 
 import '../../../Constants/dialog_boxes.dart';
 import '../../../StateManagement/overall_use.dart';
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../services/mqtt_service.dart';
+import '../../../services/communication_service.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/environment.dart';
 import '../state_management/constant_provider.dart';
@@ -114,7 +116,7 @@ class _FilterSiteInConstantState extends State<FilterSiteInConstant> {
                             "4000": {"4001": filterSite.sNo.toString()}
                           };
                           String manualBackwashPayload = jsonEncode(jsonData);
-                          mqttService.topicToPublishAndItsMessage(manualBackwashPayload, '${Environment.mqttPublishTopic}/${widget.constPvd.userData['deviceId']}');
+                          context.read<CommunicationService>().sendCommand(serverMsg: '', payload: manualBackwashPayload);
                           var data = {
                             "userId": widget.constPvd.userData["customerId"],
                             "controllerId": widget.constPvd.userData["controllerId"],

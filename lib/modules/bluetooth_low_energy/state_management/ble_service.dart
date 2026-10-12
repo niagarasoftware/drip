@@ -104,10 +104,8 @@ class BleProvider extends ChangeNotifier {
 
   /*controller variable*/
   ScrollController traceScrollController = ScrollController();
-  TextEditingController frequency1 = TextEditingController();
-  TextEditingController frequency2 = TextEditingController();
-  TextEditingController spreadFactor1 = TextEditingController();
-  TextEditingController spreadFactor2 = TextEditingController();
+  TextEditingController frequency = TextEditingController();
+  TextEditingController spreadFactor = TextEditingController();
   TextEditingController wifiSsid = TextEditingController();
   TextEditingController wifiPassword = TextEditingController();
   TextEditingController ec1Controller = TextEditingController();
@@ -147,8 +145,8 @@ class BleProvider extends ChangeNotifier {
   void editNodeDataFromServer(data, nodeDataFromNodeStatus){
     nodeDataFromServer = data;
     nodeData = nodeDataFromNodeStatus;
-    print("nodeDataFromServer : $nodeDataFromServer");
-    print("nodeData : $nodeData");
+    debugPrint("nodeDataFromServer : $nodeDataFromServer");
+    debugPrint("nodeData : $nodeData");
     // if(AppConstants.ecoGemModelList.contains(nodeData['modelId'])){
     //   nodeDataFromServer['pathSetting']['downloadDirectory'] = "/home/ubuntu/FTP/download/EC25/";
     // }else if(AppConstants.pumpWithValveModelList.contains(nodeData['modelId'])){
@@ -386,8 +384,8 @@ class BleProvider extends ChangeNotifier {
       sendMac.add(i.codeUnitAt(0));
     }
     await sendToHardware!.write(sendMac,
-    withoutResponse:
-    sendToHardware!.properties.writeWithoutResponse);
+        withoutResponse:
+        sendToHardware!.properties.writeWithoutResponse);
   }
 
   void changingNodeToBootMode()async{
@@ -407,7 +405,6 @@ class BleProvider extends ChangeNotifier {
     for (var s in _services) {
       debugPrint('service => $s');
     }
-    print("modelId : ${modelId}");
     final isWlc = AppConstants.wlcModelList.contains(modelId);
     final isPumpWifi = AppConstants.pumpWifiDefault.contains(modelId);
 
@@ -473,7 +470,6 @@ class BleProvider extends ChangeNotifier {
       }
     }
   }
-
 
   void listeningSendToHardwareSubscription(BluetoothCharacteristic? characteristic) {
     debugPrint('listeningSendingData called............................................................');
@@ -601,16 +597,10 @@ class BleProvider extends ChangeNotifier {
               }
 
               if (nodeDataFromHw.containsKey('FRQ')) {
-                frequency1.text = '${int.parse(nodeDataFromHw['FRQ']) / 10}';
-              }
-              if (nodeDataFromHw.containsKey('FRQ2')) {
-                frequency2.text = '${int.parse(nodeDataFromHw['FRQ2']) / 10}';
+                frequency.text = '${int.parse(nodeDataFromHw['FRQ']) / 10}';
               }
               if (nodeDataFromHw.containsKey('SF')) {
-                spreadFactor1.text = nodeDataFromHw['SF'];
-              }
-              if (nodeDataFromHw.containsKey('SF2')) {
-                spreadFactor2.text = nodeDataFromHw['SF2'];
+                spreadFactor.text = nodeDataFromHw['SF'];
               }
               if (nodeDataFromHw.containsKey('WIFISSID')) {
                 wifiSsid.text = nodeDataFromHw['WIFISSID'];
@@ -807,7 +797,7 @@ class BleProvider extends ChangeNotifier {
         fileMode = FileMode.errorOnConnected;
       }
       notifyListeners();
-      
+
     }catch(e, backTrace){
       fileMode = FileMode.errorOnWhileGetFileName;
       if (kDebugMode) {

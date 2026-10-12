@@ -43,6 +43,13 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
         // programPvd.selectingTheSite();
         if(programPvd.sequenceData.isNotEmpty){
           programPvd.editGroupSiteInjector(programPvd.segmentedControlCentralLocal == 0 ? 'selectedCentralSite' : 'selectedLocalSite', programPvd.segmentedControlCentralLocal == 0 ? programPvd.selectedCentralSite :programPvd.selectedLocalSite);
+          if (_scrollController.hasClients && programPvd.selectedGroup > 0) {
+            _scrollController.animateTo(
+              (programPvd.selectedGroup * 60).toDouble(),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
         }
       });
     }
@@ -1202,29 +1209,37 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                             width: 100,
                                             height: 40,
                                             child: Center(
-                                                child: DropdownButton(
-                                                  isExpanded: true,
-                                                  dropdownColor: Colors.white,
-                                                  value: programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['method'],
-                                                  underline: Container(),
-                                                  items: [
-                                                    'Time',
-                                                    if(AppConstants.gemModelList.contains(widget.modelId))
-                                                      'Pro.time',
-                                                    if(AppConstants.gemModelList.contains(widget.modelId))
-                                                      'Pro.quantity',
-                                                    'Quantity',
-                                                    if(AppConstants.gemModelList.contains(widget.modelId))
-                                                      'Pro.quant per 1000L'
-                                                  ].map((String items) {
-                                                    return DropdownMenuItem(
-                                                      value: items,
-                                                      child: Text(items,style: const TextStyle(fontSize: 12,color: Colors.black),),
+                                                child: Builder(
+                                                  builder: (context) {
+                                                    var currentMethod = programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['method'];
+                                                    if (currentMethod == 'Pro.qty per 1000L') {
+                                                      currentMethod = 'Pro.quant per 1000L';
+                                                    }
+                                                    return DropdownButton(
+                                                      isExpanded: true,
+                                                      dropdownColor: Colors.white,
+                                                      value: currentMethod,
+                                                      underline: Container(),
+                                                      items: [
+                                                        'Time',
+                                                        if(AppConstants.gemModelList.contains(widget.modelId))
+                                                          'Pro.time',
+                                                        if(AppConstants.gemModelList.contains(widget.modelId))
+                                                          'Pro.quantity',
+                                                        'Quantity',
+                                                        if(AppConstants.gemModelList.contains(widget.modelId))
+                                                          'Pro.quant per 1000L'
+                                                      ].map((String items) {
+                                                        return DropdownMenuItem(
+                                                          value: items,
+                                                          child: Text(items,style: const TextStyle(fontSize: 12,color: Colors.black),),
+                                                        );
+                                                      }).toList(),
+                                                      onChanged: (value) {
+                                                        programPvd.editParticularChannelDetails('method', programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing', value,index);
+                                                      },
                                                     );
-                                                  }).toList(),
-                                                  onChanged: (value) {
-                                                    programPvd.editParticularChannelDetails('method', programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing', value,index);
-                                                  },
+                                                  }
                                                 )
                                             ),
                                           ),
@@ -1235,7 +1250,7 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                                 child: SizedBox(
                                                   width: 60,
                                                   height: 28,
-                                                  child: ['Pro.quantity','Quantity','Pro.quant per 1000L'].contains(programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['method']) ? TextFormField(
+                                                  child: ['Pro.quantity','Quantity','Pro.quant per 1000L'].contains(programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['method'] == 'Pro.qty per 1000L' ? 'Pro.quant per 1000L' : programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['method']) ? TextFormField(
                                                     controller: programPvd.getInjectorController(index),
                                                     maxLength: 6,
                                                     inputFormatters: AppProperties.regexForDecimal,

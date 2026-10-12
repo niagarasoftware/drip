@@ -48,8 +48,18 @@ class _SequenceScreenState extends State<SequenceScreen> {
     _provider = Provider.of<IrrigationProgramMainProvider>(context, listen: false);
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _provider.assigningCurrentIndex(0);
+        if (_provider.irrigationLine != null &&
+            (_provider.currentIndex < 0 || _provider.currentIndex >= _provider.irrigationLine!.sequence.length)) {
+          _provider.assigningCurrentIndex(0);
+        }
         _provider.addNext = false;
+        if (_scrollController.hasClients && _provider.currentIndex > 0) {
+          _scrollController.animateTo(
+            (_provider.currentIndex * 100).toDouble(),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       });
     }
   }

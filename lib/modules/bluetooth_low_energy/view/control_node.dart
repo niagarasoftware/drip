@@ -86,13 +86,20 @@ class _ControlNodeState extends State<ControlNode> {
     var controller = versionList[0];
     var boot = versionList[1];
     var interFaceVersion = versionList.length > 2 ? versionList[2] : "0.0.0";
-    return Row(
+    String? lora1 = bleService.nodeDataFromHw['LORA1'];
+    String? lora2 = bleService.nodeDataFromHw['LORA2'];
+    return Wrap(
       spacing: 20,
+      runSpacing: 10,
       children: [
         if(!bleService.nodeDataFromServer['hardwareLoraModel'].contains(bleService.nodeDataFromHw['MID']))
-          Expanded(child: versionWidget(color: const Color(0xffEB7C17), title: 'Controller Version $controller')),
-        Expanded(child: versionWidget(color: const Color(0xff005C8E), title: 'Boot Version $boot')),
-        Expanded(child: versionWidget(color: const Color(0xffE0070A), title: '${bleService.nodeDataFromServer['interface'] ?? (bleService.nodeDataFromServer['hardwareLoraModel'].contains(bleService.nodeDataFromHw['MID']) ? 'LoRa' : '')} Version $interFaceVersion')),
+          versionWidget(color: const Color(0xffEB7C17), title: 'Controller Version $controller'),
+        versionWidget(color: const Color(0xff005C8E), title: 'Boot Version $boot'),
+        versionWidget(color: const Color(0xffE0070A), title: '${bleService.nodeDataFromServer['interface'] ?? (bleService.nodeDataFromServer['hardwareLoraModel'].contains(bleService.nodeDataFromHw['MID']) ? 'LoRa' : '')} Version $interFaceVersion'),
+        if(bleService.nodeDataFromHw.containsKey('LORA1'))
+          versionWidget(color: const Color(0xffEB7C17), title: 'LoRa 1 Version $lora1'),
+        if(bleService.nodeDataFromHw.containsKey('LORA2'))
+          versionWidget(color: const Color(0xffAA7C17), title: 'LoRa 2 Version $lora2'),
       ],
     );
   }
@@ -105,9 +112,7 @@ class _ControlNodeState extends State<ControlNode> {
         border: Border.all(width: 1, color: color),
         color: color.withValues(alpha: 0.1)
       ),
-      child: Center(
-        child: Text(title, style: TextStyle(color: color), textAlign: TextAlign.center,),
-      ),
+      child: Text(title, style: TextStyle(color: color), textAlign: TextAlign.center,),
     );
   }
 
