@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:oro_drip_irrigation/Constants/properties.dart';
 import 'package:oro_drip_irrigation/modules/IrrigationProgram/view/preview_screen.dart';
 import 'package:oro_drip_irrigation/modules/IrrigationProgram/view/schedule_screen.dart';
 import 'package:oro_drip_irrigation/modules/IrrigationProgram/view/selection_screen.dart';
@@ -157,6 +156,27 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
       ]);
 
       if (mounted) {
+        final result = irrigationProvider.getLabelAndIcon(
+          sno: widget.serialNumber,
+          programType: widget.programType,
+          conditionLibrary: irrigationProvider.conditionsLibraryIsNotEmpty,
+        );
+        setState(() {
+          labels = result.labels;
+          icons = result.icons;
+          if (_tabController.length != labels.length) {
+            final oldIndex = _tabController.index;
+            _tabController.dispose();
+            _tabController = TabController(
+              length: labels.length,
+              vsync: this,
+              initialIndex: oldIndex < labels.length ? oldIndex : 0,
+            );
+            _tabController.addListener(() {
+              irrigationProvider.updateTabIndex(_tabController.index);
+            });
+          }
+        });
         _hideLoadingDialog();
       }
     } catch (e) {
@@ -650,8 +670,14 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
     required bool isIrrigationProgram,
     required bool conditionsLibraryIsNotEmpty,
   }) {
-    switch (index) {
-      case 0:
+    if (index < 0 || index >= labels.length) {
+      return const SizedBox();
+    }
+
+    final label = labels[index];
+
+    switch (label) {
+      case 'Sequence':
         return SequenceScreen(
           userId: widget.customerId,
           controllerId: widget.controllerId,
@@ -659,60 +685,39 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
           deviceId: widget.deviceId,
           modelId: widget.modelId,
         );
-      case 1:
-        return ScheduleScreen(serialNumber: widget.serialNumber, modelId: widget.modelId);
-      case 2:
-        return conditionsLibraryIsNotEmpty
-            ? ConditionsScreen(
+      case 'Schedule':
+        return ScheduleScreen(
+          serialNumber: widget.serialNumber,
+          modelId: widget.modelId,
+        );
+      case 'Conditions':
+        return ConditionsScreen(
           userId: widget.userId,
           controllerId: widget.controllerId,
           serialNumber: widget.serialNumber,
           deviceId: widget.deviceId,
           customerId: widget.customerId,
-        )
-            : isIrrigationProgram
-            ? SelectionScreen(modelId: widget.modelId, nodeList: widget.nodeList,)
-            : WaterAndFertilizerScreen(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          serialNumber: widget.serialNumber,
-          isIrrigationProgram: isIrrigationProgram,
-          modelId: widget.modelId,
         );
-      case 3:
-        return isIrrigationProgram
-            ? conditionsLibraryIsNotEmpty
-            ? SelectionScreen(modelId: widget.modelId, nodeList: widget.nodeList,)
-            : WaterAndFertilizerScreen(
+      case 'Selection':
+        return SelectionScreen(
+          modelId: widget.modelId,
+          nodeList: widget.nodeList,
+        );
+      case 'Water & Fert':
+      case 'Settings':
+        return WaterAndFertilizerScreen(
           userId: widget.customerId,
           controllerId: widget.controllerId,
           serialNumber: widget.serialNumber,
           isIrrigationProgram: isIrrigationProgram,
           modelId: widget.modelId,
-        )
-            : conditionsLibraryIsNotEmpty
-            ? WaterAndFertilizerScreen(
-          userId: widget.customerId,
-          controllerId: widget.controllerId,
-          serialNumber: widget.serialNumber,
-          isIrrigationProgram: isIrrigationProgram,
+        );
+      case 'Alarm':
+        return AlarmScreen(
           modelId: widget.modelId,
-        )
-            : AlarmScreen(modelId: widget.modelId);
-      case 4:
-        return isIrrigationProgram
-            ? conditionsLibraryIsNotEmpty
-            ? WaterAndFertilizerScreen(
-          userId: widget.customerId,
-          controllerId: widget.controllerId,
-          serialNumber: widget.serialNumber,
-          isIrrigationProgram: isIrrigationProgram,
-          modelId: widget.modelId,
-        )
-            : AlarmScreen(modelId: widget.modelId)
-            : conditionsLibraryIsNotEmpty
-            ? AlarmScreen(modelId: widget.modelId)
-            : AdditionalDataScreen(
+        );
+      case 'Additional':
+        return AdditionalDataScreen(
           userId: widget.userId,
           controllerId: widget.controllerId,
           deviceId: widget.deviceId,
@@ -728,61 +733,8 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
           deviceName: widget.deviceName,
           categoryName: widget.categoryName,
         );
-      case 5:
-        return isIrrigationProgram
-            ? conditionsLibraryIsNotEmpty
-            ? AlarmScreen(modelId: widget.modelId)
-            : AdditionalDataScreen(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          deviceId: widget.deviceId,
-          serialNumber: widget.serialNumber,
-          toDashboard: widget.toDashboard,
-          fromDealer: widget.fromDealer,
-          programType: widget.programType,
-          isIrrigationProgram: isIrrigationProgram,
-          customerId: widget.customerId,
-          groupId: widget.groupId,
-          categoryId: widget.categoryId,
-          modelId: widget.modelId,
-          deviceName: widget.deviceName,
-          categoryName: widget.categoryName,
-        )
-            : AdditionalDataScreen(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          deviceId: widget.deviceId,
-          serialNumber: widget.serialNumber,
-          toDashboard: widget.toDashboard,
-          fromDealer: widget.fromDealer,
-          programType: widget.programType,
-          isIrrigationProgram: isIrrigationProgram,
-          customerId: widget.customerId,
-          groupId: widget.groupId,
-          categoryId: widget.categoryId,
-          modelId: widget.modelId,
-          deviceName: widget.deviceName,
-          categoryName: widget.categoryName,
-        );
-      case 6:
-        return conditionsLibraryIsNotEmpty
-            ? AdditionalDataScreen(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          deviceId: widget.deviceId,
-          serialNumber: widget.serialNumber,
-          toDashboard: widget.toDashboard,
-          fromDealer: widget.fromDealer,
-          programType: widget.programType,
-          isIrrigationProgram: isIrrigationProgram,
-          customerId: widget.customerId,
-          groupId: widget.groupId,
-          categoryId: widget.categoryId,
-          modelId: widget.modelId,
-          deviceName: widget.deviceName,
-          categoryName: widget.categoryName,
-        )
-            : PreviewScreen(
+      case 'Preview':
+        return PreviewScreen(
           userId: widget.userId,
           controllerId: widget.controllerId,
           deviceId: widget.deviceId,
@@ -797,24 +749,6 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
           deviceName: widget.deviceName,
           categoryName: widget.categoryName,
         );
-      case 7:
-        return conditionsLibraryIsNotEmpty
-            ? PreviewScreen(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          deviceId: widget.deviceId,
-          serialNumber: widget.serialNumber,
-          toDashboard: widget.toDashboard,
-          fromDealer: widget.fromDealer,
-          programType: widget.programType,
-          customerId: widget.customerId,
-          groupId: widget.groupId,
-          categoryId: widget.categoryId,
-          modelId: widget.modelId,
-          deviceName: widget.deviceName,
-          categoryName: widget.categoryName,
-        )
-            : const SizedBox();
       default:
         return const SizedBox();
     }
