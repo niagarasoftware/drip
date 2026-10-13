@@ -26,12 +26,26 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
   ValueNotifier<int> selectedIrrigationLine = ValueNotifier(0);
 
   void _syncWithNormalCritical(
-      int lineIndex, int rowIndex, int settingSno, dynamic value) {
+      int lineIndex, int rowIndex, ConstantSettingModel setting, dynamic value) {
+    if (lineIndex < widget.constPvd.commonAlarm.length &&
+        rowIndex < widget.constPvd.commonAlarm[lineIndex].alarmList.length) {
+      final alarm = widget.constPvd.commonAlarm[lineIndex].alarmList[rowIndex];
+      if (setting.title.toLowerCase().contains('on/off')) {
+        for (var g in widget.constPvd.globalAlarm) {
+          if (g.sNo == alarm.sNo) {
+            g.value.value = value;
+            break;
+          }
+        }
+        return;
+      }
+    }
+
     if (lineIndex < widget.constPvd.normalCriticalAlarm.length) {
       final normalCriticalLine = widget.constPvd.normalCriticalAlarm[lineIndex];
       if (rowIndex < normalCriticalLine.normal.length) {
         for (var s in normalCriticalLine.normal[rowIndex].setting) {
-          if (s.sNo == settingSno) {
+          if (s.title.toLowerCase() == setting.title.toLowerCase()) {
             s.value.value = value;
             break;
           }
@@ -39,7 +53,7 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
       }
       if (rowIndex < normalCriticalLine.critical.length) {
         for (var s in normalCriticalLine.critical[rowIndex].setting) {
-          if (s.sNo == settingSno) {
+          if (s.title.toLowerCase() == setting.title.toLowerCase()) {
             s.value.value = value;
             break;
           }
@@ -161,24 +175,25 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
                           DataCell(
                             Builder(
                               builder: (context) {
-                                ConstantSettingModel? alarmSetting;
+                                ConstantSettingModel? foundSetting;
                                 for (var s in alarm.setting) {
                                   if (s.sNo ==
                                       widget
                                           .constPvd
                                           .defaultCommonAlarmSetting[index]
                                           .sNo) {
-                                    alarmSetting = s;
+                                    foundSetting = s;
                                     break;
                                   }
                                 }
-                                if (alarmSetting == null) {
+                                if (foundSetting == null) {
                                   return SizedBox(
                                     height: 40,
                                     width: cellWidth,
                                     child: const Center(child: Text('-')),
                                   );
                                 }
+                                final alarmSetting = foundSetting;
 
                                 if (isNova &&
                                     widget.constPvd
@@ -208,32 +223,33 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
                                       height: 40,
                                       width: cellWidth,
                                       child: FindSuitableWidget(
-                                        constantSettingModel: alarmSetting!,
+                                        constantSettingModel: alarmSetting,
                                         onUpdate: (value) {
-                                          alarmSetting!.value.value = value;
+                                          alarmSetting.value.value = value;
                                           _syncWithNormalCritical(
                                             selectedIrrigationLine.value,
                                             row,
-                                            alarmSetting.sNo,
+                                            alarmSetting,
                                             value,
                                           );
                                         },
                                         onOk: () {
-                                          alarmSetting!.value.value =
+                                          alarmSetting.value.value =
                                               widget.overAllPvd.getTime();
                                           _syncWithNormalCritical(
                                             selectedIrrigationLine.value,
                                             row,
-                                            alarmSetting.sNo,
+                                            alarmSetting,
                                             widget.overAllPvd.getTime(),
                                           );
                                           Navigator.pop(context);
                                         },
-                                        popUpItemModelList:
-                                            alarmSetting.sNo == 2
-                                                ? widget.constPvd.alarmOnStatus
-                                                : widget.constPvd
-                                                    .alarmResetAfterIrrigation,
+                                        popUpItemModelList: alarmSetting.title
+                                                .toLowerCase()
+                                                .contains('status')
+                                            ? widget.constPvd.alarmOnStatus
+                                            : widget.constPvd
+                                                .alarmResetAfterIrrigation,
                                       ),
                                     );
                                   },

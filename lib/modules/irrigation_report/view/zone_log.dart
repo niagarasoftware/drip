@@ -1201,101 +1201,101 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               ),
 
               // Cumulative Log & Sequence Log Toggle Tabs (Right Corner)
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                padding: const EdgeInsets.all(2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        if (_selectedLogTypeTab != 0) {
-                          setState(() {
-                            _selectedLogTypeTab = 0;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedLogTypeTab == 0
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedLogTypeTab == 0
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          "Cumulative Log",
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: _selectedLogTypeTab == 0
-                                ? FontWeight.bold
-                                : FontWeight.w500,
-                            color: _selectedLogTypeTab == 0
-                                ? const Color(0xFF00695C)
-                                : Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    InkWell(
-                      onTap: () {
-                        if (_selectedLogTypeTab != 1) {
-                          setState(() {
-                            _selectedLogTypeTab = 1;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedLogTypeTab == 1
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedLogTypeTab == 1
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          "Sequence Log",
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: _selectedLogTypeTab == 1
-                                ? FontWeight.bold
-                                : FontWeight.w500,
-                            color: _selectedLogTypeTab == 1
-                                ? const Color(0xFF00695C)
-                                : Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Container(
+              //   decoration: BoxDecoration(
+              //     color: Colors.black.withValues(alpha: 0.25),
+              //     borderRadius: BorderRadius.circular(6),
+              //   ),
+              //   padding: const EdgeInsets.all(2),
+              //   child: Row(
+              //     mainAxisSize: MainAxisSize.min,
+              //     children: [
+              //       InkWell(
+              //         onTap: () {
+              //           if (_selectedLogTypeTab != 0) {
+              //             setState(() {
+              //               _selectedLogTypeTab = 0;
+              //             });
+              //           }
+              //         },
+              //         borderRadius: BorderRadius.circular(4),
+              //         child: Container(
+              //           padding: const EdgeInsets.symmetric(
+              //               horizontal: 10, vertical: 5),
+              //           decoration: BoxDecoration(
+              //             color: _selectedLogTypeTab == 0
+              //                 ? Colors.white
+              //                 : Colors.transparent,
+              //             borderRadius: BorderRadius.circular(4),
+              //             boxShadow: _selectedLogTypeTab == 0
+              //                 ? const [
+              //                     BoxShadow(
+              //                       color: Colors.black12,
+              //                       blurRadius: 2,
+              //                       offset: Offset(0, 1),
+              //                     )
+              //                   ]
+              //                 : null,
+              //           ),
+              //           child: Text(
+              //             "Cumulative Log",
+              //             style: TextStyle(
+              //               fontSize: 11.5,
+              //               fontWeight: _selectedLogTypeTab == 0
+              //                   ? FontWeight.bold
+              //                   : FontWeight.w500,
+              //               color: _selectedLogTypeTab == 0
+              //                   ? const Color(0xFF00695C)
+              //                   : Colors.white,
+              //             ),
+              //           ),
+              //         ),
+              //       ),
+              //       const SizedBox(width: 2),
+              //       InkWell(
+              //         onTap: () {
+              //           if (_selectedLogTypeTab != 1) {
+              //             setState(() {
+              //               _selectedLogTypeTab = 1;
+              //             });
+              //           }
+              //         },
+              //         borderRadius: BorderRadius.circular(4),
+              //         child: Container(
+              //           padding: const EdgeInsets.symmetric(
+              //               horizontal: 10, vertical: 5),
+              //           decoration: BoxDecoration(
+              //             color: _selectedLogTypeTab == 1
+              //                 ? Colors.white
+              //                 : Colors.transparent,
+              //             borderRadius: BorderRadius.circular(4),
+              //             boxShadow: _selectedLogTypeTab == 1
+              //                 ? const [
+              //                     BoxShadow(
+              //                       color: Colors.black12,
+              //                       blurRadius: 2,
+              //                       offset: Offset(0, 1),
+              //                     )
+              //                   ]
+              //                 : null,
+              //           ),
+              //           child: Text(
+              //             "Sequence Log",
+              //             style: TextStyle(
+              //               fontSize: 11.5,
+              //               fontWeight: _selectedLogTypeTab == 1
+              //                   ? FontWeight.bold
+              //                   : FontWeight.w500,
+              //               color: _selectedLogTypeTab == 1
+              //                   ? const Color(0xFF00695C)
+              //                   : Colors.white,
+              //             ),
+              //           ),
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
             ],
           );
         },
