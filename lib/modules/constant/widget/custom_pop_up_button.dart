@@ -9,7 +9,13 @@ class CustomPopUpButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    PopUpItemModel selectedPopUpItemModel = popUpItemModelList.firstWhere((item) => item.sNo == selectedItemSno);
+    if (popUpItemModelList.isEmpty) {
+      return const SizedBox();
+    }
+    PopUpItemModel selectedPopUpItemModel = popUpItemModelList.firstWhere(
+      (item) => item.sNo == selectedItemSno,
+      orElse: () => popUpItemModelList.first,
+    );
     return PopupMenuButton(
       tooltip: '',
       initialValue: selectedPopUpItemModel.sNo,
