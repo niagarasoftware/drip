@@ -1869,6 +1869,42 @@ class ValveModel {
   }
 }
 
+class FoggerModel {
+  final double sNo;
+  final String name;
+  int status;
+  int completePercent;
+  bool isOn;
+  String lastRunningDT;
+  List<PressureSensor> inputPressure = [];
+  List<PressureSensor> lateralPressure = [];
+
+  FoggerModel({
+    required this.sNo,
+    required this.name,
+    this.status = 0,
+    this.completePercent = 0,
+    this.isOn = false,
+    this.lastRunningDT = '0000-00-00 00:00',
+  });
+
+  factory FoggerModel.fromConfigObject(ConfigObject obj) {
+
+    return FoggerModel(
+      sNo: obj.sNo,
+      name: obj.name,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'sNo': sNo,
+      'name': name,
+      "status": status,
+    };
+  }
+}
+
 class MainValveModel {
   final double sNo;
   final String name;
@@ -2031,7 +2067,7 @@ class GateModel {
   }
 }
 
-class FoggerModel {
+/*class FoggerModel {
   final double sNo;
   final String name;
   int status;
@@ -2056,7 +2092,7 @@ class FoggerModel {
       "status": status,
     };
   }
-}
+}*/
 
 class ValveSA {
   final double sNo;

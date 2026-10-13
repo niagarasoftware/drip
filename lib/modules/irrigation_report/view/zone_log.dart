@@ -145,7 +145,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       'Duration'; // 'Duration' (Green) or 'Quantity' (Orange)
   String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
   final Set<String> _expandedBreakdownKeys = {};
-
+  int _selectedLogTypeTab = 0; // 0 = Cumulative Log, 1 = Sequence Log
 
   @override
   void initState() {
@@ -252,7 +252,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         "ProgramName",
         "IrrigationMethod",
         "IrrigationDuration_Quantity",
-        "IrrigationQuantityCompleted"
+        "IrrigationQuantityCompleted",
+        "SequenceData",
+        "CentralFertChannelName",
+        "CentralFertMethod",
+        "CentralFertilizerChannelDuration",
+        "CentralFertilizerChannelQuantity",
+        "CentralFertilizerChannel",
+        "LocalFertilizerChannel"
       ]
     };
 
@@ -644,11 +651,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               const SizedBox(height: 10),
               // Date Navigation Banner
               _buildDateNavigationBanner(context, primaryDark),
-              // Multi-Day Matrix Table or Graph View
+              // Multi-Day Matrix Table, Graph View, or Static Sequence Log View
               Expanded(
-                child: _selectedViewTab == 0
-                    ? _buildMultiDayMatrixTable(context)
-                    : _buildZoneLogGraphView(context),
+                child: _selectedLogTypeTab == 1
+                    ? _buildStaticSequenceLogView(context)
+                    : (_selectedViewTab == 0
+                        ? _buildMultiDayMatrixTable(context)
+                        : _buildZoneLogGraphView(context)),
               ),
             ],
           ),
@@ -814,14 +823,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            border: Border.all(
-                                color: const Color(0xFFCBD5E1)),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
                             borderRadius: BorderRadius.circular(6),
                             color: Colors.white,
                           ),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
                                 child: Text(
@@ -1192,9 +1199,247 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
               ),
+
+              // Cumulative Log & Sequence Log Toggle Tabs (Right Corner)
+              // Container(
+              //   decoration: BoxDecoration(
+              //     color: Colors.black.withValues(alpha: 0.25),
+              //     borderRadius: BorderRadius.circular(6),
+              //   ),
+              //   padding: const EdgeInsets.all(2),
+              //   child: Row(
+              //     mainAxisSize: MainAxisSize.min,
+              //     children: [
+              //       InkWell(
+              //         onTap: () {
+              //           if (_selectedLogTypeTab != 0) {
+              //             setState(() {
+              //               _selectedLogTypeTab = 0;
+              //             });
+              //           }
+              //         },
+              //         borderRadius: BorderRadius.circular(4),
+              //         child: Container(
+              //           padding: const EdgeInsets.symmetric(
+              //               horizontal: 10, vertical: 5),
+              //           decoration: BoxDecoration(
+              //             color: _selectedLogTypeTab == 0
+              //                 ? Colors.white
+              //                 : Colors.transparent,
+              //             borderRadius: BorderRadius.circular(4),
+              //             boxShadow: _selectedLogTypeTab == 0
+              //                 ? const [
+              //                     BoxShadow(
+              //                       color: Colors.black12,
+              //                       blurRadius: 2,
+              //                       offset: Offset(0, 1),
+              //                     )
+              //                   ]
+              //                 : null,
+              //           ),
+              //           child: Text(
+              //             "Cumulative Log",
+              //             style: TextStyle(
+              //               fontSize: 11.5,
+              //               fontWeight: _selectedLogTypeTab == 0
+              //                   ? FontWeight.bold
+              //                   : FontWeight.w500,
+              //               color: _selectedLogTypeTab == 0
+              //                   ? const Color(0xFF00695C)
+              //                   : Colors.white,
+              //             ),
+              //           ),
+              //         ),
+              //       ),
+              //       const SizedBox(width: 2),
+              //       InkWell(
+              //         onTap: () {
+              //           if (_selectedLogTypeTab != 1) {
+              //             setState(() {
+              //               _selectedLogTypeTab = 1;
+              //             });
+              //           }
+              //         },
+              //         borderRadius: BorderRadius.circular(4),
+              //         child: Container(
+              //           padding: const EdgeInsets.symmetric(
+              //               horizontal: 10, vertical: 5),
+              //           decoration: BoxDecoration(
+              //             color: _selectedLogTypeTab == 1
+              //                 ? Colors.white
+              //                 : Colors.transparent,
+              //             borderRadius: BorderRadius.circular(4),
+              //             boxShadow: _selectedLogTypeTab == 1
+              //                 ? const [
+              //                     BoxShadow(
+              //                       color: Colors.black12,
+              //                       blurRadius: 2,
+              //                       offset: Offset(0, 1),
+              //                     )
+              //                   ]
+              //                 : null,
+              //           ),
+              //           child: Text(
+              //             "Sequence Log",
+              //             style: TextStyle(
+              //               fontSize: 11.5,
+              //               fontWeight: _selectedLogTypeTab == 1
+              //                   ? FontWeight.bold
+              //                   : FontWeight.w500,
+              //               color: _selectedLogTypeTab == 1
+              //                   ? const Color(0xFF00695C)
+              //                   : Colors.white,
+              //             ),
+              //           ),
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildStaticSequenceLogView(BuildContext context) {
+    final List<Map<String, String>> staticSequenceLogs = [
+      {
+        "program": "Program 1",
+        "sequence": "Sequence 1.1",
+        "valve": "Valve 1.1",
+        "startTime": "06/10/2026 06:00:00",
+        "endTime": "06/10/2026 06:36:40",
+        "duration": "00:36:40",
+        "quantity": "130000 L",
+        "status": "Completed"
+      },
+      {
+        "program": "Program 1",
+        "sequence": "Sequence 1.2",
+        "valve": "Valve 1.2",
+        "startTime": "06/10/2026 06:36:40",
+        "endTime": "06/10/2026 07:00:00",
+        "duration": "00:23:20",
+        "quantity": "85000 L",
+        "status": "Completed"
+      },
+      {
+        "program": "Program 2",
+        "sequence": "Sequence 2.1",
+        "valve": "Valve 2.1",
+        "startTime": "07/10/2026 07:15:00",
+        "endTime": "07/10/2026 07:34:26",
+        "duration": "00:19:26",
+        "quantity": "70000 L",
+        "status": "Completed"
+      },
+      {
+        "program": "Program 2",
+        "sequence": "Sequence 2.2",
+        "valve": "Valve 2.2",
+        "startTime": "08/10/2026 08:00:00",
+        "endTime": "08/10/2026 08:36:23",
+        "duration": "00:36:23",
+        "quantity": "131000 L",
+        "status": "Completed"
+      },
+      {
+        "program": "Program 3",
+        "sequence": "Sequence 3.1",
+        "valve": "Valve 3.1",
+        "startTime": "09/10/2026 09:30:00",
+        "endTime": "09/10/2026 10:12:16",
+        "duration": "00:42:16",
+        "quantity": "360000 L",
+        "status": "Completed"
+      },
+      {
+        "program": "Program 3",
+        "sequence": "Sequence 3.2",
+        "valve": "Valve 3.2",
+        "startTime": "10/10/2026 10:00:00",
+        "endTime": "10/10/2026 10:41:18",
+        "duration": "00:41:18",
+        "quantity": "230300 L",
+        "status": "Completed"
+      },
+    ];
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
+        ),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(
+              const Color(0xFFC5A059).withValues(alpha: 0.3),
+            ),
+            headingTextStyle: const TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF334155),
+              fontSize: 13,
+            ),
+            columns: const [
+              DataColumn(label: Text("S.No")),
+              DataColumn(label: Text("Program")),
+              DataColumn(label: Text("Sequence")),
+              DataColumn(label: Text("Valve")),
+              DataColumn(label: Text("Actual Start Time")),
+              DataColumn(label: Text("Actual End Time")),
+              DataColumn(label: Text("Duration")),
+              DataColumn(label: Text("Quantity")),
+              DataColumn(label: Text("Status")),
+            ],
+            rows: List<DataRow>.generate(staticSequenceLogs.length, (index) {
+              final item = staticSequenceLogs[index];
+              final isEven = index % 2 == 0;
+              return DataRow(
+                color: WidgetStateProperty.all(
+                  isEven ? Colors.white : const Color(0xFFF8FAFC),
+                ),
+                cells: [
+                  DataCell(Text("${index + 1}")),
+                  DataCell(Text(item["program"]!)),
+                  DataCell(Text(item["sequence"]!)),
+                  DataCell(Text(item["valve"]!)),
+                  DataCell(Text(item["startTime"]!)),
+                  DataCell(Text(item["endTime"]!)),
+                  DataCell(Text(item["duration"]!)),
+                  DataCell(Text(item["quantity"]!)),
+                  DataCell(
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        item["status"]!,
+                        style: const TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -3116,7 +3361,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
               ],
-
 
               // Expanded Date-wise Duration, Quantity & Total breakdown
               if (isExpanded) ...[

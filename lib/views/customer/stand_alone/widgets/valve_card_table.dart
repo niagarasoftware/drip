@@ -53,7 +53,7 @@ class ValveCardTable extends StatelessWidget {
                         scale: 0.7,
                         child: Switch(
                           value: switchValue,
-                          activeColor: Colors.teal,
+                          activeThumbColor: Colors.teal,
                           hoverColor: Colors.pink.shade100,
                           onChanged: onSwitchChanged,
                         ),

@@ -12,6 +12,7 @@ import 'package:oro_drip_irrigation/modules/constant/view/ec_ph_in_constant.dart
 import 'package:oro_drip_irrigation/modules/constant/view/fertilizer_site_in_constant.dart';
 import 'package:oro_drip_irrigation/modules/constant/view/global_alarm_in_constant.dart';
 import 'package:oro_drip_irrigation/modules/constant/view/main_valve_in_constant.dart';
+import 'package:oro_drip_irrigation/modules/constant/view/common_alarm_in_constant.dart';
 import 'package:oro_drip_irrigation/modules/constant/view/normal_critical_alarm_in_constant.dart';
 import 'package:oro_drip_irrigation/modules/constant/view/pump_in_constant.dart';
 import 'package:oro_drip_irrigation/modules/constant/view/valve_in_constant.dart';
@@ -194,6 +195,8 @@ class _ConstantBasePageState extends State<ConstantBasePage> with SingleTickerPr
         return LevelInConstant(constPvd: constPvd, overAllPvd: overAllPvd,);
       }else if(constPvd.listOfConstantMenuModel[index].dealerDefinitionId == AppConstants.normalCriticalInConstant){
         return NormalCriticalInConstant(constPvd: constPvd, overAllPvd: overAllPvd,);
+      }else if(constPvd.listOfConstantMenuModel[index].dealerDefinitionId == AppConstants.commonAlarmInConstant){
+        return CommonAlarmInConstant(constPvd: constPvd, overAllPvd: overAllPvd,);
       }else if(constPvd.listOfConstantMenuModel[index].dealerDefinitionId == AppConstants.globalAlarmInConstant){
         return GlobalAlarmInConstant(constPvd: constPvd, overAllPvd: overAllPvd, userData: widget.userData,);
       }else{
