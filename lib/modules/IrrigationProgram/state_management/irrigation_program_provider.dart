@@ -231,13 +231,16 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         }).then((value) {
           if(irrigationLine!.sequence.isEmpty) {
             addNewSequence(serialNumber: serialNumber, zoneSno: 1);
+          } else {
+            updateSequenceSerialNumber(serialNumber, modelId: modelId);
           }
         });
         if(AppConstants.ecoGemAndPlusModelList.contains(modelId)) {
           for(int i = 0; i < _irrigationLine!.sequence.length; i++) {
             _irrigationLine!.sequence[i]['sNo'] = '${i+1}';
           }
-          // print("Serial number :: ${_irrigationLine!.sequence.map((e) => e['sNo'])}");
+        } else {
+          updateSequenceSerialNumber(serialNumber, modelId: modelId);
         }
       } else {
         log("HTTP Request failed or received an unexpected response.");
@@ -249,6 +252,45 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       rethrow;
     }
     // notifyListeners();
+  }
+
+  void updateSequenceSerialNumber(int serialNumber, {int? modelId}) {
+    if (_irrigationLine == null || _irrigationLine!.sequence.isEmpty) return;
+
+    final effectiveSno = serialNumber == 0 ? serialNumberCreation : serialNumber;
+    if (effectiveSno <= 0) return;
+
+    final isEcoGem = modelId != null && AppConstants.ecoGemAndPlusModelList.contains(modelId);
+
+    for (var i = 0; i < _irrigationLine!.sequence.length; i++) {
+      final zoneSno = i + 1;
+      final currentName = _irrigationLine!.sequence[i]['name']?.toString() ?? '';
+
+      if (currentName.isEmpty ||
+          currentName.contains('Sequence 0.') ||
+          currentName.contains('Sequence') ||
+          RegExp(r'^Sequence \d+\.\d+$').hasMatch(currentName)) {
+        _irrigationLine!.sequence[i]['name'] = 'Sequence $effectiveSno.$zoneSno';
+      }
+
+      if (isEcoGem) {
+        _irrigationLine!.sequence[i]['sNo'] = '$zoneSno';
+      } else {
+        _irrigationLine!.sequence[i]['sNo'] = '$effectiveSno.$zoneSno';
+      }
+
+      _irrigationLine!.sequence[i]['id'] = 'SEQ$effectiveSno.$zoneSno';
+
+      if (i < sequenceData.length && sequenceData[i] is Map) {
+        final seqName = sequenceData[i]['seqName']?.toString() ?? '';
+        if (seqName.isEmpty ||
+            seqName.contains('Sequence 0.') ||
+            seqName.contains('Sequence') ||
+            RegExp(r'^Sequence \d+\.\d+$').hasMatch(seqName)) {
+          sequenceData[i]['seqName'] = 'Sequence $effectiveSno.$zoneSno';
+        }
+      }
+    }
   }
 
   //TODO:New SEQUENCE SCREEN PROVIDER
@@ -2959,6 +3001,7 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         selectedProgramType = _programDetails!.programType == '' ? selectedProgramType : _programDetails!.programType;
         defaultProgramName = (_programDetails!.defaultProgramName == '' || _programDetails!.defaultProgramName.isEmpty) ?  "Program $programCount" : _programDetails!.defaultProgramName;
         isCompletionEnabled = _programDetails!.completionOption;
+        updateSequenceSerialNumber(serialNumber);
         Future.delayed(Duration.zero, () {
           notifyListeners();
         });

@@ -12,6 +12,7 @@ import '../../../customer/widgets/booster_widget.dart';
 import '../../../customer/widgets/channel_widget.dart';
 import '../../../customer/widgets/fan_widget.dart';
 import '../../../customer/widgets/filter_builder.dart';
+import '../../../customer/widgets/fogger_widget.dart';
 import '../../../customer/widgets/gate_widget.dart';
 import '../../../customer/widgets/light_widget.dart';
 import '../../../customer/widgets/main_valve_widget.dart';
@@ -35,6 +36,7 @@ class IrrigationLineWide extends StatelessWidget {
   final List<LightModel> lights;
   final List<GateModel> gates;
   final List<FanModel> fans;
+  final List<FoggerModel> fogger;
   final List<SensorModel> prsSwitch;
   final List<SensorModel> pressureIn;
   final List<SensorModel> pressureOut;
@@ -60,6 +62,7 @@ class IrrigationLineWide extends StatelessWidget {
     required this.lights,
     required this.fans,
     required this.gates,
+    required this.fogger,
     required this.prsSwitch,
     required this.pressureIn,
     required this.pressureOut,
@@ -114,6 +117,10 @@ class IrrigationLineWide extends StatelessWidget {
       return LightWidget(objLight: entry.value, isWide: true);
     }).toList();
 
+    final foggerWidgets = fogger.asMap().entries.map((entry) {
+      return FoggerWidget(objFogger: entry.value, isWide: true);
+    }).toList();
+
     final allItems = [
       if (inletWaterSources.isNotEmpty)
         ..._buildWaterSource(context, inletWaterSources, true, true, cFertilizerSite.isNotEmpty? true : false),
@@ -145,6 +152,7 @@ class IrrigationLineWide extends StatelessWidget {
       ..._buildSensorItems(temperature, 'Temperature Sensor', 'assets/png/temperature_sensor.png'),
       ..._buildSensorItems(soilTemperature, 'Soil Temperature Sensor', 'assets/png/Soil_temperature.png'),
       ...gateWidgets,
+      ...foggerWidgets,
     ];
 
     int cFrtChannelCount = 0;
@@ -177,7 +185,7 @@ class IrrigationLineWide extends StatelessWidget {
             if(cFertilizerSite.isNotEmpty) {
               if (((item is ValveWidget) || (item is BuildMainValve)
                   ||(item is LightWidget)||(item is SensorWidget))
-                  && index < itemsPerRow) {
+                  ||(item is FoggerWidget) && index < itemsPerRow) {
                 return Padding(
                   padding: const EdgeInsets.only(top: 30),
                   child: item,
