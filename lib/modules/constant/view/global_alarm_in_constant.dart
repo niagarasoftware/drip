@@ -280,6 +280,7 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
       "moistureSensor": widget.constPvd.moisture.map((setting) => setting.toJson()).toList(),
       "analogSensor": [],
       "normalCriticalAlarm": widget.constPvd.normalCriticalAlarm.map((setting) => setting.toJson()).toList(),
+      "commonAlarm": widget.constPvd.commonAlarm.map((setting) => setting.toJson()).toList(),
       "globalAlarm": widget.constPvd.globalAlarm.map((setting) => setting.toJson()).toList(),
       "hardware" : getConstantHardwarePayload(),
       "controllerReadStatus": "0",

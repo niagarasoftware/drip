@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:oro_drip_irrigation/modules/constant/model/common_alarm_model.dart';
 import 'package:oro_drip_irrigation/modules/constant/model/constant_menu_model.dart';
 import 'package:oro_drip_irrigation/modules/constant/model/constant_setting_model.dart';
 import 'package:oro_drip_irrigation/modules/constant/model/ec_ph_in_constant_model.dart';
@@ -18,6 +19,7 @@ class ConstantProvider extends ChangeNotifier{
   List<ConstantSettingModel> general = [];
   List<ConstantSettingModel> globalAlarm = [];
   List<NormalCriticalAlarmModel> normalCriticalAlarm = [];
+  List<CommonAlarmModel> commonAlarm = [];
   List<ObjectInConstantModel> pump = [];
   List<ObjectInConstantModel> filterSite = [];
   List<ObjectInConstantModel> filter = [];
@@ -41,6 +43,7 @@ class ConstantProvider extends ChangeNotifier{
   List<ConstantSettingModel> defaultMoistureSetting = [];
   List<ConstantSettingModel> defaultLevelSetting = [];
   List<ConstantSettingModel> defaultNormalCriticalAlarmSetting = [];
+  List<ConstantSettingModel> defaultCommonAlarmSetting = [];
   List<PopUpItemModel> filterSiteWhileBackwash = [];
   List<PopUpItemModel> mainValveMode = [];
   List<PopUpItemModel> sourceType = [];
@@ -121,6 +124,37 @@ class ConstantProvider extends ChangeNotifier{
             arrowTabState: ValueNotifier(menu['dealerDefinitionId'] == AppConstants.generalInConstant ? ArrowTabState.onProgress : ArrowTabState.inComplete)
         );
       }).toList();
+
+      // Ensure Common Alarm is placed between Normal Critical Alarm and Global Alarm
+      int commonAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
+        (m) => m.dealerDefinitionId == AppConstants.commonAlarmInConstant || m.parameter.toLowerCase() == 'common alarm',
+      );
+      ConstantMenuModel commonAlarmMenu;
+      if (commonAlarmMenuIndex != -1) {
+        commonAlarmMenu = listOfConstantMenuModel.removeAt(commonAlarmMenuIndex);
+      } else {
+        commonAlarmMenu = ConstantMenuModel(
+          dealerDefinitionId: AppConstants.commonAlarmInConstant,
+          parameter: 'Common Alarm',
+          arrowTabState: ValueNotifier(ArrowTabState.inComplete),
+        );
+      }
+
+      int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
+        (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
+      );
+      if (normalCriticalMenuIndex != -1) {
+        listOfConstantMenuModel.insert(normalCriticalMenuIndex + 1, commonAlarmMenu);
+      } else {
+        int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
+          (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
+        );
+        if (globalAlarmMenuIndex != -1) {
+          listOfConstantMenuModel.insert(globalAlarmMenuIndex, commonAlarmMenu);
+        } else {
+          listOfConstantMenuModel.add(commonAlarmMenu);
+        }
+      }
       if(AppConstants.ecoGemModelList.contains(userData['modelId'])){
         listOfConstantMenuModel = listOfConstantMenuModel.where((menuModel){
           if(menuModel.dealerDefinitionId == AppConstants.levelSensorInConstant){
@@ -226,6 +260,60 @@ class ConstantProvider extends ChangeNotifier{
       }).toList();
       if (kDebugMode) {
         print('normalCriticalAlarm updated..');
+      }
+
+      // update common alarm
+      if (defaultData.containsKey('commonAlarm') && defaultData['commonAlarm'] is List && (defaultData['commonAlarm'] as List).isNotEmpty) {
+        defaultCommonAlarmSetting = generateDefaultSetting(defaultData: defaultData, keyName: 'commonAlarm');
+      } else {
+        defaultCommonAlarmSetting = defaultNormalCriticalAlarmSetting.where((s) => s.common != null).map((s) {
+          return ConstantSettingModel(
+            sNo: s.sNo,
+            title: s.title,
+            widgetTypeId: s.widgetTypeId,
+            dataType: s.dataType,
+            gemDisplay: s.gemDisplay,
+            gemPayload: s.gemPayload,
+            ecoGemDisplay: s.ecoGemDisplay,
+            ecoGemPayload: s.ecoGemPayload,
+            omsGemDisplay: s.omsGemDisplay,
+            omsGemPayload: s.omsGemPayload,
+            common: s.common,
+            value: ValueNotifier(s.value.value),
+          );
+        }).toList();
+      }
+
+      List<dynamic> oldCommonData = [];
+      if (constantOldData.containsKey('commonAlarm') && constantOldData['commonAlarm'] is List) {
+        oldCommonData = constantOldData['commonAlarm'] as List<dynamic>;
+      }
+
+      List<dynamic> defaultCommonSettingsJson = defaultData.containsKey('commonAlarm') && defaultData['commonAlarm'] is List && (defaultData['commonAlarm'] as List).isNotEmpty
+          ? (defaultData['commonAlarm'] as List<dynamic>)
+          : (defaultData['normalCriticalAlarm'] as List<dynamic>).where((s) => s['common'] != null).toList();
+
+      commonAlarm = listOfIrrigationLineObject.map((line) {
+        List<dynamic> lineCommonData = oldCommonData.where((oldLine) => oldLine['sNo'] == line['sNo']).toList();
+        Map<String, dynamic>? oldLineSetting = lineCommonData.firstOrNull;
+
+        if (oldLineSetting == null && constantOldData.containsKey('normalCriticalAlarm') && constantOldData['normalCriticalAlarm'] is List) {
+          List<dynamic> normalCriticalLineData = (constantOldData['normalCriticalAlarm'] as List<dynamic>).where((oldLine) => oldLine['sNo'] == line['sNo']).toList();
+          if (normalCriticalLineData.isNotEmpty) {
+            oldLineSetting = normalCriticalLineData.first;
+          }
+        }
+
+        return CommonAlarmModel.fromJson(
+          objectData: line,
+          defaultSetting: defaultCommonSettingsJson,
+          globalAlarm: defaultData['globalAlarm'] as List<dynamic>,
+          oldSetting: oldLineSetting,
+          userData: userData,
+        );
+      }).toList();
+      if (kDebugMode) {
+        print('commonAlarm updated..');
       }
 
 

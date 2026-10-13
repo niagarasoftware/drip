@@ -918,6 +918,7 @@ class AppConstants {
   static int analogSensorInConstant = 94;
   static int normalCriticalInConstant = 95;
   static int globalAlarmInConstant = 96;
+  static int commonAlarmInConstant = 97;
   static int sourceObjectId = 1;
   static int pumpObjectId = 5;
   static int filterSiteObjectId = 4;
