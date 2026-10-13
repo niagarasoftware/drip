@@ -341,6 +341,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
               ),
             ),
           ],
+          const SizedBox(width: 10),
+          _buildMqttChip(),
           const SizedBox(width: 16),
           Expanded(
             child: Align(
@@ -448,6 +450,15 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   // ───────────────────────────── bottom action bar ───────────────────────────
 
+  // ─────────────────────────────────────────────────────────────────────────────
+// REPLACE the old _buildActionBar(), _sectionLabel(), _barDivider() and
+// _barButton() in _ConfigWebViewState with everything below.
+// All existing logic (_goToStep, _onSendConfig, _openConstantPage,
+// _openPreferencePage, _showClearConfigDialog) is reused unchanged.
+// ─────────────────────────────────────────────────────────────────────────────
+
+  static const Color _sendGreen = Color(0xff16A34A);
+
   Widget _buildActionBar() {
     final tabs = _visibleTabs;
     final index = tabs.indexOf(configPvd.selectedTab);
@@ -464,77 +475,70 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         top: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 1150;
+            final compact = constraints.maxWidth < 950;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                constraints: BoxConstraints(minWidth: constraints.maxWidth - 0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // ── left: connection + config actions
+                    // ── LEFT : tools ─────────────────────────────────────────
+                    _toolsGroup(compact),
+
+                    // ── RIGHT : navigation + send ────────────────────────────
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildMqttChip(),
-                        const SizedBox(width: 16),
-                        _barDivider(),
-                        const SizedBox(width: 16),
-                        _barButton(
-                          label: 'Clear config',
-                          compact: compact,
-                          leading: SizedImageSmall(
-                            imagePath: '${AppConstants.svgObjectPath}clear.svg',
-                            color: Colors.white,
-                          ),
-                          onTap: _showClearConfigDialog,
+                        _iconAction(
+                          icon: Icons.chevron_left_rounded,
+                          tooltip: 'Previous step',
+                          onTap: isFirst ? null : () => _goToStep(-1),
                         ),
-                        const SizedBox(width: 8),
-                        _barButton(
-                          label: 'Send config',
-                          primary: true,
-                          leading: SizedImageSmall(
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            '${index + 1} / ${tabs.length}',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.75),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                        _solidButton(
+                          label: (isLast || compact)
+                              ? 'Next'
+                              : 'Next: ${getTabName(tabs[index + 1])}',
+                          tooltip: isLast
+                              ? 'Last step'
+                              : 'Proceed to ${getTabName(tabs[index + 1])}',
+                          background: Colors.white,
+                          foreground: themeData.primaryColor,
+                          trailing: Icons.arrow_forward_rounded,
+                          onTap: isLast ? null : () => _goToStep(1),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 1,
+                          height: 22,
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+                        const SizedBox(width: 10),
+                        _solidButton(
+                          label: 'Send Config',
+                          tooltip: 'Save & transmit configuration to device',
+                          background: _sendGreen,
+                          foreground: Colors.white,
+                          leadingWidget: SizedImageSmall(
                             imagePath: '${AppConstants.svgObjectPath}send.svg',
-                            color: themeData.primaryColor,
+                            color: Colors.white,
                           ),
                           onTap: _onSendConfig,
                         ),
-                      ],
-                    ),
-                    const SizedBox(width: 24),
-                    // ── right: page shortcuts + step navigation
-                    Row(
-                      children: [
-                        if (configPvd.selectedTab == ConfigMakerTabs.deviceList) ...[
-                          _barButton(
-                            label: 'Constant',
-                            compact: compact,
-                            leading: const Icon(Icons.tune, color: Colors.white, size: 16),
-                            onTap: _openConstantPage,
-                          ),
-                          const SizedBox(width: 10),
-                          _barButton(
-                            label: 'Preference',
-                            compact: compact,
-                            leading: const Icon(Icons.settings_outlined, color: Colors.white, size: 16),
-                            onTap: _openPreferencePage,
-                          ),
-                          const SizedBox(width: 16),
-                          _barDivider(),
-                          const SizedBox(width: 16),
-                        ],
-                        _barButton(
-                          label: 'Back',
-                          compact: compact,
-                          leading: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 12),
-                          onTap: isFirst ? null : () => _goToStep(-1),
-                        ),
-                        const SizedBox(width: 8),
-                        _barButton(
-                          label: isLast ? 'Next' : 'Next: ${getTabName(tabs[index + 1])}',
-                          primary: true,
-                          trailing: Icon(Icons.arrow_forward_ios, color: themeData.primaryColor, size: 12),
-                          onTap: isLast ? null : () => _goToStep(1),
-                        ),
+                        const SizedBox(width: 4),
+                        _moreMenu(),
                       ],
                     ),
                   ],
@@ -542,6 +546,212 @@ class _ConfigWebViewState extends State<ConfigWebView> {
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  /// Constant + Preference in one translucent pill.
+  Widget _toolsGroup(bool compact) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ghostButton(
+            icon: Icons.tune_rounded,
+            label: 'Constant',
+            tooltip: 'Open Constant settings page',
+            compact: compact,
+            onTap: _openConstantPage,
+          ),
+          Container(width: 1, height: 18, color: Colors.white.withOpacity(0.2)),
+          _ghostButton(
+            icon: Icons.settings_outlined,
+            label: 'Preference',
+            tooltip: 'Open Preference settings page',
+            compact: compact,
+            onTap: _openPreferencePage,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Text-less/low-emphasis button used inside the tools pill.
+  Widget _ghostButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    String? tooltip,
+    bool compact = false,
+  }) {
+    return Tooltip(
+      message: tooltip ?? label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        hoverColor: Colors.white.withOpacity(0.14),
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              if (!compact) ...[
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Small round icon button (used for "previous step").
+  Widget _iconAction({
+    required IconData icon,
+    required VoidCallback? onTap,
+    String? tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip ?? '',
+      child: Opacity(
+        opacity: onTap == null ? 0.35 : 1,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          hoverColor: Colors.white.withOpacity(0.14),
+          onTap: onTap,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.08),
+              border: Border.all(color: Colors.white.withOpacity(0.3)),
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Filled button – used for Next (white) and Send Config (green).
+  Widget _solidButton({
+    required String label,
+    required VoidCallback? onTap,
+    required Color background,
+    required Color foreground,
+    IconData? trailing,
+    Widget? leadingWidget,
+    String? tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip ?? label,
+      child: Opacity(
+        opacity: onTap == null ? 0.4 : 1,
+        child: Material(
+          color: background,
+          borderRadius: BorderRadius.circular(10),
+          elevation: onTap == null ? 0 : 2,
+          shadowColor: Colors.black38,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            hoverColor: Colors.black.withOpacity(0.06),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leadingWidget != null) ...[
+                    leadingWidget,
+                    const SizedBox(width: 7),
+                  ],
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 6),
+                    Icon(trailing, color: foreground, size: 16),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Overflow menu: keeps the destructive action away from Send.
+  Widget _moreMenu() {
+    return PopupMenuButton<String>(
+      tooltip: 'More actions',
+      offset: const Offset(0, -56),
+      color: Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
+      onSelected: (value) {
+        if (value == 'clear') _showClearConfigDialog();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'clear',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(Icons.delete_sweep_outlined, color: Colors.red.shade600, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                'Clear Config',
+                style: TextStyle(
+                  color: Colors.red.shade600,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _sectionLabel(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.6),
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
         ),
       ),
     );
@@ -556,30 +766,35 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       builder: (context, snapShot) {
         final connected = mqttService.isConnected;
         final dotColor = connected ? Colors.greenAccent : Colors.redAccent;
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: dotColor,
-                  boxShadow: [BoxShadow(color: dotColor.withOpacity(0.6), blurRadius: 6)],
+        final statusText = connected ? 'MQTT Connected' : 'MQTT Disconnected';
+        return Tooltip(
+          message: statusText,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: dotColor.withOpacity(0.35), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: dotColor,
+                    boxShadow: [BoxShadow(color: dotColor.withOpacity(0.8), blurRadius: 4)],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'MQTT ${mqttService.mqttConnectionState.name}',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 12),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  statusText,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 11),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -597,26 +812,42 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     Widget? trailing,
     bool primary = false,
     bool compact = false,
+    bool isDanger = false,
+    String? tooltip,
   }) {
     final enabled = onTap != null;
-    final fg = primary ? themeData.primaryColor : Colors.white;
+    final fg = primary
+        ? themeData.primaryColor
+        : isDanger
+        ? Colors.redAccent.shade100
+        : Colors.white;
     final showLabel = !compact || primary;
 
     return Tooltip(
-      message: label,
+      message: tooltip ?? label,
       child: Opacity(
         opacity: enabled ? 1 : 0.4,
         child: Material(
-          color: primary ? Colors.white : Colors.white.withOpacity(0.08),
+          color: primary
+              ? Colors.white
+              : isDanger
+              ? Colors.red.withOpacity(0.12)
+              : Colors.white.withOpacity(0.08),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
-            side: primary ? BorderSide.none : BorderSide(color: Colors.white.withOpacity(0.3)),
+            side: primary
+                ? BorderSide.none
+                : isDanger
+                ? BorderSide(color: Colors.redAccent.withOpacity(0.4))
+                : BorderSide(color: Colors.white.withOpacity(0.3)),
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: onTap,
             hoverColor: primary
                 ? themeData.primaryColorLight.withOpacity(0.15)
+                : isDanger
+                ? Colors.red.withOpacity(0.2)
                 : Colors.white.withOpacity(0.12),
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: showLabel ? 12 : 10, vertical: 7),
@@ -977,233 +1208,456 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     payloadAlertBox();
   }
 
-  void payloadAlertBox(){
+  void payloadAlertBox() {
     showDialog(
-        barrierDismissible: false,
-        context: context,
-        builder: (context){
-          return StatefulBuilder(
-              builder: (context, stateSetter){
-                return AlertDialog(
-                  backgroundColor: Colors.white,
-                  elevation: 12,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                  actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  title: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).primaryColor.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(Icons.fact_check_rounded, color: Theme.of(context).primaryColor, size: 24),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Configuration Payload',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xff1E293B)),
-                      ),
-                    ],
+      barrierDismissible: false,
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, stateSetter) {
+            final isSending = payloadSendState == PayloadSendState.start;
+            final isIdle = payloadSendState == PayloadSendState.idle;
+            final isStopped = payloadSendState == PayloadSendState.stop;
+            final canSelect = isIdle || isStopped;
+            final allSelected = listOfPayload.isNotEmpty &&
+                listOfPayload.every((p) => p['selected'] == true);
+
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+              elevation: 12,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18)),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.fact_check_rounded,
+                        color: Theme.of(context).primaryColor, size: 22),
                   ),
-                  content: SizedBox(
-                    width: MediaQuery.of(context).size.width >= 500 ? 500 : double.infinity,
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for(var payload in listOfPayload)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                color: payload['selected'] == true
-                                    ? Theme.of(context).primaryColor.withOpacity(0.04)
-                                    : Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: payload['selected'] == true
-                                      ? Theme.of(context).primaryColor.withOpacity(0.5)
-                                      : Colors.grey.shade200,
-                                ),
-                              ),
-                              child: CheckboxListTile(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                activeColor: Theme.of(context).primaryColor,
-                                enabled: (payloadSendState == PayloadSendState.idle || payloadSendState == PayloadSendState.stop),
-                                title: Text(
-                                  '${payload['title']}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xff1E293B)),
-                                ),
-                                subtitle: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Device: ${payload['deviceId']}',
-                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      payloadAcknowledgementWidget(payload['acknowledgementState'] as HardwareAcknowledgementState),
-                                    ],
-                                  ),
-                                ),
-                                value: payload['selected'],
-                                onChanged: (value){
-                                  stateSetter((){
-                                    setState(() {
-                                      payload['selected'] = value;
-                                    });
-                                  });
-                                },
-                              ),
-                            )
-                        ],
-                      ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Configuration Payload',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xff1E293B)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${listOfPayload.length} ${listOfPayload.length == 1 ? 'payload' : 'payloads'} to transmit',
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xff64748B),
+                              fontWeight: FontWeight.normal),
+                        ),
+                      ],
                     ),
                   ),
-                  actions: [
-                    if(payloadSendState == PayloadSendState.idle || payloadSendState == PayloadSendState.start)
-                      CustomMaterialButton( // only show cancel button when payloadState on idle and start
-                        outlined: true,
-                        title: 'Cancel',
-                        onPressed: (){
-                          stateSetter((){
-                            setState(() {
-                              payloadSendState = PayloadSendState.stop;
-                            });
-                            Navigator.pop(context);
-                          });
-                        },
-                      ),
-
-                    if(payloadSendState == PayloadSendState.idle) // only show send button when payloadState on idle
-                      CustomMaterialButton(
-                        onPressed: ()async{
-                          payloadLoop : for(var payload in listOfPayload){
-                            print("payload : ${payload}");
-                            if(!payload['selected']){
-                              continue payloadLoop;
+                  if (canSelect && listOfPayload.length > 1)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: () {
+                        stateSetter(() {
+                          setState(() {
+                            final target = !allSelected;
+                            for (var p in listOfPayload) {
+                              p['selected'] = target;
                             }
-                            bool mqttAttempt = true;
-                            int delayDuration = 60;
-                            delayLoop : for(var sec = 0;sec < delayDuration;sec++){
-                              if(sec == 0){
-                                payloadSendState = PayloadSendState.start;
-                                payload['acknowledgementState'] = HardwareAcknowledgementState.sending;
-                              }
-                              if(sec == delayDuration - 1){
-                                payload['acknowledgementState'] = HardwareAcknowledgementState.failed;
-                              }
-                              debugPrint("${payload['hardwareType']}\n sec ${sec + 1}   -- ${payload['deviceId']} \n ${mqttService.acknowledgementPayload }");
-                              if(mqttAttempt == true){
-                                context.read<CommunicationService>().sendCommand(
-                                  serverMsg: '',
-                                  payload: AppConstants.wlcModelList.contains(configPvd.masterData['modelId'])
-                                      ? Constants.sendPayloadWithCrc(payload['payload'])
-                                      : payload['payload'],
-                                );
-                                mqttAttempt = false;
-                              }
-                              stateSetter((){
+                          });
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        child: Text(
+                          allSelected ? 'Deselect all' : 'Select all',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width >= 520
+                    ? 480
+                    : double.infinity,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.55,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var payload in listOfPayload) ...[
+                          _buildCompactPayloadCard(
+                            context: context,
+                            payload: payload,
+                            canSelect: canSelect,
+                            onChanged: (value) {
+                              stateSetter(() {
                                 setState(() {
-                                  if(payload['hardwareType'] as HardwareType == HardwareType.gem){  // listening acknowledgement from gem
-                                    if(mqttService.acknowledgementPayload != null){
-                                      print("mqttService.acknowledgementPayload! : ${sec+1}");
-                                      if(validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cC'], payload['deviceIdToSend']) && validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cM', '4201', 'PayloadCode'], payload['checkingCode'])){
-                                        if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '200'){
-                                          payload['acknowledgementState'] = HardwareAcknowledgementState.success;
-                                        }else if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '90'){
-                                          payload['acknowledgementState'] = HardwareAcknowledgementState.programRunning;
-                                        }else if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '1'){
-                                          payload['acknowledgementState'] = HardwareAcknowledgementState.hardwareUnknownError;
-                                          debugPrint('successfully!! update status for ${payload['title']}  and its code : ${mqttService.acknowledgementPayload!['cM']['4201']['Code']} -- ${payload['acknowledgementState']}');
-                                        }else{
-                                          payload['acknowledgementState'] = HardwareAcknowledgementState.errorOnPayload;
-                                        }
-                                        mqttService.acknowledgementPayload = null;
-                                      }
-                                    }
-                                  }
-                                  else if([HardwareType.pump, HardwareType.pumpWithValve, HardwareType.weather].contains(payload['hardwareType'] as HardwareType)){
-                                    if(mqttService.acknowledgementPayload != null){
-                                      if(validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cC'], payload['deviceId']) && validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cM'], payload['checkingCode'])){
-                                        payload['acknowledgementState'] = HardwareAcknowledgementState.success;
-                                        mqttService.acknowledgementPayload = null;
-                                      }
-                                    }
-                                  }
+                                  payload['selected'] = value;
                                 });
                               });
-                              if((payload['acknowledgementState'] as HardwareAcknowledgementState) != HardwareAcknowledgementState.sending){
-                                break delayLoop;
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                if (isIdle || isSending)
+                  CustomMaterialButton(
+                    outlined: true,
+                    title: isSending ? 'Stop' : 'Cancel',
+                    onPressed: () {
+                      stateSetter(() {
+                        setState(() {
+                          payloadSendState = PayloadSendState.stop;
+                        });
+                        Navigator.pop(context);
+                      });
+                    },
+                  ),
+                if (isIdle)
+                  CustomMaterialButton(
+                    title: 'Send',
+                    icon: Icons.send_rounded,
+                    color: const Color(0xff16A34A),
+                    onPressed: () async {
+                      payloadLoop:
+                      for (var payload in listOfPayload) {
+                        print("payload : ${payload}");
+                        if (!payload['selected']) {
+                          continue payloadLoop;
+                        }
+                        bool mqttAttempt = true;
+                        int delayDuration = 60;
+                        delayLoop:
+                        for (var sec = 0; sec < delayDuration; sec++) {
+                          if (sec == 0) {
+                            payloadSendState = PayloadSendState.start;
+                            payload['acknowledgementState'] =
+                                HardwareAcknowledgementState.sending;
+                          }
+                          if (sec == delayDuration - 1) {
+                            payload['acknowledgementState'] =
+                                HardwareAcknowledgementState.failed;
+                          }
+                          debugPrint(
+                              "${payload['hardwareType']}\n sec ${sec + 1}   -- ${payload['deviceId']} \n ${mqttService.acknowledgementPayload}");
+                          if (mqttAttempt == true) {
+                            context.read<CommunicationService>().sendCommand(
+                                  serverMsg: '',
+                                  payload: AppConstants.wlcModelList
+                                          .contains(configPvd.masterData['modelId'])
+                                      ? Constants.sendPayloadWithCrc(
+                                          payload['payload'])
+                                      : payload['payload'],
+                                );
+                            mqttAttempt = false;
+                          }
+                          stateSetter(() {
+                            setState(() {
+                              if (payload['hardwareType'] as HardwareType ==
+                                  HardwareType.gem) {
+                                // listening acknowledgement from gem
+                                if (mqttService.acknowledgementPayload != null) {
+                                  print(
+                                      "mqttService.acknowledgementPayload! : ${sec + 1}");
+                                  if (validatePayloadFromHardware(
+                                          mqttService.acknowledgementPayload!,
+                                          ['cC'],
+                                          payload['deviceIdToSend']) &&
+                                      validatePayloadFromHardware(
+                                          mqttService.acknowledgementPayload!,
+                                          ['cM', '4201', 'PayloadCode'],
+                                          payload['checkingCode'])) {
+                                    if (mqttService.acknowledgementPayload!['cM']
+                                            ['4201']['Code'] ==
+                                        '200') {
+                                      payload['acknowledgementState'] =
+                                          HardwareAcknowledgementState.success;
+                                    } else if (mqttService
+                                                .acknowledgementPayload!['cM']
+                                            ['4201']['Code'] ==
+                                        '90') {
+                                      payload['acknowledgementState'] =
+                                          HardwareAcknowledgementState
+                                              .programRunning;
+                                    } else if (mqttService
+                                                .acknowledgementPayload!['cM']
+                                            ['4201']['Code'] ==
+                                        '1') {
+                                      payload['acknowledgementState'] =
+                                          HardwareAcknowledgementState
+                                              .hardwareUnknownError;
+                                      debugPrint(
+                                          'successfully!! update status for ${payload['title']}  and its code : ${mqttService.acknowledgementPayload!['cM']['4201']['Code']} -- ${payload['acknowledgementState']}');
+                                    } else {
+                                      payload['acknowledgementState'] =
+                                          HardwareAcknowledgementState
+                                              .errorOnPayload;
+                                    }
+                                    mqttService.acknowledgementPayload = null;
+                                  }
+                                }
+                              } else if ([
+                                HardwareType.pump,
+                                HardwareType.pumpWithValve,
+                                HardwareType.weather
+                              ].contains(
+                                  payload['hardwareType'] as HardwareType)) {
+                                if (mqttService.acknowledgementPayload != null) {
+                                  if (validatePayloadFromHardware(
+                                          mqttService.acknowledgementPayload!,
+                                          ['cC'],
+                                          payload['deviceId']) &&
+                                      validatePayloadFromHardware(
+                                          mqttService.acknowledgementPayload!,
+                                          ['cM'],
+                                          payload['checkingCode'])) {
+                                    payload['acknowledgementState'] =
+                                        HardwareAcknowledgementState.success;
+                                    mqttService.acknowledgementPayload = null;
+                                  }
+                                }
                               }
-                              await Future.delayed(const Duration(milliseconds: 500));
-                            }
-                          }
-                          if(payloadSendState == PayloadSendState.start){
-                            stateSetter((){
-                              setState(() {
-                                payloadSendState = PayloadSendState.stop;
-                                mqttService.acknowledgementPayload = null;
-                              });
                             });
+                          });
+                          if ((payload['acknowledgementState']
+                                  as HardwareAcknowledgementState) !=
+                              HardwareAcknowledgementState.sending) {
+                            break delayLoop;
                           }
-                        },
-                        title: 'Send',
-                      ),
-
-                    if(payloadSendState == PayloadSendState.stop)
-                      CustomMaterialButton(),
-                  ],
-                );
-              }
-          );
-        }
+                          await Future.delayed(
+                              const Duration(milliseconds: 500));
+                        }
+                      }
+                      if (payloadSendState == PayloadSendState.start) {
+                        stateSetter(() {
+                          setState(() {
+                            payloadSendState = PayloadSendState.stop;
+                            mqttService.acknowledgementPayload = null;
+                          });
+                        });
+                      }
+                    },
+                  ),
+                if (isStopped)
+                  CustomMaterialButton(
+                    title: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  Widget payloadAcknowledgementWidget(HardwareAcknowledgementState state){
-    late Color color;
-    if(state == HardwareAcknowledgementState.notSent){
-      color = Colors.grey;
-      return statusBox(color, Text('not sent', style: TextStyle(color: color, fontSize: 12),));
-    }else if(state == HardwareAcknowledgementState.failed){
-      color = Colors.red;
-      return statusBox(color, Text('failed...', style: TextStyle(color: color, fontSize: 12),));
-    }else if(state == HardwareAcknowledgementState.success){
-      color = Colors.green;
-      return statusBox(color, Text('success...', style: TextStyle(color: color, fontSize: 12),));
-    }else if(state == HardwareAcknowledgementState.programRunning){
-      color = Colors.red;
-      return statusBox(color, Text('Failed - Program Running...', style: TextStyle(color: color, fontSize: 12),));
-    }else if(state == HardwareAcknowledgementState.errorOnPayload){
-      color = Colors.red;
-      return statusBox(color, Text('Error on payload...', style: TextStyle(color: color, fontSize: 12),));
-    }else if(state == HardwareAcknowledgementState.hardwareUnknownError){
-      color = Colors.red;
-      return statusBox(color, Text('Unknown error...', style: TextStyle(color: color, fontSize: 12),));
-    }else{
-      return const SizedBox(
-          width: double.infinity,
-          height: 5,
-          child: LinearProgressIndicator()
-      );
-    }
+  Widget _buildCompactPayloadCard({
+    required BuildContext context,
+    required Map<String, dynamic> payload,
+    required bool canSelect,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    final selected = payload['selected'] == true;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: canSelect ? () => onChanged(!selected) : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? primaryColor.withOpacity(0.04)
+              : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? primaryColor.withOpacity(0.35)
+                : Colors.grey.shade200,
+            width: selected ? 1.2 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: Checkbox(
+                value: selected,
+                onChanged: canSelect ? onChanged : null,
+                activeColor: primaryColor,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4)),
+                side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${payload['title']}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: Color(0xff1E293B),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.developer_board_rounded,
+                          size: 12, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Device: ${payload['deviceId']}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            payloadAcknowledgementWidget(
+                payload['acknowledgementState'] as HardwareAcknowledgementState),
+          ],
+        ),
+      ),
+    );
   }
 
-  Widget statusBox(Color color, Widget child){
+  Widget payloadAcknowledgementWidget(HardwareAcknowledgementState state) {
+    Color bg;
+    Color fg;
+    Color borderColor;
+    IconData? icon;
+    String label;
+    bool showSpinner = false;
+
+    switch (state) {
+      case HardwareAcknowledgementState.notSent:
+        bg = const Color(0xffF1F5F9);
+        fg = const Color(0xff64748B);
+        borderColor = const Color(0xffE2E8F0);
+        icon = Icons.schedule_rounded;
+        label = 'Not sent';
+        break;
+      case HardwareAcknowledgementState.success:
+        bg = const Color(0xffDCFCE7);
+        fg = const Color(0xff15803D);
+        borderColor = const Color(0xffBBF7D0);
+        icon = Icons.check_circle_rounded;
+        label = 'Success';
+        break;
+      case HardwareAcknowledgementState.failed:
+        bg = const Color(0xffFEE2E2);
+        fg = const Color(0xffB91C1C);
+        borderColor = const Color(0xffFCA5A5);
+        icon = Icons.cancel_rounded;
+        label = 'Failed';
+        break;
+      case HardwareAcknowledgementState.programRunning:
+        bg = const Color(0xffFFEDD5);
+        fg = const Color(0xffC2410C);
+        borderColor = const Color(0xffFED7AA);
+        icon = Icons.running_with_errors_rounded;
+        label = 'Program Running';
+        break;
+      case HardwareAcknowledgementState.errorOnPayload:
+        bg = const Color(0xffFEE2E2);
+        fg = const Color(0xffB91C1C);
+        borderColor = const Color(0xffFCA5A5);
+        icon = Icons.error_outline_rounded;
+        label = 'Payload Error';
+        break;
+      case HardwareAcknowledgementState.hardwareUnknownError:
+        bg = const Color(0xffFEE2E2);
+        fg = const Color(0xffB91C1C);
+        borderColor = const Color(0xffFCA5A5);
+        icon = Icons.warning_amber_rounded;
+        label = 'Unknown Error';
+        break;
+      case HardwareAcknowledgementState.sending:
+        bg = const Color(0xffEFF6FF);
+        fg = const Color(0xff1D4ED8);
+        borderColor = const Color(0xffBFDBFE);
+        label = 'Sending...';
+        showSpinner = true;
+        break;
+    }
+
     return Container(
-      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          border: Border.all(color: color),
-          borderRadius: BorderRadius.circular(5)
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10 , vertical: 5),
-      child: child,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showSpinner)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: fg,
+              ),
+            )
+          else if (icon != null)
+            Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -65,24 +65,48 @@ String getObjectTypeCodeToString(int code){
       return 'I2C Input';
   }
 }
-Color getObjectTypeCodeToColor(int code){
-  switch(code){
-    case 1 :
-      return const Color(0xff078BFF);
-    case 2 :
-      return const Color(0xffD2EAFF);
-    case 3 :
-      return const Color(0xffEB7C17);
-    case 4 :
-      return const Color(0xffC41500);
-    case 5 :
-      return const Color(0xffE73293);
-    case 6 :
-      return const Color(0xff7F33E1);
-    case 7 :
-      return const Color(0xff00EEFF);
-    default :
-      return const Color(0xffDBDEFF);
+
+
+Color getObjectTypeCodeToColor(int code) {
+  switch (code) {
+    case 1:
+      return const Color(0xff16A34A); // Relay    – green
+    case 2:
+      return const Color(0xff059669); // Latch    – emerald
+    case 3:
+      return const Color(0xffEA580C); // Analog   – orange
+    case 4:
+      return const Color(0xff7C3AED); // Digital  – violet
+    case 5:
+      return const Color(0xff0891B2); // Moisture – cyan
+    case 6:
+      return const Color(0xffDB2777); // Pulse    – pink
+    case 7:
+      return const Color(0xff2563EB); // I2C      – blue
+    default:
+      return const Color(0xff64748B); // Others   – slate
+  }
+}
+
+/// Darker shade for small text on white (tab names, panel titles)
+Color getObjectTypeCodeToInk(int code) {
+  switch (code) {
+    case 1:
+      return const Color(0xff15803D);
+    case 2:
+      return const Color(0xff047857);
+    case 3:
+      return const Color(0xffC2410C);
+    case 4:
+      return const Color(0xff6D28D9);
+    case 5:
+      return const Color(0xff0E7490);
+    case 6:
+      return const Color(0xffBE185D);
+    case 7:
+      return const Color(0xff1D4ED8);
+    default:
+      return const Color(0xff475569);
   }
 }
 

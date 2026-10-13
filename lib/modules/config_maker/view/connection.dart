@@ -3,7 +3,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../Constants/communication_codes.dart';
-import '../../../Constants/properties.dart';
 import '../model/device_model.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
@@ -14,7 +13,7 @@ class Connection extends StatefulWidget {
   final ConfigMakerProvider configPvd;
   const Connection({
     super.key,
-    required this.configPvd
+    required this.configPvd,
   });
 
   @override
@@ -35,7 +34,8 @@ class _ConnectionState extends State<Connection> {
       await Future.delayed(const Duration(milliseconds: 100));
       List<int> listOfCategory = [];
       for (var device in widget.configPvd.listOfDeviceModel) {
-        if (![10].contains(device.categoryId) && ![1, 2, 4].contains(device.modelId) &&
+        if (![10].contains(device.categoryId) &&
+            ![1, 2, 4].contains(device.modelId) &&
             device.masterId != null &&
             !listOfCategory.contains(device.categoryId)) {
           listOfCategory.add(device.categoryId);
@@ -53,141 +53,855 @@ class _ConnectionState extends State<Connection> {
       }
       widget.configPvd.updateSelectedConnectionNoAndItsType(0, '');
       widget.configPvd.updateConnectionListTile();
-      print("widget.configPvd.selectedModelControllerId --- : ${widget.configPvd.selectedModelControllerId}");
       return true;
     } catch (e) {
-      print('Error in updateConnection: ${e.toString()}');
+      debugPrint('Error in updateConnection: ${e.toString()}');
       return false;
     }
   }
 
+  // ───────────────────────── state helpers ─────────────────────────
+  String? _activeType; // currently opened terminal tab ('1,2', analog, digital ...)
+  String? _pressedType; // tab currently being pressed (for the press animation)
+
+  List<_TerminalInfo> _terminals(DeviceModel d) {
+    if (AppConstants.weatherModelList.contains(d.categoryId)) return [];
+    final int relay = d.noOfRelay == 0 ? d.noOfLatch : d.noOfRelay;
+    return [
+      if (relay != 0)
+        _TerminalInfo(
+          type: '1,2',
+          name: d.noOfRelay == 0 ? 'Latch' : 'Relay',
+          keyWord: d.noOfRelay == 0 ? 'L' : 'R',
+          color: AppConstants.outputColor,
+          total: relay,
+          icon: Icons.electrical_services_rounded,
+        ),
+      if (d.noOfAnalogInput != 0)
+        _TerminalInfo(
+          type: AppConstants.analogCode,
+          name: 'Analog',
+          keyWord: 'A',
+          color: getObjectTypeCodeToColor(3),
+          total: d.noOfAnalogInput,
+          icon: Icons.sensors_rounded,
+        ),
+      if (d.noOfDigitalInput != 0)
+        _TerminalInfo(
+          type: AppConstants.digitalCode,
+          name: 'Digital',
+          keyWord: 'D',
+          color: getObjectTypeCodeToColor(4),
+          total: d.noOfDigitalInput,
+          icon: Icons.toggle_on_rounded,
+        ),
+      if (d.noOfPulseInput != 0)
+        _TerminalInfo(
+          type: AppConstants.pulseCode,
+          name: 'Pulse',
+          keyWord: 'P',
+          color: getObjectTypeCodeToColor(6),
+          total: d.noOfPulseInput,
+          icon: Icons.speed_rounded,
+        ),
+      if (d.noOfMoistureInput != 0)
+        _TerminalInfo(
+          type: AppConstants.moistureCode,
+          name: 'Moisture',
+          keyWord: 'M',
+          color: getObjectTypeCodeToColor(5),
+          total: d.noOfMoistureInput,
+          icon: Icons.water_drop_rounded,
+        ),
+      if (d.noOfI2CInput != 0)
+        _TerminalInfo(
+          type: AppConstants.i2cCode,
+          name: 'I2C',
+          keyWord: 'I2C',
+          color: getObjectTypeCodeToColor(7),
+          total: d.noOfI2CInput,
+          icon: Icons.cable_rounded,
+        ),
+    ];
+  }
+
+  int _usedPins(DeviceModel d, String type) => widget.configPvd.listOfGeneratedObject
+      .where((o) => o.controllerId == d.controllerId && o.type == type)
+      .length;
+
+  /// objects of this type that still have no pin
+  int _pending(DeviceModel d, String type) => widget.configPvd.listOfGeneratedObject
+      .where((o) => d.connectingObjectId.contains(o.objectId) && o.controllerId == null && o.type == type)
+      .length;
+
+  List<int> _categories() {
+    List<int> list = [];
+    for (var device in widget.configPvd.listOfDeviceModel) {
+      if (![10].contains(device.categoryId) &&
+          ![1, 2, 4].contains(device.modelId) &&
+          device.masterId != null &&
+          !list.contains(device.categoryId)) {
+        list.add(device.categoryId);
+      }
+    }
+    list.sort();
+    return list;
+  }
+
+  String _categoryName(int categoryId) => widget.configPvd.listOfDeviceModel
+      .firstWhere((device) => device.categoryId == categoryId)
+      .deviceName;
+
+  List<DeviceModel> _modelsOf(int categoryId) {
+    final models = widget.configPvd.listOfDeviceModel
+        .where((device) => (device.categoryId == categoryId &&
+        device.masterId != null &&
+        ![...AppConstants.ecModel, ...AppConstants.phModel].contains(device.modelId)))
+        .toList();
+    if (models.isNotEmpty) return models;
+    return widget.configPvd.listOfDeviceModel
+        .where((d) => d.categoryId == categoryId && d.masterId != null)
+        .take(1)
+        .toList();
+  }
+
+  void _selectModel(DeviceModel model) {
+    setState(() {
+      widget.configPvd.selectedCategory = model.categoryId;
+      widget.configPvd.selectedModelControllerId = model.controllerId;
+      _activeType = null;
+    });
+    widget.configPvd.updateSelectedConnectionNoAndItsType(0, '');
+    widget.configPvd.updateConnectionListTile();
+  }
+
+  // ───────────────────────── build ─────────────────────────
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-        future: updateValuesConnectionPageInitialize,
-        builder: (context, snapShot){
-          if (snapShot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator()); // Show loading
-          }
-          if (snapShot.hasError) {
-            return const Center(child: Text('Error loading data'));
-          }
-          if(snapShot.hasData && snapShot.data == true){
-            DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel.firstWhere((device) => device.controllerId == widget.configPvd.selectedModelControllerId);
-            return Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: LayoutBuilder(builder: (context, constraint){
-                return SizedBox(
-                  width: constraint.maxWidth,
-                  height: constraint.maxHeight,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        getAvailableDeviceCategory(),
-                        const SizedBox(height: 8,),
-                        getModelBySelectedCategory(),
-                        const SizedBox(height: 5,),
-                        Text(selectedDevice.modelName),
-                        if(!AppConstants.weatherModelList.contains(selectedDevice.categoryId))
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              spacing: 20,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if((selectedDevice.noOfRelay == 0 ? selectedDevice.noOfLatch : selectedDevice.noOfRelay) != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: AppConstants.outputColor,
-                                      from: 0,
-                                      to: selectedDevice.noOfRelay == 0 ? selectedDevice.noOfLatch : selectedDevice.noOfRelay,
-                                      type: '1,2',
-                                      typeName: selectedDevice.noOfRelay == 0 ? 'Latch' : 'Relay',
-                                      keyWord: selectedDevice.noOfRelay == 0 ? 'L' : 'R'
-                                  ),
-                                if(selectedDevice.noOfAnalogInput != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: getObjectTypeCodeToColor(3),
-                                      from: 0,
-                                      to: selectedDevice.noOfAnalogInput,
-                                      type: AppConstants.analogCode,
-                                      typeName: 'Analog',
-                                      keyWord: 'A'
-                                  ),
-                                if(selectedDevice.noOfDigitalInput != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: getObjectTypeCodeToColor(4),
-                                      from: 0,
-                                      to: selectedDevice.noOfDigitalInput,
-                                      type: AppConstants.digitalCode,
-                                      typeName: 'Digital',
-                                      keyWord: 'D'
-                                  ),
-                                if(selectedDevice.noOfPulseInput != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: getObjectTypeCodeToColor(6),
-                                      from: 0,
-                                      to: selectedDevice.noOfPulseInput,
-                                      type: AppConstants.pulseCode,
-                                      typeName: 'Pulse',
-                                      keyWord: 'P'
-                                  ),
-                                if(selectedDevice.noOfMoistureInput != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: getObjectTypeCodeToColor(5),
-                                      from: 0,
-                                      to: selectedDevice.noOfMoistureInput,
-                                      type: AppConstants.moistureCode,
-                                      typeName: 'Moisture',
-                                      keyWord: 'M'
-                                  ),
-                                if(selectedDevice.noOfI2CInput != 0)
-                                  getConnectionBox(
-                                      selectedDevice: selectedDevice,
-                                      color: getObjectTypeCodeToColor(7),
-                                      from: 0,
-                                      to: selectedDevice.noOfI2CInput,
-                                      type: AppConstants.i2cCode,
-                                      typeName: 'I2c',
-                                      keyWord: 'I2c'
-                                  ),
-                              ],
-                            ),
-                          ),
-                        const SizedBox(height: 20,),
-                        if([...AppConstants.gemModelList, ...AppConstants.omsGemList].contains(widget.configPvd.masterData['modelId']))
-                          Center(child: getSelectionCategory()),
-                        if(widget.configPvd.selectedSelectionMode == SelectionMode.auto)
-                          ...getAutoSelection(selectedDevice)
-                        else
-                          ...getManualSelection(selectedDevice),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            );
-          }else{
-            return const Center(child: CircularProgressIndicator());
-          }
-
+      future: updateValuesConnectionPageInitialize,
+      builder: (context, snapShot) {
+        if (snapShot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
         }
+        if (snapShot.hasError) {
+          return const Center(child: Text('Error loading data'));
+        }
+        if (snapShot.hasData && snapShot.data == true) {
+          final DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel.firstWhere(
+                  (device) => device.controllerId == widget.configPvd.selectedModelControllerId);
+          final terminals = _terminals(selectedDevice);
+          if (terminals.isNotEmpty && !terminals.any((t) => t.type == _activeType)) {
+            _activeType = terminals.first.type;
+          }
+          final _TerminalInfo? active =
+          terminals.isEmpty ? null : terminals.firstWhere((t) => t.type == _activeType);
+
+          return LayoutBuilder(builder: (context, c) {
+            final bool wide = c.maxWidth >= 900 && c.maxHeight.isFinite;
+            if (wide) {
+              return Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(width: 240, child: _sidebar()),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _header(selectedDevice, terminals),
+                          const SizedBox(height: 10),
+                          Expanded(child: _workArea(selectedDevice, terminals, active, true)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _navStrip(),
+                  const SizedBox(height: 10),
+                  _header(selectedDevice, terminals),
+                  const SizedBox(height: 10),
+                  _workArea(selectedDevice, terminals, active, false),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          });
+        } else {
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
     );
   }
 
-  Widget getSelectionCategory(){
-    return SegmentedButton<SelectionMode>(
-      style: ButtonStyle(
-          shape: WidgetStateProperty.all(RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)))
+  // ───────────────────────── device navigator ─────────────────────────
+  /// Wide screens: vertical list, devices grouped by category
+  Widget _sidebar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
       ),
-      segments: [
-        getButtonSegment(SelectionMode.auto, "Automatic"),
-        getButtonSegment(SelectionMode.manual, "Manual"),
+      child: ListView(
+        padding: const EdgeInsets.all(8),
+        children: [
+          for (final cat in _categories()) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _categoryName(cat).toUpperCase(),
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                  Text('${_modelsOf(cat).length}',
+                      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Colors.grey.shade500)),
+                ],
+              ),
+            ),
+            for (final m in _modelsOf(cat))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _modelTile(m),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Narrow screens: horizontal strip
+  Widget _navStrip() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final cat in _categories()) ...[
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, bottom: 4),
+                  child: Text(
+                    _categoryName(cat).toUpperCase(),
+                    style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: Colors.grey.shade600),
+                  ),
+                ),
+                Row(
+                  children: [
+                    for (final m in _modelsOf(cat))
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: SizedBox(width: 200, child: _modelTile(m)),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(width: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _modelTile(DeviceModel model) {
+    final primary = Theme.of(context).primaryColor;
+    final bool selected = widget.configPvd.selectedModelControllerId == model.controllerId;
+    return Tooltip(
+      message: model.modelDescription,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => _selectModel(model),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: selected ? primary.withOpacity(0.10) : Colors.white,
+            border: Border.all(color: selected ? primary : Colors.grey.shade200, width: selected ? 1.6 : 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: selected ? primary : primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.memory_rounded, size: 17, color: selected ? Colors.white : primary),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      model.deviceName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xff0F172A)),
+                    ),
+                    Text(
+                      '# ${model.deviceId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected) Icon(Icons.check_circle_rounded, size: 17, color: primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────── header + terminal tabs ─────────────────────────
+  Widget _header(DeviceModel d, List<_TerminalInfo> terminals) {
+    final primary = Theme.of(context).primaryColor;
+    final bool showToggle = [...AppConstants.gemModelList, ...AppConstants.omsGemList]
+        .contains(widget.configPvd.masterData['modelId']);
+    int used = 0;
+    int total = 0;
+    for (final t in terminals) {
+      used += _usedPins(d, t.type);
+      total += t.total;
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: primary, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.developer_board_rounded, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(d.deviceName,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xff0F172A))),
+                  Text('${d.modelDescription}  ·  # ${d.deviceId}',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ],
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (total > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('Wired  $used / $total',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: primary)),
+                ),
+              if (total > 0 && showToggle) const SizedBox(width: 10),
+              if (showToggle) getSelectionCategory(),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── real tabs + attached content card ─────────────────────────
+  static const double _tabH = 46;
+
+  Widget _workArea(DeviceModel d, List<_TerminalInfo> terminals, _TerminalInfo? active, bool fill) {
+    if (active == null) {
+      // devices without terminals (e.g. weather): objects only
+      return _objectsPanel(d, null, fill);
+    }
+    final int activeIndex = terminals.indexOf(active);
+
+    final Widget panels = fill
+        ? Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(flex: 5, child: _pinsPanel(d, active, true)),
+        const SizedBox(width: 10),
+        Expanded(flex: 6, child: _objectsPanel(d, active, true)),
+      ],
+    )
+        : Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _pinsPanel(d, active, false),
+        const SizedBox(height: 10),
+        _objectsPanel(d, active, false),
+      ],
+    );
+
+    // content switches with a soft fade + slide when the tab changes
+    final Widget inner = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOut,
+      layoutBuilder: fill
+          ? (current, previous) => Stack(
+        fit: StackFit.expand,
+        children: [
+          ...previous.map((child) => IgnorePointer(child: child)),
+          if (current != null) current,
+        ],
+      )
+          : AnimatedSwitcher.defaultLayoutBuilder,
+      transitionBuilder: (child, anim) => FadeTransition(
+        opacity: anim,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0.015, 0), end: Offset.zero).animate(anim),
+          child: child,
+        ),
+      ),
+      child: KeyedSubtree(key: ValueKey('${d.controllerId}-${active.type}'), child: panels),
+    );
+
+    // the card the tabs are attached to – border takes the active tab colour
+    final Widget content = AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      margin: const EdgeInsets.only(top: _tabH - 1),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(activeIndex == 0 ? 0 : 14),
+          topRight: const Radius.circular(14),
+          bottomLeft: const Radius.circular(14),
+          bottomRight: const Radius.circular(14),
+        ),
+        border: Border.all(color: active.color, width: 1.6),
+        boxShadow: [BoxShadow(color: active.color.withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 5))],
+      ),
+      child: inner,
+    );
+
+    final Widget tabBar = SizedBox(
+      height: _tabH + 1,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [for (final t in terminals) _tab(d, t)],
+        ),
+      ),
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      child: Stack(
+        children: [
+          fill ? Positioned.fill(child: content) : content,
+          // drawn after the card so the selected tab covers the card's top border
+          Positioned(top: 0, left: 0, right: 0, child: tabBar),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(DeviceModel d, _TerminalInfo t) {
+    final bool selected = t.type == _activeType;
+    final bool pressed = _pressedType == t.type;
+    final int used = _usedPins(d, t.type);
+    final int pending = _pending(d, t.type);
+    final double progress = t.total == 0 ? 0 : (used / t.total).clamp(0.0, 1.0);
+    final Color idleFill = Color.alphaBlend(t.color.withOpacity(0.09), Colors.white);
+    const double r = 12;
+
+    final Widget label = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 3,
+                backgroundColor: t.color.withOpacity(0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(t.color),
+              ),
+            ),
+            Icon(t.icon, size: 13, color: t.color),
+          ],
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(t.name,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+                  color: selected ? t.color : t.color.withOpacity(0.85),
+                )),
+            Text('$used / ${t.total} pins',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+          ],
+        ),
+        if (pending > 0) ...[
+          const SizedBox(width: 8),
+          Tooltip(
+            message: '$pending object(s) waiting to be wired',
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(color: Colors.orange.shade700, borderRadius: BorderRadius.circular(10)),
+              child: Text('$pending',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+          ),
+        ] else if (used > 0) ...[
+          const SizedBox(width: 8),
+          const Icon(Icons.check_circle_rounded, size: 15, color: Colors.green),
+        ],
+      ],
+    );
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      padding: EdgeInsets.only(right: 6, bottom: selected ? 0 : 2),
+      child: AnimatedScale(
+        scale: pressed ? 0.96 : 1,
+        alignment: Alignment.bottomCenter,
+        duration: const Duration(milliseconds: 90),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          height: selected ? _tabH + 1 : _tabH - 8,
+          // outer layer = the coloured outline (no bottom edge, so it merges with the card)
+          padding: const EdgeInsets.fromLTRB(1.6, 1.6, 1.6, 0),
+          decoration: BoxDecoration(
+            color: selected ? t.color : t.color.withOpacity(0.35),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(r)),
+          ),
+          child: Material(
+            color: selected ? Colors.white : idleFill,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(r - 1.6)),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              splashColor: t.color.withOpacity(0.20),
+              hoverColor: t.color.withOpacity(0.10),
+              highlightColor: Colors.transparent,
+              onHighlightChanged: (v) => setState(() => _pressedType = v ? t.type : null),
+              onTap: () {
+                setState(() => _activeType = t.type);
+                widget.configPvd.updateSelectedConnectionNoAndItsType(0, '');
+              },
+              child: Column(
+                children: [
+                  // accent bar on the active tab
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    height: selected ? 3 : 0,
+                    color: t.color,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: label,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _panel({
+    required String title,
+    required IconData icon,
+    required Color color,
+    String? trailing,
+    required Widget child,
+    required bool fill,
+  }) {
+    final body = Padding(padding: const EdgeInsets.all(10), child: child);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Column(
+        mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 8),
+                Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+                const Spacer(),
+                if (trailing != null)
+                  Flexible(
+                    child: Text(trailing,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  ),
+              ],
+            ),
+          ),
+          if (fill) Expanded(child: SingleChildScrollView(child: body)) else body,
+        ],
+      ),
+    );
+  }
+
+  Widget _pinsPanel(DeviceModel d, _TerminalInfo info, bool fill) {
+    final bool manual = widget.configPvd.selectedSelectionMode == SelectionMode.manual;
+    final pins = <Widget>[
+      for (int i = 0; i < info.total; i++)
+        ConnectorWidget(
+          connectionNo: i + 1,
+          selectedDevice: d,
+          configPvd: widget.configPvd,
+          type: info.type,
+          keyWord: info.keyWord,
+          color: info.color,
+        ),
+      if (info.type == AppConstants.analogCode && d.categoryId == 6)
+        ConnectorWidget(
+          connectionNo: 9,
+          selectedDevice: d,
+          configPvd: widget.configPvd,
+          type: info.type,
+          keyWord: '',
+          color: info.color,
+        ),
+    ];
+    return _panel(
+      title: '${info.name} terminals',
+      icon: info.icon,
+      color: info.color,
+      trailing: manual ? 'Tap a pin · double-tap to clear' : '${_usedPins(d, info.type)} / ${info.total} wired',
+      fill: fill,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.start,
+        children: [for (final p in pins) SizedBox(width: 176, child: p)],
+      ),
+    );
+  }
+
+  Widget _objectsPanel(DeviceModel d, _TerminalInfo? info, bool fill) {
+    final bool manual = widget.configPvd.selectedSelectionMode == SelectionMode.manual;
+    final Color color = info?.color ?? Theme.of(context).primaryColor;
+
+    Widget child;
+    if (manual) {
+      child = _manualObjects(d);
+    } else if (info == null) {
+      child = Column(crossAxisAlignment: CrossAxisAlignment.start, children: getAutoSelection(d));
+    } else if (info.type == '1,2') {
+      child = outputObject(d);
+    } else {
+      child = inputObject(title: '${info.name} Input', sensorCode: info.type);
+    }
+
+    return _panel(
+      title: manual ? 'Unassigned objects' : 'Objects & quantities',
+      icon: manual ? Icons.touch_app_rounded : Icons.auto_fix_high_rounded,
+      color: color,
+      trailing: manual ? 'Pick one to wire it to the selected pin' : 'Set quantities · pins are allocated automatically',
+      fill: fill,
+      child: child,
+    );
+  }
+
+  Widget _manualObjects(DeviceModel selectedDevice) {
+    final unassignedList = widget.configPvd.listOfGeneratedObject
+        .where((object) =>
+    selectedDevice.connectingObjectId.contains(object.objectId) &&
+        object.controllerId == null ||
+        (object.controllerId == selectedDevice.controllerId &&
+            object.connectionNo == widget.configPvd.selectedConnectionNo))
+        .toList()
+        .where((object) => object.type == widget.configPvd.selectedType)
+        .toList();
+
+    if (unassignedList.isEmpty) {
+      final bool noPin = widget.configPvd.selectedType == '';
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(noPin ? Icons.ads_click_rounded : Icons.inventory_2_outlined,
+                  size: 30, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text(
+                noPin ? 'Select a pin on the left to see\nobjects you can wire to it.' : 'No unassigned objects for this pin type.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ResponsiveGridList(
+      horizontalGridMargin: 2,
+      verticalGridMargin: 4,
+      minItemWidth: 160,
+      shrinkWrap: true,
+      listViewBuilderOptions: ListViewBuilderOptions(
+        physics: const NeverScrollableScrollPhysics(),
+      ),
+      children: unassignedList.map((object) {
+        bool isSelected = object.controllerId == selectedDevice.controllerId &&
+            object.type == widget.configPvd.selectedType &&
+            object.connectionNo == widget.configPvd.selectedConnectionNo;
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            setState(() {
+              // remove if there any old connection
+              for (var generatedObject in widget.configPvd.listOfGeneratedObject) {
+                if (widget.configPvd.selectedConnectionNo == generatedObject.connectionNo &&
+                    selectedDevice.controllerId == generatedObject.controllerId &&
+                    generatedObject.type == object.type) {
+                  generatedObject.controllerId = null;
+                  generatedObject.connectionNo = 0;
+                  for (var connectionObject in widget.configPvd.listOfObjectModelConnection) {
+                    if (generatedObject.objectId == connectionObject.objectId) {
+                      int integerValue =
+                      int.parse(connectionObject.count == '' ? '0' : connectionObject.count!);
+                      connectionObject.count = (integerValue - 1).toString();
+                    }
+                  }
+                }
+              }
+              // update connection for selected object
+              for (var generatedObject in widget.configPvd.listOfGeneratedObject) {
+                if (object.sNo == generatedObject.sNo) {
+                  generatedObject.controllerId = selectedDevice.controllerId;
+                  generatedObject.connectionNo = widget.configPvd.selectedConnectionNo;
+                  for (var connectionObject in widget.configPvd.listOfObjectModelConnection) {
+                    if (generatedObject.objectId == connectionObject.objectId) {
+                      int integerValue =
+                      int.parse(connectionObject.count == '' ? '0' : connectionObject.count!);
+                      connectionObject.count = (integerValue + 1).toString();
+                    }
+                  }
+                }
+              }
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: isSelected ? Theme.of(context).primaryColor : Colors.white,
+              border: Border.all(
+                color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade300,
+                width: isSelected ? 1.5 : 1.0,
+              ),
+            ),
+            child: Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/Images/Svg/objectId_${object.objectId}.svg',
+                  width: 20,
+                  height: 20,
+                  color: isSelected ? Colors.white : const Color(0xff0F172A),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${object.name}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? Colors.white : const Color(0xff0F172A),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ───────────────────────── mode toggle + auto list (unchanged logic) ─────────────────────────
+  Widget getSelectionCategory() {
+    return SegmentedButton<SelectionMode>(
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        padding: WidgetStateProperty.all(const EdgeInsets.symmetric(horizontal: 10)),
+        textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      ),
+      segments: const [
+        ButtonSegment<SelectionMode>(
+          value: SelectionMode.auto,
+          label: Text('Automatic'),
+          icon: Icon(Icons.auto_fix_high_rounded, size: 14),
+        ),
+        ButtonSegment<SelectionMode>(
+          value: SelectionMode.manual,
+          label: Text('Manual'),
+          icon: Icon(Icons.touch_app_rounded, size: 14),
+        ),
       ],
       selected: {widget.configPvd.selectedSelectionMode},
       onSelectionChanged: (Set<SelectionMode> newSelection) {
@@ -199,237 +913,50 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  ButtonSegment<SelectionMode> getButtonSegment(SelectionMode value, String title){
-    return ButtonSegment<SelectionMode>(
-        value: value,
-        label: Container(
-          width: 100,
-          padding: const EdgeInsets.all(15.0),
-          child: Text(title, style: const TextStyle(fontSize: 14),),
-        )
-    );
-  }
-
-  List<Widget> getManualSelection(DeviceModel selectedDevice){
-    return [
-      const Text('Select Object To Connect', style: AppProperties.normalBlackBoldTextStyle,),
-      ResponsiveGridList(
-        horizontalGridMargin: 20,
-        verticalGridMargin: 10,
-        minItemWidth: 150,
-        shrinkWrap: true,
-        listViewBuilderOptions: ListViewBuilderOptions(
-          physics: const NeverScrollableScrollPhysics(),
-        ),
-        children: widget.configPvd.listOfGeneratedObject
-            .where((object) => selectedDevice.connectingObjectId.contains(object.objectId)
-            && object.controllerId == null || (object.controllerId == selectedDevice.controllerId && object.connectionNo == widget.configPvd.selectedConnectionNo))
-            .toList().where((object) => object.type == widget.configPvd.selectedType)
-            .map((object){
-          print("object name : ${object.name}  type : ${object.type} widget.configPvd.selectedType : ${widget.configPvd.selectedType}");
-          bool isSelected = object.controllerId == selectedDevice.controllerId
-              && object.type == widget.configPvd.selectedType
-              && object.connectionNo == widget.configPvd.selectedConnectionNo;
-          return InkWell(
-            onTap: (){
-              setState(() {
-                // remove if there any old connection
-                for(var generatedObject in widget.configPvd.listOfGeneratedObject){
-                  if(widget.configPvd.selectedConnectionNo == generatedObject.connectionNo && selectedDevice.controllerId == generatedObject.controllerId && generatedObject.type == object.type){
-                    generatedObject.controllerId = null;
-                    generatedObject.connectionNo = 0;
-                    for(var connectionObject in widget.configPvd.listOfObjectModelConnection){
-                      if(generatedObject.objectId == connectionObject.objectId){
-                        int integerValue = int.parse(connectionObject.count == '' ? '0' : connectionObject.count!);
-                        connectionObject.count = (integerValue - 1).toString();
-                      }
-                    }
-                  }
-                }
-                // update connection for selected object
-                for(var generatedObject in widget.configPvd.listOfGeneratedObject){
-                  if(object.sNo == generatedObject.sNo){
-                    generatedObject.controllerId = selectedDevice.controllerId;
-                    generatedObject.connectionNo = widget.configPvd.selectedConnectionNo;
-                    for(var connectionObject in widget.configPvd.listOfObjectModelConnection){
-                      if(generatedObject.objectId == connectionObject.objectId){
-                        int integerValue = int.parse(connectionObject.count == '' ? '0' : connectionObject.count!);
-                        connectionObject.count = (integerValue + 1).toString();
-                      }
-                    }
-                  }
-                }
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10,vertical: 5),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(5),
-                  color: isSelected ? Theme.of(context).primaryColor : Colors.grey.shade200
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  SvgPicture.asset(
-                    'assets/Images/Svg/objectId_${object.objectId}.svg',
-                    width: 25,
-                    height: 25,
-                    color: isSelected ? Colors.white : Colors.black,
-                  ),
-                  Text('${object.name}', style: isSelected ? AppProperties.tableHeaderStyleWhite : AppProperties.tableHeaderStyle,),
-                ],
-              ),
-            ),
-          );
-        }).toList(),
-      )
-
-    ];
-  }
-
-  List<Widget> getAutoSelection(DeviceModel selectedDevice){
+  List<Widget> getAutoSelection(DeviceModel selectedDevice) {
     return [
       outputObject(selectedDevice),
-      const SizedBox(height: 10,),
+      const SizedBox(height: 6),
       inputObject(title: 'Analog Input', sensorCode: AppConstants.analogCode),
       inputObject(title: 'Digital Input', sensorCode: AppConstants.digitalCode),
       inputObject(title: 'Moisture Input', sensorCode: AppConstants.moistureCode),
       inputObject(title: 'Pulse Input', sensorCode: AppConstants.pulseCode),
-      inputObject(title: 'I2c Input', sensorCode: AppConstants.i2cCode),
-      // analogObject(),
+      inputObject(title: 'I2C Input', sensorCode: AppConstants.i2cCode),
     ];
   }
 
-  Widget getConnectionBox(
-      {
-        required DeviceModel selectedDevice,
-        required Color color,
-        required int from,
-        required int to,
-        required String type,
-        required String typeName,
-        required String keyWord,
-      }
-      ){
-    int firstEight = 8;
-    if(to < 8){
-      firstEight = firstEight - (8 - to);
-    }
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-      width: to > 8 ? 500 : 250,
-      height: 280,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        // border: Border.all(width: 1, color: color),
-
-        boxShadow: AppProperties.customBoxShadowLiteTheme,
-        color: Colors.white,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    for(var count = from;count < firstEight;count++)
-                      ...[
-                        ConnectorWidget(
-                          connectionNo: count + 1,
-                          selectedDevice: selectedDevice,
-                          configPvd: widget.configPvd,
-                          type: type,
-                          keyWord: keyWord,
-                          color: color,
-                        ),
-                        const SizedBox(height: 5,),
-                      ],
-                    if(type == AppConstants.analogCode && selectedDevice.categoryId == 6)
-                      ...[
-                        ConnectorWidget(
-                          connectionNo: 9,
-                          selectedDevice: selectedDevice,
-                          configPvd: widget.configPvd,
-                          type: type,
-                          keyWord: '',
-                          color: color,
-                        ),
-                        const SizedBox(height: 5,),
-                      ]
-                  ],
-                ),
-              ),
-              if(to > 8)
-                const SizedBox(width: 10,),
-              if(to > 8)
-                Expanded(
-                  child: Column(
-                    children: [
-                      for(var count = firstEight;count < to;count++)
-                        ...[
-                          ConnectorWidget(
-                            connectionNo: count + 1,
-                            selectedDevice: selectedDevice,
-                            configPvd: widget.configPvd,
-                            type: type,
-                            keyWord: keyWord,
-                            color: color,
-                          ),
-                          const SizedBox(height: 5,)
-                        ],
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          Text(typeName, style: TextStyle(color: color, fontWeight: FontWeight.bold),)
-        ],
-      ),
-    );
-  }
-
-  Widget changeMode(){
-    return IconButton(
-        onPressed: (){
-          setState(() {
-            widget.configPvd.selectedSelectionMode = widget.configPvd.selectedSelectionMode == SelectionMode.auto
-                ? SelectionMode.manual
-                : SelectionMode.auto;
-            widget.configPvd.selectedConnectionNo = 0;
-          });
-        },
-        icon: widget.configPvd.selectedSelectionMode == SelectionMode.auto ? const Icon(Icons.list) : const Icon(Icons.grid_view_outlined)
-    );
-  }
-
-  Widget outputObject(DeviceModel selectedDevice){
-    DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel.firstWhere((device) => device.controllerId == widget.configPvd.selectedModelControllerId);
+  Widget outputObject(DeviceModel selectedDevice) {
     List<int> filteredObjectList = widget.configPvd.listOfSampleObjectModel
         .where((object) {
-      if(object.objectId == AppConstants.pumpObjectId && AppConstants.ecoGemModelList.contains(widget.configPvd.masterData['modelId'])){
+      if (object.objectId == AppConstants.pumpObjectId &&
+          AppConstants.ecoGemModelList.contains(widget.configPvd.masterData['modelId'])) {
         return false;
-      }else{
+      } else {
         return true;
       }
     })
         .where((object) => (object.type == '1,2' && !['', '0', null].contains(object.count)))
-        .toList().where((object) => selectedDevice.connectingObjectId.contains(object.objectId)).toList().map((object) => object.objectId)
+        .toList()
+        .where((object) => selectedDevice.connectingObjectId.contains(object.objectId))
+        .map((object) => object.objectId)
         .toList();
 
-    List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection.where((object)=> filteredObjectList.contains(object.objectId)).toList();
+    List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection
+        .where((object) => filteredObjectList.contains(object.objectId))
+        .toList();
+
     filteredList = filteredList.where((object) {
-      if(['', '0', null].contains(object.count) && getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0){
+      if (['', '0', null].contains(object.count) &&
+          getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0) {
         return false;
-      }else{
+      } else {
         return true;
       }
     }).toList();
+
     return ConnectionGridListTile(
       listOfObjectModel: filteredList,
-      title: 'Output Object',
+      title: 'Output Objects (Relay/Latch)',
       leadingColor: AppConstants.outputColor,
       configPvd: widget.configPvd,
       selectedDevice: selectedDevice,
@@ -439,132 +966,55 @@ class _ConnectionState extends State<Connection> {
   Widget inputObject({
     required String title,
     required String sensorCode,
-  }){
-    DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel.firstWhere((device) => device.controllerId == widget.configPvd.selectedModelControllerId);
+  }) {
+    DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel
+        .firstWhere((device) => device.controllerId == widget.configPvd.selectedModelControllerId);
     List<int> filteredObjectList = widget.configPvd.listOfSampleObjectModel
         .where((object) => (object.type == sensorCode && !['', '0', null].contains(object.count)))
-        .toList().where((object) => selectedDevice.connectingObjectId.contains(object.objectId)).toList().map((object) => object.objectId)
+        .toList()
+        .where((object) => selectedDevice.connectingObjectId.contains(object.objectId))
+        .map((object) => object.objectId)
         .toList();
-    List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection.where((object)=> filteredObjectList.contains(object.objectId)).toList();
+
+    List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection
+        .where((object) => filteredObjectList.contains(object.objectId))
+        .toList();
 
     filteredList = filteredList.where((object) {
-      if(['', '0', null].contains(object.count) && getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0){
+      if (['', '0', null].contains(object.count) &&
+          getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0) {
         return false;
-      }else{
+      } else {
         return true;
       }
     }).toList();
 
-    return filteredList.isNotEmpty ? ConnectionGridListTile(
+    return filteredList.isNotEmpty
+        ? ConnectionGridListTile(
       listOfObjectModel: filteredList,
       title: title,
       configPvd: widget.configPvd,
       selectedDevice: selectedDevice,
-    ) : Container();
+    )
+        : const SizedBox.shrink();
   }
-
-  Widget getAvailableDeviceCategory(){
-    List<int> listOfCategory = [];
-    for(var device in widget.configPvd.listOfDeviceModel){
-      if(![10].contains(device.categoryId) && ![1, 2, 4].contains(device.modelId) &&device.masterId != null && !listOfCategory.contains(device.categoryId)){
-        listOfCategory.add(device.categoryId);
-      }
-    }
-    listOfCategory.sort();
-    Widget child = Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.start,
-      children: [
-        Row(
-          spacing: 10,
-          mainAxisAlignment: MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for(var categoryId in listOfCategory)
-              InkWell(
-                onTap: (){
-                  setState(() {
-                    widget.configPvd.selectedCategory = categoryId;
-                    for(var device in widget.configPvd.listOfDeviceModel){
-                      if(device.categoryId == categoryId && device.masterId != null){
-                        widget.configPvd.selectedModelControllerId = device.controllerId;
-                        break;
-                      }
-                    }
-                  });
-                  widget.configPvd.updateSelectedConnectionNoAndItsType(0, '');
-                  widget.configPvd.updateConnectionListTile();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 500),
-                  padding: EdgeInsets.symmetric(horizontal: 15,vertical: widget.configPvd.selectedCategory == categoryId ? 12 :10),
-                  decoration: BoxDecoration(
-                      border: const Border(top: BorderSide(width: 0.5), left: BorderSide(width: 0.5), right: BorderSide(width: 0.5)),
-                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(5), topRight: Radius.circular(5)),
-                      color: widget.configPvd.selectedCategory == categoryId ? Theme.of(context).primaryColor : Colors.grey.shade300
-                  ),
-                  child: Text(widget.configPvd.listOfDeviceModel.firstWhere((device)=> device.categoryId == categoryId).deviceName, style: TextStyle(color: widget.configPvd.selectedCategory == categoryId ? Colors.white : Colors.black, fontSize: 13),),
-                ),
-              )
-          ],
-        ),
-        Container(
-          width: double.infinity,
-          height: 3,
-          color: Theme.of(context).primaryColor,
-        )
-      ],
-    );
-    return child;
-  }
-
-  Widget getModelBySelectedCategory(){
-    List<DeviceModel> filteredDeviceModel =
-    widget.configPvd.listOfDeviceModel.where(
-            (device) => (
-                device.categoryId == widget.configPvd.selectedCategory
-                    &&
-                    device.masterId != null
-                    && ![...AppConstants.ecModel, ...AppConstants.phModel].contains(device.modelId)
-            )).toList();
-    Widget child = SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for(var model in filteredDeviceModel)
-            ...[
-              InkWell(
-                onTap: (){
-                  setState(() {
-                    widget.configPvd.selectedModelControllerId = model.controllerId;
-                  });
-                  widget.configPvd.updateConnectionListTile();
-                  widget.configPvd.updateSelectedConnectionNoAndItsType(0, '');
-                },
-                child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                        color: widget.configPvd.selectedModelControllerId == model.controllerId ? Color(0xff1C863F) :Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(8)
-                    ),
-                    child: Column(
-                      children: [
-                        Text(model.deviceName,style: TextStyle(color: widget.configPvd.selectedModelControllerId == model.controllerId ? Colors.white : Colors.black, fontSize: 13),),
-                        Text(model.modelDescription,style: TextStyle(color: widget.configPvd.selectedModelControllerId == model.controllerId ? Colors.white : Colors.black, fontSize: 10),),
-                        Text(model.deviceId,style: TextStyle(color: widget.configPvd.selectedModelControllerId == model.controllerId ? Colors.amberAccent : Colors.black, fontSize: 10, fontWeight: FontWeight.bold),),
-                      ],
-                    )
-                ),
-              ),
-              const SizedBox(width: 10,)
-            ]
-        ],
-      ),
-    );
-    return child;
-  }
-
 }
 
-enum SelectionMode {auto, manual}
+enum SelectionMode { auto, manual }
+
+class _TerminalInfo {
+  final String type;
+  final String name;
+  final String keyWord;
+  final Color color;
+  final int total;
+  final IconData icon;
+  const _TerminalInfo({
+    required this.type,
+    required this.name,
+    required this.keyWord,
+    required this.color,
+    required this.total,
+    required this.icon,
+  });
+}
