@@ -541,6 +541,18 @@ class StandAloneViewModel extends ChangeNotifier {
       }
 
       for (var line in masterData.irrigationLine) {
+        for (int j = 0; j < line.foggerObjects.length; j++) {
+          if (line.foggerObjects[j].isOn) {
+            strSldValveSrlNo += '${line.foggerObjects[j].sNo}_';
+            standaloneSelection.add({
+              'sNo': line.foggerObjects[j].sNo,
+              'selected': line.foggerObjects[j].isOn,
+            });
+          }
+        }
+      }
+
+      for (var line in masterData.irrigationLine) {
         for (int j = 0; j < line.mainValveObjects.length; j++) {
           if (line.mainValveObjects[j].selected) {
             strSldValveSrlNo += '${line.mainValveObjects[j].sNo}_';
@@ -627,7 +639,6 @@ class StandAloneViewModel extends ChangeNotifier {
 
       strSldMainValveId = strSldMainValveId.isNotEmpty ? strSldMainValveId.substring(
           0, strSldMainValveId.length - 1) : '';
-
 
       for (var lineOrSq in standAloneData!.sequence) {
         if(lineOrSq.selected){
@@ -911,5 +922,4 @@ class StandAloneViewModel extends ChangeNotifier {
         )
     );
   }
-
 }
