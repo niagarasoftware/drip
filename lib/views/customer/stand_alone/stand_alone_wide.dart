@@ -389,11 +389,15 @@ class _StandAloneWideState extends State<StandAloneWide> with SingleTickerProvid
 
         (!isNova && ddPosition == 0) ? Column(
           children: masterData.irrigationLine.map((line) {
+
             return IrrigationLineCard(
               line: line,
               showSwitch: vm.ddCurrentPosition != 0,
               onToggleValve: (valve, value) {
                 setState(() => valve.isOn = value);
+              },
+              onToggleFogger: (FoggerModel fogger, bool value) {
+                setState(() => fogger.isOn = value);
               },
             );
           }).toList(),
@@ -401,11 +405,13 @@ class _StandAloneWideState extends State<StandAloneWide> with SingleTickerProvid
           children: vm.standAloneData!.sequence.map((sequence) {
 
             final valveRows = sequence.valve.map((valve) {
+
               return DataRow(cells: [
                 DataCell(Image.asset('assets/png/m_valve_grey.png', width: 40, height: 40)),
                 DataCell(Text(valve.name)),
                 const DataCell(SizedBox()),
               ]);
+
             }).toList();
 
             return ValveCardTable(

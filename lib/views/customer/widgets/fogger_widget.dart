@@ -13,7 +13,7 @@ class FoggerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Selector<MqttPayloadProvider, String?>(
-      selector: (_, provider) => provider.getFanOnOffStatus(objFogger.sNo.toString()),
+      selector: (_, provider) => provider.getFoggerOnOffStatus(objFogger.sNo.toString()),
       builder: (_, status, __) {
 
         final statusParts = status?.split(',') ?? [];
