@@ -3140,61 +3140,64 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     bool? conditionLibrary,
   }) {
     print("conditionLibrary :: $conditionLibrary");
-    List<String> labels = [];
-    List<IconData> icons = [];
 
-    final irrigationProgram = sno == 0
-        ? selectedProgramType == "Irrigation Program"
-        : programType == "Irrigation Program";
+    final currentProgramType = sno == 0
+        ? selectedProgramType
+        : (programType ?? selectedProgramType);
+
+    final irrigationProgram = currentProgramType == "Irrigation Program";
+    final isOtherProgram = currentProgramType == "Other Programs" ||
+        currentProgramType == "Other Program" ||
+        currentProgramType == "Other" ||
+        currentProgramType.toLowerCase().contains("other");
+
+    List<String> baseLabels = [
+      'Sequence',
+      'Schedule',
+      'Conditions',
+      'Selection',
+      irrigationProgram ? 'Water & Fert' : 'Settings',
+      'Alarm',
+      'Additional',
+      'Preview',
+    ];
+
+    List<IconData> baseIcons = [
+      Icons.view_headline_rounded,
+      Icons.calendar_month,
+      Icons.fact_check,
+      Icons.checklist,
+      irrigationProgram ? Icons.local_florist_rounded : Icons.settings,
+      Icons.alarm_rounded,
+      Icons.done_rounded,
+      Icons.preview,
+    ];
+
+    final showConditions = conditionLibrary ?? false;
+
+    List<String> excludedLabels = [];
+    List<IconData> excludedIcons = [];
 
     if (irrigationProgram) {
-      // --- Irrigation Program ---
-      commonLabels = commonLabels
-          .map((label) => label == "Settings" ? "Water & Fert" : label)
-          .toList();
-      commonIcons = commonIcons
-          .map((icon) =>
-      icon == Icons.settings ? Icons.local_florist_rounded : icon)
-          .toList();
-
-      final showConditions = conditionLibrary ?? false;
-      labels = showConditions
-          ? commonLabels
-          : commonLabels.where((e) => e != "Conditions").toList();
-      icons = showConditions
-          ? commonIcons
-          : commonIcons.where((e) => e != Icons.fact_check).toList();
-    } else {
-      // --- Non-Irrigation Program ---
-      commonLabels = commonLabels
-          .map((label) => label == "Water & Fert" ? "Settings" : label)
-          .toList();
-      commonIcons = commonIcons
-          .map((icon) =>
-      icon == Icons.local_florist_rounded ? Icons.settings : icon)
-          .toList();
-
-      final showConditions = conditionLibrary ?? false;
-
-      if (showConditions) {
-        labels = commonLabels
-            .where((e) => !["Selection", "Preview"].contains(e))
-            .toList();
-        icons = commonIcons
-            .where((e) => ![Icons.checklist, Icons.preview].contains(e))
-            .toList();
-      } else {
-        labels = commonLabels
-            .where(
-                (e) => !["Conditions", "Selection", "Preview"].contains(e))
-            .toList();
-        icons = commonIcons
-            .where((e) =>
-        ![Icons.fact_check, Icons.checklist, Icons.preview]
-            .contains(e))
-            .toList();
+      if (!showConditions) {
+        excludedLabels.add("Conditions");
+        excludedIcons.add(Icons.fact_check);
       }
+    } else {
+      if (!showConditions) {
+        excludedLabels.add("Conditions");
+        excludedIcons.add(Icons.fact_check);
+      }
+      if (!isOtherProgram) {
+        excludedLabels.add("Selection");
+        excludedIcons.add(Icons.checklist);
+      }
+      excludedLabels.add("Preview");
+      excludedIcons.add(Icons.preview);
     }
+
+    final labels = baseLabels.where((e) => !excludedLabels.contains(e)).toList();
+    final icons = baseIcons.where((e) => !excludedIcons.contains(e)).toList();
 
     return Tuple(labels, icons);
   }
