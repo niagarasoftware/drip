@@ -323,9 +323,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -515,7 +519,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDevelopment;
 				PRODUCT_NAME = oroDevelopment;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -710,7 +714,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDevelopment;
 				PRODUCT_NAME = oroDevelopment;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -741,7 +745,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDevelopment;
 				PRODUCT_NAME = oroDevelopment;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -830,7 +834,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.smartComm;
 				PRODUCT_NAME = smartComm;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -938,7 +942,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDripirrigation;
 				PRODUCT_NAME = oro;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1043,7 +1047,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.smartComm;
 				PRODUCT_NAME = smartComm;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1145,7 +1149,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDripirrigation;
 				PRODUCT_NAME = oro;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1245,7 +1249,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.oroDripirrigation;
 				PRODUCT_NAME = oro;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1345,7 +1349,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.4.02;
+				MARKETING_VERSION = 1.4.03;
 				PRODUCT_BUNDLE_IDENTIFIER = com.niagaraautomations.smartComm;
 				PRODUCT_NAME = smartComm;
 				PROVISIONING_PROFILE_SPECIFIER = "";
