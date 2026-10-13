@@ -12,6 +12,7 @@ import 'package:oro_drip_irrigation/services/communication_service.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
+import '../../../Constants/properties.dart';
 import '../../../Widgets/status_box.dart';
 import '../../../flavors.dart';
 import '../../Preferences/view/preference_main_screen.dart';
@@ -57,8 +58,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   double webBreakPoint = 1000;
   late ThemeData themeData;
   late bool themeMode;
-  bool clearOnHover = false;
-  bool sendOnHover = false;
   List<Map<String, dynamic>> listOfPayload = [];
   PayloadSendState payloadSendState = PayloadSendState.idle;
   MqttService mqttService = MqttService();
@@ -69,7 +68,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   @override
   void initState() {
-    // TODO: implement initState
     super.initState();
     configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
     mqttService.initializeMQTTClient();
@@ -80,7 +78,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   @override
   void didChangeDependencies() {
-    // TODO: implement didChangeDependencies
     super.didChangeDependencies();
     themeData = Theme.of(context);
     themeMode = themeData.brightness == Brightness.light;
@@ -93,18 +90,54 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       bool? shouldLeave = await showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("Alert"),
-          content: const Text("Do you really want to leave?"),
+          backgroundColor: Colors.white,
+          elevation: 12,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                "Unsaved Changes",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xff1E293B)),
+              ),
+            ],
+          ),
+          content: const Text(
+            "You have unsaved changes in your configuration. Do you really want to leave?",
+            style: TextStyle(fontSize: 14, color: Color(0xff475467), height: 1.4),
+          ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false), // Stay on page
-              child: const Text("Cancel"),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: Colors.grey.shade300),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("Cancel", style: TextStyle(color: Color(0xff475467))),
             ),
-            TextButton(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
               onPressed: () {
-                Navigator.of(context).pop(true); // Allow popping the page
+                Navigator.of(context).pop(true);
               },
-              child: const Text("Leave"),
+              child: const Text("Leave", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -185,449 +218,73 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     return hardwarePayload;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  REDESIGNED UI
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  List<ConfigMakerTabs> get _visibleTabs =>
+      ConfigMakerTabs.values.where(validateTab).toList();
+
+  Color get _barColor =>
+      themeData.primaryColorDark.withOpacity(themeMode ? 1.0 : 0.2);
+
+  void _goToStep(int offset) {
+    final tabs = _visibleTabs;
+    final index = tabs.indexOf(configPvd.selectedTab) + offset;
+    if (index < 0 || index >= tabs.length) return;
+    setState(() => configPvd.selectedTab = tabs[index]);
+  }
+
+  void _onSendConfig() {
+    String? validationError = configPvd.validateGemConfiguration();
+    if (validationError != null) {
+      simpleDialogBox(
+        context: context,
+        title: 'Alert',
+        message: validationError,
+      );
+      return;
+    }
+    setState(() {
+      payloadSendState = PayloadSendState.idle;
+    });
+    sendToMqtt();
+    sendToHttp();
+  }
+
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double screenHeight = MediaQuery.of(context).size.height;
-    bool themeMode = themeData.brightness == Brightness.light;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvokedWithResult,
       child: Scaffold(
-        backgroundColor: themeData.primaryColorDark.withOpacity(themeMode ? 1.0 : 0.2),
-        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: Row(
-          spacing: 20,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if(configPvd.selectedTab == ConfigMakerTabs.deviceList)
-              ...[
-                FilledButton.icon(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return Scaffold(
-                        appBar: AppBar(
-                          title: const Text('Constant'),
-                          actions: [
-                            FilledButton.icon(
-                              icon: const Icon(Icons.send),
-                              onPressed: (){
-                                setState(() {
-                                  payloadState = HardwareAcknowledgementState.notSent;
-                                  mqttService.acknowledgementPayload = null;
-                                });
-                                showDialog(
-                                    barrierDismissible: false,
-                                    context: context,
-                                    builder: (context){
-                                      return StatefulBuilder(
-                                          builder: (context, stateSetter){
-                                            return AlertDialog(
-                                              title: Text('Send Payload', style: Theme.of(context).textTheme.labelLarge,),
-                                              content: getHardwareAcknowledgementWidget(payloadState),
-                                              actions: [
-                                                if(payloadState != HardwareAcknowledgementState.sending && payloadState != HardwareAcknowledgementState.notSent)
-                                                  CustomMaterialButton(),
-                                                if(payloadState == HardwareAcknowledgementState.notSent)
-                                                  CustomMaterialButton(title: 'Cancel',outlined: true,),
-                                                if(payloadState == HardwareAcknowledgementState.notSent)
-                                                  CustomMaterialButton(
-                                                    onPressed: ()async{
-                                                      sendToHttp();
-                                                      var payload = jsonEncode(getConstantHardwarePayload());
-                                                      int delayDuration = 50;
-                                                      for(var delay = 0; delay < delayDuration; delay++){
-                                                        if(delay == 0){
-                                                          stateSetter((){
-                                                            setState((){
-                                                              context.read<CommunicationService>().sendCommand(
-                                                                serverMsg: '',
-                                                                payload: payload,
-                                                              );
-                                                              payloadState = HardwareAcknowledgementState.sending;
-                                                            });
-                                                          });
-                                                        }
-                                                        stateSetter((){
-                                                          setState((){
-                                                            if(mqttService.acknowledgementPayload != null){
-                                                              if(validatePayloadFromHardware(mqttService.acknowledgementPayload, ['cC'], configPvd.masterData['deviceId']) && validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cM', '4201', 'PayloadCode'], '300')){
-                                                                if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '200'){
-                                                                  payloadState = HardwareAcknowledgementState.success;
-                                                                }else if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '90'){
-                                                                  payloadState = HardwareAcknowledgementState.programRunning;
-                                                                }else if(mqttService.acknowledgementPayload!['cM']['4201']['Code'] == '1'){
-                                                                  payloadState = HardwareAcknowledgementState.hardwareUnknownError;
-                                                                }else{
-                                                                  payloadState = HardwareAcknowledgementState.errorOnPayload;
-                                                                }
-                                                                mqttService.acknowledgementPayload = null;
-                                                              }
-                                                            }
-                                                          });
-                                                        });
-                                                        await Future.delayed(const Duration(seconds: 1));
-                                                        if(delay == delayDuration-1){
-                                                          stateSetter((){
-                                                            setState((){
-                                                              payloadState = HardwareAcknowledgementState.failed;
-                                                            });
-                                                          });
-                                                        }
-                                                        if(payloadState != HardwareAcknowledgementState.sending){
-                                                          break;
-                                                        }
-                                                      }
-                                                    },
-                                                    title: 'Send',
-                                                  ),
-                                              ],
-                                            );
-                                          }
-                                      );
-                                    }
-                                );
-                              },
-                              label: const Text('Click to send constant'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                                textStyle: const TextStyle(fontSize: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            )
-                          ],
-                        ),
-                        body: ConstantBasePage(userData: {
-                          "userId": configPvd.masterData['userId'],
-                          "customerId": configPvd.masterData['customerId'],
-                          "controllerId": configPvd.masterData['controllerId'],
-                          "deviceId": configPvd.masterData['deviceId'],
-                          "modelId": configPvd.masterData['modelId'],
-                          "deviceName": configPvd.masterData['deviceName'],
-                          "categoryId": configPvd.masterData['categoryId'],
-                          "categoryName": configPvd.masterData['categoryName'],
-                        }),
-                      );
-                    }));
-                  },
-                  label: const Text('Go To Constant'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    textStyle: const TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                FilledButton.icon(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                      return Scaffold(
-                        appBar: AppBar(
-                          title: const Text('Preference'),
-                        ),
-                        body: PreferenceMainScreen(
-                          userId: configPvd.masterData['userId'],
-                          customerId: configPvd.masterData['customerId'],
-                          masterData: configPvd.masterData,
-                          selectedIndex: 0,
-                        ),
-                      );
-                    }));
-                  },
-                  label: const Text('Go To Preference'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    textStyle: const TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            IconButton(
-                style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all(configPvd.selectedTab == ConfigMakerTabs.deviceList ? Colors.grey.shade500 : Theme.of(context).primaryColor)
-                ),
-                onPressed: (){
-                  if(configPvd.selectedTab != ConfigMakerTabs.deviceList){
-                    setState(() {
-                      if(configPvd.selectedTab == ConfigMakerTabs.productLimit){
-                        configPvd.selectedTab = ConfigMakerTabs.deviceList;
-                      }else if(configPvd.selectedTab == ConfigMakerTabs.connection){
-                        configPvd.selectedTab = ConfigMakerTabs.productLimit;
-                      }else if(configPvd.selectedTab == ConfigMakerTabs.siteConfigure){
-                        configPvd.selectedTab = ConfigMakerTabs.connection;
-                      }
-                    });
-                  }
-                },
-                icon: const Icon(Icons.arrow_back_ios_new_outlined, color: Colors.white)
-            ),
-            IconButton(
-                alignment: Alignment.center,
-                style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all(configPvd.selectedTab == (AppConstants.pumpWithValveModelList.contains(configPvd.masterData["modelId"]) ?  ConfigMakerTabs.productLimit : ConfigMakerTabs.siteConfigure) ? Colors.grey.shade500 : Theme.of(context).primaryColor)
-                ),
-                onPressed: (){
-                  if(configPvd.selectedTab != (AppConstants.pumpWithValveModelList.contains(configPvd.masterData["modelId"]) ?  ConfigMakerTabs.productLimit : ConfigMakerTabs.siteConfigure)){
-                    setState(() {
-                      if(configPvd.selectedTab == ConfigMakerTabs.deviceList){
-                        configPvd.selectedTab = ConfigMakerTabs.productLimit;
-                      }else if(configPvd.selectedTab == ConfigMakerTabs.productLimit){
-                        configPvd.selectedTab = ConfigMakerTabs.connection;
-                      }else if(configPvd.selectedTab == ConfigMakerTabs.connection){
-                        configPvd.selectedTab = ConfigMakerTabs.siteConfigure;
-                      }
-                    });
-                  }
-                },
-                icon: const Icon(Icons.arrow_forward_ios, color: Colors.white,)
-            ),
-          ],
-        ),
+        backgroundColor: _barColor,
+        bottomNavigationBar: _buildActionBar(),
         body: SafeArea(
+          bottom: false,
           child: Column(
             children: [
-              SizedBox(
-                height: 50,
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TitleWithBackButton(
-                      onPressed: (){
-                        Navigator.pop(context);
-                      },
-                      title: 'Config Maker',
-
-                      // titleWidth: screenWidth * sideNavigationTabRatio,
-                      titleWidth: sideNavigationTabWidth,
-                    ),
-                    Row(
-                      spacing:20,
-                      children: [
-                        StreamBuilder(
-                            stream: mqttService.mqttConnectionStream,
-                            initialData: MqttConnectionState.disconnected,
-                            builder: (context, snapShot){
-                              return Row(
-                                spacing: 10,
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: mqttService.isConnected ? Colors.greenAccent : Colors.red,
-                                    radius: 20,
-                                    child: const Icon(Icons.computer, color: Colors.white,),
-                                  ),
-                                  Text('MQTT ${mqttService.mqttConnectionState.name}', style: const TextStyle(color: Colors.white),)
-
-                                ],
-                              );
-                            }
-                        ),
-                        InkWell(
-                          onHover: (value){
-                            setState(() {
-                              clearOnHover = value;
-                            });
-                          },
-                          onTap: (){
-                            showDialog(
-                              context: context,
-                              builder: (context) {
-                                return StatefulBuilder(builder: (context, stateSetter) {
-                                  return AlertDialog(
-                                    title: const Text('Clear Config'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Password',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: Color(0xff475467),
-                                          ),
-                                        ),
-                                        Form(
-                                          key: formKey,
-                                          child: TextFormField(
-                                            validator: (value) {
-                                              if (value == null || value.isEmpty) {
-                                                return 'Please enter your password';
-                                              } else if (value !=
-                                                  (F.title.toLowerCase().contains('oro')
-                                                      ? 'Oro@321'
-                                                      : F.title.toLowerCase().contains('smart')
-                                                      ? 'LK@321'
-                                                      : F.title.toLowerCase().contains('agritel')
-                                                      ? 'Agritel@321'
-                                                      : 'Oro@321')) {
-                                                return 'Invalid password';
-                                              }
-                                              return null;
-                                            },
-                                            obscureText: true,
-                                            decoration: InputDecoration(
-                                              contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                                              hintText: 'Password',
-                                              hintStyle: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Color(0xff475467),
-                                              ),
-                                              prefixIcon: Icon(
-                                                Icons.password,
-                                                color: Theme.of(context).primaryColor,
-                                              ),
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: (){
-                                            Navigator.of(context).pop();
-                                          },
-                                          child: Text('Cancel')
-                                      ),
-                                      CustomMaterialButton(
-                                        onPressed: () {
-                                          if (formKey.currentState!.validate()) {
-                                            configPvd.clearData();
-                                            setState(() {
-                                              isNewConfig = true;
-                                            });
-                                            Navigator.of(context).pop();
-                                          }
-                                        },
-                                        child: Text('Ok', style: TextStyle(color: Colors.white),),
-                                      ),
-                                    ],
-                                  );
-                                });
-                              },
-                            );
-                            // simpleDialogBox(
-                            //     context: context,
-                            //     title: "Alert",
-                            //     message: "Do you want to clear config?",
-                            //     actionButton:[
-                            //       CustomMaterialButton(
-                            //         onPressed: (){
-                            //           configPvd.clearData();
-                            //           Navigator.of(context).pop();
-                            //         },
-                            //       )
-                            //     ]
-                            // );
-                          },
-                          child:  Row(
-                            spacing: 10,
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: clearOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withOpacity(0.5),
-                                radius: 20,
-                                child: SizedImageSmall(imagePath: '${AppConstants.svgObjectPath}clear.svg',color:  Colors.white,),
-                              ),
-                              const Text('Click To Clear Config', style: TextStyle(color: Colors.white),)
-                            ],
-                          ),
-                        ),
-                        InkWell(
-                          onHover: (value){
-                            setState(() {
-                              sendOnHover = value;
-                            });
-                          },
-                          onTap: (){
-                            String? validationError = configPvd.validateGemConfiguration();
-                            if (validationError != null) {
-                              simpleDialogBox(
-                                context: context,
-                                title: 'Alert',
-                                message: validationError,
-                              );
-                              return;
-                            }
-                            setState(() {
-                              payloadSendState = PayloadSendState.idle;
-                            });
-                            sendToMqtt();
-                            sendToHttp();
-                          },
-                          child:  Row(
-                            spacing: 10,
-                            children: [
-                              CircleAvatar(
-                                backgroundColor: sendOnHover ? themeData.primaryColorLight : themeData.primaryColorLight.withOpacity(0.5),
-                                radius: 20,
-                                child: SizedImageSmall(imagePath: '${AppConstants.svgObjectPath}send.svg',color:  Colors.white,),
-                              ),
-                              const Text('Click To Send Config', style: TextStyle(color: Colors.white),)
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10,)
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              _buildHeader(),
               Expanded(
-                child: Row(
-                  children: [
-                    sideNavigationWidget(screenWidth, screenHeight),
-                    Expanded(
-                      child: Container(
-                          decoration: const BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.only(topLeft: Radius.circular(10))
-                          ),
-                          child: configPvd.selectedTab == ConfigMakerTabs.deviceList
-                              ? DeviceList(listOfDevices: widget.listOfDevices)
-                              : configPvd.selectedTab == ConfigMakerTabs.productLimit
-                              ? ProductLimit(listOfDevices: widget.listOfDevices,configPvd: configPvd,)
-                              : configPvd.selectedTab == ConfigMakerTabs.connection
-                              ? Connection(configPvd: configPvd,)
-                              : SiteConfigure(configPvd: configPvd)
-                          //     ? SiteConfigure(configPvd: configPvd)
-                          //     : configPvd.selectedTab == ConfigMakerTabs.constant
-                          //     ? ConstantBasePage(userData: {
-                          //         "userId": configPvd.masterData['userId'],
-                          //         "customerId": configPvd.masterData['customerId'],
-                          //         "controllerId": configPvd.masterData['controllerId'],
-                          //         "deviceId": configPvd.masterData['deviceId'],
-                          //         "modelId": configPvd.masterData['modelId'],
-                          //         "deviceName": configPvd.masterData['deviceName'],
-                          //         "categoryId": configPvd.masterData['categoryId'],
-                          //         "categoryName": configPvd.masterData['categoryName'],
-                          //       })
-                          //     : PreferenceMainScreen(
-                          //         userId: configPvd.masterData['userId'],
-                          //         customerId: configPvd.masterData['customerId'],
-                          //         masterData: configPvd.masterData,
-                          //         selectedIndex: 0,
-                          // )
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+                  child: Container(
+                    width: double.infinity,
+                    color: Colors.white,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: KeyedSubtree(
+                        key: ValueKey(configPvd.selectedTab),
+                        child: configPvd.selectedTab == ConfigMakerTabs.deviceList
+                            ? DeviceList(listOfDevices: widget.listOfDevices)
+                            : configPvd.selectedTab == ConfigMakerTabs.productLimit
+                            ? ProductLimit(listOfDevices: widget.listOfDevices, configPvd: configPvd)
+                            : configPvd.selectedTab == ConfigMakerTabs.connection
+                            ? Connection(configPvd: configPvd)
+                            : SiteConfigure(configPvd: configPvd),
                       ),
-                    )
-
-                  ],
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -636,6 +293,634 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       ),
     );
   }
+
+  // ───────────────────────────── header ──────────────────────────────────────
+
+  Widget _buildHeader() {
+    final tabs = _visibleTabs;
+    final selectedIndex = tabs.indexOf(configPvd.selectedTab);
+    final deviceId = '${configPvd.masterData['deviceId'] ?? ''}';
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Tooltip(
+            message: 'Back',
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.12),
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Text(
+            'Config Maker',
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+          if (deviceId.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                deviceId,
+                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11, letterSpacing: 0.4),
+              ),
+            ),
+          ],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: _buildStepper(tabs, selectedIndex),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Config is a real sequence (devices → limits → connections → site),
+  /// so numbered steps with a "done" state show the user where they are.
+  Widget _buildStepper(List<ConfigMakerTabs> tabs, int selectedIndex) {
+    final children = <Widget>[];
+    for (var i = 0; i < tabs.length; i++) {
+      final tab = tabs[i];
+      final selected = i == selectedIndex;
+      final done = i < selectedIndex;
+
+      if (i > 0) {
+        children.add(Container(
+          width: 20,
+          height: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(i <= selectedIndex ? 0.8 : 0.25),
+            borderRadius: BorderRadius.circular(1),
+          ),
+        ));
+      }
+
+      final pillColor = selected
+          ? (themeMode ? Colors.white : themeData.primaryColorLight.withOpacity(0.5))
+          : Colors.transparent;
+      final textColor = selected && themeMode ? themeData.primaryColor : Colors.white;
+
+      children.add(
+        Tooltip(
+          message: getTabName(tab),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () => updateConfigMakerTabs(
+              context: context,
+              configPvd: configPvd,
+              setState: setState,
+              selectedTab: tab,
+            ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+              decoration: BoxDecoration(
+                color: pillColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: done
+                          ? themeData.primaryColorLight
+                          : selected
+                          ? (themeMode
+                          ? themeData.primaryColor.withOpacity(0.12)
+                          : Colors.white.withOpacity(0.2))
+                          : Colors.transparent,
+                      border: (!done && !selected)
+                          ? Border.all(color: Colors.white.withOpacity(0.45))
+                          : null,
+                    ),
+                    child: done
+                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        : Text(
+                      '${i + 1}',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textColor),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    getTabName(tab),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    return Row(mainAxisSize: MainAxisSize.min, children: children);
+  }
+
+  // ───────────────────────────── bottom action bar ───────────────────────────
+
+  Widget _buildActionBar() {
+    final tabs = _visibleTabs;
+    final index = tabs.indexOf(configPvd.selectedTab);
+    final isFirst = index <= 0;
+    final isLast = index >= tabs.length - 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _barColor,
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12))),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 1150;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // ── left: connection + config actions
+                    Row(
+                      children: [
+                        _buildMqttChip(),
+                        const SizedBox(width: 16),
+                        _barDivider(),
+                        const SizedBox(width: 16),
+                        _barButton(
+                          label: 'Clear config',
+                          compact: compact,
+                          leading: SizedImageSmall(
+                            imagePath: '${AppConstants.svgObjectPath}clear.svg',
+                            color: Colors.white,
+                          ),
+                          onTap: _showClearConfigDialog,
+                        ),
+                        const SizedBox(width: 8),
+                        _barButton(
+                          label: 'Send config',
+                          primary: true,
+                          leading: SizedImageSmall(
+                            imagePath: '${AppConstants.svgObjectPath}send.svg',
+                            color: themeData.primaryColor,
+                          ),
+                          onTap: _onSendConfig,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 24),
+                    // ── right: page shortcuts + step navigation
+                    Row(
+                      children: [
+                        if (configPvd.selectedTab == ConfigMakerTabs.deviceList) ...[
+                          _barButton(
+                            label: 'Constant',
+                            compact: compact,
+                            leading: const Icon(Icons.tune, color: Colors.white, size: 16),
+                            onTap: _openConstantPage,
+                          ),
+                          const SizedBox(width: 10),
+                          _barButton(
+                            label: 'Preference',
+                            compact: compact,
+                            leading: const Icon(Icons.settings_outlined, color: Colors.white, size: 16),
+                            onTap: _openPreferencePage,
+                          ),
+                          const SizedBox(width: 16),
+                          _barDivider(),
+                          const SizedBox(width: 16),
+                        ],
+                        _barButton(
+                          label: 'Back',
+                          compact: compact,
+                          leading: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 12),
+                          onTap: isFirst ? null : () => _goToStep(-1),
+                        ),
+                        const SizedBox(width: 8),
+                        _barButton(
+                          label: isLast ? 'Next' : 'Next: ${getTabName(tabs[index + 1])}',
+                          primary: true,
+                          trailing: Icon(Icons.arrow_forward_ios, color: themeData.primaryColor, size: 12),
+                          onTap: isLast ? null : () => _goToStep(1),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _barDivider() => Container(width: 1, height: 22, color: Colors.white.withOpacity(0.2));
+
+  Widget _buildMqttChip() {
+    return StreamBuilder(
+      stream: mqttService.mqttConnectionStream,
+      initialData: MqttConnectionState.disconnected,
+      builder: (context, snapShot) {
+        final connected = mqttService.isConnected;
+        final dotColor = connected ? Colors.greenAccent : Colors.redAccent;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: dotColor,
+                  boxShadow: [BoxShadow(color: dotColor.withOpacity(0.6), blurRadius: 6)],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'MQTT ${mqttService.mqttConnectionState.name}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// One button style for the whole bar.
+  /// primary  → solid white (the single main action on each side)
+  /// default  → translucent outline
+  /// onTap == null → disabled
+  Widget _barButton({
+    required String label,
+    required VoidCallback? onTap,
+    Widget? leading,
+    Widget? trailing,
+    bool primary = false,
+    bool compact = false,
+  }) {
+    final enabled = onTap != null;
+    final fg = primary ? themeData.primaryColor : Colors.white;
+    final showLabel = !compact || primary;
+
+    return Tooltip(
+      message: label,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: Material(
+          color: primary ? Colors.white : Colors.white.withOpacity(0.08),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: primary ? BorderSide.none : BorderSide(color: Colors.white.withOpacity(0.3)),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            hoverColor: primary
+                ? themeData.primaryColorLight.withOpacity(0.15)
+                : Colors.white.withOpacity(0.12),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: showLabel ? 12 : 10, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leading != null) leading,
+                  if (leading != null && showLabel) const SizedBox(width: 6),
+                  if (showLabel)
+                    Text(
+                      label,
+                      style: TextStyle(color: fg, fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  if (trailing != null && showLabel) const SizedBox(width: 6),
+                  if (trailing != null) trailing,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────── dialogs / pages (logic unchanged) ───────────────────
+
+  void _showClearConfigDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          elevation: 12,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.delete_sweep_rounded, color: Colors.red.shade600, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Clear Configuration',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xff1E293B)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will permanently remove the current configuration. Please enter your password to continue.',
+                style: TextStyle(fontSize: 14, color: Color(0xff475467), height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              Form(
+                key: formKey,
+                child: TextFormField(
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    } else if (value !=
+                        (F.title.toLowerCase().contains('oro')
+                            ? 'Oro@321'
+                            : F.title.toLowerCase().contains('smart')
+                            ? 'LK@321'
+                            : F.title.toLowerCase().contains('agritel')
+                            ? 'Agritel@321'
+                            : 'Oro@321')) {
+                      return 'Invalid password';
+                    }
+                    return null;
+                  },
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    hintText: 'Enter Password',
+                    hintStyle: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xff94A3B8),
+                    ),
+                    prefixIcon: Icon(Icons.lock_outline_rounded, color: Theme.of(context).primaryColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: Colors.grey.shade300),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              child: const Text('Cancel', style: TextStyle(color: Color(0xff475467))),
+            ),
+            CustomMaterialButton(
+              color: Colors.red.shade600,
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  configPvd.clearData();
+                  setState(() {
+                    isNewConfig = true;
+                  });
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Clear Config', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _openPreferencePage() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Preference')),
+        body: PreferenceMainScreen(
+          userId: configPvd.masterData['userId'],
+          customerId: configPvd.masterData['customerId'],
+          masterData: configPvd.masterData,
+          selectedIndex: 0,
+        ),
+      );
+    }));
+  }
+
+  void _openConstantPage() {
+    Navigator.push(context, MaterialPageRoute(builder: (context) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Constant'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: FilledButton.icon(
+                icon: const Icon(Icons.send, size: 18),
+                onPressed: _showSendConstantDialog,
+                label: const Text('Send constant'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        body: ConstantBasePage(userData: {
+          "userId": configPvd.masterData['userId'],
+          "customerId": configPvd.masterData['customerId'],
+          "controllerId": configPvd.masterData['controllerId'],
+          "deviceId": configPvd.masterData['deviceId'],
+          "modelId": configPvd.masterData['modelId'],
+          "deviceName": configPvd.masterData['deviceName'],
+          "categoryId": configPvd.masterData['categoryId'],
+          "categoryName": configPvd.masterData['categoryName'],
+        }),
+      );
+    }));
+  }
+
+  /// Same send / acknowledgement loop as before, moved out of the widget tree.
+  void _showSendConstantDialog() {
+    setState(() {
+      payloadState = HardwareAcknowledgementState.notSent;
+      mqttService.acknowledgementPayload = null;
+    });
+    showDialog(
+      barrierDismissible: false,
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, stateSetter) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            elevation: 12,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.cloud_upload_rounded, color: Theme.of(context).primaryColor, size: 24),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Send Constant Payload',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xff1E293B)),
+                ),
+              ],
+            ),
+            content: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: getHardwareAcknowledgementWidget(payloadState),
+            ),
+            actions: [
+              if (payloadState != HardwareAcknowledgementState.sending &&
+                  payloadState != HardwareAcknowledgementState.notSent)
+                const CustomMaterialButton(title: 'Close'),
+              if (payloadState == HardwareAcknowledgementState.notSent)
+                CustomMaterialButton(title: 'Cancel', outlined: true),
+              if (payloadState == HardwareAcknowledgementState.notSent)
+                CustomMaterialButton(
+                  title: 'Send Payload',
+                  icon: Icons.send_rounded,
+                  onPressed: () async {
+                    sendToHttp();
+                    var payload = jsonEncode(getConstantHardwarePayload());
+                    int delayDuration = 50;
+                    for (var delay = 0; delay < delayDuration; delay++) {
+                      if (delay == 0) {
+                        stateSetter(() {
+                          setState(() {
+                            context.read<CommunicationService>().sendCommand(
+                              serverMsg: '',
+                              payload: payload,
+                            );
+                            payloadState = HardwareAcknowledgementState.sending;
+                          });
+                        });
+                      }
+                      stateSetter(() {
+                        setState(() {
+                          if (mqttService.acknowledgementPayload != null) {
+                            if (validatePayloadFromHardware(mqttService.acknowledgementPayload, ['cC'], configPvd.masterData['deviceId']) &&
+                                validatePayloadFromHardware(mqttService.acknowledgementPayload!, ['cM', '4201', 'PayloadCode'], '300')) {
+                              final code = mqttService.acknowledgementPayload!['cM']['4201']['Code'];
+                              if (code == '200') {
+                                payloadState = HardwareAcknowledgementState.success;
+                              } else if (code == '90') {
+                                payloadState = HardwareAcknowledgementState.programRunning;
+                              } else if (code == '1') {
+                                payloadState = HardwareAcknowledgementState.hardwareUnknownError;
+                              } else {
+                                payloadState = HardwareAcknowledgementState.errorOnPayload;
+                              }
+                              mqttService.acknowledgementPayload = null;
+                            }
+                          }
+                        });
+                      });
+                      await Future.delayed(const Duration(seconds: 1));
+                      if (delay == delayDuration - 1) {
+                        stateSetter(() {
+                          setState(() {
+                            payloadState = HardwareAcknowledgementState.failed;
+                          });
+                        });
+                      }
+                      if (payloadState != HardwareAcknowledgementState.sending) {
+                        break;
+                      }
+                    }
+                  },
+                ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  UNCHANGED LOGIC
+  // ═══════════════════════════════════════════════════════════════════════════
 
   void sendToMqtt(){
     String? validationError = configPvd.validateGemConfiguration();
@@ -700,31 +985,83 @@ class _ConfigWebViewState extends State<ConfigWebView> {
           return StatefulBuilder(
               builder: (context, stateSetter){
                 return AlertDialog(
-                  title: const Text('Configuration Payload'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for(var payload in listOfPayload)
-                          CheckboxListTile(
-                            enabled: (payloadSendState == PayloadSendState.idle || payloadSendState == PayloadSendState.stop),
-                            title: Text('${payload['title']}'),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(payload['deviceId']),
-                                payloadAcknowledgementWidget(payload['acknowledgementState'] as HardwareAcknowledgementState),
-                              ],
-                            ),
-                            value: payload['selected'],
-                            onChanged: (value){
-                              stateSetter((){
-                                setState(() {
-                                  payload['selected'] = value;
-                                });
-                              });
-                            },
-                          )
-                      ],
+                  backgroundColor: Colors.white,
+                  elevation: 12,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  title: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.fact_check_rounded, color: Theme.of(context).primaryColor, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Configuration Payload',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xff1E293B)),
+                      ),
+                    ],
+                  ),
+                  content: SizedBox(
+                    width: MediaQuery.of(context).size.width >= 500 ? 500 : double.infinity,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for(var payload in listOfPayload)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              decoration: BoxDecoration(
+                                color: payload['selected'] == true
+                                    ? Theme.of(context).primaryColor.withOpacity(0.04)
+                                    : Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: payload['selected'] == true
+                                      ? Theme.of(context).primaryColor.withOpacity(0.5)
+                                      : Colors.grey.shade200,
+                                ),
+                              ),
+                              child: CheckboxListTile(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                activeColor: Theme.of(context).primaryColor,
+                                enabled: (payloadSendState == PayloadSendState.idle || payloadSendState == PayloadSendState.stop),
+                                title: Text(
+                                  '${payload['title']}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xff1E293B)),
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Device: ${payload['deviceId']}',
+                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      payloadAcknowledgementWidget(payload['acknowledgementState'] as HardwareAcknowledgementState),
+                                    ],
+                                  ),
+                                ),
+                                value: payload['selected'],
+                                onChanged: (value){
+                                  stateSetter((){
+                                    setState(() {
+                                      payload['selected'] = value;
+                                    });
+                                  });
+                                },
+                              ),
+                            )
+                        ],
+                      ),
                     ),
                   ),
                   actions: [
@@ -967,41 +1304,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     }catch(e){
       debugPrint('createUserConfigMaker error : $e');
     }
-  }
-
-  Widget sideNavigationWidget(screenWidth, screenHeight){
-    return SizedBox(
-      width: screenWidth  > webBreakPoint ? sideNavigationWidth : sideNavigationBreakPointWidth,
-      height: screenHeight,
-      child: Column(
-        children: [
-          const SizedBox(height: 50,),
-          ...getSideNavigationTab(screenWidth)
-
-        ],
-      ),
-    );
-  }
-
-  List<Widget> getSideNavigationTab(screenWidth){
-    return [
-      for(var i in ConfigMakerTabs.values)
-        if(validateTab(i))
-          CustomSideTab(
-            width: screenWidth  > webBreakPoint ? sideNavigationTabWidth : sideNavigationTabBreakPointWidth,
-            imagePath: '${AppConstants.svgObjectPath}${getTabImage(i)}.svg',
-            title: getTabName(i),
-            selected: i == configPvd.selectedTab,
-            onTap: (){
-              updateConfigMakerTabs(
-                  context: context,
-                  configPvd: configPvd,
-                  setState: setState,
-                  selectedTab: i
-              );
-            },
-          )
-    ];
   }
 
   bool validateTab(ConfigMakerTabs tab){

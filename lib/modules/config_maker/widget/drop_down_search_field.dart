@@ -42,29 +42,67 @@ class _DropDownSearchFieldState extends State<DropDownSearchField> {
       onTap: () {
         suggestionBoxController.close();
       },
-      child: SizedBox(
-        height: 150,
+      child: Container(
+        padding: const EdgeInsets.only(top: 8),
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              const Text('Search Device to replace'),
+              Text(
+                'Search available ${widget.oldDevice['categoryName'] ?? 'device'} from stock to replace current device:',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xff64748B),
+                ),
+              ),
+              const SizedBox(height: 16),
               DropDownSearchFormField(
                 textFieldConfiguration: TextFieldConfiguration(
-                  decoration: InputDecoration(labelText: widget.oldDevice['categoryName']),
                   controller: _dropdownSearchFieldController,
+                  decoration: InputDecoration(
+                    labelText: 'Select New Device ID',
+                    hintText: 'Type device ID to search...',
+                    prefixIcon: Icon(Icons.search_rounded, color: Theme.of(context).primaryColor),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Theme.of(context).primaryColor, width: 2),
+                    ),
+                  ),
                 ),
                 suggestionsCallback: (pattern) {
                   return getSuggestions(pattern);
                 },
                 itemBuilder: (context, String suggestion) {
                   return ListTile(
-                    title: Text(suggestion),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.developer_board_rounded, color: Theme.of(context).primaryColor, size: 18),
+                    ),
+                    title: Text(
+                      suggestion,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xff1E293B)),
+                    ),
                   );
                 },
                 itemSeparatorBuilder: (context, index) {
-                  return const Divider();
+                  return Divider(height: 1, color: Colors.grey.shade200);
                 },
                 transitionBuilder: (context, suggestionsBox, controller) {
                   return suggestionsBox;
@@ -78,26 +116,34 @@ class _DropDownSearchFieldState extends State<DropDownSearchField> {
                 onSaved: (value) => _selectedFruit = value,
                 displayAllSuggestionWhenTap: true,
               ),
-              const Spacer(),
+              const SizedBox(height: 24),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(
-                      onPressed: (){
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Cancel')
+                  OutlinedButton(
+                    onPressed: (){
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(color: Color(0xff475467))),
                   ),
-                  const SizedBox(width: 10,),
+                  const SizedBox(width: 12),
                   FilledButton.icon(
-                    icon: const Icon(Icons.find_replace_outlined),
-                    label: const Text('Replace'),
+                    icon: const Icon(Icons.find_replace_outlined, size: 18),
+                    label: const Text('Replace Device'),
                     onPressed: () async{
                       if (_formKey.currentState!.validate()) {
                         _formKey.currentState!.save();
-                        // Optionally use `_selectedFruit` here
                       }
-                      int statusCode = await configPvd.replaceDevice(newDevice: widget.productStock.firstWhere((device) => device['deviceId'] == _dropdownSearchFieldController.text), oldDevice: widget.oldDevice, masterOrNode: widget.masterOrNode);
+                      int statusCode = await configPvd.replaceDevice(
+                        newDevice: widget.productStock.firstWhere((device) => device['deviceId'] == _dropdownSearchFieldController.text),
+                        oldDevice: widget.oldDevice,
+                        masterOrNode: widget.masterOrNode,
+                      );
                       if(statusCode == 200){
                         for(var device in widget.productStock){
                           if(device["deviceId"] == _dropdownSearchFieldController.text){
@@ -110,7 +156,7 @@ class _DropDownSearchFieldState extends State<DropDownSearchField> {
                         simpleDialogBox(
                           context: context,
                           title: 'Success',
-                          message: "Device replace Successfully",
+                          message: "Device replaced successfully",
                         );
                       }else{
                         Navigator.pop(context);
@@ -124,17 +170,16 @@ class _DropDownSearchFieldState extends State<DropDownSearchField> {
                     style: FilledButton.styleFrom(
                       backgroundColor: Theme.of(context).primaryColor,
                       foregroundColor: Colors.white,
-                      padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                      textStyle: const TextStyle(fontSize: 16),
+                      elevation: 2,
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
                 ],
               ),
-
             ],
           ),
         ),
