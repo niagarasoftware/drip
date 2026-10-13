@@ -19,57 +19,45 @@ class WeatherModelNew {
     return WeatherModelNew(
       weatherLive: WeatherLive.fromJson(_jsonMap(json['weatherLive'])),
       deviceList: (json['deviceList'] as List? ?? [])
-          .map((item) => WeatherDeviceList.fromJson(_jsonMap(item)))
-          .toList(),
+          .map((item) => WeatherDeviceList.fromJson(_jsonMap(item))).toList(),
       irrigationLine: (json['irrigationLine'] as List? ?? [])
-          .map((item) => IrrigationLine.fromJson(_jsonMap(item)))
-          .toList(),
+          .map((item) => IrrigationLine.fromJson(_jsonMap(item))).toList(),
       configObject: (json['configObject'] as List? ?? [])
-          .map((item) => ConfigObjectNew.fromJson(_jsonMap(item)))
-          .toList(),
+          .map((item) => ConfigObjectNew.fromJson(_jsonMap(item))).toList(),
       last7Days: json['last7Days']?.toString() ?? '',
       last30Days: json['last30Days']?.toString() ?? '',
     );
   }
 
-  PeriodSensorStats getLast7DaysStats(double sensorSNo) {
-    return _getPeriodStats(last7Days, sensorSNo);
-  }
+  PeriodSensorStats getLast7DaysStats(double sensorSNo) =>
+      _getPeriodStats(last7Days, sensorSNo);
 
-  PeriodSensorStats getLast30DaysStats(double sensorSNo) {
-    return _getPeriodStats(last30Days, sensorSNo);
-  }
+  PeriodSensorStats getLast30DaysStats(double sensorSNo) =>
+      _getPeriodStats(last30Days, sensorSNo);
 
   PeriodSensorStats _getPeriodStats(String raw, double sensorSNo) {
-    final wantedKey = _sensorKey(sensorSNo);
-
+    final wantedKey = sensorKey(sensorSNo);
     for (final record in raw.split('_')) {
       final fields = record.split(',');
       if (fields.length < 4) continue;
-
       final recordSNo = double.tryParse(fields[0].trim());
-      if (recordSNo == null || _sensorKey(recordSNo) != wantedKey) {
-        continue;
-      }
-
+      if (recordSNo == null || sensorKey(recordSNo) != wantedKey) continue;
       return PeriodSensorStats(
         min: double.tryParse(fields[1].trim()) ?? 0,
         max: double.tryParse(fields[2].trim()) ?? 0,
         average: double.tryParse(fields[3].trim()) ?? 0,
       );
     }
-
     return const PeriodSensorStats(min: 0, max: 0, average: 0);
   }
 
-  static int _sensorKey(double sNo) => (sNo * 1000).round();
+  static int sensorKey(double sNo) => (sNo * 1000).round();
 }
 
 class PeriodSensorStats {
   final double min;
   final double max;
   final double average;
-
   const PeriodSensorStats({
     required this.min,
     required this.max,
@@ -105,13 +93,9 @@ class WeatherLive {
 
 class CM {
   final Map<String, dynamic> raw;
-
   CM({required this.raw});
-
-  factory CM.fromJson(Map<String, dynamic> json) {
-    return CM(raw: Map<String, dynamic>.from(json));
-  }
-
+  factory CM.fromJson(Map<String, dynamic> json) =>
+      CM(raw: Map<String, dynamic>.from(json));
   String get5101() => raw['5101']?.toString() ?? '';
 }
 
@@ -160,8 +144,7 @@ class IrrigationLine {
       name: json['name']?.toString() ?? '',
       objectName: json['objectName']?.toString() ?? '',
       weatherStation: (json['weatherStation'] as List? ?? [])
-          .map(_intValue)
-          .toList(),
+          .map(_intValue).toList(),
     );
   }
 }
@@ -190,8 +173,7 @@ class ConfigObjectNew {
       name: json['name']?.toString() ?? '',
       objectName: json['objectName']?.toString() ?? '',
       controllerId: json['controllerId'] == null
-          ? null
-          : _intValue(json['controllerId']),
+          ? null : _intValue(json['controllerId']),
       location: _doubleValue(json['location']),
     );
   }
@@ -200,21 +182,13 @@ class ConfigObjectNew {
 class WeatherStationWithSensors {
   final WeatherDeviceList device;
   final List<ConfigObjectNew> sensors;
-
-  WeatherStationWithSensors({
-    required this.device,
-    required this.sensors,
-  });
+  WeatherStationWithSensors({required this.device, required this.sensors});
 }
 
 class IrrigationLineExpanded {
   final IrrigationLine line;
   final List<WeatherStationWithSensors> stations;
-
-  IrrigationLineExpanded({
-    required this.line,
-    required this.stations,
-  });
+  IrrigationLineExpanded({required this.line, required this.stations});
 }
 
 class LiveSensorValue {
@@ -238,10 +212,8 @@ class LiveSensorValue {
 extension WeatherModelTreeBuilder on WeatherModelNew {
   List<IrrigationLineExpanded> buildIrrigationLineTree() {
     final result = <IrrigationLineExpanded>[];
-
     for (final line in irrigationLine) {
       final stations = <WeatherStationWithSensors>[];
-
       for (final controllerId in line.weatherStation) {
         final device = deviceList.firstWhere(
               (item) => item.controllerId == controllerId,
@@ -252,70 +224,52 @@ extension WeatherModelTreeBuilder on WeatherModelNew {
             serialNumber: -1,
           ),
         );
-
         final sensors = configObject
-            .where((item) => item.controllerId == controllerId)
-            .toList();
-
-        stations.add(
-          WeatherStationWithSensors(
-            device: device,
-            sensors: sensors,
-          ),
-        );
+            .where((item) => item.controllerId == controllerId).toList();
+        stations.add(WeatherStationWithSensors(device: device, sensors: sensors));
       }
-
       result.add(IrrigationLineExpanded(line: line, stations: stations));
     }
-
     return result;
   }
 
-  Map<int, List<LiveSensorValue>> parseLive5101() {
-    final raw = weatherLive.cM.get5101();
-    final result = <int, List<LiveSensorValue>>{};
+  Map<int, List<LiveSensorValue>> parseLive5101() =>
+      parse5101Payload(weatherLive.cM.get5101());
+}
 
-    if (raw.isEmpty) return result;
-
-    for (final part in raw.split(';')) {
-      final colonIndex = part.indexOf(':');
-      if (colonIndex == -1) continue;
-
-      final header = part.substring(0, colonIndex);
-      final payload = part.substring(colonIndex + 1);
-
-      // The serial number is the first item in the header.
-      final serial = int.tryParse(header.split(',').first.trim());
-      if (serial == null) continue;
-
-      final sensors = <LiveSensorValue>[];
-
-      for (final block in payload.split('_')) {
-        final fields = block.split(',');
-        if (fields.length < 5) continue;
-
-        final sNo = double.tryParse(fields[0].trim());
-        if (sNo == null) continue;
-
-        sensors.add(
-          LiveSensorValue(
-            sNo: sNo,
-            value: double.tryParse(fields[1].trim()) ?? 0,
-            status: int.tryParse(fields[2].trim()) ?? 0,
-            min: double.tryParse(fields[3].trim()) ?? 0,
-            max: double.tryParse(fields[4].trim()) ?? 0,
-            avg: fields.length > 5
-                ? double.tryParse(fields[5].trim()) ?? 0
-                : 0,
-          ),
-        );
-      }
-
-      result[serial] = sensors;
+/// Both API and MQTT use the same 5101 payload grammar:
+/// serial,header: sNo,value,status,min,max[,avg]_...;serial,...:...
+Map<int, List<LiveSensorValue>> parse5101Payload(String raw) {
+  final result = <int, List<LiveSensorValue>>{};
+  if (raw.trim().isEmpty) return result;
+  for (final part in raw.split(';')) {
+    final colonIndex = part.indexOf(':');
+    if (colonIndex == -1) continue;
+    final header = part.substring(0, colonIndex);
+    final payload = part.substring(colonIndex + 1);
+    final serial = int.tryParse(header.split(',').first.trim());
+    if (serial == null) continue;
+    final sensors = <LiveSensorValue>[];
+    for (final block in payload.split('_')) {
+      final fields = block.split(',');
+      if (fields.length < 5) continue;
+      final sNo = double.tryParse(fields[0].trim());
+      final value = double.tryParse(fields[1].trim());
+      final status = int.tryParse(fields[2].trim());
+      if (sNo == null || value == null || status == null) continue;
+      sensors.add(LiveSensorValue(
+        sNo: sNo,
+        value: value,
+        status: status,
+        min: double.tryParse(fields[3].trim()) ?? 0,
+        max: double.tryParse(fields[4].trim()) ?? 0,
+        avg: fields.length > 5
+            ? double.tryParse(fields[5].trim()) ?? 0 : 0,
+      ));
     }
-
-    return result;
+    if (sensors.isNotEmpty) result[serial] = sensors;
   }
+  return result;
 }
 
 Map<String, dynamic> _jsonMap(dynamic value) {

@@ -16,9 +16,7 @@ class InterfaceSetting extends StatefulWidget {
 class _InterfaceSettingState extends State<InterfaceSetting> {
   late BleProvider bleService;
   FocusNode frequencyFocus = FocusNode();
-  FocusNode frequencyFocus2 = FocusNode();
   FocusNode spreadingFactorFocus = FocusNode();
-  FocusNode spreadingFactorFocus2 = FocusNode();
   final _formKey = GlobalKey<FormState>();
   String userName = '';
   String password = '';
@@ -49,25 +47,12 @@ class _InterfaceSettingState extends State<InterfaceSetting> {
     bleService.onRefresh();
     frequencyFocus.addListener(() {
       if(frequencyFocus.hasFocus == false){
-        var value = double.parse(bleService.frequency1.text == '' ? '0' : bleService.frequency1.text);
+        var value = double.parse(bleService.frequency.text == '' ? '0' : bleService.frequency.text);
         if(value > 850.0 && value < 1000.0){
 
         }else{
           setState(() {
-            bleService.frequency1.text = '850.0';
-          });
-          simpleDialogBox(message: 'Frequency should be in the range of 850.0 to 880.0',context: context,title: 'Alert');
-        }
-      }
-    });
-    frequencyFocus2.addListener(() {
-      if(frequencyFocus2.hasFocus == false){
-        var value = double.parse(bleService.frequency2.text == '' ? '0' : bleService.frequency2.text);
-        if(value > 850.0 && value < 1000.0){
-
-        }else{
-          setState(() {
-            bleService.frequency2.text = '850.0';
+            bleService.frequency.text = '850.0';
           });
           simpleDialogBox(message: 'Frequency should be in the range of 850.0 to 880.0',context: context,title: 'Alert');
         }
@@ -75,25 +60,12 @@ class _InterfaceSettingState extends State<InterfaceSetting> {
     });
     spreadingFactorFocus.addListener(() {
       if(spreadingFactorFocus.hasFocus == false){
-        var value = int.parse(bleService.spreadFactor1.text == '' ? '0' : bleService.spreadFactor1.text);
+        var value = int.parse(bleService.spreadFactor.text == '' ? '0' : bleService.spreadFactor.text);
         if(value >= 7.0 && value <= 12.0){
 
         }else{
           setState(() {
-            bleService.spreadFactor1.text = '7';
-          });
-          simpleDialogBox(message: 'Spreading factor should be in the range of 7 to 12',context: context, title: 'Alert');
-        }
-      }
-    });
-    spreadingFactorFocus2.addListener(() {
-      if(spreadingFactorFocus2.hasFocus == false){
-        var value = int.parse(bleService.spreadFactor2.text == '' ? '0' : bleService.spreadFactor2.text);
-        if(value >= 7.0 && value <= 12.0){
-
-        }else{
-          setState(() {
-            bleService.spreadFactor2.text = '7';
+            bleService.spreadFactor.text = '7';
           });
           simpleDialogBox(message: 'Spreading factor should be in the range of 7 to 12',context: context, title: 'Alert');
         }
@@ -150,339 +122,114 @@ class _InterfaceSettingState extends State<InterfaceSetting> {
   }
 
   Widget loraSetting(){
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Text('LoRa 1', style: TextStyle(fontSize: 14, color: Colors.black),),
-        Padding(
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                  offset: const Offset(0, 4),
+                  blurRadius: 4,
+                  spreadRadius: 0,
+                  color: const Color(0xff8B8282).withValues(alpha: 0.2)
+              )
+            ]
+        ),
+        child: Padding(
           padding: const EdgeInsets.all(20),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                      offset: const Offset(0, 4),
-                      blurRadius: 4,
-                      spreadRadius: 0,
-                      color: const Color(0xff8B8282).withValues(alpha: 0.2)
-                  )
-                ]
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Enter Signal Parameters",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColorLight),
+              ),
+              const SizedBox(height: 30),
+              TextFormField(
+                focusNode: frequencyFocus,
+                controller: bleService.frequency,
+                keyboardType: TextInputType.number,
+                decoration: inputDecoration.copyWith(
+                  labelText: "Frequency",
+                  hintText: "Enter frequency",
+                  prefixIcon: const Icon(Icons.waves),
+                  suffixText: "Hz",
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextFormField(
+                focusNode: spreadingFactorFocus,
+                controller: bleService.spreadFactor,
+                keyboardType: TextInputType.number,
+                decoration: inputDecoration.copyWith(
+                  labelText: "Spread Factor",
+                  hintText: "Enter spread factor",
+                  prefixIcon: const Icon(Icons.scatter_plot),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "Enter Signal Parameters",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColorLight),
+                  const Text(
+                    "Enable Repeater",
+                    style: TextStyle(fontSize: 16),
                   ),
-                  const SizedBox(height: 30),
-                  TextFormField(
-                    focusNode: frequencyFocus,
-                    controller: bleService.frequency1,
-                    keyboardType: TextInputType.number,
-                    decoration: inputDecoration.copyWith(
-                      labelText: "Frequency",
-                      hintText: "Enter frequency",
-                      prefixIcon: const Icon(Icons.waves),
-                      suffixText: "Hz",
-                    ),
+                  Switch(
+                    value: bleService.nodeDataFromHw['REP'] == '0' ? false : true,
+                    activeTrackColor: Theme.of(context).primaryColorLight,
+                    onChanged: (value) {
+                      print('value ==> $value');
+                      setState(() {
+                        bleService.nodeDataFromHw['REP'] = (value ? '1' : '0');
+                      });
+                    },
                   ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    focusNode: spreadingFactorFocus,
-                    controller: bleService.spreadFactor1,
-                    keyboardType: TextInputType.number,
-                    decoration: inputDecoration.copyWith(
-                      labelText: "Spread Factor",
-                      hintText: "Enter spread factor",
-                      prefixIcon: const Icon(Icons.scatter_plot),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        "Enable Repeater",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      Switch(
-                        value: bleService.nodeDataFromHw['REP'] == '0' ? false : true,
-                        activeTrackColor: Theme.of(context).primaryColorLight,
-                        onChanged: (value) {
-                          print('value ==> $value');
-                          setState(() {
-                            bleService.nodeDataFromHw['REP'] = (value ? '1' : '0');
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: (){
-                        var payload = '${bleService.nodeDataFromServer['settingCommand']['loraSettingCommand']}${(double.parse(bleService.frequency1.text)*10).toInt()}:${bleService.spreadFactor1.text}:${bleService.nodeDataFromHw['REP']}:';
-                        List<int> listOfBytes = [];
-                        var sumOfAscii = 0;
-                        for(var i in payload.split('')){
-                          var bytes = i.codeUnitAt(0);
-                          sumOfAscii += bytes;
-                        }
-                        payload += '${bleService.sendThreeDigit('${sumOfAscii % 256}')}:\r';
-                        for(var i in payload.split('')){
-                          var bytes = i.codeUnitAt(0);
-                          listOfBytes.add(bytes);
-                        }
-                        debugPrint('listOfBytes : $listOfBytes');
-                        debugPrint('sumOfAscii : $sumOfAscii');
-                        debugPrint('crc : ${sumOfAscii % 256}');
-                        debugPrint('payload : $payload');
-                        bleService.sendDataToHw(listOfBytes);
-                        loadingDialog();
-                      },
-                      icon: const Icon(Icons.send, color: Colors.white,),
-                      label: const Text("Submit", style: TextStyle(color: Colors.white),),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColorLight,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  )
                 ],
               ),
-            ),
-          ),
-        ),
-        if(bleService.nodeDataFromHw.containsKey('REP2'))
-          ...[
-            const Text('LoRa 2', style: TextStyle(fontSize: 14, color: Colors.black),),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                          offset: const Offset(0, 4),
-                          blurRadius: 4,
-                          spreadRadius: 0,
-                          color: const Color(0xff8B8282).withValues(alpha: 0.2)
-                      )
-                    ]
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "Enter Signal Parameters",
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColorLight),
-                      ),
-                      const SizedBox(height: 30),
-                      TextFormField(
-                        focusNode: frequencyFocus2,
-                        controller: bleService.frequency2,
-                        keyboardType: TextInputType.number,
-                        decoration: inputDecoration.copyWith(
-                          labelText: "Frequency",
-                          hintText: "Enter frequency",
-                          prefixIcon: const Icon(Icons.waves),
-                          suffixText: "Hz",
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        focusNode: spreadingFactorFocus2,
-                        controller: bleService.spreadFactor2,
-                        keyboardType: TextInputType.number,
-                        decoration: inputDecoration.copyWith(
-                          labelText: "Spread Factor",
-                          hintText: "Enter spread factor",
-                          prefixIcon: const Icon(Icons.scatter_plot),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            "Enable Repeater",
-                            style: TextStyle(fontSize: 16),
-                          ),
-                          Switch(
-                            value: bleService.nodeDataFromHw['REP2'] == '0' ? false : true,
-                            activeTrackColor: Theme.of(context).primaryColorLight,
-                            onChanged: (value) {
-                              setState(() {
-                                bleService.nodeDataFromHw['REP2'] = (value ? '1' : '0');
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 30),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: (){
-                            var payload = '${bleService.nodeDataFromServer['settingCommand']['loraSettingCommand2']}${(double.parse(bleService.frequency2.text)*10).toInt()}:${bleService.spreadFactor2.text}:${bleService.nodeDataFromHw['REP2']}:';
-                            List<int> listOfBytes = [];
-                            var sumOfAscii = 0;
-                            for(var i in payload.split('')){
-                              var bytes = i.codeUnitAt(0);
-                              sumOfAscii += bytes;
-                            }
-                            payload += '${bleService.sendThreeDigit('${sumOfAscii % 256}')}:\r';
-                            for(var i in payload.split('')){
-                              var bytes = i.codeUnitAt(0);
-                              listOfBytes.add(bytes);
-                            }
-                            debugPrint('listOfBytes : $listOfBytes');
-                            debugPrint('sumOfAscii : $sumOfAscii');
-                            debugPrint('crc : ${sumOfAscii % 256}');
-                            debugPrint('payload : $payload');
-                            bleService.sendDataToHw(listOfBytes);
-                            loadingDialog();
-                          },
-                          icon: const Icon(Icons.send, color: Colors.white,),
-                          label: const Text("Submit", style: TextStyle(color: Colors.white),),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).primaryColorLight,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      )
-                    ],
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: (){
+                    var payload = '${bleService.nodeDataFromServer['settingCommand']['loraSettingCommand']}${(double.parse(bleService.frequency.text)*10).toInt()}:${bleService.spreadFactor.text}:${bleService.nodeDataFromHw['REP']}:';
+                    List<int> listOfBytes = [];
+                    var sumOfAscii = 0;
+                    for(var i in payload.split('')){
+                      var bytes = i.codeUnitAt(0);
+                      sumOfAscii += bytes;
+                    }
+                    payload += '${bleService.sendThreeDigit('${sumOfAscii % 256}')}:\r';
+                    for(var i in payload.split('')){
+                      var bytes = i.codeUnitAt(0);
+                      listOfBytes.add(bytes);
+                    }
+                    debugPrint('listOfBytes : $listOfBytes');
+                    debugPrint('sumOfAscii : $sumOfAscii');
+                    debugPrint('crc : ${sumOfAscii % 256}');
+                    debugPrint('payload : $payload');
+                    bleService.sendDataToHw(listOfBytes);
+                    loadingDialog();
+                  },
+                  icon: const Icon(Icons.send, color: Colors.white,),
+                  label: const Text("Submit", style: TextStyle(color: Colors.white),),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColorLight,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ]
-      ],
+              )
+            ],
+          ),
+        ),
+      ),
     );
-    // return Padding(
-    //   padding: const EdgeInsets.all(20),
-    //   child: Container(
-    //     padding: const EdgeInsets.all(8),
-    //     decoration: BoxDecoration(
-    //       borderRadius: BorderRadius.circular(10),
-    //       color: Colors.white,
-    //         boxShadow: [
-    //           BoxShadow(
-    //               offset: const Offset(0, 4),
-    //               blurRadius: 4,
-    //               spreadRadius: 0,
-    //               color: const Color(0xff8B8282).withValues(alpha: 0.2)
-    //           )
-    //         ]
-    //     ),
-    //     child: Padding(
-    //       padding: const EdgeInsets.all(20),
-    //       child: Column(
-    //         mainAxisSize: MainAxisSize.min,
-    //         children: [
-    //           Text(
-    //             "Enter Signal Parameters",
-    //             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColorLight),
-    //           ),
-    //           const SizedBox(height: 30),
-    //           TextFormField(
-    //             focusNode: frequencyFocus,
-    //             controller: bleService.frequency1,
-    //             keyboardType: TextInputType.number,
-    //             decoration: inputDecoration.copyWith(
-    //               labelText: "Frequency",
-    //               hintText: "Enter frequency",
-    //               prefixIcon: const Icon(Icons.waves),
-    //               suffixText: "Hz",
-    //             ),
-    //           ),
-    //           const SizedBox(height: 20),
-    //           TextFormField(
-    //             focusNode: spreadingFactorFocus,
-    //             controller: bleService.spreadFactor1,
-    //             keyboardType: TextInputType.number,
-    //             decoration: inputDecoration.copyWith(
-    //               labelText: "Spread Factor",
-    //               hintText: "Enter spread factor",
-    //               prefixIcon: const Icon(Icons.scatter_plot),
-    //             ),
-    //           ),
-    //           const SizedBox(height: 20),
-    //           Row(
-    //             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    //             children: [
-    //               const Text(
-    //                 "Enable Repeater",
-    //                 style: TextStyle(fontSize: 16),
-    //               ),
-    //               Switch(
-    //                 value: bleService.nodeDataFromHw['REP'] == '0' ? false : true,
-    //                 activeTrackColor: Theme.of(context).primaryColorLight,
-    //                 onChanged: (value) {
-    //                   print('value ==> $value');
-    //                   setState(() {
-    //                     bleService.nodeDataFromHw['REP'] = (value ? '1' : '0');
-    //                   });
-    //                 },
-    //               ),
-    //             ],
-    //           ),
-    //           const SizedBox(height: 30),
-    //           SizedBox(
-    //             width: double.infinity,
-    //             child: ElevatedButton.icon(
-    //               onPressed: (){
-    //                 var payload = '${bleService.nodeDataFromServer['settingCommand']['loraSettingCommand']}${(double.parse(bleService.frequency1.text)*10).toInt()}:${bleService.spreadFactor1.text}:${bleService.nodeDataFromHw['REP']}:';
-    //                 List<int> listOfBytes = [];
-    //                 var sumOfAscii = 0;
-    //                 for(var i in payload.split('')){
-    //                   var bytes = i.codeUnitAt(0);
-    //                   sumOfAscii += bytes;
-    //                 }
-    //                 payload += '${bleService.sendThreeDigit('${sumOfAscii % 256}')}:\r';
-    //                 for(var i in payload.split('')){
-    //                   var bytes = i.codeUnitAt(0);
-    //                   listOfBytes.add(bytes);
-    //                 }
-    //                 debugPrint('listOfBytes : $listOfBytes');
-    //                 debugPrint('sumOfAscii : $sumOfAscii');
-    //                 debugPrint('crc : ${sumOfAscii % 256}');
-    //                 debugPrint('payload : $payload');
-    //                 bleService.sendDataToHw(listOfBytes);
-    //                 loadingDialog();
-    //               },
-    //               icon: const Icon(Icons.send, color: Colors.white,),
-    //               label: const Text("Submit", style: TextStyle(color: Colors.white),),
-    //               style: ElevatedButton.styleFrom(
-    //                 backgroundColor: Theme.of(context).primaryColorLight,
-    //                 padding: const EdgeInsets.symmetric(vertical: 14),
-    //                 shape: RoundedRectangleBorder(
-    //                   borderRadius: BorderRadius.circular(14),
-    //                 ),
-    //               ),
-    //             ),
-    //           )
-    //         ],
-    //       ),
-    //     ),
-    //   ),
-    // );
   }
 
   Widget mqttSetting(){

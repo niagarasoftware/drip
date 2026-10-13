@@ -108,14 +108,14 @@ class _NodeDashboardState extends State<NodeDashboard> {
                                   ),
                                 if(showControlAndView())
                                   gridItemWidget(
-                                  imagePath: 'assets/Images/Svg/SmartComm/control.svg',
-                                  title: 'View & Control',
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                                      return const ControlNode();
-                                    }));
-                                  },
-                                ),
+                                    imagePath: 'assets/Images/Svg/SmartComm/control.svg',
+                                    title: 'View & Control',
+                                    onTap: () {
+                                      Navigator.push(context, MaterialPageRoute(builder: (context){
+                                        return const ControlNode();
+                                      }));
+                                    },
+                                  ),
                                 if(showInterfaceSetting())
                                   gridItemWidget(
                                       imagePath: 'assets/Images/Svg/SmartComm/interface_setting.svg',
@@ -138,14 +138,14 @@ class _NodeDashboardState extends State<NodeDashboard> {
                                   ),
                                 if(showCalibration())
                                   gridItemWidget(
-                                  imagePath: 'assets/Images/Svg/SmartComm/calibration.svg',
-                                  title: 'Calibration',
-                                  onTap: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                                      return Calibration(nodeData: widget.nodeData,);
-                                    }));
-                                  },
-                                ),
+                                    imagePath: 'assets/Images/Svg/SmartComm/calibration.svg',
+                                    title: 'Calibration',
+                                    onTap: () {
+                                      Navigator.push(context, MaterialPageRoute(builder: (context){
+                                        return Calibration(nodeData: widget.nodeData,);
+                                      }));
+                                    },
+                                  ),
                                 if(bleService.developerOption >= 10)
                                   gridItemWidget(
                                     imagePath: 'assets/Images/Svg/SmartComm/sent_and_receive.svg',
@@ -180,12 +180,12 @@ class _NodeDashboardState extends State<NodeDashboard> {
     }else if(bleService.nodeDataFromServer['hardwareLoraModel'].contains(bleService.nodeDataFromHw['MID'])){
       show = false;
     }else if(
-      [
-        ...AppConstants.pumpWithValveModelList,
-        ...AppConstants.ecoGemModelList,
-        // ...AppConstants.ecModel,
-        // ...AppConstants.phModel,
-      ].contains(bleService.nodeData['modelId'])
+    [
+      ...AppConstants.pumpWithValveModelList,
+      ...AppConstants.ecoGemModelList,
+      // ...AppConstants.ecModel,
+      // ...AppConstants.phModel,
+    ].contains(bleService.nodeData['modelId'])
     ){
       show = false;
     }else if(bleService.bleConnectMode == ConnectMode.pumpWifiDefault){
@@ -216,108 +216,108 @@ class _NodeDashboardState extends State<NodeDashboard> {
 
   void userAcknowledgementForUpdatingFirmware(){
     showDialog(
-      barrierDismissible: false,
+        barrierDismissible: false,
         context: context, builder: (context){
-          return AlertDialog(
-            title: Text('Do you want to update firmware', style: TextStyle(fontSize: 14),),
-            actions: [
-              CustomMaterialButton(
-                outlined: true,
-                title: 'No',
-                onPressed: (){
-                  Navigator.pop(context);
-                },
-              ),
-              CustomMaterialButton(
-                title: 'Yes',
-                onPressed: (){
-                  Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return StatefulBuilder(builder: (context, stateSetter) {
-                        return AlertDialog(
-                          title: const Text('Password to Update Firmware'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Password',
-                                style: TextStyle(
+      return AlertDialog(
+        title: Text('Do you want to update firmware', style: TextStyle(fontSize: 14),),
+        actions: [
+          CustomMaterialButton(
+            outlined: true,
+            title: 'No',
+            onPressed: (){
+              Navigator.pop(context);
+            },
+          ),
+          CustomMaterialButton(
+            title: 'Yes',
+            onPressed: (){
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return StatefulBuilder(builder: (context, stateSetter) {
+                    return AlertDialog(
+                      title: const Text('Password to Update Firmware'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Password',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xff475467),
+                            ),
+                          ),
+                          Form(
+                            key: formKey,
+                            child: TextFormField(
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                } else if (value !=
+                                    (F.title.toLowerCase().contains('oro')
+                                        ? 'Oro@321'
+                                        : F.title.toLowerCase().contains('smart')
+                                        ? 'LK@321'
+                                        : F.title.toLowerCase().contains('agritel')
+                                        ? 'Agritel@321'
+                                        : 'Oro@321')) {
+                                  return 'Invalid password';
+                                }
+                                return null;
+                              },
+                              obscureText: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                                hintText: 'Password',
+                                hintStyle: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                   color: Color(0xff475467),
                                 ),
-                              ),
-                              Form(
-                                key: formKey,
-                                child: TextFormField(
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter your password';
-                                    } else if (value !=
-                                        (F.title.toLowerCase().contains('oro')
-                                            ? 'Oro@321'
-                                            : F.title.toLowerCase().contains('smart')
-                                            ? 'LK@321'
-                                            : F.title.toLowerCase().contains('agritel')
-                                            ? 'Agritel@321'
-                                            : 'Oro@321')) {
-                                      return 'Invalid password';
-                                    }
-                                    return null;
-                                  },
-                                  obscureText: true,
-                                  decoration: InputDecoration(
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                                    hintText: 'Password',
-                                    hintStyle: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xff475467),
-                                    ),
-                                    prefixIcon: Icon(
-                                      Icons.password,
-                                      color: Theme.of(context).primaryColor,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                  ),
+                                prefixIcon: Icon(
+                                  Icons.password,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                          actions: [
-                            TextButton(
-                                onPressed: (){
-                                  Navigator.of(context).pop();
-                                },
-                                child: Text('Cancel')
-                            ),
-                            CustomMaterialButton(
-                              onPressed: () {
-                                if (formKey.currentState!.validate()) {
-                                  bleService.changingNodeToBootMode();
-                                  Navigator.pop(context);
-                                  userShouldWaitUntilRestart();
-                                }
-                              },
-                              child: Text('Ok', style: TextStyle(color: Colors.white),),
-                            ),
-                          ],
-                        );
-                      });
-                    },
-                  );
-
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                            onPressed: (){
+                              Navigator.of(context).pop();
+                            },
+                            child: Text('Cancel')
+                        ),
+                        CustomMaterialButton(
+                          onPressed: () {
+                            if (formKey.currentState!.validate()) {
+                              bleService.changingNodeToBootMode();
+                              Navigator.pop(context);
+                              userShouldWaitUntilRestart();
+                            }
+                          },
+                          child: Text('Ok', style: TextStyle(color: Colors.white),),
+                        ),
+                      ],
+                    );
+                  });
                 },
-              )
-            ],
-          );
-      }
+              );
+
+            },
+          )
+        ],
       );
+    }
+    );
   }
 
   void nodeNotInBootMode(){
@@ -376,7 +376,7 @@ class _NodeDashboardState extends State<NodeDashboard> {
     required String imagePath,
     required String title,
     required void Function() onTap
-}){
+  }){
     return InkWell(
       onTap: onTap,
       child: Container(

@@ -5,7 +5,7 @@ class FertilizerSiteSettingModel{
   final int objectId;
   final double sNo;
   final String name;
-  final String recipeName;
+  String recipeName;
   bool select;
   List<ChannelSettingModel> channel;
   bool ecActive;

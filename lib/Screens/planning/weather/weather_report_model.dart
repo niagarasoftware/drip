@@ -20,9 +20,11 @@ class WeatherReportModel {
   });
 
   factory WeatherReportModel.fromJson(Map<String, dynamic> json) => WeatherReportModel(
-    code: json["code"],
-    message: json["message"],
-    data: List<Datum>.from(json["data"].map((x) => Datum.fromJson(x))),
+    code: json["code"] ?? 0,
+    message: json["message"] ?? "",
+    data: json["data"] != null && json["data"] is List
+        ? List<Datum>.from(json["data"].map((x) => Datum.fromJson(x)))
+        : [],
   );
 
   Map<String, dynamic> toJson() => {

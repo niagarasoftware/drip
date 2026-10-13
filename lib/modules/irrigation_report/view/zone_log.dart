@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:linked_scroll_controller/linked_scroll_controller.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_datepicker/datepicker.dart';
+import '../../../Widgets/custom_buttons.dart';
 import '../../../models/customer/site_model.dart';
 import '../../SystemDefinitions/widgets/custom_snack_bar.dart';
 import '../repository/irrigation_repository.dart';
@@ -136,6 +140,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   List<SequenceRowData> _sequenceRows = [];
   List<DateTime> _dateColumns = [];
   List<String> _programDropdownOptions = ['All Programs'];
+  int _selectedViewTab = 0; // 0 = Table View, 1 = Graph View
+  String _selectedGraphMetric =
+      'Duration'; // 'Duration' (Green) or 'Quantity' (Orange)
+  String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
+  final Set<String> _expandedBreakdownKeys = {};
+
 
   @override
   void initState() {
@@ -634,9 +644,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               const SizedBox(height: 10),
               // Date Navigation Banner
               _buildDateNavigationBanner(context, primaryDark),
-              // Multi-Day Matrix Table (Fixed header, scrollable rows, fixed total footer)
+              // Multi-Day Matrix Table or Graph View
               Expanded(
-                child: _buildMultiDayMatrixTable(context),
+                child: _selectedViewTab == 0
+                    ? _buildMultiDayMatrixTable(context)
+                    : _buildZoneLogGraphView(context),
               ),
             ],
           ),
@@ -704,6 +716,66 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
   }
 
+  Future<void> _selectDateRange(BuildContext context) async {
+    DateTime tempStart = _fromDate;
+    DateTime tempEnd = _toDate;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Date Picker',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter stateSetter) {
+              return SizedBox(
+                width: 250,
+                height: 280,
+                child: SfDateRangePicker(
+                  selectionMode: DateRangePickerSelectionMode.range,
+                  initialSelectedRange: PickerDateRange(_fromDate, _toDate),
+                  onSelectionChanged:
+                      (DateRangePickerSelectionChangedArgs args) {
+                    if (args.value is PickerDateRange) {
+                      final PickerDateRange range =
+                          args.value as PickerDateRange;
+                      if (range.startDate != null) {
+                        tempStart = range.startDate!;
+                        tempEnd = range.endDate ?? range.startDate!;
+                      }
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            CustomMaterialButton(
+              title: 'Cancel',
+              outlined: true,
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            CustomMaterialButton(
+              title: 'OK',
+              onPressed: () {
+                setState(() {
+                  _fromDate = tempStart;
+                  _toDate = tempEnd;
+                });
+                Navigator.pop(context);
+                fetchZoneLogApi();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildFilterCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -727,116 +799,48 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Row 1: From Date & To Date side-by-side
+                // Row 1: Date Range Selection
                 Row(
                   children: [
-                    // From Date
+                    const Text("Date Range",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(width: 6),
                     Expanded(
-                      child: Row(
-                        children: [
-                          const Text("From Date",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _fromDate,
-                                  firstDate: DateTime(2025),
-                                  lastDate: DateTime(2030),
-                                );
-                                if (picked != null) {
-                                  setState(() {
-                                    _fromDate = picked;
-                                  });
-                                }
-                              },
-                              child: Container(
-                                height: 36,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 4),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                      color: const Color(0xFFCBD5E1)),
-                                  borderRadius: BorderRadius.circular(6),
-                                  color: Colors.white,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                        DateFormat('dd MMM yyyy')
-                                            .format(_fromDate),
-                                        style: const TextStyle(fontSize: 11.5)),
-                                    const Icon(Icons.calendar_today,
-                                        size: 14, color: Color(0xFF64748B)),
-                                  ],
+                      child: InkWell(
+                        onTap: () => _selectDateRange(context),
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                                color: const Color(0xFFCBD5E1)),
+                            borderRadius: BorderRadius.circular(6),
+                            color: Colors.white,
+                          ),
+                          child: Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "${DateFormat('dd MMM yyyy').format(_fromDate)} - ${DateFormat('dd MMM yyyy').format(_toDate)}",
+                                  style: const TextStyle(fontSize: 11.5),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                            ),
+                              const Icon(Icons.calendar_today,
+                                  size: 14, color: Color(0xFF64748B)),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // To Date
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text("To Date",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: InkWell(
-                              onTap: () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: _toDate,
-                                  firstDate: DateTime(2025),
-                                  lastDate: DateTime(2030),
-                                );
-                                if (picked != null) {
-                                  setState(() {
-                                    _toDate = picked;
-                                  });
-                                }
-                              },
-                              child: Container(
-                                height: 36,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 4),
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                      color: const Color(0xFFCBD5E1)),
-                                  borderRadius: BorderRadius.circular(6),
-                                  color: Colors.white,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                        DateFormat('dd MMM yyyy')
-                                            .format(_toDate),
-                                        style: const TextStyle(fontSize: 11.5)),
-                                    const Icon(Icons.calendar_today,
-                                        size: 14, color: Color(0xFF64748B)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Row 2: Program Filter & Action Buttons
+                // Row 2: Program Filter & Excel Button
                 Row(
                   children: [
                     // Program Dropdown
@@ -889,38 +893,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    // Filter Button
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E88E5),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 0),
-                        minimumSize: const Size(0, 36),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6)),
-                      ),
-                      onPressed: () => fetchZoneLogApi(),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.filter_alt_outlined,
-                              size: 14, color: Colors.white),
-                          SizedBox(width: 3),
-                          Text("Filter",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11.5)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-
                     // Excel Button
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 0),
+                            horizontal: 8, vertical: 0),
                         minimumSize: const Size(0, 36),
                         side: const BorderSide(color: Color(0xFF2E7D32)),
                         backgroundColor: Colors.white,
@@ -954,28 +931,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             runSpacing: 10,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              // From Date Picker
+              // Date Range Picker
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("From Date",
+                  const Text("Date Range",
                       style:
                           TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _fromDate,
-                        firstDate: DateTime(2025),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          _fromDate = picked;
-                        });
-                      }
-                    },
+                    onTap: () => _selectDateRange(context),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 8),
@@ -985,52 +950,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Colors.white,
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(DateFormat('dd MMM yyyy').format(_fromDate),
-                              style: const TextStyle(fontSize: 13)),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.calendar_today,
-                              size: 16, color: Color(0xFF64748B)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // To Date Picker
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("To Date",
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _toDate,
-                        firstDate: DateTime(2025),
-                        lastDate: DateTime(2030),
-                      );
-                      if (picked != null) {
-                        setState(() {
-                          _toDate = picked;
-                        });
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFCBD5E1)),
-                        borderRadius: BorderRadius.circular(6),
-                        color: Colors.white,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(DateFormat('dd MMM yyyy').format(_toDate),
-                              style: const TextStyle(fontSize: 13)),
+                          Text(
+                            "${DateFormat('dd MMM yyyy').format(_fromDate)} - ${DateFormat('dd MMM yyyy').format(_toDate)}",
+                            style: const TextStyle(fontSize: 13),
+                          ),
                           const SizedBox(width: 8),
                           const Icon(Icons.calendar_today,
                               size: 16, color: Color(0xFF64748B)),
@@ -1082,30 +1007,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ],
               ),
 
-              // Filter Button
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E88E5),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6)),
-                    ),
-                    onPressed: () {
-                      fetchZoneLogApi();
-                    },
-                    icon: const Icon(Icons.filter_alt_outlined,
-                        size: 16, color: Colors.white),
-                    label: const Text("Filter",
-                        style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-
               // Excel Export Button
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1137,7 +1038,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Widget _buildDateNavigationBanner(BuildContext context, Color primaryDark) {
     return Container(
-      height: 42,
+      constraints: const BoxConstraints(minHeight: 44),
       decoration: const BoxDecoration(
         color: Color(0xFF00695C),
         borderRadius: BorderRadius.only(
@@ -1145,22 +1046,155 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           topRight: Radius.circular(6),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.table_chart, size: 16, color: Colors.white),
-          const SizedBox(width: 8),
-          Text(
-            "Zone Log (${DateFormat('dd MMM yyyy').format(_fromDate)} - ${DateFormat('dd MMM yyyy').format(_toDate)})",
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              // Row(
+              //   mainAxisSize: MainAxisSize.min,
+              //   children: [
+              //     const Icon(Icons.table_chart, size: 16, color: Colors.white),
+              //     const SizedBox(width: 8),
+              //     Text(
+              //       "Zone Log (${DateFormat('dd MMM yyyy').format(_fromDate)} - ${DateFormat('dd MMM yyyy').format(_toDate)})",
+              //       style: const TextStyle(
+              //         color: Colors.white,
+              //         fontWeight: FontWeight.bold,
+              //         fontSize: 13,
+              //       ),
+              //     ),
+              //   ],
+              // ),
+              // Table View & Graph View Toggle Tabs
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        if (_selectedViewTab != 0) {
+                          setState(() {
+                            _selectedViewTab = 0;
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedViewTab == 0
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: _selectedViewTab == 0
+                              ? const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.table_rows_outlined,
+                              size: 14,
+                              color: _selectedViewTab == 0
+                                  ? const Color(0xFF00695C)
+                                  : Colors.white,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              "Table View",
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: _selectedViewTab == 0
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: _selectedViewTab == 0
+                                    ? const Color(0xFF00695C)
+                                    : Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    InkWell(
+                      onTap: () {
+                        if (_selectedViewTab != 1) {
+                          setState(() {
+                            _selectedViewTab = 1;
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedViewTab == 1
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: _selectedViewTab == 1
+                              ? const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.bar_chart_rounded,
+                              size: 14,
+                              color: _selectedViewTab == 1
+                                  ? const Color(0xFF00695C)
+                                  : Colors.white,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              "Graph View",
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: _selectedViewTab == 1
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: _selectedViewTab == 1
+                                    ? const Color(0xFF00695C)
+                                    : Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1234,20 +1268,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           );
         }
 
-        // Base Column Widths (Program/Sequence, Duration, Quantity, Total Duration, Total Quantity)
+        // Base Column Widths (Program/Sequence, Date column, Total column)
         const double baseSeqWidth = 160;
-        const double baseDurationQtyWidth = 130;
-        const double baseQtyCompletedWidth = 120;
-        const double baseTotalDurationWidth = 120;
-        const double baseTotalQuantityWidth = 110;
-        const double baseTotalBlockWidth =
-            baseTotalDurationWidth + baseTotalQuantityWidth; // 230
-        const double baseDateBlockWidth =
-            baseDurationQtyWidth + baseQtyCompletedWidth; // 250
+        const double baseDateColWidth = 145;
+        const double baseTotalWidth = 145;
 
         final double naturalTableWidth = baseSeqWidth +
-            (_dateColumns.length * baseDateBlockWidth) +
-            baseTotalBlockWidth;
+            (_dateColumns.length * baseDateColWidth) +
+            baseTotalWidth;
 
         final double scale =
             (availableWidth > naturalTableWidth && naturalTableWidth > 0)
@@ -1255,15 +1283,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 : 1.0;
 
         final double colSeqWidth = baseSeqWidth * scale;
-        final double colDurationQtyWidth = baseDurationQtyWidth * scale;
-        final double colQtyCompletedWidth = baseQtyCompletedWidth * scale;
-        final double colTotalDurationWidth = baseTotalDurationWidth * scale;
-        final double colTotalQuantityWidth = baseTotalQuantityWidth * scale;
-        final double totalBlockWidth =
-            colTotalDurationWidth + colTotalQuantityWidth;
-        final double dateBlockWidth =
-            colDurationQtyWidth + colQtyCompletedWidth;
-        final double dateAreaWidth = dateBlockWidth * _dateColumns.length;
+        final double colDateWidth = baseDateColWidth * scale;
+        final double colTotalWidth = baseTotalWidth * scale;
+        final double dateAreaWidth = colDateWidth * _dateColumns.length;
 
         return Container(
           decoration: BoxDecoration(
@@ -1279,7 +1301,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           ),
           child: Row(
             children: [
-              // 1. PINNED LEFT PROGRAM / SEQUENCE COLUMN (Fixed horizontally, Synchronized vertically)
+              // 1. PINNED LEFT PROGRAM / SEQUENCE COLUMN
               Container(
                 width: colSeqWidth,
                 height: constraints.maxHeight,
@@ -1323,7 +1345,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     // Sub-Header: Program / Sequence
                     _buildSubHeaderCell("Program /\nSequence", colSeqWidth),
 
-                    // Middle Data Rows (Synchronized vertically with other columns)
+                    // Middle Data Rows (Synchronized vertically)
                     Expanded(
                       child: ScrollConfiguration(
                         behavior: ScrollConfiguration.of(context).copyWith(
@@ -1378,7 +1400,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               ),
 
-              // 2. DATE COLUMNS AREA (Horizontally scrollable, Vertically scrollable rows)
+              // 2. DATE COLUMNS AREA (Combined Duration / Quantity per date)
               Expanded(
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context).copyWith(
@@ -1408,14 +1430,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP HEADER ROW (Yellow/Gold Date Headers)
+                            // TOP HEADER ROW (Yellow Date Headers)
                             Row(
                               children: [
                                 for (int dIdx = 0;
                                     dIdx < _dateColumns.length;
                                     dIdx++)
                                   Container(
-                                    width: dateBlockWidth,
+                                    width: colDateWidth,
                                     height: 38,
                                     alignment: Alignment.center,
                                     decoration: const BoxDecoration(
@@ -1440,17 +1462,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               ],
                             ),
 
-                            // SUB-HEADER ROW (Sub-columns per date: Duration & Quantity)
+                            // SUB-HEADER ROW: Single "Duration / Quantity" per date
                             Row(
                               children: [
                                 for (int dIdx = 0;
                                     dIdx < _dateColumns.length;
-                                    dIdx++) ...[
+                                    dIdx++)
                                   _buildSubHeaderCell(
-                                      "Duration", colDurationQtyWidth),
-                                  _buildSubHeaderCell(
-                                      "Quantity", colQtyCompletedWidth),
-                                ],
+                                      "Duration /\nQuantity", colDateWidth),
                               ],
                             ),
 
@@ -1485,8 +1504,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           _buildDateOnlySequenceDataRow(
                                             filteredRows[rIdx],
                                             rIdx,
-                                            colDurationQtyWidth,
-                                            colQtyCompletedWidth,
+                                            colDateWidth,
                                           ),
                                       ],
                                     ),
@@ -1499,8 +1517,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             _buildDailyFooterTotalRow(
                               dailyTotals,
                               dailyTotalQuantities,
-                              colDurationQtyWidth,
-                              colQtyCompletedWidth,
+                              colDateWidth,
                             ),
                           ],
                         ),
@@ -1510,9 +1527,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               ),
 
-              // 3. PINNED RIGHT TOTAL COLUMN (Fixed horizontally, Synchronized vertically)
+              // 3. PINNED RIGHT TOTAL COLUMN: Single "Total Duration / Quantity"
               Container(
-                width: totalBlockWidth,
+                width: colTotalWidth,
                 height: constraints.maxHeight,
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -1551,25 +1568,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
 
-                    // Sub-Header: Total Duration & Total Quantity
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 12,
-                          child: _buildSubHeaderCell(
-                              "Total\nDuration", double.infinity,
-                              isTotalCol: true),
-                        ),
-                        Expanded(
-                          flex: 11,
-                          child: _buildSubHeaderCell(
-                              "Total\nQuantity", double.infinity,
-                              isTotalCol: true),
-                        ),
-                      ],
-                    ),
+                    // Sub-Header: Total Duration / Quantity
+                    _buildSubHeaderCell("Duration /\nQuantity", colTotalWidth,
+                        isTotalCol: true),
 
-                    // Middle Data Rows (Synchronized vertically with middle table)
+                    // Middle Data Rows (Synchronized vertically)
                     Expanded(
                       child: ScrollConfiguration(
                         behavior: ScrollConfiguration.of(context).copyWith(
@@ -1592,8 +1595,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 _buildPinnedTotalDataRow(
                                   filteredRows[rIdx],
                                   rIdx,
-                                  colTotalDurationWidth,
-                                  colTotalQuantityWidth,
+                                  colTotalWidth,
                                   isPinned: true,
                                 ),
                             ],
@@ -1602,61 +1604,28 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
 
-                    // Footer: Grand Total (Duration & Quantity)
+                    // Footer: Grand Total (Duration / Quantity)
                     Container(
                       width: double.infinity,
                       height: 46,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: const BoxDecoration(
                         color: Color(0xFFDCFCE7),
                         border: Border(
                           top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            flex: 12,
-                            child: Container(
-                              height: 46,
-                              alignment: Alignment.center,
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                  right: BorderSide(
-                                      color: Color(0xFFCBD5E1), width: 1),
-                                ),
-                              ),
-                              child: Text(
-                                _formatDuration(grandTotalSeconds),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF15803D),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 11,
-                            child: Container(
-                              height: 46,
-                              alignment: Alignment.center,
-                              child: Text(
-                                grandTotalQuantity.toString(),
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF15803D),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF15803D),
+                        ),
                       ),
                     ),
                   ],
@@ -1678,15 +1647,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalQuantity,
   ) {
     const double colSeqWidth = 145;
-    const double colDurationQtyWidth = 115;
-    const double colQtyCompletedWidth = 100;
-    const double colTotalDurationWidth = 115;
-    const double colTotalQuantityWidth = 100;
-    const double totalBlockWidth =
-        colTotalDurationWidth + colTotalQuantityWidth;
-    const double dateBlockWidth = colDurationQtyWidth + colQtyCompletedWidth;
+    const double colDateWidth = 140;
+    const double colTotalWidth = 140;
     final double totalTableWidth =
-        colSeqWidth + (dateBlockWidth * _dateColumns.length) + totalBlockWidth;
+        colSeqWidth + (colDateWidth * _dateColumns.length) + colTotalWidth;
 
     return Container(
       decoration: BoxDecoration(
@@ -1748,7 +1712,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                       for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
                         Container(
-                          width: dateBlockWidth,
+                          width: colDateWidth,
                           height: 38,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
@@ -1771,7 +1735,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           ),
                         ),
                       Container(
-                        width: totalBlockWidth,
+                        width: colTotalWidth,
                         height: 38,
                         alignment: Alignment.center,
                         decoration: const BoxDecoration(
@@ -1798,17 +1762,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildSubHeaderCell("Program /\nSequence", colSeqWidth),
-                      for (int dIdx = 0;
-                          dIdx < _dateColumns.length;
-                          dIdx++) ...[
-                        _buildSubHeaderCell("Duration", colDurationQtyWidth),
-                        _buildSubHeaderCell("Quantity", colQtyCompletedWidth),
-                      ],
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        _buildSubHeaderCell(
+                            "Duration /\nQuantity", colDateWidth),
                       _buildSubHeaderCell(
-                          "Total\nDuration", colTotalDurationWidth,
-                          isTotalCol: true),
-                      _buildSubHeaderCell(
-                          "Total\nQuantity", colTotalQuantityWidth,
+                          "Total\nDuration /\nQuantity", colTotalWidth,
                           isTotalCol: true),
                     ],
                   ),
@@ -1819,10 +1777,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       filteredRows[rIdx],
                       rIdx,
                       colSeqWidth,
-                      colDurationQtyWidth,
-                      colQtyCompletedWidth,
-                      colTotalDurationWidth,
-                      colTotalQuantityWidth,
+                      colDateWidth,
+                      colTotalWidth,
                     ),
 
                   // 4. FOOTER TOTAL ROW
@@ -1832,10 +1788,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     grandTotalSeconds,
                     grandTotalQuantity,
                     colSeqWidth,
-                    colDurationQtyWidth,
-                    colQtyCompletedWidth,
-                    colTotalDurationWidth,
-                    colTotalQuantityWidth,
+                    colDateWidth,
+                    colTotalWidth,
                   ),
                 ],
               ),
@@ -1850,10 +1804,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     SequenceRowData row,
     int rowIndex,
     double colSeqWidth,
-    double colDurationQtyWidth,
-    double colQtyCompletedWidth,
-    double colTotalDurationWidth,
-    double colTotalQuantityWidth,
+    double colDateWidth,
+    double colTotalWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
@@ -1872,14 +1824,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDurationQtyWidth,
-              colQtyCompletedWidth,
+              colDateWidth,
             ),
           _buildPinnedTotalDataRow(
             row,
             rowIndex,
-            colTotalDurationWidth,
-            colTotalQuantityWidth,
+            colTotalWidth,
           ),
         ],
       ),
@@ -1892,10 +1842,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalSeconds,
     int grandTotalQuantity,
     double colSeqWidth,
-    double colDurationQtyWidth,
-    double colQtyCompletedWidth,
-    double colTotalDurationWidth,
-    double colTotalQuantityWidth,
+    double colDateWidth,
+    double colTotalWidth,
   ) {
     return Container(
       height: 46,
@@ -1932,81 +1880,44 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
+              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
 
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: colDurationQtyWidth,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                      ),
-                    ),
-                    child: Text(
-                      dayTotalFormatted,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF166534),
-                      ),
-                    ),
+              return Container(
+                width: colDateWidth,
+                height: 46,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
                   ),
-                  Container(
-                    width: colQtyCompletedWidth,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                      ),
-                    ),
-                    child: Text(
-                      daySumQty.toString(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF166534),
-                      ),
-                    ),
+                ),
+                child: Text(
+                  "$dayTotalFormatted /\n$qtyStr",
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF166534),
                   ),
-                ],
+                ),
               );
             }),
           Container(
-            width: colTotalDurationWidth,
+            width: colTotalWidth,
             height: 46,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: Color(0xFFDCFCE7),
-              border: Border(
-                right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-              ),
-            ),
-            child: Text(
-              _formatDuration(grandTotalSeconds),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF15803D),
-              ),
-            ),
-          ),
-          Container(
-            width: colTotalQuantityWidth,
-            height: 46,
-            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             decoration: const BoxDecoration(
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              grandTotalQuantity.toString(),
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -2025,7 +1936,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       width: width.isFinite ? width : null,
       height: 40,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
         color: isTotalCol ? const Color(0xFFFFF7ED) : const Color(0xFFE0F2F1),
         border: const Border(
@@ -2039,7 +1950,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         softWrap: true,
         maxLines: 2,
         style: const TextStyle(
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: FontWeight.bold,
           color: Color(0xFF0F766E),
         ),
@@ -2110,8 +2021,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDateOnlySequenceDataRow(
     SequenceRowData row,
     int rowIndex,
-    double colDurationQtyWidth,
-    double colQtyCompletedWidth,
+    double colDateWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
@@ -2124,14 +2034,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDurationQtyWidth,
-              colQtyCompletedWidth,
+              colDateWidth,
             ),
-          ],
         ],
       ),
     );
@@ -2140,8 +2048,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildPinnedTotalDataRow(
     SequenceRowData row,
     int rowIndex,
-    double colTotalDurationWidth,
-    double colTotalQuantityWidth, {
+    double colTotalWidth, {
     bool isPinned = false,
   }) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
@@ -2156,141 +2063,86 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
     }
 
+    String formattedText =
+        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? rowTotalQuantity : '-'}";
+
     if (isPinned) {
       return Container(
+        width: colTotalWidth,
         height: 52,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
           color: rowBg,
           border: const Border(
             bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 12,
-              child: Container(
-                height: 52,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                  ),
-                ),
-                child: Text(
-                  _formatDuration(rowTotalSeconds),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF15803D),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 11,
-              child: Container(
-                height: 52,
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Text(
-                  rowTotalQuantity.toString(),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF15803D),
-                  ),
-                ),
-              ),
-            ),
-          ],
+        child: Text(
+          formattedText,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF15803D),
+          ),
         ),
       );
     }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: colTotalDurationWidth,
-          height: 52,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          decoration: const BoxDecoration(
-            border: Border(
-              left: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-              right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-            ),
-          ),
-          child: Text(
-            _formatDuration(rowTotalSeconds),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF15803D),
-            ),
-          ),
+    return Container(
+      width: colTotalWidth,
+      height: 52,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: const BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+          right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
         ),
-        Container(
-          width: colTotalQuantityWidth,
-          height: 52,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Text(
-            rowTotalQuantity.toString(),
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF15803D),
-            ),
-          ),
+      ),
+      child: Text(
+        formattedText,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF15803D),
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildDateSequenceBlock(
     SequenceRowData row,
     DateTime date,
-    double colDurationQtyWidth,
-    double colQtyCompletedWidth,
+    double colDateWidth,
   ) {
     String dKey = DateFormat('yyyy-MM-dd').format(date);
     SequenceDayData? dayData = row.dayEntries[dKey];
 
-    String durationQty = (dayData != null && dayData.hasRun)
-        ? dayData.durationQtyStr
-        : '00:00:00';
-    String qtyCompleted =
-        (dayData != null && dayData.hasRun) ? dayData.qtyCompletedStr : '0';
+    String cellText;
+    bool isBold = false;
+    if (dayData != null && dayData.hasRun) {
+      String dur = dayData.durationQtyStr;
+      String qty = dayData.quantityCompleted > 0
+          ? dayData.quantityCompleted.toString()
+          : '-';
+      cellText = "$dur /\n$qty";
+      isBold = dur != '00:00:00' || qty != '-';
+    } else {
+      cellText = "- /\n-";
+    }
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildDataTableCell(
-          durationQty,
-          colDurationQtyWidth,
-          isBold: durationQty != '-' && durationQty != '00:00:00',
-        ),
-        _buildDataTableCell(
-          qtyCompleted,
-          colQtyCompletedWidth,
-          isBold: qtyCompleted != '0' && qtyCompleted != '-',
-        ),
-      ],
+    return _buildDataTableCell(
+      cellText,
+      colDateWidth,
+      isBold: isBold,
+      maxLines: 2,
     );
   }
 
@@ -2298,13 +2150,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     String text,
     double width, {
     bool isBold = false,
-    int maxLines = 1,
+    int maxLines = 2,
   }) {
     return Container(
       width: width,
       height: 52,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: const BoxDecoration(
         border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
       ),
@@ -2315,9 +2167,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: 10.5,
           fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-          color: (text == '-' || text == '00:00:00')
+          color: (text == '-' ||
+                  text == '- /\n-' ||
+                  text == '- / -' ||
+                  text == '00:00:00 /\n-' ||
+                  text == '00:00:00 / -')
               ? const Color(0xFF94A3B8)
               : const Color(0xFF1E293B),
         ),
@@ -2328,8 +2184,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDailyFooterTotalRow(
     Map<String, int> dailyTotals,
     Map<String, int> dailyTotalQuantities,
-    double colDurationQtyWidth,
-    double colQtyCompletedWidth,
+    double colDateWidth,
   ) {
     return Container(
       height: 46,
@@ -2341,59 +2196,1149 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
+              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
 
-              return Row(
-                children: [
-                  Container(
-                    width: colDurationQtyWidth,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                      ),
-                    ),
-                    child: Text(
-                      dayTotalFormatted,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF166534),
-                      ),
-                    ),
+              return Container(
+                width: colDateWidth,
+                height: 46,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
                   ),
-                  Container(
-                    width: colQtyCompletedWidth,
-                    height: 46,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                      ),
-                    ),
-                    child: Text(
-                      daySumQty.toString(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF166534),
-                      ),
-                    ),
+                ),
+                child: Text(
+                  "$dayTotalFormatted /\n$qtyStr",
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF166534),
                   ),
-                ],
+                ),
               );
             }),
-          ],
         ],
       ),
     );
   }
+
+  // ==========================================
+  // GRAPH VIEW IMPLEMENTATION
+  // ==========================================
+  Widget _buildZoneLogGraphView(BuildContext context) {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(40.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    var filteredRows = _getFilteredSequenceRows();
+
+    if (_dateColumns.isEmpty || filteredRows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            "No data available for graph",
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Totals calculation
+    int grandTotalSeconds = 0;
+    int grandTotalQuantity = 0;
+    for (var r in filteredRows) {
+      grandTotalSeconds += r.totalDurationSeconds;
+      grandTotalQuantity += r.totalQuantity;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              // 1. Metric Summary Cards
+              _buildGraphSummaryCards(
+                grandTotalSeconds: grandTotalSeconds,
+                grandTotalQuantity: grandTotalQuantity,
+                totalSequences: filteredRows.length,
+                totalDays: _dateColumns.length,
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Chart Card with Mode / Type Selector
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Controls: Mode Selector & Type Selector
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Metric selector: Duration (mins) [Green] vs Quantity [Orange]
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildMetricTab(
+                                label: "Duration (mins)",
+                                icon: Icons.timer_outlined,
+                                activeColor: const Color(0xFF0D9488),
+                                isSelected: _selectedGraphMetric == 'Duration',
+                                onTap: () => setState(
+                                    () => _selectedGraphMetric = 'Duration'),
+                              ),
+                              _buildMetricTab(
+                                label: "Quantity",
+                                icon: Icons.water_drop_outlined,
+                                activeColor: const Color(0xFFF97316),
+                                isSelected: _selectedGraphMetric == 'Quantity',
+                                onTap: () => setState(
+                                    () => _selectedGraphMetric = 'Quantity'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Chart type selector
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildGraphTypeIcon(
+                                icon: Icons.bar_chart,
+                                tooltip: "Column Chart",
+                                isSelected: _graphChartType == 'Column',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Column'),
+                              ),
+                              _buildGraphTypeIcon(
+                                icon: Icons.show_chart,
+                                tooltip: "Line Chart",
+                                isSelected: _graphChartType == 'Spline',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Spline'),
+                              ),
+                              _buildGraphTypeIcon(
+                                icon: Icons.area_chart,
+                                tooltip: "Area Chart",
+                                isSelected: _graphChartType == 'Area',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Area'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SfCartesianChart with horizontal scrolling for 1 month or constrained width
+                    LayoutBuilder(
+                      builder: (context, chartConstraints) {
+                        const double minWidthPerDate = 45.0;
+                        final double totalCalculatedWidth =
+                            _dateColumns.length * minWidthPerDate;
+                        final double chartWidth = math.max(
+                            chartConstraints.maxWidth, totalCalculatedWidth);
+
+                        return ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            dragDevices: {
+                              PointerDeviceKind.touch,
+                              PointerDeviceKind.mouse,
+                              PointerDeviceKind.trackpad,
+                              PointerDeviceKind.stylus,
+                            },
+                          ),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: chartWidth,
+                              height: 320,
+                              child: _buildSfChart(filteredRows),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // 3. Sequence Breakdown Cards
+              Text(
+                "Sequence Breakdown (${filteredRows.length})",
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              for (var row in filteredRows)
+                _buildSequenceBreakdownCard(
+                    row, grandTotalSeconds, grandTotalQuantity),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGraphSummaryCards({
+    required int grandTotalSeconds,
+    required int grandTotalQuantity,
+    required int totalSequences,
+    required int totalDays,
+  }) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final isMobile = constraints.maxWidth < 600;
+
+      return isMobile
+          ? Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryCard(
+                        title: "Total Duration",
+                        value: _formatDuration(grandTotalSeconds),
+                        icon: Icons.timer_outlined,
+                        color: const Color(0xFF00897B),
+                        bgColor: const Color(0xFFE0F2F1),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        title: "Total Quantity",
+                        value: grandTotalQuantity > 0
+                            ? "$grandTotalQuantity"
+                            : "-",
+                        icon: Icons.water_drop_outlined,
+                        color: const Color(0xFFF97316),
+                        bgColor: const Color(0xFFFFF7ED),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryCard(
+                        title: "Sequences",
+                        value: "$totalSequences",
+                        icon: Icons.account_tree_outlined,
+                        color: const Color(0xFF2563EB),
+                        bgColor: const Color(0xFFEFF6FF),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryCard(
+                        title: "Date Range",
+                        value: "$totalDays Days",
+                        icon: Icons.date_range_outlined,
+                        color: const Color(0xFF7C3AED),
+                        bgColor: const Color(0xFFF5F3FF),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: _buildSummaryCard(
+                    title: "Total Duration",
+                    value: _formatDuration(grandTotalSeconds),
+                    icon: Icons.timer_outlined,
+                    color: const Color(0xFF00897B),
+                    bgColor: const Color(0xFFE0F2F1),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildSummaryCard(
+                    title: "Total Quantity",
+                    value: grandTotalQuantity > 0 ? "$grandTotalQuantity" : "-",
+                    icon: Icons.water_drop_outlined,
+                    color: const Color(0xFFF97316),
+                    bgColor: const Color(0xFFFFF7ED),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildSummaryCard(
+                    title: "Sequences",
+                    value: "$totalSequences",
+                    icon: Icons.account_tree_outlined,
+                    color: const Color(0xFF2563EB),
+                    bgColor: const Color(0xFFEFF6FF),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildSummaryCard(
+                    title: "Date Range",
+                    value: "$totalDays Days",
+                    icon: Icons.date_range_outlined,
+                    color: const Color(0xFF7C3AED),
+                    bgColor: const Color(0xFFF5F3FF),
+                  ),
+                ),
+              ],
+            );
+    });
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required Color bgColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricTab({
+    required String label,
+    required IconData icon,
+    required Color activeColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 2,
+                    offset: Offset(0, 1),
+                  )
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGraphTypeIcon({
+    required IconData icon,
+    required String tooltip,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: isSelected
+                ? const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 2,
+                      offset: Offset(0, 1),
+                    )
+                  ]
+                : null,
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color:
+                isSelected ? const Color(0xFF00695C) : const Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSfChart(List<SequenceRowData> rows) {
+    List<_ZoneChartPoint> dataPoints = [];
+
+    // Always Date Wise
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      String label = DateFormat('dd/MM').format(d);
+      int sumSec = 0;
+      int sumQty = 0;
+      for (var r in rows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          sumSec += r.dayEntries[dKey]!.durationQtySeconds;
+          sumQty += r.dayEntries[dKey]!.quantityCompleted;
+        }
+      }
+      double durMinutes = sumSec / 60.0;
+      dataPoints.add(_ZoneChartPoint(
+        xLabel: label,
+        durationMinutes: durMinutes,
+        durationFormatted: _formatDuration(sumSec),
+        quantity: sumQty.toDouble(),
+      ));
+    }
+
+    final bool isDuration = _selectedGraphMetric == 'Duration';
+
+    return SfCartesianChart(
+      legend: const Legend(
+        isVisible: true,
+        toggleSeriesVisibility: false,
+        position: LegendPosition.top,
+        alignment: ChartAlignment.center,
+        textStyle: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF334155),
+        ),
+      ),
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        shared: false,
+        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
+            int seriesIndex) {
+          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
+            return const SizedBox();
+          }
+          final p = dataPoints[pointIndex];
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.xLabel,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDuration
+                          ? Icons.timer_outlined
+                          : Icons.water_drop_outlined,
+                      size: 12,
+                      color: isDuration
+                          ? const Color(0xFF2DD4BF)
+                          : const Color(0xFFFB923C),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isDuration
+                          ? "Duration: ${p.durationFormatted}"
+                          : "Quantity: ${p.quantity > 0 ? p.quantity.toInt().toString() : '-'}",
+                      style: TextStyle(
+                        color: isDuration
+                            ? const Color(0xFF2DD4BF)
+                            : const Color(0xFFFB923C),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      primaryXAxis: CategoryAxis(
+        labelRotation: dataPoints.length > 7 ? -45 : 0,
+        labelStyle: const TextStyle(
+          fontSize: 10.5,
+          color: Color(0xFF64748B),
+          fontWeight: FontWeight.w500,
+        ),
+        majorGridLines: const MajorGridLines(width: 0),
+        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+      ),
+      primaryYAxis: NumericAxis(
+        title: AxisTitle(
+          text: isDuration ? "Duration (mins)" : "Quantity",
+          textStyle: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color:
+                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
+          ),
+        ),
+        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+        majorGridLines: const MajorGridLines(
+          color: Color(0xFFF1F5F9),
+          width: 1,
+        ),
+        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+      ),
+      series: _buildChartSeries(dataPoints, isDuration),
+    );
+  }
+
+  List<CartesianSeries<_ZoneChartPoint, String>> _buildChartSeries(
+      List<_ZoneChartPoint> data, bool isDuration) {
+    if (isDuration) {
+      // Duration: Green / Teal
+      if (_graphChartType == 'Spline') {
+        return [
+          SplineSeries<_ZoneChartPoint, String>(
+            name: 'Duration (mins)',
+            dataSource: data,
+            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
+            color: const Color(0xFF0D9488),
+            width: 3,
+            markerSettings: const MarkerSettings(isVisible: true),
+          ),
+        ];
+      } else if (_graphChartType == 'Area') {
+        return [
+          SplineAreaSeries<_ZoneChartPoint, String>(
+            name: 'Duration (mins)',
+            dataSource: data,
+            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
+            color: const Color(0xFF0D9488).withValues(alpha: 0.3),
+            borderColor: const Color(0xFF0D9488),
+            borderWidth: 2,
+          ),
+        ];
+      }
+
+      // Default: Column series in Green
+      return [
+        ColumnSeries<_ZoneChartPoint, String>(
+          name: 'Duration (mins)',
+          dataSource: data,
+          xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+          yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
+          color: const Color(0xFF0D9488),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          width: 0.4,
+        ),
+      ];
+    } else {
+      // Quantity: Orange
+      if (_graphChartType == 'Spline') {
+        return [
+          SplineSeries<_ZoneChartPoint, String>(
+            name: 'Quantity',
+            dataSource: data,
+            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
+            color: const Color(0xFFF97316),
+            width: 3,
+            markerSettings: const MarkerSettings(isVisible: true),
+          ),
+        ];
+      } else if (_graphChartType == 'Area') {
+        return [
+          SplineAreaSeries<_ZoneChartPoint, String>(
+            name: 'Quantity',
+            dataSource: data,
+            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
+            color: const Color(0xFFF97316).withValues(alpha: 0.25),
+            borderColor: const Color(0xFFF97316),
+            borderWidth: 2,
+          ),
+        ];
+      }
+
+      // Default: Column series in Orange
+      return [
+        ColumnSeries<_ZoneChartPoint, String>(
+          name: 'Quantity',
+          dataSource: data,
+          xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+          yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
+          color: const Color(0xFFF97316),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+          width: 0.4,
+        ),
+      ];
+    }
+  }
+
+  Widget _buildSequenceBreakdownCard(
+      SequenceRowData row, int grandTotalSeconds, int grandTotalQuantity) {
+    bool isExpanded = _expandedBreakdownKeys.contains(row.key);
+
+    Widget toggleBtn = InkWell(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedBreakdownKeys.remove(row.key);
+          } else {
+            _expandedBreakdownKeys.add(row.key);
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+        ),
+        child: Icon(
+          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+          size: 16,
+          color: const Color(0xFFEA580C),
+        ),
+      ),
+    );
+
+    Widget durationBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0F2F1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_outlined, size: 11, color: Color(0xFF0F766E)),
+          const SizedBox(width: 3),
+          Text(
+            _formatDuration(row.totalDurationSeconds),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F766E),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Widget quantityBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.water_drop_outlined,
+              size: 11, color: Color(0xFFEA580C)),
+          const SizedBox(width: 3),
+          Text(
+            row.totalQuantity > 0 ? "${row.totalQuantity}" : "-",
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFEA580C),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 460;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isNarrow) ...[
+                // Mobile / Narrow: Row 1 = Sequence Badge + Program Name + Toggle
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: const Color(0xFFC8E6C9), width: 1),
+                      ),
+                      child: Text(
+                        row.seqName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    if (row.progName.isNotEmpty &&
+                        row.progName != row.seqName) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "(${row.progName})",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      const Spacer(),
+                    ],
+                    toggleBtn,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Mobile / Narrow: Row 2 = Duration Badge & Quantity Badge
+                Row(
+                  children: [
+                    durationBadge,
+                    const SizedBox(width: 6),
+                    quantityBadge,
+                  ],
+                ),
+              ] else ...[
+                // Wide / Tablet / Desktop: Single Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: const Color(0xFFC8E6C9), width: 1),
+                            ),
+                            child: Text(
+                              row.seqName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ),
+                          if (row.progName.isNotEmpty &&
+                              row.progName != row.seqName) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "(${row.progName})",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        durationBadge,
+                        const SizedBox(width: 6),
+                        quantityBadge,
+                        const SizedBox(width: 6),
+                        toggleBtn,
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+
+
+              // Expanded Date-wise Duration, Quantity & Total breakdown
+              if (isExpanded) ...[
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F9),
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(5)),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Date",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Duration",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Quantity",
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Date Rows
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        Builder(builder: (context) {
+                          DateTime d = _dateColumns[dIdx];
+                          String dKey = DateFormat('yyyy-MM-dd').format(d);
+                          SequenceDayData? dayData = row.dayEntries[dKey];
+
+                          bool hasRun = dayData != null && dayData.hasRun;
+                          int durSec = dayData?.durationQtySeconds ?? 0;
+                          int qty = dayData?.quantityCompleted ?? 0;
+
+                          String durStr = (hasRun && durSec > 0)
+                              ? _formatDuration(durSec)
+                              : (hasRun && dayData.durationQtyStr != '00:00:00'
+                                  ? dayData.durationQtyStr
+                                  : '-');
+                          String qtyStr =
+                              (hasRun && qty > 0) ? qty.toString() : '-';
+
+                          Color rowBg = dIdx % 2 == 0
+                              ? Colors.white
+                              : const Color(0xFFF8FAFC);
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            color: rowBg,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    DateFormat('dd/MM/yyyy').format(d),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: hasRun
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: hasRun
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    durStr,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: durStr != '-'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: durStr != '-'
+                                          ? const Color(0xFF0F766E)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    qtyStr,
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: qtyStr != '-'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: qtyStr != '-'
+                                          ? const Color(0xFFEA580C)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      // Total Footer Row
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF0FDF4),
+                          borderRadius:
+                              BorderRadius.vertical(bottom: Radius.circular(5)),
+                          border: Border(
+                            top: BorderSide(
+                                color: Color(0xFFBBF7D0), width: 1.5),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Total",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF166534),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                _formatDuration(row.totalDurationSeconds),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                row.totalQuantity > 0
+                                    ? "${row.totalQuantity}"
+                                    : "-",
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ZoneChartPoint {
+  final String xLabel;
+  final double durationMinutes;
+  final String durationFormatted;
+  final double quantity;
+
+  _ZoneChartPoint({
+    required this.xLabel,
+    required this.durationMinutes,
+    required this.durationFormatted,
+    required this.quantity,
+  });
 }

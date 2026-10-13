@@ -149,9 +149,14 @@ Map<String, dynamic> dashboardToWeatherFormat(
     "serialNumber": 1,
   });
 
+  debugPrint("dashboardToWeatherFormat last7Days: ${dashboard.last7Days}");
+  debugPrint("dashboardToWeatherFormat last30Days: ${dashboard.last30Days}");
+
   return {
     "weatherLive": dashboard.live?.toJson(),
     "deviceList": deviceList,
     "configObject": configList,
+    "last7Days": dashboard.last7Days,
+    "last30Days": dashboard.last30Days,
   };
 }

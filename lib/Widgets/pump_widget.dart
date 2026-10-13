@@ -7,6 +7,7 @@ import '../flavors.dart';
 import '../models/customer/site_model.dart';
 import '../StateManagement/duration_notifier.dart';
 import '../StateManagement/mqtt_payload_provider.dart';
+import '../providers/user_provider.dart';
 import '../repository/repository.dart';
 import '../services/http_service.dart';
 import '../services/mqtt_service.dart';
@@ -384,7 +385,7 @@ class PumpWidget extends StatelessWidget {
                       "6300": {"6301": payload}
                     });
                     MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-                    sentUserOperationToServer('${pump.name} Reset Manually', payLoadFinal);
+                    sentUserOperationToServer(context, '${pump.name} Reset Manually', payLoadFinal);
                     GlobalSnackBar.show(context, 'Reset comment sent successfully', 200);
                     Navigator.pop(context);
                   },
@@ -473,7 +474,7 @@ class PumpWidget extends StatelessWidget {
 
               final payLoadFinal = jsonEncode({"6200": {"6201": payload}});
               MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-              sentUserOperationToServer('${pump.name} Start Manually', payLoadFinal);
+              sentUserOperationToServer(context, '${pump.name} Start Manually', payLoadFinal);
               GlobalSnackBar.show(context, 'Pump start comment sent successfully', 200);
               Navigator.pop(context);
             },
@@ -491,7 +492,7 @@ class PumpWidget extends StatelessWidget {
 
               final payLoadFinal = jsonEncode({"6200": {"6201": payload}});
               MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-              sentUserOperationToServer('${pump.name} Stop Manually', payLoadFinal);
+              sentUserOperationToServer(context, '${pump.name} Stop Manually', payLoadFinal);
               GlobalSnackBar.show(context, 'Pump stop comment sent successfully', 200);
               Navigator.pop(context);
             },
@@ -512,9 +513,10 @@ class PumpWidget extends StatelessWidget {
     return PumpReasonCode.fromCode(code).content;
   }
 
-  void sentUserOperationToServer(String msg, String data) async
+  void sentUserOperationToServer(BuildContext context, String msg, String data) async
   {
-    Map<String, Object> body = {"userId": customerId, "controllerId": controllerId, "messageStatus": msg, "hardware": jsonDecode(data), "createUser": customerId};
+    final userData = context.read<UserProvider>().loggedInUser;
+    Map<String, Object> body = {"userId": customerId, "controllerId": controllerId, "messageStatus": msg, "hardware": jsonDecode(data), "createUser": userData.id};
     final response = await Repository(HttpService()).sendManualOperationToServer(body);
     if (response.statusCode == 200) {
       debugPrint(response.body);
@@ -863,7 +865,7 @@ class AeratorWidget extends StatelessWidget {
                       "6300": {"6301": payload}
                     });
                     MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-                    sentUserOperationToServer('${pump.name} Reset Manually', payLoadFinal);
+                    sentUserOperationToServer(context, '${pump.name} Reset Manually', payLoadFinal);
                     GlobalSnackBar.show(context, 'Reset comment sent successfully', 200);
                     Navigator.pop(context);
                   },
@@ -959,7 +961,7 @@ class AeratorWidget extends StatelessWidget {
 
               final payLoadFinal = jsonEncode({"6200": {"6201": payload}});
               MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-              sentUserOperationToServer('${pump.name} Start Manually', payLoadFinal);
+              sentUserOperationToServer(context, '${pump.name} Start Manually', payLoadFinal);
               GlobalSnackBar.show(context, 'Pump start comment sent successfully', 200);
               Navigator.pop(context);
             },
@@ -977,7 +979,7 @@ class AeratorWidget extends StatelessWidget {
 
               final payLoadFinal = jsonEncode({"6200": {"6201": payload}});
               MqttService().topicToPublishAndItsMessage(payLoadFinal, '${AppConstants.publishTopic}/$deviceId');
-              sentUserOperationToServer('${pump.name} Stop Manually', payLoadFinal);
+              sentUserOperationToServer(context, '${pump.name} Stop Manually', payLoadFinal);
               GlobalSnackBar.show(context, 'Pump stop comment sent successfully', 200);
               Navigator.pop(context);
             },
@@ -998,9 +1000,10 @@ class AeratorWidget extends StatelessWidget {
     return PumpReasonCode.fromCode(code).content;
   }
 
-  void sentUserOperationToServer(String msg, String data) async
+  void sentUserOperationToServer(BuildContext context, String msg, String data) async
   {
-    Map<String, Object> body = {"userId": customerId, "controllerId": controllerId, "messageStatus": msg, "hardware": jsonDecode(data), "createUser": customerId};
+    final userData = context.read<UserProvider>().loggedInUser;
+    Map<String, Object> body = {"userId": customerId, "controllerId": controllerId, "messageStatus": msg, "hardware": jsonDecode(data), "createUser": userData.id};
     final response = await Repository(HttpService()).sendManualOperationToServer(body);
     if (response.statusCode == 200) {
       debugPrint(response.body);

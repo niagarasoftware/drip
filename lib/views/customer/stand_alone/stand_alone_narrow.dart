@@ -384,6 +384,9 @@ class _StandAloneNarrowState extends State<StandAloneNarrow> with SingleTickerPr
               onToggleValve: (valve, value) {
                 setState(() => valve.isOn = value);
               },
+              onToggleFogger: (FoggerModel fogger, bool value) {
+                setState(() => fogger.isOn = value);
+              },
             );
           }).toList(),
         ) : vm.standAloneData != null ? Column(

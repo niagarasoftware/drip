@@ -54,6 +54,12 @@ class ScrollingTable extends StatefulWidget {
   final List<dynamic> graphData;
   final void Function(String sequenceName)? onSequenceClicked;
 
+  /// Optional pill tabs shown above the table (Date / Program / Line / ...).
+  /// The tab bar is only drawn when [onGroupChanged] is provided; the selected
+  /// tab is the one that matches [fixedColumn].
+  final List<String> groupOptions;
+  final ValueChanged<String>? onGroupChanged;
+
   ScrollingTable({
     super.key,
     required this.fixedColumn,
@@ -104,1871 +110,999 @@ class ScrollingTable extends StatefulWidget {
     required this.localChannel8ColumnData,
     required this.graphData,
     this.onSequenceClicked,
+    this.groupOptions = const ['Date', 'Program', 'Line', 'Valve', 'Status'],
+    this.onGroupChanged,
   });
 
   @override
   State<ScrollingTable> createState() => _ScrollingTableState();
 }
 
-class _ScrollingTableState extends State<ScrollingTable> {
-  Widget _buildClickableRow(int rowIndex, Widget child) {
-    return Tooltip(
-      message: 'Tap row to view Sensor Analytics',
-      waitDuration: const Duration(milliseconds: 600),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          if (widget.onSequenceClicked != null && widget.generalColumnData.length > rowIndex) {
-            String seqName = '';
-            for (int j = 0; j < widget.generalColumn.length; j++) {
-              if (['Sequence', 'Valves', 'Valve', 'SequenceData'].contains(widget.generalColumn[j])) {
-                if (widget.generalColumnData[rowIndex] != null && j < widget.generalColumnData[rowIndex].length) {
-                  seqName = widget.generalColumnData[rowIndex][j]?.toString() ?? '';
-                  break;
-                }
-              }
-            }
-            if (seqName.isNotEmpty) {
-              widget.onSequenceClicked!(seqName);
-            } else {
-              if (widget.fixedColumnData.length > rowIndex) {
-                seqName = widget.fixedColumnData[rowIndex]?.toString() ?? '';
-                if (seqName.isNotEmpty) {
-                  widget.onSequenceClicked!(seqName);
-                }
-              }
-            }
-          }
-        },
-        child: child,
-      ),
-    );
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Design tokens (taken from the reference screenshot)
+// ─────────────────────────────────────────────────────────────────────────────
+const Color _kPageBg = Color(0xffEEF4F4);
+const Color _kBannerBg = Color(0xffE2EFF0);
+const Color _kGroupBg = Color(0xffD9ECEF);
+const Color _kHeaderBg = Color(0xffF4F8F9);
+const Color _kTeal = Color(0xff0B5D6B);
+const Color _kHeaderText = Color(0xff5F6F76);
+const Color _kBodyText = Color(0xff1F2D33);
+const Color _kMutedText = Color(0xff9AA8AE);
+const Color _kSectionLine = Color(0xffC5D8DC);
+const Color _kLine = Color(0xffE6ECEE);
 
+const double _kPinnedWidth = 170;
+const double _kSensorWidth = 170;
+const double _kBannerHeight = 40;
+const double _kHeaderHeight = 48;
+const double _kGroupHeight = 42;
+
+const BoxDecoration _kRowDecoration = BoxDecoration(
+  border: Border(bottom: BorderSide(color: _kLine)),
+);
+
+/// One horizontal block of columns (General, Water, Filter, ...).
+class _Section {
+  final String title;
+  final List<dynamic> columns;
+  final List<dynamic> data;
+  final double colWidth;
+  final double width; // contentWidth + divider
+  final double left; // x position of the section inside the scroll content
+  final bool divider; // thin line on the left edge (all but the first section)
+  final bool isGeneral;
+
+  const _Section({
+    required this.title,
+    required this.columns,
+    required this.data,
+    required this.colWidth,
+    required this.width,
+    required this.left,
+    required this.divider,
+    this.isGeneral = false,
+  });
+}
+
+/// A date (or other group) block of consecutive rows.
+class _GroupInfo {
+  final String? key; // null = no grouping (plain rows)
+  final int count;
+  final dynamic totalTime;
+  final int start;
+  final int end;
+
+  const _GroupInfo(
+      {required this.key,
+        required this.count,
+        required this.totalTime,
+        required this.start,
+        required this.end});
+
+  String get summary => totalTime == null ? '' : '$totalTime H:M:S total';
+}
+
+/// Pinned (sticky) group header – the sliver machinery makes the current
+/// header stay on top and lets the next one push it out (and back).
+class _GroupHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+  _GroupHeaderDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      SizedBox(height: height, child: child);
+
+  @override
+  bool shouldRebuild(covariant _GroupHeaderDelegate oldDelegate) => true;
+}
+
+class _StatusStyle {
+  final Color bg;
+  final Color fg;
+  final Color dot;
+  const _StatusStyle(this.bg, this.fg, this.dot);
+}
+
+class _ScrollingTableState extends State<ScrollingTable> {
   late LinkedScrollControllerGroup _scrollable1;
   late ScrollController _verticalScroll1;
   late ScrollController _verticalScroll2;
+  late ScrollController _verticalScroll3;
   late LinkedScrollControllerGroup _scrollable2;
   late ScrollController _horizontalScroll1;
   late ScrollController _horizontalScroll2;
+  bool _compact = false; // phone-sized screen
+
+  static const List<String> _pumpCtColumns = [
+    'Pump CT Average',
+    'Pump CT Maximum',
+    'Pump CT Minimum',
+    'PumpCtAverage',
+    'PumpCtMaximum',
+    'PumpCtMinimum',
+  ];
+  static const List<String> _pressureColumns = [
+    'Pressure Average',
+    'Pressure Maximum',
+    'Pressure Minimum',
+    'PressureAverage',
+    'PressureMaximum',
+    'PressureMinimum',
+  ];
+  static const List<String> _timeColumns = [
+    'Actual Start Time',
+    'Actual End Time',
+  ];
+  static const List<String> _reasonColumns = [
+    'Actual Start Reason',
+    'Actual Stop Reason',
+  ];
+
+  /// Header labels shown in the screenshot.
+  static const Map<String, String> _labels = {
+    'Actual Start Time': 'Start time',
+    'Actual End Time': 'End time',
+    'Actual Start Reason': 'Start reason',
+    'Actual Stop Reason': 'Stop reason',
+  };
+
   @override
   void initState() {
+    super.initState();
     _scrollable1 = LinkedScrollControllerGroup();
     _verticalScroll1 = _scrollable1.addAndGet();
     _verticalScroll2 = _scrollable1.addAndGet();
+    _verticalScroll3 = _scrollable1.addAndGet();
     _scrollable2 = LinkedScrollControllerGroup();
     _horizontalScroll1 = _scrollable2.addAndGet();
     _horizontalScroll2 = _scrollable2.addAndGet();
-    print("widget.generalColumn : ${widget.generalColumn}");
-    super.initState();
   }
 
   @override
+  void dispose() {
+    _verticalScroll1.dispose();
+    _verticalScroll2.dispose();
+    _verticalScroll3.dispose();
+    _horizontalScroll1.dispose();
+    _horizontalScroll2.dispose();
+    super.dispose();
+  }
+
+  // ───────────────────────────── build ─────────────────────────────
+
+  @override
   Widget build(BuildContext context) {
+    _compact = MediaQuery.of(context).size.width < 600;
+    final groups = _buildGroups();
+    final sections = _buildSections();
+    final pad = _compact ? 8.0 : 12.0;
+
     return Expanded(
       child: Container(
-        decoration: BoxDecoration(
-            color: Colors.green.shade50,
-            borderRadius: const BorderRadius.only(
-                bottomRight: Radius.circular(20),
-                bottomLeft: Radius.circular(20))),
-        margin: const EdgeInsets.only(left: 5, right: 5),
-        child: LayoutBuilder(
-          builder: (BuildContext context, BoxConstraints constraints) {
-            var width = constraints.maxWidth;
-            return Row(
-              children: [
-                Column(
-                  children: [
-                    //Todo : first column
-                    Container(
-                      // color: Color(0xffF7F9FA),
-                      decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                        colors: [
-                          Color(0xff1C7C8A),
-                          Color(0xff03464F),
-                        ],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      )),
-                      padding: const EdgeInsets.only(left: 8),
-                      width: 100,
-                      height: 75,
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${widget.fixedColumn}',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    Expanded(
-                      child: Scrollbar(
-                        thumbVisibility: true,
-                        controller: _verticalScroll1,
-                        child: SingleChildScrollView(
-                          controller: _verticalScroll1,
-                          child: Container(
-                            child: Column(
-                              children: [
-                                ...fixedNestedColumnWidget(),
-                                // for(var i = 0;i < widget.fixedColumnData.length;i++)
-                                //   Container(
-                                //     color: Color(0xffDCF3DD),
-                                //     padding: const EdgeInsets.only(left: 8),
-                                //     width: 100,
-                                //     height:getBoxHeight(widget.filterColumnData, i, widget.generalColumnData),
-                                //     alignment: Alignment.center,
-                                //     child: Text('${widget.fixedColumnData[i]}',style: TextStyle(color: Colors.black),),
-                                //   ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  ],
-                ),
-                Column(
-                  children: [
-                    Container(
-                      // color: Color(0xffF7F9FA),
-                      color: Color(0xff03464F),
-                      width: width - 100,
-                      height: 75,
-                      child: Scrollbar(
-                        thumbVisibility: true,
-                        controller: _horizontalScroll1,
-                        child: SingleChildScrollView(
-                          controller: _horizontalScroll1,
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              getColumnDotLine(),
-                              if (widget.generalColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        'General',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.generalColumn.length;
-                                            i++)
-                                          Container(
-                                            // color: Color(0xffEAEAEA),
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: [
-                                              'Status',
-                                              'Sequence',
-                                              'Valves',
-                                              'Valve'
-                                            ].contains(widget.generalColumn[i])
-                                                ? 150
-                                                : [
-                                                    'Pump CT Average',
-                                                    'Pump CT Maximum',
-                                                    'Pump CT Minimum',
-                                                    'Pressure Average',
-                                                    'Pressure Maximum',
-                                                    'Pressure Minimum',
-                                                    'PressureAverage',
-                                                    'PressureMaximum',
-                                                    'PressureMinimum',
-                                                    'Actual Start Time',
-                                                    'Actual End Time',
-                                                    'Actual Start Reason',
-                                                    'Actual Stop Reason'
-                                                  ].contains(
-                                                        widget.generalColumn[i])
-                                                    ? 200
-                                                    : 100,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.generalColumn[i]}',
-                                              style: TextStyle(
-                                                  color: Colors.black),
-                                              maxLines: 2,
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.waterColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Center(
-                                      child: Text(
-                                        'Water',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.waterColumn.length;
-                                            i++)
-                                          Container(
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: 100,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.waterColumn[i]}',
-                                              style: const TextStyle(
-                                                  color: Colors.black),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.filterColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        'Filter',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.filterColumn.length;
-                                            i++)
-                                          Container(
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: 200,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.filterColumn[i]}',
-                                              style: TextStyle(
-                                                  color: Colors.black),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.prePostColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        'Pre Post',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.prePostColumn.length;
-                                            i++)
-                                          Container(
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: 100,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.prePostColumn[i]}',
-                                              style: TextStyle(
-                                                  color: Colors.black),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.centralEcPhColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        '<C-EC-PH>',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.centralEcPhColumn.length;
-                                            i++)
-                                          Container(
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: 100,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.centralEcPhColumn[i]}',
-                                              style: TextStyle(
-                                                  color: Colors.black),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.centralChannel1Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel1Column,
-                                    channelNo: 1,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel2Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel2Column,
-                                    channelNo: 2,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel3Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel3Column,
-                                    channelNo: 3,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel4Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel4Column,
-                                    channelNo: 4,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel5Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel5Column,
-                                    channelNo: 5,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel6Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel6Column,
-                                    channelNo: 6,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel7Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel7Column,
-                                    channelNo: 7,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.centralChannel8Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.centralChannel8Column,
-                                    channelNo: 8,
-                                    central: true),
-                              getColumnDotLine(),
-                              if (widget.localEcPhColumn.isNotEmpty)
-                                Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        '<L-EC-PH>',
-                                        style: TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.localEcPhColumn.length;
-                                            i++)
-                                          Container(
-                                            color: Colors.orange.shade200,
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            width: 100,
-                                            height: 50,
-                                            alignment: Alignment.centerLeft,
-                                            child: Text(
-                                              '${widget.localEcPhColumn[i]}',
-                                              style: TextStyle(
-                                                  color: Colors.black),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              getColumnDotLine(),
-                              if (widget.localChannel1Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel1Column,
-                                    channelNo: 1,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel2Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel2Column,
-                                    channelNo: 2,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel3Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel3Column,
-                                    channelNo: 3,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel4Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel4Column,
-                                    channelNo: 4,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel5Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel5Column,
-                                    channelNo: 5,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel6Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel6Column,
-                                    channelNo: 6,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel7Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel7Column,
-                                    channelNo: 7,
-                                    central: false),
-                              getColumnDotLine(),
-                              if (widget.localChannel8Column.isNotEmpty)
-                                getChannelColumnWidget(
-                                    columnList: widget.localChannel8Column,
-                                    channelNo: 8,
-                                    central: false),
-                              getColumnDotLine(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SizedBox(
-                        width: width - 100,
-                        child: Scrollbar(
-                          thumbVisibility: true,
-                          controller: _horizontalScroll2,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            controller: _horizontalScroll2,
-                            child: Scrollbar(
-                              thumbVisibility: true,
-                              controller: _verticalScroll2,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.vertical,
-                                controller: _verticalScroll2,
-                                child: Row(
-                                  children: [
-                                    //TODO : GENERAL DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.generalColumnData.length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: const Size(10, 50),
-                                                    ),
-                                                  ),
-                                                  for (var j = 0;
-                                                      j < widget.generalColumnData[i].length &&
-                                                          j <
-                                                              widget
-                                                                  .generalColumn
-                                                                  .length;
-                                                      j++)
-                                                    if (widget.generalColumn[j] ==
-                                                        'Status')
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(left: 8),
-                                                        width: 150,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        child: Container(
-                                                            width: 150,
-                                                            padding:
-                                                                EdgeInsets.all(
-                                                                    5),
-                                                            decoration:
-                                                                BoxDecoration(
-                                                                    // color: getStatus(i[j])['color'],
-                                                                    borderRadius:
-                                                                        BorderRadius.circular(
-                                                                            20)),
-                                                            child: Tooltip(
-                                                                message:
-                                                                    '${getStatus(widget.generalColumnData[i][j])['status']}',
-                                                                child: Row(
-                                                                  mainAxisSize:
-                                                                      MainAxisSize
-                                                                          .min,
-                                                                  children: [
-                                                                    Flexible(
-                                                                      child:
-                                                                          Text(
-                                                                        '${getStatus(widget.generalColumnData[i][j])['status']}',
-                                                                        textAlign:
-                                                                            TextAlign.center,
-                                                                        style: TextStyle(
-                                                                            fontSize:
-                                                                                12,
-                                                                            fontWeight:
-                                                                                FontWeight.bold,
-                                                                            color: getStatus(widget.generalColumnData[i][j])['textColor']),
-                                                                        overflow:
-                                                                            TextOverflow.ellipsis,
-                                                                      ),
-                                                                    ),
-                                                                    const SizedBox(
-                                                                        width:
-                                                                            4),
-                                                                    InkWell(
-                                                                      onTap: () {
-                                                                        if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                      },
-                                                                      child: const Icon(
-                                                                          Icons
-                                                                              .analytics_outlined,
-                                                                          size:
-                                                                              14,
-                                                                          color: Colors
-                                                                              .blue),
-                                                                    ),
-                                                                  ],
-                                                                ))),
-                                                      )
-                                                    else if ([
-                                                      'Pump CT Average',
-                                                      'Pump CT Maximum',
-                                                      'Pump CT Minimum',
-                                                      'PumpCtAverage',
-                                                      'PumpCtMaximum',
-                                                      'PumpCtMinimum'
-                                                    ].contains(widget
-                                                        .generalColumn[j]))
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .symmetric(
-                                                                horizontal: 4),
-                                                        width: 200,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        alignment:
-                                                            Alignment.center,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? const Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                                child: buildPumpCtCard(
-                                                                    '${widget.generalColumnData[i][j] ?? '-'}')),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      )
-                                                    else if ([
-                                                      'Pressure Average',
-                                                      'Pressure Maximum',
-                                                      'Pressure Minimum',
-                                                      'PressureAverage',
-                                                      'PressureMaximum',
-                                                      'PressureMinimum'
-                                                    ].contains(widget
-                                                        .generalColumn[j]))
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(left: 8),
-                                                        width: 200,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? const Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        child: Tooltip(
-                                                          message:
-                                                              '${widget.generalColumnData[i][j] ?? '-'}',
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              Flexible(
-                                                                child: Text(
-                                                                  '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                  textAlign:
-                                                                      TextAlign
-                                                                          .center,
-                                                                  style: const TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold),
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  width: 4),
-                                                              InkWell(
-                                                                onTap: () {
-                                                                  if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                },
-                                                                child: const Icon(
-                                                                    Icons
-                                                                        .analytics_outlined,
-                                                                    size: 14,
-                                                                    color: Colors
-                                                                        .blue),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      )
-                                                    else if ([
-                                                      'Sequence',
-                                                      'Valves',
-                                                      'Valve'
-                                                    ].contains(widget
-                                                        .generalColumn[j]))
-                                                      InkWell(
-                                                        onTap: () {
-                                                          if (widget
-                                                                  .onSequenceClicked !=
-                                                              null) {
-                                                            widget.onSequenceClicked!(
-                                                                '${widget.generalColumnData[i][j] ?? ''}');
-                                                          }
-                                                        },
-                                                        child: Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  left: 8),
-                                                          width: 150,
-                                                          height: getBoxHeight(
-                                                              widget
-                                                                  .filterColumnData,
-                                                              i,
-                                                              widget
-                                                                  .generalColumnData),
-                                                          alignment: Alignment
-                                                              .centerLeft,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            border: seperatingLength(
-                                                                    i)
-                                                                ? const Border(
-                                                                    bottom: BorderSide(
-                                                                        width:
-                                                                            1))
-                                                                : null,
-                                                          ),
-                                                          child: Tooltip(
-                                                            message:
-                                                                'Click to view Sensor Graph',
-                                                            child: Row(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
-                                                              children: [
-                                                                Flexible(
-                                                                  child: Text(
-                                                                    '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                    style:
-                                                                        const TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                      color: Colors
-                                                                          .black,
-                                                                    ),
-                                                                    maxLines: 3,
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                    width: 4),
-                                                                InkWell(
-                                                                  onTap: () {
-                                                                    if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                  },
-                                                                  child: const Icon(
-                                                                      Icons
-                                                                          .analytics_outlined,
-                                                                      size: 14,
-                                                                      color: Colors
-                                                                          .blue),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      )
-                                                    else if ([
-                                                      'Actual Start Time',
-                                                      'Actual End Time'
-                                                    ].contains(widget
-                                                        .generalColumn[j]))
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(left: 8),
-                                                        width: 200,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? const Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        child: Tooltip(
-                                                          message:
-                                                              '${widget.generalColumnData[i][j] ?? '-'}',
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              Flexible(
-                                                                child: Text(
-                                                                  '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                  style: const TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w600,
-                                                                      color: Color(
-                                                                          0xff03464F)),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  width: 4),
-                                                              InkWell(
-                                                                onTap: () {
-                                                                  if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                },
-                                                                child: const Icon(
-                                                                    Icons
-                                                                        .analytics_outlined,
-                                                                    size: 14,
-                                                                    color: Colors
-                                                                        .blue),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      )
-                                                    else if ([
-                                                      'Actual Start Reason',
-                                                      'Actual Stop Reason'
-                                                    ].contains(widget.generalColumn[j]))
-                                                      Container(
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(left: 8),
-                                                        width: 200,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? const Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                                child: reasonCell(
-                                                                    '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                    getBoxHeight(
-                                                                        widget
-                                                                            .filterColumnData,
-                                                                        i,
-                                                                        widget
-                                                                            .generalColumnData))),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      )
-                                                    else if (widget.generalColumn[j] == 'Sequence' || widget.generalColumn[j] == 'SequenceData' || widget.generalColumn[j] == 'Valve' || widget.generalColumn[j] == 'Valves')
-                                                      InkWell(
-                                                        onTap: () {
-                                                          if (widget
-                                                                  .onSequenceClicked !=
-                                                              null) {
-                                                            widget.onSequenceClicked!(
-                                                                '${widget.generalColumnData[i][j] ?? ''}');
-                                                          }
-                                                        },
-                                                        child: Container(
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            border: seperatingLength(
-                                                                    i)
-                                                                ? const Border(
-                                                                    bottom: BorderSide(
-                                                                        width:
-                                                                            1))
-                                                                : null,
-                                                          ),
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .only(
-                                                                  left: 8),
-                                                          width: 100,
-                                                          height: getBoxHeight(
-                                                              widget
-                                                                  .filterColumnData,
-                                                              i,
-                                                              widget
-                                                                  .generalColumnData),
-                                                          alignment: Alignment
-                                                              .centerLeft,
-                                                          child: Tooltip(
-                                                            message:
-                                                                'Click to view Sensor Graph',
-                                                            child: Row(
-                                                              mainAxisSize:
-                                                                  MainAxisSize
-                                                                      .min,
-                                                              children: [
-                                                                Flexible(
-                                                                  child: Text(
-                                                                    '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                    style:
-                                                                        const TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .bold,
-                                                                      color: Colors
-                                                                          .black,
-                                                                    ),
-                                                                    overflow:
-                                                                        TextOverflow
-                                                                            .ellipsis,
-                                                                  ),
-                                                                ),
-                                                                const SizedBox(
-                                                                    width: 4),
-                                                                InkWell(
-                                                                  onTap: () {
-                                                                    if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                  },
-                                                                  child: const Icon(
-                                                                      Icons
-                                                                          .analytics_outlined,
-                                                                      size: 14,
-                                                                      color: Colors
-                                                                          .blue),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      )
-                                                    else
-                                                      Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          border: seperatingLength(
-                                                                  i)
-                                                              ? const Border(
-                                                                  bottom:
-                                                                      BorderSide(
-                                                                          width:
-                                                                              1))
-                                                              : null,
-                                                        ),
-                                                        padding:
-                                                            const EdgeInsets
-                                                                .only(left: 8),
-                                                        width: 100,
-                                                        height: getBoxHeight(
-                                                            widget
-                                                                .filterColumnData,
-                                                            i,
-                                                            widget
-                                                                .generalColumnData),
-                                                        alignment: Alignment
-                                                            .centerLeft,
-                                                        child: Tooltip(
-                                                          message:
-                                                              '${widget.generalColumnData[i][j] ?? '-'}',
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              Flexible(
-                                                                child: Text(
-                                                                  '${widget.generalColumnData[i][j] ?? '-'}',
-                                                                  style: const TextStyle(
-                                                                      fontSize:
-                                                                          12,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .normal),
-                                                                  overflow:
-                                                                      TextOverflow
-                                                                          .ellipsis,
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  width: 4),
-                                                              InkWell(
-                                                                onTap: () {
-                                                                  if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                                },
-                                                                child: const Icon(
-                                                                    Icons
-                                                                        .analytics_outlined,
-                                                                    size: 14,
-                                                                    color: Colors
-                                                                        .blue),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: const Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : WATER DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.waterColumnData.length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var j = 0;
-                                                      j <
-                                                          widget
-                                                              .waterColumnData[
-                                                                  i]
-                                                              .length;
-                                                      j++)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        border: seperatingLength(
-                                                                i)
-                                                            ? const Border(
-                                                                bottom:
-                                                                    BorderSide(
-                                                                        width:
-                                                                            1))
-                                                            : null,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 8),
-                                                      width: 100,
-                                                      height: getBoxHeight(
-                                                          widget
-                                                              .filterColumnData,
-                                                          i,
-                                                          widget
-                                                              .generalColumnData),
-                                                      alignment:
-                                                          Alignment.centerLeft,
-                                                      child: Tooltip(
-                                                        message:
-                                                            '${widget.waterColumnData[i][j] ?? '-'}',
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                '${widget.waterColumnData[i][j] ?? '-'}',
-                                                                style: const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .normal),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : FILTER DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.filterColumnData.length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var j = 0;
-                                                      j <
-                                                          widget
-                                                              .filterColumnData[
-                                                                  i]
-                                                              .length;
-                                                      j++)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        border: seperatingLength(
-                                                                i)
-                                                            ? Border(
-                                                                bottom:
-                                                                    BorderSide(
-                                                                        width:
-                                                                            1))
-                                                            : null,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 8),
-                                                      width: 200,
-                                                      height: getBoxHeight(
-                                                          widget
-                                                              .filterColumnData,
-                                                          i,
-                                                          widget
-                                                              .generalColumnData),
-                                                      alignment:
-                                                          Alignment.centerLeft,
-                                                      child: Tooltip(
-                                                        message:
-                                                            '${widget.filterColumnData[i][j] ?? '-'}',
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                '${widget.filterColumnData[i][j] ?? '-'}',
-                                                                style: const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .normal),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: const Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : PRE POST DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i < widget.prePostColumnData.length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var j = 0;
-                                                      j <
-                                                          widget
-                                                              .prePostColumnData[
-                                                                  i]
-                                                              .length;
-                                                      j++)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        border: seperatingLength(
-                                                                i)
-                                                            ? const Border(
-                                                                bottom:
-                                                                    BorderSide(
-                                                                        width:
-                                                                            1))
-                                                            : null,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 8),
-                                                      width: 100,
-                                                      height: getBoxHeight(
-                                                          widget
-                                                              .filterColumnData,
-                                                          i,
-                                                          widget
-                                                              .generalColumnData),
-                                                      alignment:
-                                                          Alignment.centerLeft,
-                                                      child: Tooltip(
-                                                        message:
-                                                            '${widget.prePostColumnData[i][j] ?? '-'}',
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                '${widget.prePostColumnData[i][j] ?? '-'}',
-                                                                style: const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .normal),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : CENTRAL ECPH DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i <
-                                                widget.centralEcPhColumnData
-                                                    .length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var j = 0;
-                                                      j <
-                                                          widget
-                                                              .centralEcPhColumnData[
-                                                                  i]
-                                                              .length;
-                                                      j++)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        border: seperatingLength(
-                                                                i)
-                                                            ? Border(
-                                                                bottom:
-                                                                    BorderSide(
-                                                                        width:
-                                                                            1))
-                                                            : null,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 8),
-                                                      width: 100,
-                                                      height: getBoxHeight(
-                                                          widget
-                                                              .filterColumnData,
-                                                          i,
-                                                          widget
-                                                              .generalColumnData),
-                                                      alignment:
-                                                          Alignment.centerLeft,
-                                                      child: Tooltip(
-                                                        message:
-                                                            '${widget.centralEcPhColumnData[i][j] ?? '-'}',
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                '${widget.centralEcPhColumnData[i][j] ?? '-'}',
-                                                                style: const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .normal),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : CENTRAL CHANNEL
-                                    if (widget.centralChannel1Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel1ColumnData),
-                                    if (widget.centralChannel2Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel2ColumnData),
-                                    if (widget.centralChannel3Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel3ColumnData),
-                                    if (widget.centralChannel4Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel4ColumnData),
-                                    if (widget.centralChannel5Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel5ColumnData),
-                                    if (widget.centralChannel6Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel6ColumnData),
-                                    if (widget.centralChannel7Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel7ColumnData),
-                                    if (widget.centralChannel8Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.centralChannel8ColumnData),
-                                    //TODO : LOCAL ECPH DATA
-                                    Column(
-                                      children: [
-                                        for (var i = 0;
-                                            i <
-                                                widget
-                                                    .localEcPhColumnData.length;
-                                            i++)
-                                          _buildClickableRow(
-                                              i,
-                                              Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  for (var j = 0;
-                                                      j <
-                                                          widget
-                                                              .localEcPhColumnData[
-                                                                  i]
-                                                              .length;
-                                                      j++)
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        border: seperatingLength(
-                                                                i)
-                                                            ? Border(
-                                                                bottom:
-                                                                    BorderSide(
-                                                                        width:
-                                                                            1))
-                                                            : null,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                              left: 8),
-                                                      width: 100,
-                                                      height: getBoxHeight(
-                                                          widget
-                                                              .filterColumnData,
-                                                          i,
-                                                          widget
-                                                              .generalColumnData),
-                                                      alignment:
-                                                          Alignment.centerLeft,
-                                                      child: Tooltip(
-                                                        message:
-                                                            '${widget.localEcPhColumnData[i][j] ?? '-'}',
-                                                        child: Row(
-                                                          mainAxisSize:
-                                                              MainAxisSize.min,
-                                                          children: [
-                                                            Flexible(
-                                                              child: Text(
-                                                                '${widget.localEcPhColumnData[i][j] ?? '-'}',
-                                                                style: const TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    fontWeight:
-                                                                        FontWeight
-                                                                            .normal),
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(
-                                                                width: 4),
-                                                            InkWell(
-                                                              onTap: () {
-                                                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                                                              },
-                                                              child: const Icon(
-                                                                  Icons
-                                                                      .analytics_outlined,
-                                                                  size: 14,
-                                                                  color: Colors
-                                                                      .blue),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  SizedBox(
-                                                    width: 0,
-                                                    height: getBoxHeight(
-                                                        widget.filterColumnData,
-                                                        i,
-                                                        widget
-                                                            .generalColumnData),
-                                                    child: CustomPaint(
-                                                      painter:
-                                                          VerticalDotBorder(),
-                                                      size: Size(0, 50),
-                                                    ),
-                                                  )
-                                                ],
-                                              ))
-                                      ],
-                                    ),
-                                    //TODO : LOCAL CHANNEL
-                                    if (widget.localChannel1Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel1ColumnData),
-                                    if (widget.localChannel2Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel2ColumnData),
-                                    if (widget.localChannel3Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel3ColumnData),
-                                    if (widget.localChannel4Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel4ColumnData),
-                                    if (widget.localChannel5Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel5ColumnData),
-                                    if (widget.localChannel6Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel6ColumnData),
-                                    if (widget.localChannel7Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel7ColumnData),
-                                    if (widget.localChannel8Column.isNotEmpty)
-                                      getChannnelColumnDataWidget(
-                                          columnDataList:
-                                              widget.localChannel8ColumnData),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
+        color: _kPageBg,
+        padding: EdgeInsets.fromLTRB(pad, 10, pad, pad),
+        child: Column(
+          children: [
+            if (widget.onGroupChanged != null) _buildGroupTabs(),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _buildMainCard(groups, sections)),
+                  SizedBox(width: _compact ? 8 : 14),
+                  _buildSensorCard(groups),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  bool seperatingLength(index) {
-    bool val = false;
-    if ((widget.fixedColumnData.length - 1) == index) {
-      val = true;
-    } else if (widget.fixedColumnData[index] !=
-        widget.fixedColumnData[index + 1]) {
-      val = true;
-    }
-    return val;
-  }
+  // ───────────────────────────── tabs ─────────────────────────────
 
-  List<Widget> fixedNestedColumnWidget() {
-    dynamic data = [];
-    for (var i = 0; i < widget.fixedColumnData.length; i++) {
-      var isFind = false;
-      finding:
-      for (var item in data) {
-        if (item['name'] == widget.fixedColumnData[i]) {
-          item['count'] += 1;
-          item['height'] += getBoxHeight(
-              widget.filterColumnData, i, widget.generalColumnData);
-          isFind = true;
-          break finding;
-        }
-      }
-      if (!isFind) {
-        var element = [];
-        data.add({
-          'name': widget.fixedColumnData[i],
-          'count': 1,
-          'height': getBoxHeight(
-              widget.filterColumnData, i, widget.generalColumnData),
-          // if(element.containsKey('totalTime'))
-          //   'totalTime' : element['totalTime'],
-        });
-      }
-    }
-    print("widget.generalColumnData : ${widget.generalColumnData}");
-    for (var d in data) {
-      print(d);
-      var element = widget.graphData.firstWhere(
-        (element) => element['name'] == d['name'],
-        orElse: () => {},
-      );
-      if (element.containsKey('totalTime')) {
-        d['totalTime'] = element['totalTime'];
-      }
-    }
-    List<Widget> myWidget = [];
-    for (var d in data) {
-      myWidget.add(Container(
+  Widget _buildGroupTabs() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(width: 1)),
-          color: Color(0xffDCF3DD),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: const Color(0xffDCE5E7)),
         ),
-        // padding: const EdgeInsets.only(left: 8),
-        width: 100,
-        height: d['height'],
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${d['name']}',
-              style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12),
-            ),
-            if (d.containsKey('totalTime'))
-              Text(
-                '${d['totalTime']} H:M:S',
-                style: const TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12),
-              ),
-          ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [for (final opt in widget.groupOptions) _buildTab(opt)],
         ),
-      ));
-    }
-    return myWidget;
+      ),
+    );
   }
 
-  Widget getChannnelColumnDataWidget({required List<dynamic> columnDataList}) {
-    return Column(
-      children: [
-        for (var i = 0; i < columnDataList.length; i++)
-          _buildClickableRow(
-              i,
-              Row(
+  Widget _buildTab(String option) {
+    final selected = option.toLowerCase() == widget.fixedColumn.toLowerCase();
+    return Material(
+      color: selected ? _kTeal : Colors.transparent,
+      shape: const StadiumBorder(),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: () => widget.onGroupChanged?.call(option),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
+          child: Text(
+            option,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? Colors.white : const Color(0xff4F5F66),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────── main (left) card ───────────────────────
+
+  Widget _buildMainCard(List<_GroupInfo> groups, List<_Section> sections) {
+    final contentWidth = sections.fold<double>(0, (a, s) => a + s.width);
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: _kBannerHeight + _kHeaderHeight,
+            child: SingleChildScrollView(
+              controller: _horizontalScroll1,
+              scrollDirection: Axis.horizontal,
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var j = 0; j < columnDataList[i].length; j++)
-                    Container(
-                      decoration: BoxDecoration(
-                        border: seperatingLength(i)
-                            ? Border(bottom: BorderSide(width: 1))
-                            : null,
-                      ),
-                      padding: const EdgeInsets.only(left: 8),
-                      width: 100,
-                      height: getBoxHeight(
-                          widget.filterColumnData, i, widget.generalColumnData),
-                      alignment: Alignment.centerLeft,
-                      child: Tooltip(
-                        message: '${columnDataList[i][j] ?? '-'}',
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${columnDataList[i][j] ?? '-'}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.normal),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () {
-                                if (widget.onSequenceClicked != null) widget.onSequenceClicked!('');
-                              },
-                              child: const Icon(Icons.analytics_outlined,
-                                  size: 14, color: Colors.blue),
-                            ),
-                          ],
+                children: [for (final s in sections) _sectionHeader(s)],
+              ),
+            ),
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final w = contentWidth > c.maxWidth ? contentWidth : c.maxWidth;
+                return Scrollbar(
+                  controller: _horizontalScroll2,
+                  thumbVisibility: !_compact,
+                  child: SingleChildScrollView(
+                    controller: _horizontalScroll2,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: w,
+                      child: CustomScrollView(
+                        controller: _verticalScroll2,
+                        slivers: _groupSlivers(
+                          groups,
+                          _mainGroupHeader,
+                              (a, b) => _mainRows(sections, a, b),
                         ),
                       ),
                     ),
-                  SizedBox(
-                    width: 0,
-                    height: getBoxHeight(
-                        widget.filterColumnData, i, widget.generalColumnData),
-                    child: CustomPaint(
-                      painter: VerticalDotBorder(),
-                      size: Size(0, 50),
-                    ),
-                  )
-                ],
-              ))
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// One sliver group per date: pinned header + that date's rows.
+  List<Widget> _groupSlivers(
+      List<_GroupInfo> groups,
+      Widget Function(_GroupInfo g) header,
+      Widget Function(int start, int end) body,
+      ) {
+    return [
+      for (final g in groups)
+        if (g.key == null)
+          SliverToBoxAdapter(child: body(g.start, g.end))
+        else
+          SliverMainAxisGroup(
+            slivers: [
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _GroupHeaderDelegate(
+                  height: _kGroupHeight,
+                  child: header(g),
+                ),
+              ),
+              SliverToBoxAdapter(child: body(g.start, g.end)),
+            ],
+          ),
+    ];
+  }
+
+  Widget _mainRows(List<_Section> sections, int a, int b) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final s in sections)
+          SizedBox(
+            width: s.width,
+            child: Column(
+              children: [for (var i = a; i < b; i++) _sectionEntry(s, i)],
+            ),
+          ),
       ],
     );
   }
 
-  Widget getChannelColumnWidget(
-      {required List<dynamic> columnList,
-      required int channelNo,
-      required bool central}) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  /// Date header of the main table. The text follows the horizontal scroll so
+  /// it is always visible at the left edge.
+  Widget _mainGroupHeader(_GroupInfo g) {
+    return Container(
+      color: _kGroupBg,
+      alignment: Alignment.centerLeft,
+      child: AnimatedBuilder(
+        animation: _horizontalScroll2,
+        builder: (context, _) {
+          final dx =
+          _horizontalScroll2.hasClients ? _horizontalScroll2.offset : 0.0;
+          return Transform.translate(
+            offset: Offset(dx, 0),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 18, right: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    g.key ?? '',
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _kTeal,
+                    ),
+                  ),
+                  if (g.summary.isNotEmpty) ...[
+                    const SizedBox(width: 18),
+                    Text(
+                      g.summary,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: _kHeaderText,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _sensorGroupHeader(_GroupInfo g) {
+    return Container(
+      color: _kGroupBg,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      alignment: Alignment.centerLeft,
+      child: _compact
+          ? null
+          : Text(
+        g.key ?? '',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: _kTeal,
+        ),
+      ),
+    );
+  }
+
+  /// Section name that stays visible (at the left of the visible part of its
+  /// section) while the table is scrolled sideways.
+  Widget _bannerTitle(_Section s) {
+    return AnimatedBuilder(
+      animation: _horizontalScroll1,
+      builder: (context, _) {
+        final off =
+        _horizontalScroll1.hasClients ? _horizontalScroll1.offset : 0.0;
+        final maxDx = s.width > 140 ? s.width - 140 : 0.0;
+        final dx = (off - s.left).clamp(0.0, maxDx).toDouble();
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Transform.translate(
+            offset: Offset(dx, 0),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Text(
+                s.title,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _kTeal,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sectionHeader(_Section s) {
+    final visibleColumns = s.isGeneral
+        ? widget.generalColumn
+        : s.columns.where((c) => c != 'Name').toList();
+    final Border? divider =
+    s.divider ? const Border(left: BorderSide(color: _kSectionLine)) : null;
+    return SizedBox(
+      width: s.width,
+      child: Column(
+        children: [
+          Container(
+            height: _kBannerHeight,
+            decoration: BoxDecoration(color: _kBannerBg, border: divider),
+            child: _bannerTitle(s),
+          ),
+          Container(
+            height: _kHeaderHeight,
+            decoration: BoxDecoration(color: _kHeaderBg, border: divider),
+            child: Row(
+              children: [
+                for (final c in visibleColumns)
+                  Container(
+                    width: s.isGeneral ? _generalWidth('$c') : s.colWidth,
+                    padding: const EdgeInsets.only(left: 16, right: 8),
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _labelFor('$c'),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _kHeaderText,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────── rows ─────────────────────────
+
+  BoxDecoration _rowDecorationFor(_Section s) => BoxDecoration(
+    border: Border(
+      left: s.divider
+          ? const BorderSide(color: _kSectionLine)
+          : BorderSide.none,
+      bottom: const BorderSide(color: _kLine),
+    ),
+  );
+
+  Widget _sectionEntry(_Section s, int i) {
+    final h = _rowHeight(i);
+
+    if (s.isGeneral) {
+      return Container(
+        width: s.width,
+        height: h,
+        decoration: _rowDecorationFor(s),
+        child: Row(
+          children: [
+            for (var j = 0; j < widget.generalColumn.length; j++)
+              _generalCell(i, j, h),
+          ],
+        ),
+      );
+    }
+
+    final List rowData = (i < s.data.length && s.data[i] is List)
+        ? s.data[i] as List
+        : const [];
+    final visibleCount = s.columns.where((c) => c != 'Name').length;
+    return Container(
+      width: s.width,
+      height: h,
+      decoration: _rowDecorationFor(s),
+      child: Row(
+        children: [
+          for (var j = 0; j < rowData.length && j < visibleCount; j++)
+            Container(
+              width: s.colWidth,
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              alignment: Alignment.centerLeft,
+              child: _textValue(rowData[j]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// A single cell of the General section (or the pinned first column).
+  /// Display only – nothing in here is tappable.
+  Widget _generalCell(int i, int j, double h, {bool pinned = false}) {
+    final name = '${widget.generalColumn[j]}';
+    final row = widget.generalColumnData[i];
+    final dynamic value = (row is List && j < row.length) ? row[j] : null;
+    final double width = pinned ? _kPinnedWidth : _generalWidth(name);
+
+    Widget child;
+    Alignment alignment = Alignment.centerLeft;
+    EdgeInsets padding = EdgeInsets.only(left: pinned ? 18 : 16, right: 8);
+
+    if (name == 'Status') {
+      child = _statusChip(value);
+    } else if (_pumpCtColumns.contains(name)) {
+      alignment = Alignment.center;
+      padding = const EdgeInsets.symmetric(horizontal: 4);
+      child = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Flexible(child: buildPumpCtCard('${value ?? '-'}'))],
+      );
+    } else if (name == 'Valve' || name == 'Valves') {
+      child = _valveCell(value);
+    } else if (_reasonColumns.contains(name)) {
+      child = reasonCell('${value ?? '-'}', h);
+    } else {
+      child = _textValue(value, bold: pinned);
+    }
+
+    return Container(
+      width: width,
+      height: h,
+      padding: padding,
+      alignment: alignment,
+      child: child,
+    );
+  }
+
+  /// Valve column: up to 3 valves are listed; with more, the first 3 are shown
+  /// followed by a tappable "..." that opens a hint listing every valve.
+  Widget _valveCell(dynamic value) {
+    final text = value == null ? '' : '$value';
+    if (_isBlank(text)) return _textValue(value);
+
+    final valves = text
+        .split(RegExp(r'[,\n]'))
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList();
+    if (valves.length <= 3) return _textValue(value);
+
+    return Row(
       children: [
-        Center(
+        Flexible(
           child: Text(
-            '<${central ? 'C' : 'L'}-CH$channelNo>',
-            style: TextStyle(color: Colors.white),
+            valves.take(3).join(', '),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13.5, color: _kBodyText),
           ),
         ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var i = 0; i < columnList.length; i++)
-              if (columnList[i] != 'Name')
-                Container(
-                  // color: Color(0xffEAEAEA),
-                  color: Colors.orange.shade200,
-                  padding: const EdgeInsets.only(left: 8),
-                  width: 100,
-                  height: 50,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    '${columnList[i]}',
-                    style: TextStyle(color: Colors.black),
-                  ),
+        const SizedBox(width: 4),
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Tooltip(
+            message: valves.join('\n'),
+            triggerMode: TooltipTriggerMode.tap,
+            showDuration: const Duration(seconds: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kSectionLine),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
                 ),
-          ],
+              ],
+            ),
+            textStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: _kBodyText,
+              height: 1.5,
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: _kBannerBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                '...',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _kTeal,
+                ),
+              ),
+            ),
+          ),
         ),
       ],
     );
   }
+
+  Widget _textValue(dynamic value, {bool bold = false}) {
+    final text = value == null ? '' : '$value';
+    if (_isBlank(text)) {
+      return const Text(
+        '–',
+        style: TextStyle(fontSize: 13.5, color: _kMutedText),
+      );
+    }
+    return Tooltip(
+      message: text,
+      child: Text(
+        text,
+        maxLines: 4,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+          color: _kBodyText,
+        ),
+      ),
+    );
+  }
+
+  Widget _statusChip(dynamic raw) {
+    final label = '${getStatus(raw)['status']}';
+    final style = _statusStyle(label);
+
+    return Tooltip(
+      message: label,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: style.bg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: style.dot,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: style.fg,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  _StatusStyle _statusStyle(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('pend') || l.contains('wait') || l.contains('pause')) {
+      return const _StatusStyle(
+          Color(0xffFDEFCF), Color(0xff8A5A00), Color(0xffD98A00));
+    }
+    if (l.contains('run') || l.contains('progress') || l.contains('active')) {
+      return const _StatusStyle(
+          Color(0xffDDF3E4), Color(0xff1E7A3C), Color(0xff2E9E4F));
+    }
+    if (l.contains('stop') ||
+        l.contains('skip') ||
+        l.contains('fail') ||
+        l.contains('error') ||
+        l.contains('abort')) {
+      return const _StatusStyle(
+          Color(0xffFDE3E1), Color(0xffB3261E), Color(0xffD93025));
+    }
+    // Completed / anything else
+    return const _StatusStyle(
+        Color(0xffE4EBEF), Color(0xff3D4E56), Color(0xff55666E));
+  }
+
+  // ───────────────────── sensor report (right card) ─────────────────────
+
+  Widget _buildSensorCard(List<_GroupInfo> groups) {
+    return Container(
+      width: _compact ? 60 : _kSensorWidth,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x240B5D6B),
+            blurRadius: 14,
+            offset: Offset(-4, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(height: _kBannerHeight, color: _kBannerBg),
+          Container(
+            height: _kHeaderHeight,
+            color: _kHeaderBg,
+            alignment: Alignment.center,
+            child: _compact
+                ? const Icon(Icons.bar_chart_rounded,
+                size: 20, color: _kHeaderText)
+                : const Text(
+              'Sensor report',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: _kHeaderText,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Scrollbar(
+              controller: _verticalScroll3,
+              thumbVisibility: !_compact,
+              child: CustomScrollView(
+                controller: _verticalScroll3,
+                slivers: _groupSlivers(
+                  groups,
+                  _sensorGroupHeader,
+                      (a, b) => Column(
+                    children: [for (var i = a; i < b; i++) _sensorRow(i)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sensorRow(int i) {
+    final h = _rowHeight(i);
+    return Container(
+      height: h,
+      alignment: Alignment.center,
+      decoration: _kRowDecoration,
+      child: _compact
+      // phone: icon only
+          ? SizedBox(
+        width: 40,
+        height: 40,
+        child: ElevatedButton(
+          onPressed: () => _openSensors(i),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _kTeal,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+          ),
+          child: const Icon(Icons.bar_chart_rounded, size: 20),
+        ),
+      )
+          : ElevatedButton.icon(
+        onPressed: () => _openSensors(i),
+        icon: const Icon(Icons.bar_chart_rounded, size: 18),
+        label: const Text('Sensors'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _kTeal,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: const StadiumBorder(),
+          padding:
+          const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          textStyle:
+          const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  /// Only the "Sensors" button calls this – table cells / rows are not tappable.
+  void _openSensors(int rowIndex) {
+    if (widget.onSequenceClicked == null ||
+        widget.generalColumnData.length <= rowIndex) {
+      return;
+    }
+    String seqName = '';
+    final row = widget.generalColumnData[rowIndex];
+    for (int j = 0; j < widget.generalColumn.length; j++) {
+      if (['Sequence', 'Valves', 'Valve', 'SequenceData']
+          .contains(widget.generalColumn[j])) {
+        if (row != null && j < row.length) {
+          seqName = row[j]?.toString() ?? '';
+          break;
+        }
+      }
+    }
+    if (seqName.isEmpty && widget.fixedColumnData.length > rowIndex) {
+      seqName = widget.fixedColumnData[rowIndex]?.toString() ?? '';
+    }
+    if (seqName.isNotEmpty) {
+      widget.onSequenceClicked!(seqName);
+    }
+  }
+
+  // ───────────────────────── data helpers ─────────────────────────
+
+  double _rowHeight(int i) =>
+      getBoxHeight(widget.filterColumnData, i, widget.generalColumnData);
+
+  String _labelFor(String name) => _labels[name] ?? name;
+
+  double _generalWidth(String name) {
+    if (name == 'Status') return 160;
+    if (name == 'Line') return 170;
+    if (name == 'Sequence' || name == 'SequenceData' || name == 'Valves') {
+      return 160;
+    }
+    if (name == 'Valve') return 150;
+    if (_timeColumns.contains(name)) return 130;
+    if (_reasonColumns.contains(name) ||
+        _pumpCtColumns.contains(name) ||
+        _pressureColumns.contains(name)) {
+      return 200;
+    }
+    return 130;
+  }
+
+  String _groupKey(int i) =>
+      i < widget.fixedColumnData.length ? '${widget.fixedColumnData[i]}' : '';
+
+  dynamic _totalTimeFor(String key) {
+    for (final item in widget.graphData) {
+      if (item is Map && '${item['name']}' == key && item['totalTime'] != null) {
+        return item['totalTime'];
+      }
+    }
+    return null;
+  }
+
+  /// Consecutive rows with the same group value (e.g. the same date).
+  List<_GroupInfo> _buildGroups() {
+    final n = widget.generalColumnData.length;
+    if (n == 0) return const [];
+    if (widget.fixedColumnData.isEmpty) {
+      return [
+        _GroupInfo(key: null, count: n, totalTime: null, start: 0, end: n)
+      ];
+    }
+    final groups = <_GroupInfo>[];
+    var i = 0;
+    while (i < n) {
+      final key = _groupKey(i);
+      var end = i;
+      while (end < n && _groupKey(end) == key) {
+        end++;
+      }
+      groups.add(_GroupInfo(
+        key: key,
+        count: end - i,
+        totalTime: _totalTimeFor(key),
+        start: i,
+        end: end,
+      ));
+      i = end;
+    }
+    return groups;
+  }
+
+  List<_Section> _buildSections() {
+    final sections = <_Section>[];
+    double left = 0;
+
+    void add(String title, List<dynamic> columns, List<dynamic> data,
+        double colWidth,
+        {bool isGeneral = false}) {
+      if (columns.isEmpty) return;
+      double content = 0;
+      if (isGeneral) {
+        for (final c in columns) {
+          content += _generalWidth('$c');
+        }
+      } else {
+        content = columns.where((c) => c != 'Name').length * colWidth;
+      }
+      final divider = sections.isNotEmpty;
+      final width = content + (divider ? 1 : 0);
+      sections.add(_Section(
+        title: title,
+        columns: columns,
+        data: data,
+        colWidth: colWidth,
+        width: width,
+        left: left,
+        divider: divider,
+        isGeneral: isGeneral,
+      ));
+      left += width;
+    }
+
+    add('General', widget.generalColumn, widget.generalColumnData, 0,
+        isGeneral: true);
+    add('Water', widget.waterColumn, widget.waterColumnData, 100);
+    add('Filter', widget.filterColumn, widget.filterColumnData, 200);
+    add('Pre Post', widget.prePostColumn, widget.prePostColumnData, 100);
+
+    add('<C-EC-PH>', widget.centralEcPhColumn, widget.centralEcPhColumnData,
+        100);
+    final centralChannels = [
+      [widget.centralChannel1Column, widget.centralChannel1ColumnData],
+      [widget.centralChannel2Column, widget.centralChannel2ColumnData],
+      [widget.centralChannel3Column, widget.centralChannel3ColumnData],
+      [widget.centralChannel4Column, widget.centralChannel4ColumnData],
+      [widget.centralChannel5Column, widget.centralChannel5ColumnData],
+      [widget.centralChannel6Column, widget.centralChannel6ColumnData],
+      [widget.centralChannel7Column, widget.centralChannel7ColumnData],
+      [widget.centralChannel8Column, widget.centralChannel8ColumnData],
+    ];
+    for (var n = 0; n < centralChannels.length; n++) {
+      add('<C-CH${n + 1}>', centralChannels[n][0], centralChannels[n][1], 100);
+    }
+
+    add('<L-EC-PH>', widget.localEcPhColumn, widget.localEcPhColumnData, 100);
+    final localChannels = [
+      [widget.localChannel1Column, widget.localChannel1ColumnData],
+      [widget.localChannel2Column, widget.localChannel2ColumnData],
+      [widget.localChannel3Column, widget.localChannel3ColumnData],
+      [widget.localChannel4Column, widget.localChannel4ColumnData],
+      [widget.localChannel5Column, widget.localChannel5ColumnData],
+      [widget.localChannel6Column, widget.localChannel6ColumnData],
+      [widget.localChannel7Column, widget.localChannel7ColumnData],
+      [widget.localChannel8Column, widget.localChannel8ColumnData],
+    ];
+    for (var n = 0; n < localChannels.length; n++) {
+      add('<L-CH${n + 1}>', localChannels[n][0], localChannels[n][1], 100);
+    }
+
+    return sections;
+  }
 }
+
+bool _isBlank(String text) {
+  final t = text.trim();
+  return t.isEmpty || t == '-';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared helpers (kept public – other files may use them)
+// ─────────────────────────────────────────────────────────────────────────────
 
 const int _kBoxHeightCharsPerLine = 20;
 
@@ -2013,9 +1147,8 @@ IconData reasonIcon(String reason) {
 }
 
 /// Renders a multi-line reason string (one reason per irrigation cycle,
-/// separated by '\n') as a compact, color-coded, icon-led list so the
-/// start/stop reason is easy to scan at a glance instead of a wall of
-/// plain black text.
+/// separated by '\n') as plain text lines, matching the reference design
+/// ("Schedule", "Timer ended", "Manual stop", ...).
 Widget reasonCell(String raw, double height) {
   final lines = raw.split('\n');
   return SizedBox(
@@ -2029,23 +1162,23 @@ Widget reasonCell(String raw, double height) {
             padding: const EdgeInsets.symmetric(vertical: 1),
             child: Tooltip(
               message: line,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(reasonIcon(line), size: 13, color: reasonColor(line)),
-                  const SizedBox(width: 4),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 170),
-                    child: Text(
-                      line,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: reasonColor(line)),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              child: _isBlank(line)
+                  ? const Text(
+                '–',
+                style: TextStyle(fontSize: 13.5, color: _kMutedText),
+              )
+                  : ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  line,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: reasonColor(line),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -2081,7 +1214,7 @@ double getBoxHeight(dynamic filterColumnData, int i,
     }
   }
 
-  return (50 + ((maxLines - 1) * 15)).toDouble();
+  return (64 + ((maxLines - 1) * 17)).toDouble();
 }
 
 Widget getColumnDotLine() {
@@ -2117,111 +1250,3 @@ class VerticalDotBorder extends CustomPainter {
     return false;
   }
 }
-
-// Widget buildPumpCtCard(String rawValue) {
-//   List<String>? values = parsePumpCtData(rawValue);
-//   if (values == null) {
-//     return const Center(
-//       child: Text(
-//         '-',
-//         style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal, color: Colors.black54),
-//       ),
-//     );
-//   }
-//
-//   final rVal = values[0];
-//   final yVal = values[1];
-//   final bVal = values[2];
-//
-//   return Tooltip(
-//     message: 'Red: $rVal | Yellow: $yVal | Blue: $bVal',
-//     child: Card(
-//       elevation: 1,
-//       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-//       shape: RoundedRectangleBorder(
-//         borderRadius: BorderRadius.circular(8),
-//         side: BorderSide(color: Colors.grey.shade300, width: 0.8),
-//       ),
-//       color: Colors.white,
-//       child: Padding(
-//         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-//         child: Row(
-//           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//           crossAxisAlignment: CrossAxisAlignment.center,
-//           children: [
-//             _buildCtPhaseItem(
-//               label: 'R',
-//               value: rVal,
-//               color: const Color(0xFFE53935), // Red
-//               bgColor: const Color(0xFFFFEBEE),
-//               borderColor: const Color(0xFFFFCDD2),
-//             ),
-//             _buildCtPhaseItem(
-//               label: 'Y',
-//               value: yVal,
-//               color: const Color(0xFFF57F17), // Yellow/Amber
-//               bgColor: const Color(0xFFFFFDE7),
-//               borderColor: const Color(0xFFFFF9C4),
-//             ),
-//             _buildCtPhaseItem(
-//               label: 'B',
-//               value: bVal,
-//               color: const Color(0xFF1E88E5), // Blue
-//               bgColor: const Color(0xFFE3F2FD),
-//               borderColor: const Color(0xFFBBDEFB),
-//             ),
-//           ],
-//         ),
-//       ),
-//     ),
-//   );
-// }
-//
-// Widget _buildCtPhaseItem({
-//   required String label,
-//   required String value,
-//   required Color color,
-//   required Color bgColor,
-//   required Color borderColor,
-// }) {
-//   return Container(
-//     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-//     decoration: BoxDecoration(
-//       color: bgColor,
-//       borderRadius: BorderRadius.circular(5),
-//       border: Border.all(color: borderColor, width: 0.8),
-//     ),
-//     child: Row(
-//       mainAxisSize: MainAxisSize.min,
-//       crossAxisAlignment: CrossAxisAlignment.center,
-//       children: [
-//         Container(
-//           width: 14,
-//           height: 14,
-//           decoration: BoxDecoration(
-//             color: color,
-//             shape: BoxShape.circle,
-//           ),
-//           alignment: Alignment.center,
-//           child: Text(
-//             label,
-//             style: const TextStyle(
-//               color: Colors.white,
-//               fontSize: 8.5,
-//               fontWeight: FontWeight.bold,
-//             ),
-//           ),
-//         ),
-//         const SizedBox(width: 3),
-//         Text(
-//           value,
-//           style: TextStyle(
-//             color: color,
-//             fontSize: 11,
-//             fontWeight: FontWeight.bold,
-//           ),
-//         ),
-//       ],
-//     ),
-//   );
-// }

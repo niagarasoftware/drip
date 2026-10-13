@@ -134,7 +134,8 @@ enum PumpReasonCode {
   motorOffDryRunOccurrence(49, 'Motor off due to dry run occurrence'),
   motorOffLowPressure(50, 'Motor off due to low pressure'),
   motorOffHighPressure(51, 'Motor off due to high pressure'),
-  motorOffLeakageCurrent(52, 'Motor off due to Leakage current sensed');
+  motorOffLeakageCurrent(52, 'Motor off due to Leakage current sensed'),
+  motorOffMainPowerSupplyOff(53, 'Motor stopped because the main power supply is off.');
 
   final int code;
   final String content;

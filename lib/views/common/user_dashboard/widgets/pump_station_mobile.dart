@@ -62,6 +62,10 @@ class PumpStationMobile extends StatelessWidget {
         ? _buildFertilizer(context, cFertilizerSite, isNova).cast<Widget>()
         : <Widget>[];
 
+    final fertilizerItemsLocal = lFertilizerSite.isNotEmpty
+        ? _buildFertilizer(context, lFertilizerSite, isNova).cast<Widget>()
+        : <Widget>[];
+
     const double itemWidth = 70;
     const double itemHeight = 90;
 
@@ -122,6 +126,44 @@ class PumpStationMobile extends StatelessWidget {
                           spacing: 0,
                           runSpacing: 0,
                           children: fertilizerItemsCentral,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            if (lFertilizerSite.isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                height: 125,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: IntrinsicWidth(
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: InkWell(
+                        onTap: () {
+                          final customerVM = context.read<CustomerScreenControllerViewModel>();
+                          showRightSheet(
+                            context,
+                            ChangeNotifierProvider.value(
+                              value: customerVM,
+                              child: FertilizerLivePanel(
+                                deviceId: deviceId,
+                                controllerId: controllerId,
+                                customerId: customerId,
+                                isWide: false,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: 0,
+                          runSpacing: 0,
+                          children: fertilizerItemsLocal,
                         ),
                       ),
                     ),

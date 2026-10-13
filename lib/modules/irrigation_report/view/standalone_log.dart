@@ -10,8 +10,55 @@ import 'package:oro_drip_irrigation/modules/irrigation_report/view/scrollingTabl
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import '../repository/irrigation_repository.dart';
 import 'log_home.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Design tokens (same palette as the new ScrollingTable)
+// ─────────────────────────────────────────────────────────────────────────────
+const Color _kPageBg = Color(0xffEEF4F4);
+const Color _kBannerBg = Color(0xffE2EFF0);
+const Color _kGroupBg = Color(0xffD9ECEF);
+const Color _kHeaderBg = Color(0xffF4F8F9);
+const Color _kTeal = Color(0xff0B5D6B);
+const Color _kHeaderText = Color(0xff5F6F76);
+const Color _kBodyText = Color(0xff1F2D33);
+const Color _kMutedText = Color(0xff9AA8AE);
+const Color _kSectionLine = Color(0xffC5D8DC);
+const Color _kLine = Color(0xffE6ECEE);
+
+const double _kBannerHeight = 40;
+const double _kHeaderHeight = 48;
+const double _kGroupHeight = 42;
+const double _kRowHeight = 64;
+
+/// A block of consecutive rows that share the same date.
+class _DateGroup {
+  final String key;
+  final int start;
+  final int end;
+  const _DateGroup({required this.key, required this.start, required this.end});
+  int get count => end - start;
+}
+
+/// Pinned (sticky) date header.
+class _GroupHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+  _GroupHeaderDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      SizedBox(height: height, child: child);
+
+  @override
+  bool shouldRebuild(covariant _GroupHeaderDelegate oldDelegate) => true;
+}
 
 class StandaloneLog extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -170,373 +217,555 @@ class _StandaloneLogState extends State<StandaloneLog> {
     }
   }
 
+  // ───────────────────────────── UI ─────────────────────────────
+
+  /// Width of each standalone column (index follows [standaloneColumn]).
+  double _colWidth(int j) {
+    switch (j) {
+      case 0:
+        return 140; // Program
+      case 1:
+        return 120; // Method
+      case 2:
+        return 140; // Start Time
+      case 3:
+        return 160; // Zone Name
+      case 4:
+        return 180; // Device Id
+      default:
+        return 500; // Others
+    }
+  }
+
+  double get _contentWidth {
+    double w = 0;
+    for (var j = 0; j < standaloneColumn.length; j++) {
+      w += _colWidth(j);
+    }
+    return w;
+  }
+
+  /// Consecutive rows with the same date.
+  List<_DateGroup> _buildGroups(List<dynamic> dates) {
+    final groups = <_DateGroup>[];
+    var i = 0;
+    while (i < dates.length) {
+      final key = '${dates[i]}';
+      var end = i;
+      while (end < dates.length && '${dates[end]}' == key) {
+        end++;
+      }
+      groups.add(_DateGroup(key: key, start: i, end: end));
+      i = end;
+    }
+    return groups;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 600;
+    final pad = compact ? 8.0 : 12.0;
+    final pageDates = filterDataByPages(data: standaloneData['fixedColumnData']);
+    final pageRows = filterDataByPages(data: standaloneData['standaloneColumnData']);
+    final groups = _buildGroups(pageDates);
 
     return Material(
+      color: _kPageBg,
+      child: Container(
+        color: _kPageBg,
+        padding: EdgeInsets.fromLTRB(pad, 10, pad, pad),
+        child: Column(
+          children: [
+            Expanded(child: _buildMainCard(groups, pageRows, compact)),
+            const SizedBox(height: 10),
+            _buildFooter(compact),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────── main card ───────────────────────────
+
+  Widget _buildMainCard(List<_DateGroup> groups, List<dynamic> pageRows, bool compact) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Column(
         children: [
+          // banner + column header (follows horizontal scroll)
+          LayoutBuilder(
+            builder: (context, c) {
+              final w = _contentWidth > c.maxWidth ? _contentWidth : c.maxWidth;
+              return SizedBox(
+                width: c.maxWidth,
+                height: _kBannerHeight + _kHeaderHeight,
+                child: SingleChildScrollView(
+                  controller: _horizontalScroll1,
+                  scrollDirection: Axis.horizontal,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: _buildHeader(w),
+                ),
+              );
+            },
+          ),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.only(bottomRight: Radius.circular(20),bottomLeft: Radius.circular(20))
-              ),
-              margin: const EdgeInsets.only(left: 5,right: 5),
-              child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
-                var width = constraints.maxWidth;
-                return Row(
-                  children: [
-                    Column(
-                      children: [
-                        //Todo : first column
-                        Container(
-                          // color: Color(0xffF7F9FA),
-                          decoration: BoxDecoration(
-                              color: Theme.of(context).primaryColorDark
-                          ),
-                          padding: const EdgeInsets.only(left: 8),
-                          width: 100,
-                          height: 50,
-                          alignment: Alignment.center,
-                          child: const Text('Date',style: TextStyle(color: Colors.white),),
-      
-                        ),
-                        Expanded(
-                          child: SingleChildScrollView(
-                            controller: _verticalScroll1,
-                            child: Container(
-                              child: Row(
-                                children: [
-                                  Column(
-                                    children: [
-                                      for(var i in filterDataByPages(data : standaloneData['fixedColumnData']))
-                                        Container(
-                                          color: Color(0xffDCF3DD),
-                                          padding: const EdgeInsets.only(left: 8),
-                                          width: 100,
-                                          height: 70,
-                                          alignment: Alignment.center,
-                                          child: Text('${i}'),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
-                    Column(
-                      children: [
-                        Container(
-                          color: Theme.of(context).primaryColorDark,
-                          width: width-100,
-                          height: 50,
-                          child: SingleChildScrollView(
-                            controller: _horizontalScroll1,
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                getColumnDotLine(),
-                                if(standaloneColumn.isNotEmpty)
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Center(
-                                        child: Text('Standalone',style: TextStyle(color: Colors.white),),
-                                      ),
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          for(var i = 0;i < standaloneColumn.length;i++)
-                                            Container(
-                                              color: Colors.orange.shade200,
-                                              padding: const EdgeInsets.only(left: 8),
-                                              width: standaloneColumn[i] == 'Others' ? 1000 : 100,
-                                              height: 25,
-                                              alignment: Alignment.centerLeft,
-                                              child: Text(standaloneColumn[i],style: const TextStyle(color: Colors.black),),
-                                            ),
-      
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                getColumnDotLine(),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: Container(
-                            width: width-100,
-                            child: Scrollbar(
-                              thumbVisibility: true,
-                              controller: _horizontalScroll2,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                controller: _horizontalScroll2,
-                                child: Container(
-                                  child: Scrollbar(
-                                    thumbVisibility: true,
-                                    controller: _verticalScroll2,
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.vertical,
-                                      controller: _verticalScroll2,
-                                      child: Row(
-                                        children: [
-                                          //TODO : Standalone DATA
-                                          Column(
-                                            children: [
-                                              for(var i in filterDataByPages(data: standaloneData['standaloneColumnData']))
-                                                Row(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    SizedBox(
-                                                      width: 0,
-                                                      height: 70,
-                                                      child: CustomPaint(
-                                                        painter: VerticalDotBorder(),
-                                                        size: const Size(10,50),
-                                                      ),
-                                                    ),
-                                                    for(var j = 0;j < i.length;j++)
-                                                      Container(
-                                                        padding: const EdgeInsets.only(left: 8),
-                                                        width: j == 5 ? 1000 : 100,
-                                                        height: 70,
-                                                        alignment: Alignment.centerLeft,
-                                                        child: Text('${i[j] ?? '-'}',style: const TextStyle(fontSize: 12,fontWeight: FontWeight.normal),),
-                                                      ),
-                                                    SizedBox(
-                                                      width: 0,
-                                                      height: 70,
-                                                      child: CustomPaint(
-                                                        painter: VerticalDotBorder(),
-                                                        size: const Size(0,50),
-                                                      ),
-                                                    )
-                                                  ],
-                                                )
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                if (httpError == 1) {
+                  return _messageState(Icons.error_outline, 'Unable to load the log. Please try again.');
+                }
+                if (pageRows.isEmpty) {
+                  return _messageState(Icons.inbox_outlined, 'No standalone log found for the selected date.');
+                }
+                final w = _contentWidth > c.maxWidth ? _contentWidth : c.maxWidth;
+                return Scrollbar(
+                  controller: _horizontalScroll2,
+                  thumbVisibility: !compact,
+                  child: SingleChildScrollView(
+                    controller: _horizontalScroll2,
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(
+                      width: w,
+                      child: CustomScrollView(
+                        controller: _verticalScroll2,
+                        slivers: [
+                          for (final g in groups)
+                            SliverMainAxisGroup(
+                              slivers: [
+                                SliverPersistentHeader(
+                                  pinned: true,
+                                  delegate: _GroupHeaderDelegate(
+                                    height: _kGroupHeight,
+                                    child: _groupHeader(g),
                                   ),
                                 ),
-                              ),
+                                SliverToBoxAdapter(
+                                  child: Column(
+                                    children: [
+                                      for (var i = g.start; i < g.end; i++)
+                                        _dataRow(pageRows[i]),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
+                  ),
                 );
-              },),
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _messageState(IconData icon, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 36, color: _kMutedText),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13.5, color: _kHeaderText),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(double width) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        children: [
+          Container(
+            height: _kBannerHeight,
+            color: _kBannerBg,
+            alignment: Alignment.centerLeft,
+            child: AnimatedBuilder(
+              animation: _horizontalScroll1,
+              builder: (context, _) {
+                final off = _horizontalScroll1.hasClients ? _horizontalScroll1.offset : 0.0;
+                final maxDx = width > 140 ? width - 140 : 0.0;
+                final dx = off.clamp(0.0, maxDx).toDouble();
+                return Transform.translate(
+                  offset: Offset(dx, 0),
+                  child: const Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: Text(
+                      'Standalone',
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _kTeal,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
           Container(
-            color: Theme.of(context).primaryColorDark,
-            width: MediaQuery.of(context).size.width,
-            height: 35,
+            height: _kHeaderHeight,
+            color: _kHeaderBg,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                SizedBox(
-                  width: 180,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      InkWell(
-                        onTap: (){
-                          setState(() {
-                            if(selectedPages != 1){
-                              selectedPages -= 1  ;
-                            }
-                          });
-                        },
-                        child: Container(
-                          color: Colors.white,
-                          padding: EdgeInsets.all(5),
-                          child: Icon(Icons.keyboard_double_arrow_left),
-                        ),
+                for (var j = 0; j < standaloneColumn.length; j++)
+                  Container(
+                    width: _colWidth(j),
+                    padding: const EdgeInsets.only(left: 16, right: 8),
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      standaloneColumn[j],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _kHeaderText,
                       ),
-                      if(standaloneData['fixedColumnData'] != null)
-                        Text(
-                          '${
-                              (selectedPages * noOfRowsPerPage) - 20} - ${((selectedPages * noOfRowsPerPage) < standaloneData['fixedColumnData'].length
-                              ?  (selectedPages * noOfRowsPerPage)
-                              : standaloneData['fixedColumnData'].length)} / ${standaloneData['fixedColumnData'].length}',style: TextStyle(color: Colors.white),
-                        ),
-                      InkWell(
-                        onTap: (){
-                          setState(() {
-                            if(selectedPages != totalPages){
-                              selectedPages += 1;
-                            }
-                          });
-                        },
-                        child: Container(
-                          color: Colors.white,
-                          padding: EdgeInsets.all(5),
-                          child: Icon(Icons.keyboard_double_arrow_right),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                MaterialButton(
-                    color: Colors.white,
-                    child: Text('Select Date'),
-                    onPressed: (){
-                      showDialog(context: context, builder: (context){
-                        return AlertDialog(
-                          title: Text('Date Picker'),
-                          content: StatefulBuilder(
-                            builder: (BuildContext context, StateSetter stateSetter) {
-                              return SizedBox(
-                                width: 200,
-                                height: 250,
-                                child:SfDateRangePicker(
-                                  onSelectionChanged:  _onSelectionChanged,
-                                  selectionMode: DateRangePickerSelectionMode.range,
-                                  initialSelectedRange: PickerDateRange(
-                                      // DateTime.now().subtract(const Duration(days: 4)),
-                                      // DateTime.now().add(const Duration(days: 3))
-                                    DateTime.now(),
-                                    DateTime.now()
-                                  ),
-      
-                                ),
-                              );
-                            },
-                          ),
-                          actions: [
-                            CustomMaterialButton(
-                              title: 'Cancel',
-                              outlined: true,
-                            ),
-                            CustomMaterialButton(
-                              onPressed: (){
-                                Navigator.pop(context);
-                                getDialog(context);
-                                getStandaloneData();
-                                // setState(() {
-                                //   _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
-                                // });
-                                if(mounted){
-                                  Navigator.pop(context);
-                                }
-                              },
-                            ),
-                          ],
-                        );
-      
-                      });
-                    }
-                ),
-                InkWell(
-                  onTap: (){
-                    showDialog(
-                        context: context,
-                        builder: (context){
-                          var fileName = 'file';
-                          return AlertDialog(
-                            title: Text('Give Name For Your File'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFormField(
-                                  initialValue: fileName,
-                                  onChanged: (value){
-                                    fileName = value;
-                                  },
-                                  decoration: InputDecoration(
-                                      border: OutlineInputBorder()
-                                  ),
-                                ),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                  onPressed: (){
-                                    generateExcelForStandAlone(standaloneData,fileName);
-                                    Navigator.pop(context);
-                                  },
-                                  child: Text('Click to download')
-                              )
-                            ],
-                          );
-                        }
-                    );
-      
-      
-                  },
-                  child: Container(
-                    padding: EdgeInsets.symmetric(vertical: 5,horizontal: 10),
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(5),
-                        color: Colors.white
                     ),
-                    child: Icon(Icons.download),
                   ),
-                )
               ],
             ),
-            // child: FloatingActionButton(
-            //   backgroundColor: Colors.white,
-            //   onPressed: () {
-            //     showDialog(context: context, builder: (context){
-            //       return AlertDialog(
-            //         title: Text('Date Picker'),
-            //         content: StatefulBuilder(
-            //           builder: (BuildContext context, StateSetter stateSetter) {
-            //             return SizedBox(
-            //               width: 200,
-            //               height: 250,
-            //               child:SfDateRangePicker(
-            //                 onSelectionChanged:  _onSelectionChanged,
-            //                 selectionMode: DateRangePickerSelectionMode.range,
-            //                 initialSelectedRange: PickerDateRange(
-            //                     DateTime.now().subtract(const Duration(days: 4)),
-            //                     DateTime.now().add(const Duration(days: 3))),
-            //               ),
-            //             );
-            //           },
-            //         ),
-            //         actions: [
-            //           ElevatedButton(
-            //               onPressed: (){
-            //                 Navigator.pop(context);
-            //               },
-            //               child: Text('Cancel')
-            //           ),
-            //           ElevatedButton(
-            //               onPressed: ()async{
-            //                 Navigator.pop(context);
-            //                 getDialog(context);
-            //                 getData();
-            //                 setState(() {
-            //                   _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
-            //                 });
-            //                 if(mounted){
-            //                   Navigator.pop(context);
-            //                 }
-            //               },
-            //               child: Text('Ok')
-            //           )
-            //         ],
-            //       );
-            //
-            //     });
-            //   },
-            //   child: Text('Select Date'),
-            // ),
-          )
-      
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Date header – the text follows the horizontal scroll so it always stays
+  /// visible at the left edge.
+  Widget _groupHeader(_DateGroup g) {
+    return Container(
+      color: _kGroupBg,
+      alignment: Alignment.centerLeft,
+      child: AnimatedBuilder(
+        animation: _horizontalScroll2,
+        builder: (context, _) {
+          final dx = _horizontalScroll2.hasClients ? _horizontalScroll2.offset : 0.0;
+          return Transform.translate(
+            offset: Offset(dx, 0),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 18, right: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    g.key,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _kTeal,
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Text(
+                    '${g.count} ${g.count == 1 ? 'schedule' : 'schedules'}',
+                    maxLines: 1,
+                    style: const TextStyle(fontSize: 12.5, color: _kHeaderText),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _dataRow(dynamic row) {
+    final List cells = row is List ? row : const [];
+    return Container(
+      height: _kRowHeight,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _kLine)),
+      ),
+      child: Row(
+        children: [
+          for (var j = 0; j < cells.length; j++)
+            Container(
+              width: _colWidth(j),
+              padding: const EdgeInsets.only(left: 16, right: 8),
+              alignment: Alignment.centerLeft,
+              child: j == 1 ? _methodChip(cells[j]) : _textValue(cells[j], bold: j == 0),
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool _isBlank(String text) {
+    final t = text.trim();
+    return t.isEmpty || t == '-';
+  }
+
+  Widget _textValue(dynamic value, {bool bold = false}) {
+    final text = value == null ? '' : '$value';
+    if (_isBlank(text)) {
+      return const Text(
+        '–',
+        style: TextStyle(fontSize: 13.5, color: _kMutedText),
+      );
+    }
+    return Tooltip(
+      message: text,
+      child: Text(
+        text,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+          color: _kBodyText,
+        ),
+      ),
+    );
+  }
+
+  Widget _methodChip(dynamic raw) {
+    final label = raw == null ? '' : '$raw';
+    if (_isBlank(label)) return _textValue(raw);
+
+    Color bg;
+    Color fg;
+    Color dot;
+    switch (label) {
+      case 'Time':
+        bg = const Color(0xffDDEBF7);
+        fg = const Color(0xff1565C0);
+        dot = const Color(0xff1E88E5);
+        break;
+      case 'Flow':
+        bg = const Color(0xffDDF3E4);
+        fg = const Color(0xff1E7A3C);
+        dot = const Color(0xff2E9E4F);
+        break;
+      default:
+        bg = const Color(0xffE4EBEF);
+        fg = const Color(0xff3D4E56);
+        dot = const Color(0xff55666E);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: fg,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────── footer ───────────────────────────
+
+  Widget _pagerButton(IconData icon, VoidCallback onTap) {
+    return Material(
+      color: _kBannerBg,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: Icon(icon, size: 20, color: _kTeal),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter(bool compact) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xffDCE5E7)),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        runSpacing: 8,
+        spacing: 12,
+        children: [
+          // pagination
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _pagerButton(Icons.keyboard_double_arrow_left, (){
+                setState(() {
+                  if(selectedPages != 1){
+                    selectedPages -= 1  ;
+                  }
+                });
+              }),
+              if(standaloneData['fixedColumnData'] != null)
+                Container(
+                  constraints: const BoxConstraints(minWidth: 110),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    '${
+                        (selectedPages * noOfRowsPerPage) - 20} - ${((selectedPages * noOfRowsPerPage) < standaloneData['fixedColumnData'].length
+                        ?  (selectedPages * noOfRowsPerPage)
+                        : standaloneData['fixedColumnData'].length)} / ${standaloneData['fixedColumnData'].length}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kBodyText,
+                    ),
+                  ),
+                ),
+              _pagerButton(Icons.keyboard_double_arrow_right, (){
+                setState(() {
+                  if(selectedPages != totalPages){
+                    selectedPages += 1;
+                  }
+                });
+              }),
+            ],
+          ),
+          // date + download
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kTeal,
+                  side: const BorderSide(color: _kSectionLine),
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                label: const Text('Select Date'),
+                onPressed: (){
+                  showDialog(context: context, builder: (context){
+                    return AlertDialog(
+                      title: Text('Date Picker'),
+                      content: StatefulBuilder(
+                        builder: (BuildContext context, StateSetter stateSetter) {
+                          return SizedBox(
+                            width: 200,
+                            height: 250,
+                            child:SfDateRangePicker(
+                              onSelectionChanged:  _onSelectionChanged,
+                              selectionMode: DateRangePickerSelectionMode.range,
+                              initialSelectedRange: PickerDateRange(
+                                  DateTime.now(),
+                                  DateTime.now()
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      actions: [
+                        CustomMaterialButton(
+                          title: 'Cancel',
+                          outlined: true,
+                        ),
+                        CustomMaterialButton(
+                          onPressed: (){
+                            Navigator.pop(context);
+                            getDialog(context);
+                            getStandaloneData();
+                            if(mounted){
+                              Navigator.pop(context);
+                            }
+                          },
+                        ),
+                      ],
+                    );
+
+                  });
+                },
+              ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kTeal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                icon: const Icon(Icons.download_rounded, size: 18),
+                label: const Text('Download'),
+                onPressed: (){
+                  showDialog(
+                      context: context,
+                      builder: (context){
+                        var fileName = 'file';
+                        return AlertDialog(
+                          title: Text('Give Name For Your File'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              TextFormField(
+                                initialValue: fileName,
+                                onChanged: (value){
+                                  fileName = value;
+                                },
+                                decoration: InputDecoration(
+                                    border: OutlineInputBorder()
+                                ),
+                              ),
+                            ],
+                          ),
+                          actions: [
+                            TextButton(
+                                onPressed: (){
+                                  generateExcelForStandAlone(standaloneData,fileName);
+                                  Navigator.pop(context);
+                                },
+                                child: Text('Click to download')
+                            )
+                          ],
+                        );
+                      }
+                  );
+                },
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -586,8 +815,6 @@ class _StandaloneLogState extends State<StandaloneLog> {
         await file.writeAsBytes(fileBytes);
         // Check if file exists
         if (await file.exists()) {
-          // Scaffold.of(context).showSnackBar()
-          // Navigator.pop(context);
           showDialog(context: context, builder: (context){
             return AlertDialog(
               title: Text('$name Download Successfully at'),
@@ -604,7 +831,6 @@ class _StandaloneLogState extends State<StandaloneLog> {
           });
           print("Excel file saved successfully at $filePath");
         } else {
-          // Navigator.pop(context);
           showDialog(context: context, builder: (context){
             return AlertDialog(
               title: Text('$name Download failed..'),

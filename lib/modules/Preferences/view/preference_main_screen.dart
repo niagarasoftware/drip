@@ -1213,9 +1213,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         ),
       );
     } catch (error, stackTrace) {
-      // throw Exception('This is a test exception');
-      print("error ==> $error");
-      print("stackTrace ==> $stackTrace");
+      debugPrint("error ==> $error");
+      debugPrint("stackTrace ==> $stackTrace");
       return const Center(child: Text("Unexpected error"));
     }
   }

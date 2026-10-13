@@ -5,10 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'zone_log_pdf_builder.dart';
 
-Future<String?> exportZoneLogToCSV(List<dynamic> records, String fileName) async {
+Future<String?> exportZoneLogToCSV(
+    List<dynamic> records, String fileName) async {
   try {
     StringBuffer sb = StringBuffer();
-    sb.writeln('Date,Program Name,Sequence Name,HeadUnit,Pump,Start Time,End Time,Duration,Start Reason,End Reason');
+    sb.writeln(
+        'Date,Program Name,Sequence Name,HeadUnit,Pump,Start Time,End Time,Duration,Start Reason,End Reason');
 
     for (var rec in records) {
       String dateStr = rec.dateStr.replaceAll('"', '""');
@@ -22,7 +24,8 @@ Future<String?> exportZoneLogToCSV(List<dynamic> records, String fileName) async
       String startRStr = rec.startReason.replaceAll('"', '""');
       String endRStr = rec.endReason.replaceAll('"', '""');
 
-      sb.writeln('"$dateStr","$progStr","$seqStr","$huStr","$pumpStr","$startStr","$endStr","$durStr","$startRStr","$endRStr"');
+      sb.writeln(
+          '"$dateStr","$progStr","$seqStr","$huStr","$pumpStr","$startStr","$endStr","$durStr","$startRStr","$endRStr"');
     }
 
     final bytes = utf8.encode(sb.toString());
@@ -40,7 +43,8 @@ Future<String?> exportZoneLogToCSV(List<dynamic> records, String fileName) async
   }
 }
 
-Future<String?> exportZoneLogToPDF(List<dynamic> records, String fileName) async {
+Future<String?> exportZoneLogToPDF(
+    List<dynamic> records, String fileName) async {
   try {
     final pdfBytes = generateZoneLogPdfBytes(records, fileName);
     final content = base64Encode(pdfBytes);
@@ -72,24 +76,20 @@ Future<String?> exportZoneLogMatrixToExcel({
     final Sheet sheet = excel[defaultSheet];
 
     // Header 1: Date Headers
-    List<CellValue> header1 = [TextCellValue('Program / Sequence')];
+    List<CellValue> header1 = [TextCellValue('')];
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
       header1.add(TextCellValue(dateStr));
-      header1.add(TextCellValue(''));
     }
     header1.add(TextCellValue('Total'));
-    header1.add(TextCellValue(''));
     sheet.appendRow(header1);
 
     // Header 2: Sub-headers
     List<CellValue> header2 = [TextCellValue('Program / Sequence')];
     for (var _ in dateColumns) {
-      header2.add(TextCellValue('Duration'));
-      header2.add(TextCellValue('Quantity'));
+      header2.add(TextCellValue('Duration / Quantity'));
     }
-    header2.add(TextCellValue('Total Duration'));
-    header2.add(TextCellValue('Total Quantity'));
+    header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
 
     // Data rows
@@ -107,17 +107,19 @@ Future<String?> exportZoneLogMatrixToExcel({
         String dKey = DateFormat('yyyy-MM-dd').format(d);
         var dayData = row.dayEntries[dKey];
         if (dayData != null && dayData.hasRun) {
-          dataRow.add(TextCellValue(dayData.durationQtyStr));
-          dataRow.add(TextCellValue(dayData.qtyCompletedStr));
-          rowTotalSec += (dayData.durationQtySeconds as int? ?? 0);
-          rowTotalQty += (dayData.quantityCompleted as int? ?? 0);
+          int sec = (dayData.durationQtySeconds as int? ?? 0);
+          int qtyVal = (dayData.quantityCompleted as int? ?? 0);
+          String qtyStr = qtyVal > 0 ? qtyVal.toString() : '-';
+          dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
+          rowTotalSec += sec;
+          rowTotalQty += qtyVal;
         } else {
-          dataRow.add(TextCellValue('00:00:00'));
-          dataRow.add(TextCellValue('0'));
+          dataRow.add(TextCellValue('- / -'));
         }
       }
-      dataRow.add(TextCellValue(_formatDurationHelper(rowTotalSec)));
-      dataRow.add(TextCellValue(rowTotalQty.toString()));
+      String totalDur = _formatDurationHelper(rowTotalSec);
+      String totalQty = rowTotalQty > 0 ? rowTotalQty.toString() : '-';
+      dataRow.add(TextCellValue("$totalDur / $totalQty"));
       sheet.appendRow(dataRow);
     }
 
@@ -127,11 +129,13 @@ Future<String?> exportZoneLogMatrixToExcel({
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySec = dailyTotals[dKey] ?? 0;
       int dayQty = dailyTotalQuantities?[dKey] ?? 0;
-      footerRow.add(TextCellValue(_formatDurationHelper(daySec)));
-      footerRow.add(TextCellValue(dayQty.toString()));
+      String dayDur = _formatDurationHelper(daySec);
+      String dayQtyStr = dayQty > 0 ? dayQty.toString() : '-';
+      footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
     }
-    footerRow.add(TextCellValue(_formatDurationHelper(grandTotalSeconds)));
-    footerRow.add(TextCellValue(grandTotalQuantity.toString()));
+    String gDur = _formatDurationHelper(grandTotalSeconds);
+    String gQty = grandTotalQuantity > 0 ? grandTotalQuantity.toString() : '-';
+    footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 
     final fileBytes = excel.encode();
@@ -139,7 +143,8 @@ Future<String?> exportZoneLogMatrixToExcel({
 
     final content = base64Encode(fileBytes);
     html.AnchorElement(
-      href: 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,$content',
+      href:
+          'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,$content',
     )
       ..setAttribute('download', '$fileName.xlsx')
       ..click();

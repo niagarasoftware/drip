@@ -40,6 +40,8 @@ class SensorPeriodCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _value('Average', averageValue),
+              // _value('Max', maxValue),
+              // _value('Min', minValue),
               SizedBox(),
 
                Container(

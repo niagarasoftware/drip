@@ -160,24 +160,20 @@ Future<String?> exportZoneLogMatrixToExcel({
     final Sheet sheet = excel[defaultSheet];
 
     // Header 1: Date Headers
-    List<CellValue> header1 = [TextCellValue('Program / Sequence')];
+    List<CellValue> header1 = [TextCellValue('')];
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
       header1.add(TextCellValue(dateStr));
-      header1.add(TextCellValue(''));
     }
     header1.add(TextCellValue('Total'));
-    header1.add(TextCellValue(''));
     sheet.appendRow(header1);
 
     // Header 2: Sub-headers
     List<CellValue> header2 = [TextCellValue('Program / Sequence')];
     for (var _ in dateColumns) {
-      header2.add(TextCellValue('Duration'));
-      header2.add(TextCellValue('Quantity'));
+      header2.add(TextCellValue('Duration / Quantity'));
     }
-    header2.add(TextCellValue('Total Duration'));
-    header2.add(TextCellValue('Total Quantity'));
+    header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
 
     // Data rows
@@ -195,17 +191,19 @@ Future<String?> exportZoneLogMatrixToExcel({
         String dKey = DateFormat('yyyy-MM-dd').format(d);
         var dayData = row.dayEntries[dKey];
         if (dayData != null && dayData.hasRun) {
-          dataRow.add(TextCellValue(dayData.durationQtyStr));
-          dataRow.add(TextCellValue(dayData.qtyCompletedStr));
-          rowTotalSec += (dayData.durationQtySeconds as int? ?? 0);
-          rowTotalQty += (dayData.quantityCompleted as int? ?? 0);
+          int sec = (dayData.durationQtySeconds as int? ?? 0);
+          int qtyVal = (dayData.quantityCompleted as int? ?? 0);
+          String qtyStr = qtyVal > 0 ? qtyVal.toString() : '-';
+          dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
+          rowTotalSec += sec;
+          rowTotalQty += qtyVal;
         } else {
-          dataRow.add(TextCellValue('00:00:00'));
-          dataRow.add(TextCellValue('0'));
+          dataRow.add(TextCellValue('- / -'));
         }
       }
-      dataRow.add(TextCellValue(_formatDurationHelper(rowTotalSec)));
-      dataRow.add(TextCellValue(rowTotalQty.toString()));
+      String totalDur = _formatDurationHelper(rowTotalSec);
+      String totalQty = rowTotalQty > 0 ? rowTotalQty.toString() : '-';
+      dataRow.add(TextCellValue("$totalDur / $totalQty"));
       sheet.appendRow(dataRow);
     }
 
@@ -215,11 +213,13 @@ Future<String?> exportZoneLogMatrixToExcel({
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySec = dailyTotals[dKey] ?? 0;
       int dayQty = dailyTotalQuantities?[dKey] ?? 0;
-      footerRow.add(TextCellValue(_formatDurationHelper(daySec)));
-      footerRow.add(TextCellValue(dayQty.toString()));
+      String dayDur = _formatDurationHelper(daySec);
+      String dayQtyStr = dayQty > 0 ? dayQty.toString() : '-';
+      footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
     }
-    footerRow.add(TextCellValue(_formatDurationHelper(grandTotalSeconds)));
-    footerRow.add(TextCellValue(grandTotalQuantity.toString()));
+    String gDur = _formatDurationHelper(grandTotalSeconds);
+    String gQty = grandTotalQuantity > 0 ? grandTotalQuantity.toString() : '-';
+    footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 
     final fileBytes = excel.encode();

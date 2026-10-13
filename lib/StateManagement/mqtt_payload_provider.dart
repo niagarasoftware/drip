@@ -124,6 +124,7 @@ class MqttPayloadProvider with ChangeNotifier {
    final Map<String, String> _valveOnOffStatusMap = {};
    final Map<String, String> _lightOnOffStatusMap = {};
    final Map<String, String> _fanOnOffStatusMap = {};
+   final Map<String, String> _foggerOnOffStatusMap = {};
    final Map<String, String> _gateOnOffStatusMap = {};
    final Map<String, String> _sensorValueMap = {};
    final Map<String, String> _boosterPumpOnOffStatusMap = {};
@@ -763,6 +764,7 @@ class MqttPayloadProvider with ChangeNotifier {
           updateTankValveStatus(data['cM']['2402'].split(";"));
           updateLightStatus(data['cM']['2402'].split(";"));
           updateFanStatus(data['cM']['2402'].split(";"));
+          updateFoggerStatus(data['cM']['2402'].split(";"));
           updateSensorValue(data['cM']['2403'].split(";"));
           updateBoosterPumpStatus(data['cM']['2402'].split(";"));
           updateAgitatorStatus(data['cM']['2402'].split(";"));
@@ -1077,6 +1079,17 @@ class MqttPayloadProvider with ChangeNotifier {
      }
    }
 
+   void updateFoggerStatus(List<String> foggerOnOffPayload) {
+     for (final entry in foggerOnOffPayload) {
+       if (!entry.startsWith('16.')) continue;
+       final parts = entry.split(',');
+       if (parts.isEmpty || parts[0].isEmpty) continue;
+       final sNo = parts[0];
+       _foggerOnOffStatusMap[sNo] = entry;
+     }
+   }
+
+
    void updateSensorValue(List<String> sensorValuePayload) {
      for (final entry in sensorValuePayload) {
        final parts = entry.split(',');
@@ -1175,6 +1188,7 @@ class MqttPayloadProvider with ChangeNotifier {
    String? getValveOnOffStatus(String sNo) => _valveOnOffStatusMap[sNo];
    String? getLightOnOffStatus(String sNo) => _lightOnOffStatusMap[sNo];
    String? getFanOnOffStatus(String sNo) => _fanOnOffStatusMap[sNo];
+   String? getFoggerOnOffStatus(String sNo) => _foggerOnOffStatusMap[sNo];
    String? getGateOnOffStatus(String sNo) => _gateOnOffStatusMap[sNo];
    String? getSensorUpdatedValve(String sNo) => _sensorValueMap[sNo];
    String? getBoosterPumpOnOffStatus(String sNo) => _boosterPumpOnOffStatusMap[sNo];

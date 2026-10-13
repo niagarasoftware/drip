@@ -23,7 +23,7 @@ class ChannelSettingModel{
         sNo: data['sNo'],
         name: data['name'],
         active: data['active'] ?? 0,
-        method: data['method'] ?? 'Time',
+        method: (data['method'] == 'Pro.qty per 1000L') ? 'Pro.quant per 1000L' : (data['method'] ?? 'Time'),
         timeValue: data['timeValue'] ?? '00:00:00',
         quantityValue: data['quantityValue'] ?? '0',
     );

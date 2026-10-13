@@ -1,10 +1,16 @@
+import 'dart:typed_data';
+import 'package:excel/excel.dart';
+
 import 'package:data_table_2/data_table_2.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Border;
 import 'package:intl/intl.dart';
+import 'package:flutter/painting.dart' as painting;
 
 import 'package:oro_drip_irrigation/Screens/planning/weather/weather_report_model.dart';
 import 'package:oro_drip_irrigation/Screens/planning/weather/weather_report_sensor_modelGsm.dart';
+import 'package:oro_drip_irrigation/Screens/planning/weather/widgets/weather_excel_download_io.dart'
+if (dart.library.html) 'package:oro_drip_irrigation/Screens/planning/weather/widgets/weather_excel_download_web.dart' as excelDownloader;
 
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
@@ -70,6 +76,7 @@ class _SensorHourlyReportPageState
 
   bool isLoading = false;
   bool isGraphView = true;
+  bool isDownloading = false;
 
   List<SensorHourReportGsm> hourlyReport = [];
   List<SensorDailyReport> dailyReport = [];
@@ -123,6 +130,9 @@ class _SensorHourlyReportPageState
         "fromDate": date,
         "toDate": date,
       });
+
+      debugPrint('API Status Code: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
 
       final WeatherReportModel model =
       weatherReportModelFromJson(
@@ -257,6 +267,9 @@ class _SensorHourlyReportPageState
         "toDate": toDate,
       });
 
+      debugPrint('API Status Code: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
+
       final WeatherReportModel model =
       weatherReportModelFromJson(
         response.body,
@@ -350,6 +363,9 @@ class _SensorHourlyReportPageState
         "fromDate": fromDate,
         "toDate": toDate,
       });
+
+      debugPrint('API Status Code: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
 
       final WeatherReportModel model =
       weatherReportModelFromJson(
@@ -485,6 +501,7 @@ class _SensorHourlyReportPageState
   List<SensorDailyReport> calculateDailyReport(
       WeatherReportModel model,
       ) {
+    if (model.data.isEmpty) return [];
     final List<SensorDailyReport> result = [];
 
     for (final datum in model.data) {
@@ -571,6 +588,7 @@ class _SensorHourlyReportPageState
 
       final int validHours =
           validValues.length;
+
 
       // ========================================================
       // AVERAGE
@@ -812,6 +830,128 @@ class _SensorHourlyReportPageState
     }
   }
 
+
+  // Export all three periods regardless of the currently selected tab.
+  Future<WeatherReportModel> _fetchExportModel(DateTime from, DateTime to) async {
+    final response = await repository.getweatherReport({
+      'userId': widget.userId,
+      'controllerId': widget.controllerId,
+      'fromDate': DateFormat('yyyy-MM-dd').format(from),
+      'toDate': DateFormat('yyyy-MM-dd').format(to),
+    });
+    debugPrint('API Status Code: ${response.statusCode}');
+    debugPrint('API Response Body: ${response.body}');
+    if (response.statusCode != 200) {
+      throw Exception('Weather report request failed: ${response.statusCode}');
+    }
+    return weatherReportModelFromJson(response.body);
+  }
+
+  CellValue _excelCell(String value) {
+    final number = double.tryParse(value.trim());
+    return number == null || !number.isFinite
+        ? TextCellValue(value)
+        : DoubleCellValue(number);
+  }
+
+  void _writeDailyExcelSheet(Sheet sheet, WeatherReportModel model) {
+    sheet.appendRow([
+      TextCellValue('Date'),
+      TextCellValue('Average (${widget.unit})'),
+      TextCellValue('Min (${widget.unit})'),
+      TextCellValue('Max (${widget.unit})'),
+    ]);
+    for (final day in calculateDailyReport(model)) {
+      final valid = day.validHours > 0;
+      sheet.appendRow([
+        TextCellValue(day.date),
+        valid ? DoubleCellValue(day.averageValue) : TextCellValue('NA'),
+        valid ? DoubleCellValue(day.minValue) : TextCellValue('NA'),
+        valid ? DoubleCellValue(day.maxValue) : TextCellValue('NA'),
+      ]);
+    }
+  }
+
+  Future<void> downloadWeatherExcel() async {
+    if (isDownloading) return;
+    setState(() => isDownloading = true);
+    try {
+      final now = DateTime.now();
+      final today = _dateOnly(now);
+      final chosen = _dateOnly(selectedDate);
+      final end = chosen.isAfter(today) ? today : chosen;
+      final models = await Future.wait([
+        _fetchExportModel(end, end),
+        _fetchExportModel(end.subtract(const Duration(days: 6)), end),
+        _fetchExportModel(end.subtract(const Duration(days: 29)), end),
+      ]);
+
+      final workbook = Excel.createExcel();
+      final todaySheet = workbook['Today'];
+      todaySheet.appendRow([
+        TextCellValue('Hour'),
+        TextCellValue('Value (${widget.unit})'),
+        TextCellValue('Min (${widget.unit})'),
+        TextCellValue('Max (${widget.unit})'),
+        TextCellValue('Avg (${widget.unit})'),
+        TextCellValue('Status'),
+      ]);
+      final hourly = <SensorHourReportGsm>[];
+      for (final datum in models[0].data) {
+        for (final entry in _getHours(datum).entries) {
+          if (!_canUseHour(date: datum.date, hour: entry.key)) continue;
+          if (entry.value.trim().isEmpty) continue;
+          final item = parseSensorHourData(
+            raw: entry.value,
+            hour: entry.key,
+            deviceSrNo: widget.deviceSrNo,
+            targetSensor: widget.sensorSrNo,
+          );
+          if (item != null) hourly.add(item);
+        }
+      }
+      hourly.sort((a, b) => a.hour.compareTo(b.hour));
+      for (final item in hourly) {
+        final status = item.errorCode == '255'
+            ? 'Normal'
+            : item.errorCode.trim().isEmpty || item.errorCode == 'NA'
+            ? 'NA'
+            : 'ERR-${item.errorCode}';
+        todaySheet.appendRow([
+          TextCellValue(item.hour),
+          _excelCell(item.value),
+          _excelCell(item.minValue),
+          _excelCell(item.maxValue),
+          _excelCell(item.averageValue),
+          TextCellValue(status),
+        ]);
+      }
+      _writeDailyExcelSheet(workbook['Weekly'], models[1]);
+      _writeDailyExcelSheet(workbook['Monthly'], models[2]);
+      if (workbook.sheets.containsKey('Sheet1')) workbook.delete('Sheet1');
+      final encoded = workbook.encode();
+      if (encoded == null) throw StateError('Excel encoding failed');
+      final device = widget.deviceSrNo.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final timestamp = DateFormat('yyyy-MM-dd_HH:mm:ss').format(now);
+      final fileName = 'Weather_Report_${device}_$timestamp.xlsx';
+      print('fileName:$fileName');
+      final saveResult = await excelDownloader.saveWeatherExcel(
+        Uint8List.fromList(encoded), fileName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(seconds: 8),
+        backgroundColor: Colors.green.shade700,
+        content: Text('${saveResult.message}\nFile: ${saveResult.fileName}\nLocation: ${saveResult.location}'),
+      ));
+    } catch (error, stack) {
+      debugPrint('Excel export error: $error\n$stack');
+      if (mounted) _showError('Excel download failed: $error');
+    } finally {
+      if (mounted) setState(() => isDownloading = false);
+    }
+  }
+
   // ============================================================
   // BUILD
   // ============================================================
@@ -841,6 +981,17 @@ class _SensorHourlyReportPageState
         ),
 
         actions: [
+          IconButton(
+            tooltip: 'Download Weather Report',
+            onPressed: isDownloading ? null : downloadWeatherExcel,
+            icon: isDownloading
+                ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+                : const Icon(Icons.file_download_outlined, color: Colors.white),
+          ),
           IconButton(
             tooltip: isGraphView
                 ? 'Table View'
@@ -995,7 +1146,7 @@ class _SensorHourlyReportPageState
           decoration: BoxDecoration(
             borderRadius:
             BorderRadius.circular(8),
-            border: Border.all(
+            border: painting.Border.all(
               color:
               Colors.grey.shade300,
             ),
@@ -1627,8 +1778,8 @@ class _SensorHourlyReportPageState
                     return LineTooltipItem(
                       '${_formatDate(item.date)}\n'
                           'Avg: ${item.averageValue.toStringAsFixed(2)} ${widget.unit}\n',
-                          // 'Min: ${item.minValue.toStringAsFixed(2)} ${widget.unit}\n'
-                          // 'Max: ${item.maxValue.toStringAsFixed(2)} ${widget.unit}',
+                      // 'Min: ${item.minValue.toStringAsFixed(2)} ${widget.unit}\n'
+                      // 'Max: ${item.maxValue.toStringAsFixed(2)} ${widget.unit}',
                       const TextStyle(
                         color:
                         Colors.white,
@@ -1820,7 +1971,7 @@ class _SensorHourlyReportPageState
     return FlBorderData(
       show: true,
 
-      border: Border(
+      border: painting.Border(
         left: BorderSide(
           color:
           Colors.grey.shade300,
@@ -2191,7 +2342,7 @@ class _SensorHourlyReportPageState
         borderRadius:
         BorderRadius.circular(20),
 
-        border: Border.all(
+        border: painting.Border.all(
           color:
           color.withOpacity(0.20),
         ),

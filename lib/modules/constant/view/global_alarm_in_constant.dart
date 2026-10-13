@@ -2,13 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/constant/state_management/constant_provider.dart';
 import 'package:oro_drip_irrigation/modules/constant/widget/find_suitable_widget.dart';
+import 'package:provider/provider.dart';
 import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../StateManagement/overall_use.dart';
 import '../../../Widgets/custom_buttons.dart';
 import '../../../Widgets/status_box.dart';
+import '../../../services/communication_service.dart';
 import '../../../services/mqtt_service.dart';
 import '../../../utils/constants.dart';
-import '../../../utils/environment.dart';
 import '../../IrrigationProgram/widgets/custom_sliding_button.dart';
 import '../../config_maker/view/config_web_view.dart';
 import '../repository/constant_repository.dart';
@@ -140,7 +141,10 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
                                         if(delay == 0){
                                           stateSetter((){
                                             setState((){
-                                              mqttService.topicToPublishAndItsMessage(payload, '${Environment.mqttPublishTopic}/${widget.userData['deviceId']}');
+                                              context.read<CommunicationService>().sendCommand(
+                                                serverMsg: '',
+                                                payload: payload,
+                                              );
                                               payloadState = HardwareAcknowledgementState.sending;
                                             });
                                           });
@@ -158,7 +162,7 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
                                                 }else{
                                                   payloadState = HardwareAcknowledgementState.errorOnPayload;
                                                 }
-                                                mqttService.acknowledgementPayload == null;
+                                                mqttService.acknowledgementPayload = null;
                                               }
                                             }
                                           });
@@ -239,7 +243,6 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
   }
 
   Widget getHardwareAcknowledgementWidget(HardwareAcknowledgementState state){
-    print('state : $state');
     if(state == HardwareAcknowledgementState.notSent){
       return const StatusBox(color:  Colors.black87,child: Text('Do you want to send payload..',),);
     }else if(state == HardwareAcknowledgementState.success){

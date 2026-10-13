@@ -40,7 +40,7 @@ class _CustomerScreenNarrowState extends BaseCustomerScreenState<CustomerScreenN
   Widget build(BuildContext context) {
     final userProvider = context.read<UserProvider>();
     final loggedInUser = userProvider.loggedInUser;
-    print("loggedInUser => $loggedInUser");
+    print("loggedInUser => $loggedInUser ,narrow");
     final viewedCustomer = userProvider.viewedCustomer;
 
     final navModel = context.watch<BottomNavViewModel>();
@@ -91,7 +91,7 @@ class _CustomerScreenNarrowState extends BaseCustomerScreenState<CustomerScreenN
     ] :
     [
       vm.isChanged ? Scaffold(
-        body: isGsmWeather ? WeatherGsm(customerId: loggedInUser.id, controllerId: cM.controllerId, deviceID: cM.deviceId,jsondata: dashboardToWeatherFormat(cM))
+        body: isGsmWeather ? WeatherGsm(customerId: vm.mySiteList.data[vm.sIndex].customerId, controllerId: cM.controllerId, deviceID: cM.deviceId,jsondata: dashboardToWeatherFormat(cM))
             : PumpControllerHome(
           userId: loggedInUser.id,
           customerId: vm.mySiteList.data[vm.sIndex].customerId,
