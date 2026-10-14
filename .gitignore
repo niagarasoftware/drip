@@ -121,3 +121,5 @@ GoogleService-Info.plist
 
 # OS
 .DS_Store.idea/workspace.xml
+# Flutter generated files
+linux/flutter/ephemeral/
