@@ -127,39 +127,39 @@ class ConstantProvider extends ChangeNotifier {
       }).toList();
 
       // Ensure Common Alarm is placed between Normal Critical Alarm and Global Alarm
-      // int commonAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
-      //   (m) =>
-      //       m.dealerDefinitionId == AppConstants.commonAlarmInConstant ||
-      //       m.parameter.toLowerCase() == 'common alarm',
-      // );
-      // ConstantMenuModel commonAlarmMenu;
-      // if (commonAlarmMenuIndex != -1) {
-      //   commonAlarmMenu =
-      //       listOfConstantMenuModel.removeAt(commonAlarmMenuIndex);
-      // } else {
-      //   commonAlarmMenu = ConstantMenuModel(
-      //     dealerDefinitionId: AppConstants.commonAlarmInConstant,
-      //     parameter: 'Common Alarm',
-      //     arrowTabState: ValueNotifier(ArrowTabState.inComplete),
-      //   );
-      // }
-      //
-      // int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
-      //   (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
-      // );
-      // if (normalCriticalMenuIndex != -1) {
-      //   listOfConstantMenuModel.insert(
-      //       normalCriticalMenuIndex + 1, commonAlarmMenu);
-      // } else {
-      //   int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
-      //     (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
-      //   );
-      //   if (globalAlarmMenuIndex != -1) {
-      //     listOfConstantMenuModel.insert(globalAlarmMenuIndex, commonAlarmMenu);
-      //   } else {
-      //     listOfConstantMenuModel.add(commonAlarmMenu);
-      //   }
-      // }
+      int commonAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
+        (m) =>
+            m.dealerDefinitionId == AppConstants.commonAlarmInConstant ||
+            m.parameter.toLowerCase() == 'common alarm',
+      );
+      ConstantMenuModel commonAlarmMenu;
+      if (commonAlarmMenuIndex != -1) {
+        commonAlarmMenu =
+            listOfConstantMenuModel.removeAt(commonAlarmMenuIndex);
+      } else {
+        commonAlarmMenu = ConstantMenuModel(
+          dealerDefinitionId: AppConstants.commonAlarmInConstant,
+          parameter: 'Common Alarm',
+          arrowTabState: ValueNotifier(ArrowTabState.inComplete),
+        );
+      }
+
+      int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
+        (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
+      );
+      if (normalCriticalMenuIndex != -1) {
+        listOfConstantMenuModel.insert(
+            normalCriticalMenuIndex + 1, commonAlarmMenu);
+      } else {
+        int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
+          (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
+        );
+        if (globalAlarmMenuIndex != -1) {
+          listOfConstantMenuModel.insert(globalAlarmMenuIndex, commonAlarmMenu);
+        } else {
+          listOfConstantMenuModel.add(commonAlarmMenu);
+        }
+      }
       if (AppConstants.ecoGemModelList.contains(userData['modelId'])) {
         listOfConstantMenuModel = listOfConstantMenuModel.where((menuModel) {
           if (menuModel.dealerDefinitionId ==

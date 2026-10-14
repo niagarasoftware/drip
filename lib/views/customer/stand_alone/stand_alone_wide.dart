@@ -349,8 +349,6 @@ class _StandAloneWideState extends State<StandAloneWide> with SingleTickerProvid
       }
     }
 
-
-
     return Column(
       children: [
         if (!isNova && vm.ddCurrentPosition == 0)
