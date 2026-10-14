@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/device_object_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
-import 'package:oro_drip_irrigation/utils/Theme/smart_comm_theme.dart';
 import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../Constants/communication_codes.dart';
 import '../../../Constants/dialog_boxes.dart';
-import '../../../Constants/properties.dart';
 import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
-import '../../../Widgets/custom_drop_down_button.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+
+/// Simple holder for how much of a source card has been assigned.
+class _Progress {
+  final int filled;
+  final int total;
+  final int sensorFilled;
+  const _Progress(this.filled, this.total, this.sensorFilled);
+
+  bool get complete => total > 0 && filled == total;
+  double get fraction => total == 0 ? 0 : filled / total;
+}
 
 class SourceConfiguration extends StatefulWidget {
   final ConfigMakerProvider configPvd;
@@ -22,286 +29,355 @@ class SourceConfiguration extends StatefulWidget {
 }
 
 class _SourceConfigurationState extends State<SourceConfiguration> {
+  // ── Design tokens ──
+  static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
+  static const Color _outletColor = Color(0xFF059669); // emerald green
+  static const Color _agitatorColor = Color(0xFFEA580C); // orange
+  static const Color _doneColor = Color(0xFF059669); // emerald green
+  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
+  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
 
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: LayoutBuilder(builder: (context, constraint) {
-        return SizedBox(
-          width: constraint.maxWidth,
-          height: constraint.maxHeight,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                ResponsiveGridList(
-                  horizontalGridMargin: 0,
-                  verticalGridMargin: 12,
-                  minItemWidth: 480,
-                  shrinkWrap: true,
-                  listViewBuilderOptions: ListViewBuilderOptions(
-                    physics: const NeverScrollableScrollPhysics(),
-                  ),
-                  children: [
-                    for (var source in widget.configPvd.source)
-                      if (AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId']))
-                        _buildAquacultureSourceCard(source)
-                      else
-                        _buildStandardSourceCard(source),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      }),
+  static const List<String> _tankTypeList = [
+    'Tank',
+    'Sump',
+    'Well',
+    'Bore',
+    'Fertilizer Source',
+    'Fertilizer Tank',
+    'Others',
+  ];
+
+  static const Map<String, IconData> _tankTypeIcons = {
+    'Tank': Icons.water_drop_rounded,
+    'Sump': Icons.layers_rounded,
+    'Well': Icons.vertical_align_bottom_rounded,
+    'Bore': Icons.south_rounded,
+    'Fertilizer Source': Icons.science_rounded,
+    'Fertilizer Tank': Icons.eco_rounded,
+    'Others': Icons.more_horiz_rounded,
+  };
+
+  bool get _isAquaculture =>
+      AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId']);
+
+  bool _hasObject(int objectId) =>
+      widget.configPvd.listOfGeneratedObject.any((o) => o.objectId == objectId);
+
+  List<String> _namesOf(List<double> list) =>
+      list.map((sNo) => getObjectName(sNo, widget.configPvd).name ?? '-').toList();
+
+  // ───────────────────────────────────────────────────────────
+  //  PROGRESS
+  // ───────────────────────────────────────────────────────────
+  _Progress _calcProgress(SourceModel source) {
+    if (_isAquaculture) {
+      return _Progress(source.aerator.isNotEmpty ? 1 : 0, 1, 0);
+    }
+
+    final isFertilizerSource = [6, 7].contains(source.sourceType);
+    final isBoreOrPond = [4, 5].contains(source.sourceType);
+    final hasValves = _hasObject(AppConstants.valveObjectId);
+    final hasTankValves = _hasObject(AppConstants.tankValveObjectId);
+    final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
+    final showSensors = !isBoreOrPond && !isFertilizerSource;
+
+    final sensorSlots = <bool>[
+      source.level != 0.0,
+      source.outletWaterMeter != 0.0,
+      source.topFloatForInletPump != 0.0,
+      source.bottomFloatForInletPump != 0.0,
+      source.topFloatForOutletPump != 0.0,
+      source.bottomFloatForOutletPump != 0.0,
+    ];
+
+    final slots = <bool>[
+      if (!isBoreOrPond) source.inletPump.isNotEmpty,
+      source.outletPump.isNotEmpty,
+      if (!isBoreOrPond && hasValves) ...[source.valves.isNotEmpty, source.outletValves.isNotEmpty],
+      if (showSensors) ...sensorSlots,
+      if (isFertilizerSource && hasTankValves) ...[
+        source.inletTankValve.isNotEmpty,
+        source.outletTankValve.isNotEmpty,
+      ],
+      if (isFertilizerSource && hasAgitators) source.agitator.isNotEmpty,
+    ];
+
+    return _Progress(
+      slots.where((e) => e).length,
+      slots.length,
+      sensorSlots.where((e) => e).length,
     );
   }
 
-  Widget _buildAquacultureSourceCard(SourceModel source) {
-    String aeratorValue = source.aerator.isEmpty
-        ? '-'
-        : source.aerator.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', ');
+  // ───────────────────────────────────────────────────────────
+  //  BUILD
+  // ───────────────────────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = Theme.of(context).primaryColor;
+    final sources = widget.configPvd.source;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFFF8FAFC), // Slate 50
+            Color(0xFFF1F5F9), // Slate 100
+          ],
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            double tileWidth = constraints.maxWidth;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: SizedImage(
-                        imagePath: '${AppConstants.svgObjectPath}objectId_1.svg',
-                        color: Theme.of(context).primaryColor,
-                      ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        child: LayoutBuilder(builder: (context, constraint) {
+          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
+          return SizedBox(
+            width: constraint.maxWidth,
+            height: constraint.maxHeight,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: Column(
+                children: [
+                  _buildPageHeading(sources.length),
+                  const SizedBox(height: 18),
+                  ResponsiveGridList(
+                    horizontalGridMargin: 0,
+                    verticalGridMargin: 16,
+                    minItemWidth: itemWidth,
+                    listViewBuilderOptions: ListViewBuilderOptions(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                     ),
-                    const SizedBox(width: 12),
-                    Text(
-                      '${source.commonDetails.name}',
-                      style: TextStyle(
-                        color: primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildParameterTile(
-                  title: 'Aerators',
-                  imagePath: 'assets/png/aerators_o.png',
-                  valueText: aeratorValue,
-                  isAssigned: source.aerator.isNotEmpty,
-                  cardWidth: tileWidth,
-                  onTap: () {
-                    setState(() {
-                      widget.configPvd.listOfSelectedSno.clear();
-                      widget.configPvd.listOfSelectedSno.addAll(source.aerator);
-                    });
-                    selectionDialogBox(
-                      context: context,
-                      title: 'Select Aerator',
-                      singleSelection: false,
-                      listOfObject: widget.configPvd.listOfGeneratedObject
-                          .where((object) => (object.objectId == AppConstants.pumpObjectId))
-                          .toList(),
-                      onPressed: () {
-                        setState(() {
-                          source.aerator.clear();
-                          source.aerator.addAll(widget.configPvd.listOfSelectedSno);
-                          widget.configPvd.updateAssignObject(
-                            sNo: source.commonDetails.sNo!,
-                            objectId: AppConstants.pumpObjectId,
-                            listOfSerialNo: widget.configPvd.listOfSelectedSno,
-                          );
-                          widget.configPvd.listOfSelectedSno.clear();
-                        });
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
-                ),
-              ],
-            );
-          },
-        ),
+                    children: [
+                      for (var source in sources)
+                        if (_isAquaculture)
+                          _buildAquacultureSourceCard(source, primaryColor)
+                        else
+                          _buildStandardSourceCard(source, primaryColor),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          );
+        }),
       ),
     );
   }
 
-  Widget _buildStandardSourceCard(SourceModel source) {
-    bool isFertilizerSource = [6, 7].contains(source.sourceType);
-    bool isBoreOrPond = [4, 5].contains(source.sourceType);
-    bool hasValves = widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.valveObjectId);
-    bool hasTankValves = widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.tankValveObjectId);
-    bool hasAgitators = widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.agitatorObjectId);
+  // ───────────────────────────────────────────────────────────
+  //  PAGE INTRO
+  // ───────────────────────────────────────────────────────────
+  Widget _buildPageHeading(int total) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+            ),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(Icons.tune_rounded, color: Colors.white, size: 23),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Source configuration',
+                style: TextStyle(
+                  color: _inkColor,
+                  fontSize: 20,
+                  height: 1.15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.45,
+                ),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Configure pumps, valves and sensors for your sources',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: _subTextColor,
+                  fontSize: 12,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$total',
+                style: const TextStyle(
+                  color: _inkColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 3),
+              const Text(
+                'SOURCES',
+                style: TextStyle(
+                  color: _subTextColor,
+                  fontSize: 8,
+                  letterSpacing: 0.7,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+  // ───────────────────────────────────────────────────────────
+  //  CARD SHELL (shared by both card types)
+  // ───────────────────────────────────────────────────────────
+  Widget _buildCardShell({
+    required SourceModel source,
+    required _Progress progress,
+    required Color primaryColor,
+    Widget? typeSelector,
+    required List<Widget> body,
+  }) {
+    final remaining = progress.total - progress.filled;
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
         color: Colors.white,
-        boxShadow: AppProperties.customBoxShadowLiteTheme,
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: progress.complete
+              ? _doneColor.withValues(alpha: 0.48)
+              : const Color(0xFFE2E8F0),
+          width: progress.complete ? 1.4 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: progress.complete
+                ? _doneColor.withValues(alpha: 0.08)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 18,
+            spreadRadius: 0,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).primaryColor.withOpacity(0.05),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-            ),
+          // ── Header ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).primaryColor.withOpacity(0.12),
-                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryColor.withValues(alpha: 0.12),
+                        primaryColor.withValues(alpha: 0.04),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: primaryColor.withValues(alpha: 0.15),
+                    ),
                   ),
                   child: SizedImage(
                     imagePath: '${AppConstants.svgObjectPath}objectId_1.svg',
-                    color: Theme.of(context).primaryColor,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(
-                    source.commonDetails.name!,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xff1E293B),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        source.commonDetails.name ?? 'Source',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: _inkColor,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (typeSelector != null) typeSelector,
+                          Text(
+                            progress.complete ? 'Complete' : '$remaining left to assign',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: progress.complete ? _doneColor : _subTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                CustomDropDownButton(
-                  value: getTankCodeToString(source.sourceType),
-                  list: const [
-                    'Tank',
-                    'Sump',
-                    'Well',
-                    'Bore',
-                    'Fertilizer Source',
-                    'Fertilizer Tank',
-                    'Others'
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      source.sourceType = getTankStringToCode(value!);
-                      if ([4, 5].contains(source.sourceType)) {
-                        source.inletPump.clear();
-                        source.level = 0.0;
-                        source.topFloatForInletPump = 0.0;
-                        source.bottomFloatForInletPump = 0.0;
-                      }
-                    });
-                  },
-                ),
+                const SizedBox(width: 8),
+                _buildProgressRing(progress, primaryColor),
               ],
             ),
           ),
 
-          // Parameter Content Area
+          // ── Body ──
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                double availableWidth = constraints.maxWidth;
-                double tileWidth = availableWidth > 500 ? (availableWidth - 12) / 2 : availableWidth;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Section 1: Pumps
-                    _buildSectionHeader('Pumps', Icons.power_rounded),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        if (!isBoreOrPond)
-                          _buildParameterTileForPump(source, 1, tileWidth), // Inlet Pump
-                        _buildParameterTileForPump(source, 2, tileWidth), // Outlet Pump
-                      ],
-                    ),
-
-                    // Section 2: Valves (if available and not bore/pond)
-                    if (!isBoreOrPond && hasValves) ...[
-                      const SizedBox(height: 20),
-                      _buildSectionHeader('Valves', Icons.alt_route_rounded),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _buildParameterTileForValve(source, true, tileWidth), // Inlet Valve
-                          _buildParameterTileForValve(source, false, tileWidth), // Outlet Valve
-                        ],
-                      ),
-                    ],
-
-                    // Section 3: Level & Sensors (if standard source, not bore/pond)
-                    if (!isBoreOrPond && !isFertilizerSource) ...[
-                      const SizedBox(height: 20),
-                      _buildSectionHeader('Level & Sensors', Icons.sensors_rounded),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (var mode in [1, 2, 3, 4, 5, 6])
-                            _buildParameterTileForSensor(source, mode, tileWidth),
-                        ],
-                      ),
-                    ],
-
-                    // Section 4: Fertilizer Source / Tank specific parameters
-                    if (isFertilizerSource) ...[
-                      if (hasTankValves || hasAgitators) ...[
-                        const SizedBox(height: 20),
-                        _buildSectionHeader('Tank Components', Icons.water_drop_rounded),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: [
-                            if (hasTankValves) ...[
-                              _buildParameterTileForTankValve(source, true, tileWidth), // Inlet Tank Valve
-                              _buildParameterTileForTankValve(source, false, tileWidth), // Outlet Tank Valve
-                            ],
-                            if (hasAgitators)
-                              _buildParameterTileForAgitator(source, tileWidth),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ],
-                );
-              },
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: _withGaps(body, 10),
             ),
           ),
         ],
@@ -309,103 +385,585 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Theme.of(context).primaryColor),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey.shade700,
-            letterSpacing: 0.3,
+  List<Widget> _withGaps(List<Widget> items, double gap) {
+    final out = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) out.add(SizedBox(height: gap));
+      out.add(items[i]);
+    }
+    return out;
+  }
+
+  Widget _buildProgressRing(_Progress p, Color primaryColor) {
+    final color = p.complete
+        ? _doneColor
+        : p.filled > 0
+        ? primaryColor
+        : Colors.grey.shade400;
+
+    return SizedBox(
+      width: 46,
+      height: 46,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox.expand(
+            child: CircularProgressIndicator(
+              value: p.fraction,
+              strokeWidth: 4,
+              strokeCap: StrokeCap.round,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
           ),
+          p.complete
+              ? Icon(Icons.check_rounded, size: 22, color: color)
+              : Text(
+            '${p.filled}/${p.total}',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  TYPE SELECTOR (replaces the plain dropdown)
+  // ───────────────────────────────────────────────────────────
+  Widget _buildTypeSelector(SourceModel source, String currentType, Color primaryColor) {
+    return PopupMenuButton<String>(
+      tooltip: 'Change source type',
+      initialValue: currentType,
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      onSelected: (value) {
+        setState(() {
+          source.sourceType = getTankStringToCode(value);
+          if ([4, 5].contains(source.sourceType)) {
+            source.inletPump.clear();
+            source.level = 0.0;
+            source.topFloatForInletPump = 0.0;
+            source.bottomFloatForInletPump = 0.0;
+          }
+        });
+      },
+      itemBuilder: (context) => _tankTypeList.map((type) {
+        final selected = type == currentType;
+        return PopupMenuItem<String>(
+          value: type,
+          child: Row(
+            children: [
+              Icon(
+                _tankTypeIcons[type] ?? Icons.circle,
+                size: 18,
+                color: selected ? primaryColor : Colors.grey.shade600,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  type,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? primaryColor : _inkColor,
+                  ),
+                ),
+              ),
+              if (selected) Icon(Icons.check_rounded, size: 18, color: primaryColor),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(9, 4, 7, 4),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primaryColor.withValues(alpha: 0.10),
+              primaryColor.withValues(alpha: 0.04),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: primaryColor.withValues(alpha: 0.20)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_tankTypeIcons[currentType] ?? Icons.circle, size: 14, color: primaryColor),
+            const SizedBox(width: 5),
+            Text(
+              currentType,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: primaryColor,
+              ),
+            ),
+            Icon(Icons.arrow_drop_down_rounded, size: 18, color: primaryColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  AQUACULTURE SOURCE CARD
+  // ───────────────────────────────────────────────────────────
+  Widget _buildAquacultureSourceCard(SourceModel source, Color primaryColor) {
+    final progress = _calcProgress(source);
+
+    return _buildCardShell(
+      source: source,
+      progress: progress,
+      primaryColor: primaryColor,
+      body: [
+        _buildFlowSection(
+          title: 'Aeration',
+          icon: Icons.air_rounded,
+          accent: primaryColor,
+          children: [
+            _buildComponentTile(
+              title: 'Aerators',
+              imagePath: 'assets/png/aerators_o.png',
+              names: _namesOf(source.aerator),
+              isAssigned: source.aerator.isNotEmpty,
+              accent: primaryColor,
+              onTap: () {
+                setState(() {
+                  widget.configPvd.listOfSelectedSno.clear();
+                  widget.configPvd.listOfSelectedSno.addAll(source.aerator);
+                });
+                selectionDialogBox(
+                  context: context,
+                  title: 'Select Aerator',
+                  singleSelection: false,
+                  listOfObject: widget.configPvd.listOfGeneratedObject
+                      .where((object) => (object.objectId == AppConstants.pumpObjectId))
+                      .toList(),
+                  onPressed: () {
+                    setState(() {
+                      source.aerator.clear();
+                      source.aerator.addAll(widget.configPvd.listOfSelectedSno);
+                      widget.configPvd.updateAssignObject(
+                        sNo: source.commonDetails.sNo!,
+                        objectId: AppConstants.pumpObjectId,
+                        listOfSerialNo: widget.configPvd.listOfSelectedSno,
+                      );
+                      widget.configPvd.listOfSelectedSno.clear();
+                    });
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildParameterTile({
+  // ───────────────────────────────────────────────────────────
+  //  STANDARD SOURCE CARD
+  // ───────────────────────────────────────────────────────────
+  Widget _buildStandardSourceCard(SourceModel source, Color primaryColor) {
+    final isFertilizerSource = [6, 7].contains(source.sourceType);
+    final isBoreOrPond = [4, 5].contains(source.sourceType);
+    final hasValves = _hasObject(AppConstants.valveObjectId);
+    final hasTankValves = _hasObject(AppConstants.tankValveObjectId);
+    final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
+    final showSensors = !isBoreOrPond && !isFertilizerSource;
+
+    String currentTankType = getTankCodeToString(source.sourceType);
+    if (!_tankTypeList.contains(currentTankType)) {
+      currentTankType = 'Tank';
+    }
+
+    final progress = _calcProgress(source);
+
+    return _buildCardShell(
+      source: source,
+      progress: progress,
+      primaryColor: primaryColor,
+      typeSelector: _buildTypeSelector(source, currentTankType, primaryColor),
+      body: [
+        // ── Inlet ──
+        if (!isBoreOrPond)
+          _buildFlowSection(
+            title: 'Inlet',
+            icon: Icons.south_west_rounded,
+            accent: _inletColor,
+            children: [
+              _buildParameterTileForPump(source, 1, _inletColor),
+              if (hasValves) _buildParameterTileForValve(source, true, _inletColor),
+              if (isFertilizerSource && hasTankValves)
+                _buildParameterTileForTankValve(source, true, _inletColor),
+            ],
+          ),
+
+        // ── Outlet ──
+        _buildFlowSection(
+          title: 'Outlet',
+          icon: Icons.north_east_rounded,
+          accent: _outletColor,
+          children: [
+            _buildParameterTileForPump(source, 2, _outletColor),
+            if (!isBoreOrPond && hasValves) _buildParameterTileForValve(source, false, _outletColor),
+            if (isFertilizerSource && hasTankValves)
+              _buildParameterTileForTankValve(source, false, _outletColor),
+          ],
+        ),
+
+        // ── Agitator ──
+        if (isFertilizerSource && hasAgitators)
+          _buildFlowSection(
+            title: 'Mixing',
+            icon: Icons.sync_rounded,
+            accent: _agitatorColor,
+            children: [
+              _buildParameterTileForAgitator(source, _agitatorColor),
+            ],
+          ),
+
+        // ── Sensors ──
+        if (showSensors) _buildSensorsSection(source, progress, primaryColor),
+      ],
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  SENSORS (collapsible, 2-column grid)
+  // ───────────────────────────────────────────────────────────
+  Widget _buildSensorsSection(SourceModel source, _Progress progress, Color primaryColor) {
+    final active = progress.sensorFilled > 0;
+
+    Widget pair(int a, int b) => Row(
+      children: [
+        Expanded(child: _buildParameterTileForSensor(source, a, primaryColor)),
+        const SizedBox(width: 8),
+        Expanded(child: _buildParameterTileForSensor(source, b, primaryColor)),
+      ],
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFD),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          iconTheme: const IconThemeData(color: _subTextColor),
+        ),
+        child: ExpansionTile(
+          key: PageStorageKey('sensors_${source.commonDetails.sNo}'),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+          childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          leading: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: active ? primaryColor.withValues(alpha: 0.12) : Colors.grey.shade200,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.sensors_rounded,
+              size: 16,
+              color: active ? primaryColor : Colors.grey.shade600,
+            ),
+          ),
+          title: Row(
+            children: [
+              const Flexible(
+                child: Text(
+                  'Level and sensors',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: _inkColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: active ? primaryColor.withValues(alpha: 0.12) : Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${progress.sensorFilled}/6 active',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: active ? primaryColor : Colors.grey.shade600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          children: [
+            const SizedBox(height: 4),
+            pair(1, 6),
+            const SizedBox(height: 8),
+            pair(2, 3),
+            const SizedBox(height: 8),
+            pair(4, 5),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  FLOW SECTION (Inlet / Outlet / Mixing)
+  // ───────────────────────────────────────────────────────────
+  Widget _buildFlowSection({
+    required String title,
+    required IconData icon,
+    required Color accent,
+    required List<Widget> children,
+  }) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) {
+        rows.add(Divider(
+          height: 1,
+          thickness: 1,
+          indent: 8,
+          endIndent: 8,
+          color: accent.withValues(alpha: 0.12),
+        ));
+      }
+      rows.add(children[i]);
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withValues(alpha: 0.06),
+            accent.withValues(alpha: 0.02),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.14)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 13, color: accent),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  COMPONENT TILE
+  //  Row style (default): icon, label, assigned chips, action.
+  //  Compact style: small bordered box used in the sensor grid.
+  // ───────────────────────────────────────────────────────────
+  Widget _buildComponentTile({
     required String title,
     required String imagePath,
-    required String valueText,
+    required List<String> names,
     required bool isAssigned,
     required VoidCallback onTap,
-    required double cardWidth,
+    required Color accent,
+    bool compact = false,
   }) {
+    if (compact) {
+      return Material(
+        color: isAssigned ? accent.withValues(alpha: 0.08) : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: isAssigned ? accent.withValues(alpha: 0.4) : Colors.grey.shade300,
+          ),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: SizedImage(
+                    imagePath: imagePath,
+                    color: isAssigned ? accent : Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isAssigned ? names.join(', ') : 'Tap to add',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: isAssigned ? FontWeight.w700 : FontWeight.w500,
+                          fontStyle: isAssigned ? FontStyle.normal : FontStyle.italic,
+                          color: isAssigned ? accent : Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: cardWidth,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: isAssigned
-                ? Theme.of(context).primaryColorLight.withOpacity(0.08)
-                : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isAssigned
-                  ? Theme.of(context).primaryColor.withOpacity(0.4)
-                  : Colors.grey.shade300,
-              width: 1.2,
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
           child: Row(
             children: [
+              // Icon badge
               Container(
-                width: 38,
-                height: 38,
-                padding: const EdgeInsets.all(6),
+                width: 36,
+                height: 36,
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isAssigned
-                      ? Theme.of(context).primaryColor.withOpacity(0.12)
-                      : Colors.grey.shade200,
-                  shape: BoxShape.circle,
+                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
+                  ),
                 ),
                 child: SizedImage(
                   imagePath: imagePath,
-                  color: Colors.black,
+                  color: isAssigned ? accent : Colors.grey.shade500,
                 ),
               ),
               const SizedBox(width: 12),
+
+              // Label + chips
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xff334155),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isAssigned ? valueText : 'Not assigned',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isAssigned ? FontWeight.bold : FontWeight.w400,
-                        color: isAssigned ? Theme.of(context).primaryColor : Colors.grey.shade500,
-                        fontStyle: isAssigned ? FontStyle.normal : FontStyle.italic,
-                        overflow: TextOverflow.ellipsis,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    if (isAssigned)
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          for (final name in names)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: accent.withValues(alpha: 0.35)),
+                              ),
+                              child: Text(
+                                name,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: accent,
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    else
+                      Text(
+                        'Not assigned',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(
-                isAssigned ? Icons.edit_outlined : Icons.add_circle_outline_rounded,
-                color: isAssigned ? Theme.of(context).primaryColor : Colors.grey.shade400,
-                size: 20,
-              ),
+
+              // Action
+              isAssigned
+                  ? Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
+                    )
+                  : Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.add_rounded, size: 18, color: accent),
+                    ),
             ],
           ),
         ),
@@ -413,19 +971,19 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForPump(SourceModel source, int pumpMode, double cardWidth) {
+  // ───────────────────────────────────────────────────────────
+  //  PARAMETER HANDLERS
+  // ───────────────────────────────────────────────────────────
+  Widget _buildParameterTileForPump(SourceModel source, int pumpMode, Color accent) {
     List<double> currentParameter = pumpMode == 1 ? source.inletPump : source.outletPump;
     List<double> checkingParameter = pumpMode == 1 ? source.outletPump : source.inletPump;
-    String valueText = currentParameter.isEmpty
-        ? ''
-        : currentParameter.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', ');
 
-    return _buildParameterTile(
-      title: '${pumpMode == 1 ? 'Inlet' : 'Outlet'} Pump',
+    return _buildComponentTile(
+      title: '${pumpMode == 1 ? 'Inlet' : 'Outlet'} pump',
       imagePath: '${AppConstants.svgObjectPath}objectId_5.svg',
-      valueText: valueText,
+      names: _namesOf(currentParameter),
       isAssigned: currentParameter.isNotEmpty,
-      cardWidth: cardWidth,
+      accent: accent,
       onTap: () {
         setState(() {
           widget.configPvd.listOfSelectedSno.clear();
@@ -456,18 +1014,15 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForValve(SourceModel source, bool isInlet, double cardWidth) {
+  Widget _buildParameterTileForValve(SourceModel source, bool isInlet, Color accent) {
     List<double> currentList = isInlet ? source.valves : source.outletValves;
-    String valueText = currentList.isEmpty
-        ? ''
-        : currentList.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', ');
 
-    return _buildParameterTile(
-      title: isInlet ? 'Inlet Valve' : 'Outlet Valve',
+    return _buildComponentTile(
+      title: isInlet ? 'Inlet valve' : 'Outlet valve',
       imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.valveObjectId}.svg',
-      valueText: valueText,
+      names: _namesOf(currentList),
       isAssigned: currentList.isNotEmpty,
-      cardWidth: cardWidth,
+      accent: accent,
       onTap: () {
         setState(() {
           widget.configPvd.listOfSelectedSno.clear();
@@ -497,20 +1052,15 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                 if (isInlet) {
                   source.valves.clear();
                   source.valves.addAll(widget.configPvd.listOfSelectedSno);
-                  widget.configPvd.updateAssignObject(
-                    sNo: source.commonDetails.sNo!,
-                    objectId: AppConstants.valveObjectId,
-                    listOfSerialNo: widget.configPvd.listOfSelectedSno,
-                  );
                 } else {
                   source.outletValves.clear();
                   source.outletValves.addAll(widget.configPvd.listOfSelectedSno);
-                  widget.configPvd.updateAssignObject(
-                    sNo: source.commonDetails.sNo!,
-                    objectId: AppConstants.valveObjectId,
-                    listOfSerialNo: widget.configPvd.listOfSelectedSno,
-                  );
                 }
+                widget.configPvd.updateAssignObject(
+                  sNo: source.commonDetails.sNo!,
+                  objectId: AppConstants.valveObjectId,
+                  listOfSerialNo: widget.configPvd.listOfSelectedSno,
+                );
                 widget.configPvd.listOfSelectedSno.clear();
               });
               Navigator.pop(context);
@@ -521,20 +1071,20 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForSensor(SourceModel source, int mode, double cardWidth) {
+  Widget _buildParameterTileForSensor(SourceModel source, int mode, Color accent) {
     int objectId = mode == 1
         ? AppConstants.levelObjectId
         : mode == 6
-            ? AppConstants.waterMeterObjectId
-            : AppConstants.floatObjectId;
+        ? AppConstants.waterMeterObjectId
+        : AppConstants.floatObjectId;
 
     Map<int, String> currentObjectName = {
-      1: 'Level Sensor',
-      2: 'Top Float For Inlet Pumps',
-      3: 'Bottom Float For Inlet Pumps',
-      4: 'Top Float For Outlet Pumps',
-      5: 'Bottom Float For Outlet Pumps',
-      6: 'Outlet Water Meter',
+      1: 'Level sensor',
+      2: 'Inlet top float',
+      3: 'Inlet bottom float',
+      4: 'Outlet top float',
+      5: 'Outlet bottom float',
+      6: 'Outlet water meter',
     };
 
     Map<int, double> currentSno = {
@@ -547,16 +1097,14 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     };
 
     double activeSno = currentSno[mode] ?? 0.0;
-    String valueText = activeSno == 0.0
-        ? ''
-        : getObjectName(activeSno, widget.configPvd).name ?? '';
 
-    return _buildParameterTile(
+    return _buildComponentTile(
       title: currentObjectName[mode]!,
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      valueText: valueText,
+      names: activeSno == 0.0 ? const [] : [getObjectName(activeSno, widget.configPvd).name ?? '-'],
       isAssigned: activeSno != 0.0,
-      cardWidth: cardWidth,
+      accent: accent,
+      compact: true,
       onTap: () {
         List<double> validateSensorFromOtherSource = [];
         for (var src in widget.configPvd.source) {
@@ -589,7 +1137,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           onPressed: () {
             bool sensorRemovedInAnyPump = false;
             double oldSensorSno = activeSno;
-            late DeviceObjectModel deviceObjectModel;
+            DeviceObjectModel? deviceObjectModel;
             List<String> sensorsRemovedFromPump = [];
 
             if (mode == 1) {
@@ -617,18 +1165,21 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
             Navigator.pop(context);
 
             if (oldSensorSno != 0.0 && oldSensorSno != (currentSno[mode] ?? 0.0)) {
-              deviceObjectModel = widget.configPvd.listOfGeneratedObject.firstWhere((object) => object.sNo == oldSensorSno);
+              final matches = widget.configPvd.listOfGeneratedObject.where((object) => object.sNo == oldSensorSno);
+              if (matches.isNotEmpty) {
+                deviceObjectModel = matches.first;
+              }
               for (var pump in widget.configPvd.pump) {
                 if ([...source.outletPump, ...source.inletPump].contains(pump.commonDetails.sNo)) {
                   if (mode == 1) {
                     if (pump.lowerLevel == oldSensorSno) {
                       pump.lowerLevel = 0.0;
-                      sensorsRemovedFromPump.add(pump.commonDetails.name!);
+                      sensorsRemovedFromPump.add(pump.commonDetails.name ?? '');
                       sensorRemovedInAnyPump = true;
                     } else if (pump.upperLevel == oldSensorSno) {
                       pump.upperLevel = 0.0;
                       sensorRemovedInAnyPump = true;
-                      sensorsRemovedFromPump.add(pump.commonDetails.name!);
+                      sensorsRemovedFromPump.add(pump.commonDetails.name ?? '');
                     }
                   } else if ([2, 3, 4, 5].contains(mode)) {
                     bool isFloatRemoved = false;
@@ -646,7 +1197,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                       isFloatRemoved = true;
                     }
                     if (isFloatRemoved) {
-                      sensorsRemovedFromPump.add(pump.commonDetails.name!);
+                      sensorsRemovedFromPump.add(pump.commonDetails.name ?? '');
                       sensorRemovedInAnyPump = true;
                     }
                   }
@@ -654,11 +1205,11 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               }
             }
             setState(() {});
-            if (sensorRemovedInAnyPump) {
+            if (sensorRemovedInAnyPump && deviceObjectModel != null) {
               simpleDialogBox(
                 context: context,
                 title: 'Alert',
-                message: 'The ${deviceObjectModel.name} is removed from ${sensorsRemovedFromPump.join(',')} in the pump configuration',
+                message: 'The ${deviceObjectModel.name ?? 'Sensor'} is removed from ${sensorsRemovedFromPump.join(',')} in the pump configuration',
               );
             }
           },
@@ -667,18 +1218,15 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForTankValve(SourceModel source, bool isInlet, double cardWidth) {
+  Widget _buildParameterTileForTankValve(SourceModel source, bool isInlet, Color accent) {
     List<double> currentList = isInlet ? source.inletTankValve : source.outletTankValve;
-    String valueText = currentList.isEmpty
-        ? ''
-        : currentList.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', ');
 
-    return _buildParameterTile(
-      title: isInlet ? 'Inlet Tank Valve' : 'Outlet Tank Valve',
+    return _buildComponentTile(
+      title: isInlet ? 'Inlet tank valve' : 'Outlet tank valve',
       imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.tankValveObjectId}.svg',
-      valueText: valueText,
+      names: _namesOf(currentList),
       isAssigned: currentList.isNotEmpty,
-      cardWidth: cardWidth,
+      accent: accent,
       onTap: () {
         setState(() {
           widget.configPvd.listOfSelectedSno.clear();
@@ -719,17 +1267,13 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForAgitator(SourceModel source, double cardWidth) {
-    String valueText = source.agitator.isEmpty
-        ? ''
-        : source.agitator.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', ');
-
-    return _buildParameterTile(
+  Widget _buildParameterTileForAgitator(SourceModel source, Color accent) {
+    return _buildComponentTile(
       title: 'Agitator',
       imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.agitatorObjectId}.svg',
-      valueText: valueText,
+      names: _namesOf(source.agitator),
       isAssigned: source.agitator.isNotEmpty,
-      cardWidth: cardWidth,
+      accent: accent,
       onTap: () {
         setState(() {
           widget.configPvd.listOfSelectedSno.clear();
@@ -757,382 +1301,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           },
         );
       },
-    );
-  }
-}
-
-List<Widget> getWaterMeterAndPressure(double pressureInSno, double waterMeterSno, ConfigMakerProvider configPvd){
-  return [
-    if(pressureInSno != 0.0)
-      Positioned(
-        right: 0,
-        top: 15 * configPvd.ratio,
-        child: Image.asset(
-            'assets/Images/Png/objectId_24.png',
-          width: 30,
-          height: 30,
-        ),
-      ),
-    if(waterMeterSno != 0.0)
-      Positioned(
-      right: 0,
-      top: 50 * configPvd.ratio,
-        child: Image.asset(
-          'assets/Images/Png/objectId_22.png',
-          width: 30,
-          height: 30,
-        ),
-    ),
-  ];
-}
-
-Widget singlePump(SourceModel source, bool fillingPump, ConfigMakerProvider configPvd, {bool dashboard = false}){
-  List<double> currentParameter = fillingPump ? source.inletPump : source.outletPump;
-  return Stack(
-    children: [
-      Positioned(
-        left : fillingPump ? 40 : null,
-        right : (!fillingPump && dashboard) ? 0 : (!fillingPump) ? 40 : null,
-        bottom: 32 * configPvd.ratio,
-        child: SvgPicture.asset(
-          'assets/Images/Source/backside_pipe_1.svg',
-          width: 120 ,
-          height: 8.5 * configPvd.ratio,
-        ),
-      ),
-      SvgPicture.asset(
-        'assets/Images/Source/pump_1.svg',
-        width: 120,
-        height: 120 * configPvd.ratio,
-      ),
-      ...getWaterMeterAndPressure(
-          configPvd.pump.firstWhere((pump) => pump.commonDetails.sNo == currentParameter[0]).pressureIn,
-          configPvd.pump.firstWhere((pump) => pump.commonDetails.sNo == currentParameter[0]).waterMeter,
-        configPvd
-      ),
-      Positioned(
-        left : 5,
-        top: 0,
-        child: Text(getObjectName(currentParameter[0], configPvd).name!,style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),),
-      )
-    ],
-  );
-}
-
-Widget multiplePump(SourceModel source, bool fillingPump, ConfigMakerProvider configPvd,
-    {bool dashBoard = false, int? maxOutletPumpForTank}){
-  List<double> currentParameter = fillingPump ? source.inletPump : source.outletPump;
-  return Row(
-    children: [
-      for(var i = 0;i < currentParameter.length;i++)
-        Stack(
-          children: [
-            Positioned(
-              left: fillingPump ? (i == 0 ? 50 : null) : null,
-              right: (!fillingPump && i == currentParameter.length -1 && !dashBoard) ? 40 : null,
-              bottom: 32 * configPvd.ratio,
-              child: SvgPicture.asset(
-                'assets/Images/Source/backside_pipe_1.svg',
-                width: 120,
-                height: 8.5 * configPvd.ratio,
-              ),
-            ),
-            SvgPicture.asset(
-              'assets/Images/Source/pump_1.svg',
-              width: 120,
-              height: 120 * configPvd.ratio,
-            ),
-            ...getWaterMeterAndPressure(
-                configPvd.pump.firstWhere((pump) => pump.commonDetails.sNo == currentParameter[i]).pressureIn,
-                configPvd.pump.firstWhere((pump) => pump.commonDetails.sNo == currentParameter[i]).waterMeter,
-              configPvd
-            ),
-            if(currentParameter.length > 1)
-              Positioned(
-              right: i == 0 ? 0 : null,
-              left: i == 1 ? 0 : null,
-              bottom: 16 * configPvd.ratio,
-              child: SvgPicture.asset(
-                'assets/Images/Source/${
-                    i == 0
-                        ? 'front_corner_left_radius_pipe_1'
-                        : i == (currentParameter.length - 1)
-                        ? 'front_corner_right_radius_pipe_1'
-                        : 'backside_pipe_1'}.svg',
-                width: 120,
-                height: 8.5 * configPvd.ratio,
-              ),
-            ),
-            Positioned(
-              left : 5,
-              top: 0,
-              child: Text(getObjectName(currentParameter[i], configPvd).name!,style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),),
-            )
-          ],
-        ),
-      if(maxOutletPumpForTank != null)
-        for(var i = 0;i < (maxOutletPumpForTank - currentParameter.length);i++)
-          SizedBox(
-            width: 94,
-            height: 120 * configPvd.ratio,
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom : 32 * configPvd.ratio,
-                  child: SvgPicture.asset(
-                    'assets/Images/Source/backside_pipe_1.svg',
-                    width: 120,
-                    height: 8.5 * configPvd.ratio,
-                  ),
-                )
-              ],
-            ),
-          )
-    ],
-  );
-}
-
-Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool dashboard = false, bool inlet = true,}){
-  bool levelAvailable = source.level != 0.0;
-  bool topFloatAvailableForOutlet = source.topFloatForOutletPump != 0.0;
-  bool bottomFloatAvailableForOutlet = source.bottomFloatForOutletPump != 0.0;
-  bool topFloatAvailableForInlet = source.topFloatForInletPump != 0.0;
-  bool bottomFloatAvailableForInlet = source.bottomFloatForInletPump != 0.0;
-  bool outletWaterMeter = source.outletWaterMeter != 0.0;
-  bool outletValve = source.outletValves.isNotEmpty;
-  if(source.sourceType == 1){
-    return Stack(
-      children: [
-        SvgPicture.asset(
-          'assets/Images/Source/tank_${!inlet ? 'outlet_' : ''}1.svg',
-          width: 120,
-          height: 120 * configPvd.ratio,
-        ),
-        if(levelAvailable)
-          Positioned(
-            left: 52,
-            bottom: 28,
-            child: Container(
-              width: 10,
-              height: 40,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
-              ),
-            ),
-          ),
-        if(topFloatAvailableForOutlet)
-          Positioned(
-            right: 40,
-            bottom: 50,
-            child: SvgPicture.asset(
-              'assets/Images/Source/top_float.svg',
-              width: 30,
-              height: 40,
-            ),
-          ),
-        if(topFloatAvailableForInlet)
-          Positioned(
-            left: 40,
-            bottom: 50,
-            child: SvgPicture.asset(
-              'assets/Images/Source/top_float.svg',
-              width: 30,
-              height: 40,
-            ),
-          ),
-        if(bottomFloatAvailableForOutlet)
-          Positioned(
-            right: 50,
-            bottom: 25,
-            child: SvgPicture.asset(
-              'assets/Images/Source/bottom_float.svg',
-              width: 70,
-              height: 70,
-            ),
-          ),
-        if(bottomFloatAvailableForInlet)
-          Positioned(
-            left: 50,
-            bottom: 25,
-            child: SvgPicture.asset(
-              'assets/Images/Source/bottom_float.svg',
-              width: 70,
-              height: 70,
-            ),
-          ),
-        if(outletWaterMeter)
-          Positioned(
-            right: 0,
-            bottom: 20,
-            child: Image.asset(
-              'assets/Images/Png/objectId_${AppConstants.waterMeterObjectId}.png',
-              width: 30,
-              height: 30,
-            ),
-          )
-      ],
-    );
-  }
-  else if(source.sourceType == 2){
-    return Stack(
-      children: [
-        SvgPicture.asset(
-          'assets/Images/Source/sump_${!inlet ? 'outlet_' : ''}1.svg',
-          width: 120,
-          height: 120 * configPvd.ratio,
-        ),
-        if(levelAvailable)
-          Positioned(
-            left: 52,
-            bottom: 35,
-            child: Container(
-              width: 10,
-              height: 40,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
-              ),
-            ),
-          ),
-        if(topFloatAvailableForOutlet)
-          Positioned(
-            right: 55,
-            bottom: 55,
-            child: SvgPicture.asset(
-              'assets/Images/Source/top_float.svg',
-              width: 30,
-              height: 30,
-            ),
-          ),
-        if(bottomFloatAvailableForOutlet)
-          Positioned(
-            right: 70,
-            bottom: 35,
-            child: SvgPicture.asset(
-              'assets/Images/Source/bottom_float.svg',
-              width: 50,
-              height: 50,
-            ),
-          ),
-        if(outletWaterMeter)
-          Positioned(
-            right: 0,
-            bottom: 20,
-            child: Image.asset(
-              'assets/Images/Png/objectId_${AppConstants.waterMeterObjectId}.png',
-              width: 30,
-              height: 30,
-            ),
-          )
-      ],
-    );
-  }
-  else if(source.sourceType == 3){
-    return Stack(
-      children: [
-        SvgPicture.asset(
-          'assets/Images/Source/well_${!inlet ? 'outlet_' : ''}1.svg',
-          width: 120,
-          height: 120 * configPvd.ratio,
-        ),
-        if(levelAvailable)
-          Positioned(
-            left: 45,
-            bottom: 22,
-            child: Container(
-              width: 10,
-              height: 40,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
-              ),
-            ),
-          ),
-        if(topFloatAvailableForOutlet)
-          Positioned(
-            right: 55,
-            bottom: 55,
-            child: SvgPicture.asset(
-              'assets/Images/Source/top_float.svg',
-              width: 30,
-              height: 30,
-            ),
-          ),
-        if(bottomFloatAvailableForOutlet)
-          Positioned(
-            right: 70,
-            bottom: 35,
-            child: SvgPicture.asset(
-              'assets/Images/Source/bottom_float.svg',
-              width: 50,
-              height: 50,
-            ),
-          ),
-        if(outletWaterMeter)
-          Positioned(
-            right: 0,
-            bottom: 20,
-            child: Image.asset(
-              'assets/Images/Png/objectId_${AppConstants.waterMeterObjectId}.png',
-              width: 30,
-              height: 30,
-            ),
-          )
-      ],
-    );
-  }
-  else if(source.sourceType == 4){
-    return SvgPicture.asset(
-      'assets/Images/Source/bore_1.svg',
-      width: 120,
-      height: 120 * configPvd.ratio,
-    );
-  }
-  else if(source.sourceType == 5){
-    return SvgPicture.asset(
-      'assets/Images/Source/pond_1.svg',
-      width: 120,
-      height: 120* configPvd.ratio,
-    );
-  }else if(source.sourceType == 6){
-    return SvgPicture.asset(
-      'assets/Images/Source/fertilizer_source.svg',
-      width: 120,
-      height: 120* configPvd.ratio,
-    );
-  }else{
-    return SvgPicture.asset(
-      'assets/Images/Source/fertilizer_tank.svg',
-      width: 120,
-      height: 120* configPvd.ratio,
     );
   }
 }

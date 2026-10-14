@@ -316,5 +316,15 @@ class _SiteConfigureState extends State<SiteConfigure> {
 }
 
 DeviceObjectModel getObjectName(double sNo, ConfigMakerProvider configPvd) {
-  return configPvd.listOfGeneratedObject.firstWhere((object) => object.sNo! == sNo);
+  return configPvd.listOfGeneratedObject.firstWhere(
+    (object) => object.sNo! == sNo,
+    orElse: () => DeviceObjectModel(
+      objectId: 0,
+      sNo: sNo,
+      name: '-',
+      objectName: '',
+      type: '',
+      assignObject: [],
+    ),
+  );
 }
