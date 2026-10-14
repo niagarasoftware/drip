@@ -539,6 +539,9 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
         "hardware": AppConstants.ecoGemAndPlusModelList.contains(widget.modelId) ? ecoGemWFPayloadList : dataToMqtt
       };
       userData.addAll(dataToSend);
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
       try {
         if(AppConstants.ecoGemAndPlusModelList.contains(widget.modelId)) {
           final result = await showDialog<String>(
@@ -575,7 +578,7 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
           );
         }
       } catch(error) {
-        ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: 'Failed to update because of $error'));
+        scaffoldMessenger.showSnackBar(CustomSnackBar(message: 'Failed to update because of $error'));
         // print("Error: $error");
       }
 
@@ -585,8 +588,10 @@ class _AdditionalDataScreenState extends State<AdditionalDataScreen> {
         final response = jsonDecode(createUserProgram.body);
         if(createUserProgram.statusCode == 200) {
           await mainProvider.programLibraryData(widget.customerId, widget.controllerId);
-          ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: response['message']));
-          Navigator.of(context).pop();
+          scaffoldMessenger.showSnackBar(CustomSnackBar(message: response['message']));
+          if (context.mounted) {
+            navigator.pop();
+          }
         }
       });
     }
