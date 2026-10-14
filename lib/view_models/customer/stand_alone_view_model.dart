@@ -201,8 +201,10 @@ class StandAloneViewModel extends ChangeNotifier {
       var response = await repository.fetchManualOperation(body);
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
+        print('jsonResponse:$jsonResponse');
         if (jsonResponse['data'] != null) {
           dynamic data = jsonResponse['data'];
+
           standAloneData = StandAloneModel.fromJson(data);
           updatePreviousSelection(standAloneData!);
         } else {
@@ -233,7 +235,16 @@ class StandAloneViewModel extends ChangeNotifier {
                     .forEach((pump) => pump.selected = true);
               }
             }
+            for (var line in masterData.irrigationLine) {
+              for (var waterSource in line.inletSources) {
+                waterSource.outletPump
+                    .where((pump) => pump.sNo == fullNo)
+                    .forEach((pump) => pump.selected = true);
+              }
+            }
+
             break;
+
 
           case 7:
             for (var line in masterData.irrigationLine) {
@@ -272,7 +283,7 @@ class StandAloneViewModel extends ChangeNotifier {
               for (var line in masterData.irrigationLine) {
                 line.valveObjects
                     .where((valve) => valve.sNo == fullNo)
-                    .forEach((valve) => valve.isOn = true); // valves use isOn
+                    .forEach((valve) => valve.isOn = true);
               }
             }
             break;
@@ -284,6 +295,15 @@ class StandAloneViewModel extends ChangeNotifier {
                   .forEach((valve) => valve.isOn = true);
             }
             break;
+
+          case 16:
+            for (var line in masterData.irrigationLine) {
+              line.foggerObjects
+                  .where((fgr) => fgr.sNo == fullNo)
+                  .forEach((fgr) => fgr.isOn = true);
+            }
+            break;
+
         }
       } else if (item.sNo is String) {
         final String sequenceNo = item.sNo;
