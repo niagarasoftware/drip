@@ -158,13 +158,24 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     print("mainValvePayload : $mainValvePayload");
     var valvePayload = constPvd.getObjectInConstantPayload(constPvd.valve);
     print("valvePayload : $valvePayload");
-    var normalCriticalPayload = AppConstants.ecoGemModelList.contains(configPvd.masterData['modelId']) ? constPvd.getNormalCriticalAlarmForEcoGem() : constPvd.getNormalCriticalAlarm();
+    var rawModelId = configPvd.masterData['modelId'] ??
+        configPvd.masterData['modelid'] ??
+        constPvd.userData['modelId'] ??
+        constPvd.userData['modelid'];
+    int? modelId = rawModelId is int
+        ? rawModelId
+        : int.tryParse(rawModelId?.toString() ?? '');
+
+    bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
+    var normalCriticalPayload = isNova ? constPvd.getNormalCriticalAlarmForEcoGem() : constPvd.getNormalCriticalAlarm();
     print("normalCriticalPayload : $normalCriticalPayload");
+    var commonAlarmPayload = isNova ? constPvd.getCommonAlarmPayloadForEcoGem() : constPvd.getCommonAlarmPayload();
+    print("commonAlarmPayload : $commonAlarmPayload");
     var filterPayload = constPvd.getFilterSitePayload();
     print("filterPayload : $filterPayload");
     print("constPvd.userData['modelId'] : ${constPvd.userData['modelId']}");
-    bool isGem = AppConstants.gemModelList.contains(constPvd.userData['modelId']);
-    bool isOms = AppConstants.omsGemList.contains(constPvd.userData['modelId']);
+    bool isGem = AppConstants.gemModelList.contains(modelId);
+    bool isOms = AppConstants.omsGemList.contains(modelId);
     var hardwarePayload = {
       "300" : {
         "301" : isOms ? '' : generalPayload,
@@ -180,6 +191,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         "308" : normalCriticalPayload,
         "309" : pumpPayload,
         "310" : filterPayload,
+        if (isNova)
+          "311" : commonAlarmPayload,
       }
     };
     return hardwarePayload;

@@ -106,11 +106,21 @@ class ConstantProvider extends ChangeNotifier {
     try {
       constantDataFromHttp = constantData['data'];
       userData = userDataAndMasterData;
+      var rawModelId = userData['modelId'] ??
+          userData['modelid'] ??
+          (userData['masterData'] is Map
+              ? (userData['masterData']['modelId'] ??
+                  userData['masterData']['modelid'])
+              : null);
+      int? modelId = rawModelId is int
+          ? rawModelId
+          : int.tryParse(rawModelId?.toString() ?? '');
+      userData['modelId'] = modelId;
       configObjectDataFromHttp = configMakerData['data']['configObject'];
 
       Map<String, dynamic> defaultData = constantDataFromHttp['default'];
       deviceList = defaultData['nodeList'];
-      if (AppConstants.ecoGemModelList.contains(userData['modelId'])) {
+      if (AppConstants.ecoGemModelList.contains(modelId)) {
         deviceList.insert(0, userData);
       }
       Map<String, dynamic> constantOldData = constantDataFromHttp['constant'];
@@ -144,23 +154,30 @@ class ConstantProvider extends ChangeNotifier {
         );
       }
 
-      int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
-        (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
-      );
-      if (normalCriticalMenuIndex != -1) {
-        listOfConstantMenuModel.insert(
-            normalCriticalMenuIndex + 1, commonAlarmMenu);
-      } else {
-        int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
-          (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
+      bool isEcoGemAndPlus =
+          AppConstants.ecoGemAndPlusModelList.contains(modelId);
+
+      if (isEcoGemAndPlus) {
+        int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
+          (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
         );
-        if (globalAlarmMenuIndex != -1) {
-          listOfConstantMenuModel.insert(globalAlarmMenuIndex, commonAlarmMenu);
+        if (normalCriticalMenuIndex != -1) {
+          listOfConstantMenuModel.insert(
+              normalCriticalMenuIndex + 1, commonAlarmMenu);
         } else {
-          listOfConstantMenuModel.add(commonAlarmMenu);
+          int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
+            (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
+          );
+          if (globalAlarmMenuIndex != -1) {
+            listOfConstantMenuModel.insert(
+                globalAlarmMenuIndex, commonAlarmMenu);
+          } else {
+            listOfConstantMenuModel.add(commonAlarmMenu);
+          }
         }
       }
-      if (AppConstants.ecoGemModelList.contains(userData['modelId'])) {
+
+      if (AppConstants.ecoGemModelList.contains(modelId)) {
         listOfConstantMenuModel = listOfConstantMenuModel.where((menuModel) {
           if (menuModel.dealerDefinitionId ==
               AppConstants.levelSensorInConstant) {
@@ -177,10 +194,18 @@ class ConstantProvider extends ChangeNotifier {
               AppConstants.mainValveInConstant) {
             return checkAnySettingAvailable(
                 defaultSetting: defaultMainValveSetting);
+          } else if (menuModel.dealerDefinitionId ==
+              AppConstants.commonAlarmInConstant) {
+            return isEcoGemAndPlus;
           } else {
             return true;
           }
         }).toList();
+      } else if (!isEcoGemAndPlus) {
+        listOfConstantMenuModel = listOfConstantMenuModel
+            .where((m) =>
+                m.dealerDefinitionId != AppConstants.commonAlarmInConstant)
+            .toList();
       }
       //update object
       List<dynamic> listOfPumpObject = [];
@@ -336,6 +361,29 @@ class ConstantProvider extends ChangeNotifier {
                   .where((s) => s['common'] != null)
                   .toList();
 
+      List<dynamic> commonAlarmListFromApi = [];
+      if (defaultData.containsKey('commonAlarmSetting') &&
+          defaultData['commonAlarmSetting'] is List &&
+          (defaultData['commonAlarmSetting'] as List).isNotEmpty) {
+        commonAlarmListFromApi =
+            defaultData['commonAlarmSetting'] as List<dynamic>;
+      } else if (constantDataFromHttp.containsKey('commonAlarmSetting') &&
+          constantDataFromHttp['commonAlarmSetting'] is List &&
+          (constantDataFromHttp['commonAlarmSetting'] as List).isNotEmpty) {
+        commonAlarmListFromApi =
+            constantDataFromHttp['commonAlarmSetting'] as List<dynamic>;
+      } else if (constantData is Map &&
+          constantData.containsKey('commonAlarmSetting') &&
+          constantData['commonAlarmSetting'] is List &&
+          (constantData['commonAlarmSetting'] as List).isNotEmpty) {
+        commonAlarmListFromApi =
+            constantData['commonAlarmSetting'] as List<dynamic>;
+      } else if (defaultData.containsKey('commonAlarm') &&
+          defaultData['commonAlarm'] is List &&
+          (defaultData['commonAlarm'] as List).isNotEmpty) {
+        commonAlarmListFromApi = defaultData['commonAlarm'] as List<dynamic>;
+      }
+
       commonAlarm = listOfIrrigationLineObject.map((line) {
         List<dynamic> lineCommonData = oldCommonData
             .where((oldLine) => oldLine['sNo'] == line['sNo'])
@@ -343,6 +391,7 @@ class ConstantProvider extends ChangeNotifier {
         Map<String, dynamic>? oldLineSetting = lineCommonData.firstOrNull;
 
         if (oldLineSetting == null &&
+            commonAlarmListFromApi.isEmpty &&
             constantOldData.containsKey('normalCriticalAlarm') &&
             constantOldData['normalCriticalAlarm'] is List) {
           List<dynamic> normalCriticalLineData =
@@ -357,7 +406,9 @@ class ConstantProvider extends ChangeNotifier {
         return CommonAlarmModel.fromJson(
           objectData: line,
           defaultSetting: defaultCommonSettingsJson,
-          globalAlarm: defaultData['globalAlarm'] as List<dynamic>,
+          globalAlarm: commonAlarmListFromApi.isNotEmpty
+              ? commonAlarmListFromApi
+              : (defaultData['globalAlarm'] as List<dynamic>),
           oldSetting: oldLineSetting,
           userData: userData,
         );
@@ -737,6 +788,134 @@ class ConstantProvider extends ChangeNotifier {
 
         payloadList.add(
           [sNo, ...settingsPayload].join(','),
+        );
+      }
+    }
+    return payloadList.join(';');
+  }
+
+  String getCommonAlarmPayload() {
+    if (AppConstants.ecoGemModelList.contains(userData['modelId'])) {
+      return getCommonAlarmPayloadForEcoGem();
+    }
+    int alarmUniqueSno = 0;
+    List<dynamic> payloadList = [];
+
+    for (var line in commonAlarm) {
+      // Find matching line in normalCriticalAlarm
+      NormalCriticalAlarmModel? matchingNcLine;
+      for (var ncLine in normalCriticalAlarm) {
+        if (ncLine.sNo == line.sNo) {
+          matchingNcLine = ncLine;
+          break;
+        }
+      }
+      matchingNcLine ??= normalCriticalAlarm.firstOrNull;
+
+      for (var alarm in line.alarmList) {
+        alarmUniqueSno++;
+
+        // 1. Get On/Off value (display on/off status replacing line.sNo / 2.001)
+        dynamic onOffValue = 1;
+        var onOffSetting = alarm.setting.where((s) =>
+            s.title.toLowerCase().contains('on/off') ||
+            (s.widgetTypeId == 2 && s.sNo == 1)).firstOrNull;
+        if (onOffSetting != null) {
+          onOffValue = payloadValidate(onOffSetting.value.value);
+        } else {
+          for (var g in globalAlarm) {
+            if (_isAlarmTitleMatch(g.title, alarm.title)) {
+              onOffValue = payloadValidate(g.value.value);
+              break;
+            }
+          }
+        }
+
+        // 2. Refer to 308 (normalCriticalAlarm) to get the 11 settings
+        List<dynamic> settings308 = [];
+        if (matchingNcLine != null) {
+          int alarmIndex = -1;
+          for (var i = 0; i < matchingNcLine.normal.length; i++) {
+            if (_isAlarmTitleMatch(matchingNcLine.normal[i].title, alarm.title)) {
+              alarmIndex = i;
+              break;
+            }
+          }
+
+          if (alarmIndex != -1) {
+            settings308 = [
+              ...matchingNcLine.normal[alarmIndex].setting.where((setting) {
+                return (setting.gemPayload && setting.common == null);
+              }).map((setting) {
+                return payloadValidate(setting.value.value);
+              }),
+              ...matchingNcLine.critical[alarmIndex].setting.where((setting) {
+                return (setting.gemPayload && setting.common == null);
+              }).map((setting) {
+                return payloadValidate(setting.value.value);
+              }),
+              ...matchingNcLine.normal[alarmIndex].setting.where((setting) {
+                return (setting.gemPayload && setting.common != null);
+              }).map((setting) {
+                return payloadValidate(setting.value.value);
+              }),
+            ];
+          }
+        }
+
+        // Fallback to alarm.setting if not found in normalCriticalAlarm
+        if (settings308.isEmpty) {
+          var nonOnOffSettings = alarm.setting.where((s) =>
+              !s.title.toLowerCase().contains('on/off') &&
+              !(s.widgetTypeId == 2 && s.sNo == 1)).toList();
+
+          var normalSettings = nonOnOffSettings.take(5).map((s) => payloadValidate(s.value.value)).toList();
+          while (normalSettings.length < 5) {
+            normalSettings.add(0);
+          }
+          var autoReset = nonOnOffSettings.length > 5
+              ? payloadValidate(nonOnOffSettings.last.value.value)
+              : 0;
+          settings308 = [
+            ...normalSettings,
+            ...normalSettings,
+            autoReset,
+          ];
+        }
+
+        payloadList.add(
+          [
+            alarmUniqueSno,
+            onOffValue,
+            alarm.sNo,
+            ...settings308,
+            alarm.title,
+          ].join(','),
+        );
+      }
+    }
+    return payloadList.join(';');
+  }
+
+  bool _isAlarmTitleMatch(String t1, String t2) {
+    String clean(String s) => s
+        .toLowerCase()
+        .replaceAll('comminication', 'communication')
+        .replaceAll(RegExp(r'[^a-z0-9]'), '');
+    return clean(t1) == clean(t2);
+  }
+
+  String getCommonAlarmPayloadForEcoGem() {
+    List<dynamic> payloadList = [];
+    for (var line in commonAlarm) {
+      for (var alarm in line.alarmList) {
+        var settingsPayload = alarm.setting.where((setting) {
+          return setting.ecoGemPayload;
+        }).map((setting) {
+          return payloadValidate(setting.value.value);
+        }).toList();
+        payloadList.add(
+          [alarm.sNo, ...settingsPayload].join(','),
         );
       }
     }

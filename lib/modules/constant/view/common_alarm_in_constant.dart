@@ -25,37 +25,50 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
   double cellWidth = 180;
   ValueNotifier<int> selectedIrrigationLine = ValueNotifier(0);
 
-  void _syncWithNormalCritical(
-      int lineIndex, int rowIndex, ConstantSettingModel setting, dynamic value) {
+  bool _isTitleMatch(String t1, String t2) {
+    String clean(String s) => s
+        .toLowerCase()
+        .replaceAll('comminication', 'communication')
+        .replaceAll(RegExp(r'[^a-z0-9]'), '');
+    return clean(t1) == clean(t2);
+  }
+
+  void _syncWithNormalCritical(int lineIndex, int rowIndex,
+      ConstantSettingModel setting, dynamic value) {
     if (lineIndex < widget.constPvd.commonAlarm.length &&
         rowIndex < widget.constPvd.commonAlarm[lineIndex].alarmList.length) {
       final alarm = widget.constPvd.commonAlarm[lineIndex].alarmList[rowIndex];
       if (setting.title.toLowerCase().contains('on/off')) {
         for (var g in widget.constPvd.globalAlarm) {
-          if (g.sNo == alarm.sNo) {
+          if (_isTitleMatch(g.title, alarm.title)) {
             g.value.value = value;
             break;
           }
         }
         return;
       }
-    }
 
-    if (lineIndex < widget.constPvd.normalCriticalAlarm.length) {
-      final normalCriticalLine = widget.constPvd.normalCriticalAlarm[lineIndex];
-      if (rowIndex < normalCriticalLine.normal.length) {
-        for (var s in normalCriticalLine.normal[rowIndex].setting) {
-          if (s.title.toLowerCase() == setting.title.toLowerCase()) {
-            s.value.value = value;
-            break;
+      if (lineIndex < widget.constPvd.normalCriticalAlarm.length) {
+        final normalCriticalLine =
+            widget.constPvd.normalCriticalAlarm[lineIndex];
+        for (var normalAlarm in normalCriticalLine.normal) {
+          if (_isTitleMatch(normalAlarm.title, alarm.title)) {
+            for (var s in normalAlarm.setting) {
+              if (s.title.toLowerCase() == setting.title.toLowerCase()) {
+                s.value.value = value;
+                break;
+              }
+            }
           }
         }
-      }
-      if (rowIndex < normalCriticalLine.critical.length) {
-        for (var s in normalCriticalLine.critical[rowIndex].setting) {
-          if (s.title.toLowerCase() == setting.title.toLowerCase()) {
-            s.value.value = value;
-            break;
+        for (var criticalAlarm in normalCriticalLine.critical) {
+          if (_isTitleMatch(criticalAlarm.title, alarm.title)) {
+            for (var s in criticalAlarm.setting) {
+              if (s.title.toLowerCase() == setting.title.toLowerCase()) {
+                s.value.value = value;
+                break;
+              }
+            }
           }
         }
       }
@@ -65,10 +78,21 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
   @override
   Widget build(BuildContext context) {
     double screenWidth = MediaQuery.of(context).size.width;
-    bool isGem =
-        AppConstants.gemModelList.contains(widget.constPvd.userData['modelId']);
-    bool isNova = AppConstants.ecoGemModelList
-        .contains(widget.constPvd.userData['modelId']);
+    var rawModelId = widget.constPvd.userData['modelId'] ??
+        widget.constPvd.userData['modelid'] ??
+        (widget.constPvd.userData['masterData'] is Map
+            ? (widget.constPvd.userData['masterData']['modelId'] ??
+                widget.constPvd.userData['masterData']['modelid'])
+            : null);
+    int? modelId = rawModelId is int
+        ? rawModelId
+        : int.tryParse(rawModelId?.toString() ?? '');
+
+    bool isGem = AppConstants.gemModelList.contains(modelId);
+    bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
+
+    print("gemmodelid : $isGem");
+    print("novamodelid : $isNova");
 
     if (widget.constPvd.commonAlarm.isEmpty) {
       return const Center(child: Text('No common alarm settings available.'));
@@ -76,8 +100,9 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
 
     List<ConstantSettingModel> visibleSettings =
         widget.constPvd.defaultCommonAlarmSetting.where((defaultSetting) {
-      bool display =
-          isGem ? defaultSetting.gemDisplay : defaultSetting.ecoGemDisplay;
+      bool display = isGem
+          ? defaultSetting.gemDisplay
+          : (defaultSetting.ecoGemDisplay || defaultSetting.gemDisplay);
       if (isNova && display) {
         String titleLower = defaultSetting.title.toLowerCase();
         if (titleLower.contains('alarm on status') ||
