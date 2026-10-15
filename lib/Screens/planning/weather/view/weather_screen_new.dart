@@ -1,4 +1,5 @@
 
+
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -236,7 +237,7 @@ class _LineTabViewState extends State<_LineTabView> {
       return const Center(child: Text("No weather stations"));
     }
 
-    final station = line.stations[selectedStationIndex];
+    final station = line.stations[selectedStationIndex.clamp(0, line.stations.length - 1)];
     final device = station.device;
 
     final rawDate =
@@ -311,271 +312,91 @@ class _LineTabViewState extends State<_LineTabView> {
     );
   }
 //web
-  Widget _buildWideLayout(
-      station,
-      device,
-      String formattedDT,
-      String tempText,
-      String windText,
-      String humidityText,
-      )
-  {
-    print("_buildWideLayout call station.sensors:${station.sensors}");
-
-    return Column(
-      children: [
-        // Padding(
-        //   padding: const EdgeInsets.all(8),
-        //   child: SizedBox(
-        //     width: 320,
-        //     child: Column(
-        //       children: [
-        //         Row(
-        //           children: [
-        //             IconButton(
-        //               icon:  const Icon(Icons.refresh),
-        //               onPressed: () {
-        //                 Request();
-        //                 widget.vm.fetchWeatherData(widget.customerId, widget.userId,);
-        //               },
-        //             ),
-        //             Text("Get Live Data")
-        //           ],
-        //         ),
-        //         //  _weatherSummaryCard(
-        //         //   formattedDT,
-        //         //   tempText,
-        //         //   windText,
-        //         //   humidityText,
-        //         //   widget.vm.weatherModel!.weatherLive.cT,
-        //         // ),
-        //         const SizedBox(height: 16),
-        //         // sunCard(),
-        //       ],
-        //     ),
-        //   ),
-        // ),
-        Row(
-          children: [
-            IconButton(
-              icon:  const Icon(Icons.refresh),
-              onPressed: () {
-                Request();
-                widget.vm.fetchWeatherData(widget.customerId, widget.userId,);
-              },
-            ),
-            Text("Live : "),
-            Text(formattedDT),
-          ],
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async {
-              widget.vm.fetchWeatherData(widget.customerId, widget.userId,);
-              // Wait a little to show the indicator
-              await Future.delayed(const Duration(milliseconds: 500));
-            },
-            child: ListView(
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: station.sensors.map<Widget>((s) {
-                        print("station.sensors name check:${s.name}");
-                        return GestureDetector(
-                          onTap: (){
-                            // AppLog.log('deviceID ->${station.device[selectedStationIndex].deviceId}');
-                            AppLog.log('device ->${station.device.controllerId}');
-                            AppLog.log('deviceID ->${station}');
-                            // AppLog.log('userId ->${widget.userId} customerId ->${widget.customerId}');
-                            // Navigator.push(
-                            //   context,
-                            //   MaterialPageRoute(
-                            //     builder: (_) => SensorHourlyReportPage(
-                            //       deviceSrNo: '${station.device.serialNumber}',
-                            //       sensorSrNo: s.sNo.toString(), sensorName: s.name, userId: '${widget.customerId}', controllerId: "${widget.userId}" ,unit:unit(s.name),
-                            //     ),
-                            //   ),
-                            // );
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => SensorHourlyReportPage(
-                                  deviceSrNo: '${station.device.serialNumber}',
-                                  sensorSrNo: s.sNo.toString(), sensorName: s.name, userId: '${widget.customerId}', controllerId: "${widget.userId}" ,unit:unit(s.name),
-                                ),
-                              ),
-                            );
-
-
-                          },
-                          child: SensorChip(
-                            sensor: s,
-                            vm: widget.vm,
-                            device: device,
-                            isNarrow:  widget.isNarrow,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),)
-      ],
-    );
+  void _openSensorReport(dynamic station, dynamic sensor) {
+    Navigator.push(context, MaterialPageRoute(
+      builder: (_) => SensorHourlyReportPage(
+        deviceSrNo: '${station.device.serialNumber}',
+        sensorSrNo: sensor.sNo.toString(),
+        sensorName: sensor.name,
+        userId: '${widget.customerId}',
+        controllerId: '${widget.userId}',
+        unit: _sensorUnit(sensor.name),
+      ),
+    ));
   }
-  String unit(String type) {
-    type = type.toLowerCase();
+
+  String _sensorUnit(String name) {
+    final type = name.toLowerCase();
     if (type.contains('moisture')) return 'CB';
     if (type.contains('temperature')) return '°C';
-    if (type.contains('humidity')) return '%';
+    if (type.contains('humidity') || type.contains('wetness')) return '%';
     if (type.contains('co2')) return 'ppm';
     if (type.contains('direction')) return '°';
-    if (type.contains('Wind')) return 'km/h';
+    if (type.contains('wind')) return 'km/h';
     if (type.contains('rain')) return 'mm';
     if (type.contains('lux')) return 'Lu';
     return '';
   }
 
-  Widget _buildNarrowLayout(
-      station,
-      device,
-      String formattedDT,
-      String tempText,
-      String windText,
-      String humidityText,
-      )
-  {
-    return   ListView(
-      padding: const EdgeInsets.all(8),
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon:  const Icon(Icons.refresh),
-              onPressed: () {
-                Request();
-                widget.vm.fetchWeatherData(widget.customerId, widget.userId);
-              },
-            ),
-            Text("Live : "),
-            Text(formattedDT),
-          ],
-        ),
-        // _weatherSummaryCard(
-        //   formattedDT,
-        //   tempText,
-        //   windText,
-        //   humidityText,
-        //   widget.vm.weatherModel!.weatherLive.cT,
-        // ),
-        // const SizedBox(height: 16),
-        // sunCard(),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: station.sensors.map<Widget>((s) {
-                return GestureDetector(
-                  onTap: (){
-                    print('customer id :${widget.customerId},userId :${widget.userId}');
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SensorHourlyReportPage(
-                          deviceSrNo: '${station.device.serialNumber}',
-                          sensorSrNo: s.sNo.toString(), sensorName: s.name, userId: '${widget.customerId}', controllerId: "${widget.userId}" ,unit:unit(s.name),
-                        ),
-                      ),
-                    );
-                  },
+  Widget _buildWideLayout(station, device, String formattedDT,
+      String tempText, String windText, String humidityText) =>
+      _sensorDashboard(station, device, formattedDT);
+
+  Widget _buildNarrowLayout(station, device, String formattedDT,
+      String tempText, String windText, String humidityText) =>
+      _sensorDashboard(station, device, formattedDT);
+
+  Widget _sensorDashboard(dynamic station, dynamic device, String formattedDT) {
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        child: Row(children: [
+          const Icon(Icons.circle, size: 10, color: Color(0xFF16A34A)),
+          const SizedBox(width: 7),
+          Expanded(child: Text('Live : $formattedDT',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+          IconButton(
+            tooltip: 'Refresh live data',
+            onPressed: () {
+              Request();
+              widget.vm.fetchWeatherData(widget.customerId, widget.userId);
+            },
+            icon: const Icon(Icons.refresh),
+          ),
+        ]),
+      ),
+      Expanded(child: LayoutBuilder(builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 1350 ? 4 : width >= 850 ? 3 : width >= 560 ? 2 : 1;
+        const gap = 12.0;
+        final cardWidth = (width - 28 - (columns - 1) * gap) / columns;
+        return RefreshIndicator(
+          onRefresh: () async {
+            Request();
+            await widget.vm.fetchWeatherData(widget.customerId, widget.userId);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 20),
+            child: Wrap(spacing: gap, runSpacing: gap, children: [
+              for (final sensor in station.sensors)
+                SizedBox(
+                  width: cardWidth,
                   child: SensorChip(
-                    sensor: s,
+                    sensor: sensor,
                     vm: widget.vm,
                     device: device,
-                    isNarrow: widget.isNarrow,
+                    isNarrow: columns == 1,
+                    // onLast7DaysTap: () => _openSensorReport(station, sensor),
+                    // onLastMonthTap: () => _openSensorReport(station, sensor),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+            ]),
           ),
-        ),
-      ],
-
-    );
+        );
+      })),
+    ]);
   }
 
-  Widget _weatherSummaryCard(
-      String formattedDT,
-      String tempText,
-      String windText,
-      String humidityText,
-      String time,
-      ) {
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(CupertinoIcons.location_solid),
-              SizedBox(width: 6),
-              Text("Coimbatore"),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(formattedDT),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("$tempText °C",
-                      style:
-                      const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  Text("Feel Like $tempText °C"),
-                ],
-              ),
-              const SizedBox(width: 30),
-              TimeOfDayIconNew(time: time),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: InfoBox(CupertinoIcons.wind, "Wind", windText)),
-              const SizedBox(width: 12),
-              Expanded(child: InfoBox(CupertinoIcons.drop_fill, "Humidity", humidityText)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget sunCard() {
-    return const Row(
-      children: [
-        Expanded(child: SunTimeCard("Sunrise", "6:10 AM", 'assets/Images/sunrise.png')),
-        SizedBox(width: 12),
-        Expanded(child: SunTimeCard("Sunset", "6:45 PM", 'assets/Images/sunset.png')),
-      ],
-    );
-  }
 }
+

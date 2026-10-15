@@ -449,9 +449,12 @@ class _PreviewScreenState extends State<PreviewScreen> {
   }
 
   void sendFunction() async{
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     bool isOnline = await NetworkUtils.checkNow();
     if (!isOnline) {
-      if (mounted) {
+      if (context.mounted) {
         showAdaptiveDialog(
           context: context,
           builder: (BuildContext context) {
@@ -461,7 +464,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
               actions: [
                 TextButton(
                   child: const Text('OK'),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => navigator.pop(),
                 ),
               ],
             );
@@ -561,7 +564,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
           );
         }
       } catch(error) {
-        if (mounted) {
+        if (context.mounted) {
           showAdaptiveDialog(
             context: context,
             builder: (BuildContext context) {
@@ -571,7 +574,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                 actions: [
                   TextButton(
                     child: const Text('OK'),
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: () => navigator.pop(),
                   ),
                 ],
               );
@@ -587,12 +590,12 @@ class _PreviewScreenState extends State<PreviewScreen> {
           final response = jsonDecode(createUserProgram.body);
           if (createUserProgram.statusCode == 200) {
             await irrigationProvider.programLibraryData(widget.customerId, widget.controllerId);
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message: response['message']));
-              Navigator.of(context).pop();
+            scaffoldMessenger.showSnackBar(CustomSnackBar(message: response['message']));
+            if (context.mounted) {
+              navigator.pop();
             }
           } else {
-            if (mounted) {
+            if (context.mounted) {
               showAdaptiveDialog(
                 context: context,
                 builder: (BuildContext context) {
@@ -602,7 +605,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     actions: [
                       TextButton(
                         child: const Text('OK'),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => navigator.pop(),
                       ),
                     ],
                   );
@@ -610,8 +613,10 @@ class _PreviewScreenState extends State<PreviewScreen> {
               );
             }
           }
-        } catch (e) {
-          if (mounted) {
+        } catch (e, stackTrace) {
+          print("error : $e");
+          print("stackTrace : $stackTrace");
+          if (context.mounted) {
             showAdaptiveDialog(
               context: context,
               builder: (BuildContext context) {
@@ -621,7 +626,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                   actions: [
                     TextButton(
                       child: const Text('OK'),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => navigator.pop(),
                     ),
                   ],
                 );

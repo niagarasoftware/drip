@@ -48,6 +48,10 @@ class _SequenceScreenState extends State<SequenceScreen> {
     _provider = Provider.of<IrrigationProgramMainProvider>(context, listen: false);
     if (mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        _provider.updateSequenceSerialNumber(
+          widget.serialNumber == 0 ? _provider.serialNumberCreation : widget.serialNumber,
+          modelId: widget.modelId,
+        );
         if (_provider.irrigationLine != null &&
             (_provider.currentIndex < 0 || _provider.currentIndex >= _provider.irrigationLine!.sequence.length)) {
           _provider.assigningCurrentIndex(0);
@@ -78,6 +82,11 @@ class _SequenceScreenState extends State<SequenceScreen> {
     if (_provider.sampleIrrigationLine == null) {
       return const Center(child: CircularProgressIndicator());
     }
+
+    _provider.updateSequenceSerialNumber(
+      widget.serialNumber == 0 ? _provider.serialNumberCreation : widget.serialNumber,
+      modelId: widget.modelId,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) => Column(

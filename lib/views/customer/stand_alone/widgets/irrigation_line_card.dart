@@ -6,13 +6,16 @@ import '../../../../models/customer/site_model.dart';
 class IrrigationLineCard extends StatelessWidget {
   final IrrigationLineModel line;
   final bool showSwitch;
+
   final void Function(ValveModel valve, bool value) onToggleValve;
+  final void Function(FoggerModel fogger, bool value) onToggleFogger;
 
   const IrrigationLineCard({
     super.key,
     required this.line,
     required this.showSwitch,
     required this.onToggleValve,
+    required this.onToggleFogger,
   });
 
   @override
@@ -30,10 +33,24 @@ class IrrigationLineCard extends StatelessWidget {
         DataCell(Transform.scale(
           scale: 0.7,
           child: Switch(
-            activeColor: Colors.teal,
+            activeThumbColor: Colors.teal,
             hoverColor: Colors.pink.shade100,
             value: valve.isOn,
             onChanged: (val) => onToggleValve(valve, val),
+          ),
+        )),
+      ])),
+
+      ...line.foggerObjects.map((fogger) => DataRow(cells: [
+        DataCell(Image.asset('assets/png/mobile/m_fogger_grey.png', width: 40, height: 40)),
+        DataCell(Text(fogger.name)),
+        DataCell(Transform.scale(
+          scale: 0.7,
+          child: Switch(
+            activeThumbColor: Colors.teal,
+            hoverColor: Colors.pink.shade100,
+            value: fogger.isOn,
+            onChanged: (val) => onToggleFogger(fogger, val),
           ),
         )),
       ])),

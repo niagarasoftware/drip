@@ -38,12 +38,23 @@ class _FindSuitableWidgetState extends State<FindSuitableWidget> {
       );
     }
     else if(widget.constantSettingModel.widgetTypeId == 2){
+      bool boolVal = false;
+      var raw = widget.constantSettingModel.value.value;
+      if (raw is bool) {
+        boolVal = raw;
+      } else if (raw == 1 || raw == '1' || raw == 'true' || raw == 'TRUE') {
+        boolVal = true;
+      } else {
+        boolVal = false;
+      }
       return CustomSwitch(
-          value: widget.constantSettingModel.value.value,
+          value: boolVal,
           onChanged: widget.onUpdate
       );
     }
     else if(widget.constantSettingModel.widgetTypeId == 3){
+      var raw = widget.constantSettingModel.value.value;
+      String timeVal = (raw is String && raw.contains(':')) ? raw : "00:00:00";
       return Center(
         child: InkWell(
           onTap: (){
@@ -53,7 +64,7 @@ class _FindSuitableWidgetState extends State<FindSuitableWidget> {
                   return AlertDialog(
                     content:
                     HoursMinutesSeconds(
-                      initialTime: widget.constantSettingModel.value.value,
+                      initialTime: timeVal,
                       onPressed: widget.onOk,
                       modelId: constantPvd.userData['modelId'],
                     ),
@@ -62,7 +73,7 @@ class _FindSuitableWidgetState extends State<FindSuitableWidget> {
           },
           child: Padding(
             padding: const EdgeInsets.all(5),
-            child: Text(Constants.showHourAndMinuteOnly(widget.constantSettingModel.value.value, constantPvd.userData['modelId'])),
+            child: Text(Constants.showHourAndMinuteOnly(timeVal, constantPvd.userData['modelId'])),
           ),
         ),
       );
@@ -83,7 +94,7 @@ class _FindSuitableWidgetState extends State<FindSuitableWidget> {
       );
     }
     else{
-      return Center(child: Text(widget.constantSettingModel.value.value));
+      return Center(child: Text(widget.constantSettingModel.value.value.toString()));
     }
   }
 }
