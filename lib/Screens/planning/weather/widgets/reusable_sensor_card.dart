@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -127,7 +126,7 @@ class ReusableSensorCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final bool isWindDirection;
-  final VoidCallback? onWeekTap, onMonthTap,onCurrentTap;
+  final VoidCallback? onWeekTap, onMonthTap, onCurrentTap;
 
   const ReusableSensorCard({
     super.key,
@@ -135,12 +134,12 @@ class ReusableSensorCard extends StatelessWidget {
     required this.statusCode, required this.todayMin, required this.todayMax,
     required this.todayAverage, required this.weekAverage, required this.monthAverage,
     required this.icon, required this.accent, this.isWindDirection = false,
-    this.onWeekTap, this.onMonthTap,this.onCurrentTap,
+    this.onWeekTap, this.onMonthTap, this.onCurrentTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final cardContent = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -182,24 +181,38 @@ class ReusableSensorCard extends StatelessWidget {
           ]),
         const SizedBox(height: 12),
         if (!isWindDirection) ...[
-          SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage,onTap: onCurrentTap),
+          SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),
           const SizedBox(height: 8),
           SensorPeriodRow(title: 'Last 7 Days', average: weekAverage, onTap: onWeekTap),
           const SizedBox(height: 7),
           SensorPeriodRow(title: 'Last Month', average: monthAverage, monthly: true, onTap: onMonthTap),
         ] else ...[
-          Container(
-            width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: _panel, borderRadius: BorderRadius.circular(11)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Current Direction', style: TextStyle(fontSize: 12, color: _muted)),
-              const SizedBox(height: 4),
-              Text('${value.toStringAsFixed(0)}°  ${windDirectionName(value)}',
-                style: const TextStyle(fontWeight: FontWeight.w700, color: _ink)),
-            ]),
+          SizedBox(
+            height: 105,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: _panel, borderRadius: BorderRadius.circular(11)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('Current Direction', style: TextStyle(fontSize: 12, color: _muted)),
+                const SizedBox(height: 4),
+                Text('${value.toStringAsFixed(0)}°  ${windDirectionName(value)}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: _ink)),
+              ]),
+            ),
           ),
         ],
       ]),
     );
+
+    if (isWindDirection) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onCurrentTap,
+        child: cardContent,
+      );
+    }
+
+    return cardContent;
   }
 }
