@@ -48,6 +48,8 @@ class NodeWidget extends StatelessWidget {
 
   IconData get _icon {
     switch (node.type) {
+      case NodeType.junction:
+        return Icons.circle;
       case NodeType.pump:
         return Icons.settings_input_component;
       case NodeType.naturalSource:
@@ -87,11 +89,14 @@ class NodeWidget extends StatelessWidget {
         return Icons.water_drop;
       case NodeType.blower:
         return Icons.air;
+
     }
   }
 
   Color get _iconColor {
     switch (node.type) {
+      case NodeType.junction:
+        return const Color(0xFF455A64);
       case NodeType.pump:
         return node.isOn ? const Color(0xFF1565C0) : Colors.grey;
       case NodeType.naturalSource:

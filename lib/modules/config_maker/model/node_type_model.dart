@@ -8,6 +8,7 @@ import '../widget/painter/multi_injector_painter.dart';
 
 /// Type of equipment a node represents on the canvas.
 enum NodeType {
+  junction,
   pump,
   sump,
   well,
@@ -291,6 +292,8 @@ class NodeObject {
   /// Returns default size based on node type.
   Size get defaultSize {
     switch (type) {
+      case NodeType.junction:
+        return const Size(14, 14);
       case NodeType.mainFertilizerSource:
         return const Size(140, 100);
       case NodeType.fertilizerTank:

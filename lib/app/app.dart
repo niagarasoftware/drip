@@ -78,7 +78,7 @@ class _MyAppState extends State<MyApp> {
           themeMode: ThemeMode.light,
           // home: navigateToInitialScreen(snapshot.data ?? Routes.login),
           // onGenerateRoute: Routes.generateRoute,
-          home: const ConfigBasePage(masterData: {"userId":2,"customerId":10,"controllerId":39,"productId":39,"deviceId":"2CCF674C0F8A","deviceName":"Gem Pro+ (RL)","categoryId":1,"categoryName":"ORO GEM","modelId":4,"modelDescription":"Gem+ (RL)","modelName":"NAm2000ROOL","groupId":8,"groupName":"SIDDIQUE","connectingObjectId":["1","2","3","4","-"],"productStock":[]}, fromDashboard: true),
+          home: const ConfigBasePage(masterData:{"userId":2,"customerId":1183,"controllerId":3906,"productId":4276,"deviceId":"EE765EE76E71","deviceName":"Gem+ (RL)","categoryId":1,"categoryName":"ORO GEM","modelId":4,"modelDescription":"Gem+ (RL)","modelName":"NAm2000ROOL","groupId":1052,"groupName":"Siva Prakash Site","connectingObjectId":["1","2","3","4","-"],"productStock":[]}, fromDashboard: true),
         );
       },
     );

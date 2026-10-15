@@ -79,7 +79,76 @@ class PipePainter extends CustomPainter {
       }
     }
 
+    // Air propagates through junction (T / cross) fittings.
+    bool added = true;
+    while (added) {
+      added = false;
+      for (final pipe in pipes) {
+        final from = _findNode(pipe.fromNodeId);
+        final to = _findNode(pipe.toNodeId);
+        if (from == null || to == null) continue;
+
+        if (airNodeIds.contains(pipe.fromNodeId)) {
+          if (to.type == NodeType.junction && !airNodeIds.contains(to.id)) {
+            airNodeIds.add(to.id);
+            added = true;
+          }
+        }
+        if (airNodeIds.contains(pipe.toNodeId)) {
+          if (from.type == NodeType.junction && !airNodeIds.contains(from.id)) {
+            airNodeIds.add(from.id);
+            added = true;
+          }
+        }
+      }
+    }
     return airNodeIds;
+  }
+
+  /// Ids of pipes that carry fertilizer. A pipe is fertilizer if its own
+  /// endpoints say so, or if it is the other half of a fertilizer run that
+  /// was split by a plain pass-through junction (exactly two pipes attached).
+  /// Tees / crosses do NOT propagate, so a fertilizer tube joined onto a water
+  /// main never turns the main green.
+  Set<String> _getFertilizerPipeIds(Set<String> airNodeIds) {
+    final Set<String> result = {};
+    for (final pipe in pipes) {
+      final from = _findNode(pipe.fromNodeId);
+      final to = _findNode(pipe.toNodeId);
+      if (from == null || to == null) continue;
+      if (_isFertilizerPipe(pipe, from, to, airNodeIds)) result.add(pipe.id);
+    }
+
+    // Pipes attached to each junction.
+    final Map<String, List<PipeConnection>> attached = {};
+    for (final pipe in pipes) {
+      for (final id in [pipe.fromNodeId, pipe.toNodeId]) {
+        final n = _findNode(id);
+        if (n != null && n.type == NodeType.junction) {
+          attached.putIfAbsent(id, () => []).add(pipe);
+        }
+      }
+    }
+
+    bool added = true;
+    while (added) {
+      added = false;
+      attached.forEach((junctionId, list) {
+        if (list.length != 2) return;
+        final a = list[0], b = list[1];
+        final aFert = result.contains(a.id);
+        final bFert = result.contains(b.id);
+        if (aFert == bFert) return;
+        final other = aFert ? b : a;
+        final from = _findNode(other.fromNodeId);
+        final to = _findNode(other.toNodeId);
+        if (from == null || to == null) return;
+        if (_isAirPipe(other, from, to, airNodeIds)) return;
+        result.add(other.id);
+        added = true;
+      });
+    }
+    return result;
   }
 
   bool _isAirPipe(PipeConnection pipe, NodeObject from, NodeObject to, Set<String> airNodeIds) {
@@ -130,15 +199,18 @@ class PipePainter extends CustomPainter {
     final List<List<Offset>> waterPipePoints = [];
     final List<List<Offset>> airPipePoints = [];
     final Set<String> airNodeIds = _getAirNodeIds();
+    final Set<String> fertilizerPipeIds = _getFertilizerPipeIds(airNodeIds);
+    final List<List<Offset>> allPipePoints = [];
 
     for (final pipe in pipes) {
       final from = _findNode(pipe.fromNodeId);
       final to = _findNode(pipe.toNodeId);
       if (from == null || to == null) continue;
 
-      final start = from.getPort(pipe.fromPortId, isInput: false);
-      final end = to.getPort(pipe.toPortId, isInput: true);
+      final start = portPosition(from, pipe.fromPortId, isInput: false);
+      final end = portPosition(to, pipe.toPortId, isInput: true);
       final points = <Offset>[start, ...pipe.waypoints, end];
+      allPipePoints.add(points);
       final isSelected = pipe.id == selectedPipeId;
 
       final path = Path()..moveTo(points.first.dx, points.first.dy);
@@ -147,7 +219,7 @@ class PipePainter extends CustomPainter {
       }
 
       final bool isAir = _isAirPipe(pipe, from, to, airNodeIds);
-      final bool isFertilizer = _isFertilizerPipe(pipe, from, to, airNodeIds);
+      final bool isFertilizer = fertilizerPipeIds.contains(pipe.id);
 
       if (isAir) {
         // --- Air Pipe (glossy ribbed hose, static) ---
@@ -203,7 +275,7 @@ class PipePainter extends CustomPainter {
     if (pendingConnectFromId != null) {
       final from = _findNode(pendingConnectFromId!);
       if (from != null) {
-        final startPos = from.getPort(pendingFromPortId, isInput: pendingIsInput);
+        final startPos = portPosition(from, pendingFromPortId, isInput: pendingIsInput);
 
         bool isAirDrag = false;
         bool isFertilizerDrag = false;
@@ -212,6 +284,10 @@ class PipePainter extends CustomPainter {
           isAirDrag = true;
         } else if (from.type == NodeType.mainFertilizerSource) {
           isFertilizerDrag = true;
+        } else if (from.type == NodeType.junction) {
+          isFertilizerDrag = pipes.any((p) =>
+          fertilizerPipeIds.contains(p.id) &&
+              (p.fromNodeId == from.id || p.toNodeId == from.id));
         } else if (from.type == NodeType.fertilizerTank) {
           isFertilizerDrag = (pendingFromPortId != 'top_inlet');
         } else if (from.type == NodeType.multiInjector) {
@@ -321,7 +397,41 @@ class PipePainter extends CustomPainter {
           }
         }
       }
+
+      // Snap indicator: when the dragged end is close to the side of an
+      // existing pipe, show where the T-joint will be created.
+      if (pendingDragPos != null) {
+        _drawSnapIndicator(canvas, allPipePoints, pendingDragPos!);
+      }
     }
+  }
+
+  void _drawSnapIndicator(Canvas canvas, List<List<Offset>> allPipePoints, Offset cursor) {
+    Offset? best;
+    double bestDist = kPipeSnapTolerance;
+    for (final pts in allPipePoints) {
+      for (int i = 0; i < pts.length - 1; i++) {
+        final q = closestPointOnSegment(cursor, pts[i], pts[i + 1]);
+        final d = (cursor - q).distance;
+        // Near a pipe's own end it's a port target, not a side joint.
+        if ((q - pts.first).distance < 12 || (q - pts.last).distance < 12) continue;
+        if (d < bestDist) {
+          bestDist = d;
+          best = q;
+        }
+      }
+    }
+    if (best == null) return;
+    canvas.drawCircle(best, 9, Paint()..color = const Color(0x33FF9800));
+    canvas.drawCircle(
+      best,
+      9,
+      Paint()
+        ..color = const Color(0xFFFF9800)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(best, 2.5, Paint()..color = const Color(0xFFFF9800));
   }
 
   // ---------------------------------------------------------------------------
@@ -707,4 +817,28 @@ double distanceToSegment(Offset p, Offset a, Offset b) {
   t = t.clamp(0.0, 1.0);
   final proj = Offset(a.dx + ab.dx * t, a.dy + ab.dy * t);
   return (p - proj).distance;
+}
+
+/// Distance (px) within which a dragged pipe end / a tap in connect mode
+/// snaps onto the side of an existing pipe to form a T / cross joint.
+const double kPipeSnapTolerance = 18.0;
+
+/// Closest point to [p] on the segment [a]-[b]. Used to place a junction
+/// exactly on the pipe line so the pipe stays straight after it is split.
+Offset closestPointOnSegment(Offset p, Offset a, Offset b) {
+  final ab = b - a;
+  final abLenSq = ab.dx * ab.dx + ab.dy * ab.dy;
+  if (abLenSq == 0) return a;
+  double t = ((p.dx - a.dx) * ab.dx + (p.dy - a.dy) * ab.dy) / abLenSq;
+  t = t.clamp(0.0, 1.0);
+  return Offset(a.dx + ab.dx * t, a.dy + ab.dy * t);
+}
+
+/// Position of a pipe endpoint on [node]. A junction has no ports: it is a
+/// single point at the centre of its (tiny) box.
+Offset portPosition(NodeObject node, String? portId, {required bool isInput}) {
+  if (node.type == NodeType.junction) {
+    return node.position + Offset(node.size.width / 2, node.size.height / 2);
+  }
+  return node.getPort(portId, isInput: isInput);
 }
