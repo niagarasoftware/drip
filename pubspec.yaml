@@ -184,3 +184,7 @@ flavorizr:
         name: "Agritel"
       android:
         applicationId: "com.niagaraautomations.Agritel"
+
+
+dependency_overrides:
+  mqtt_client: 10.5.1
