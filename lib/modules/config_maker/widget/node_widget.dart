@@ -23,7 +23,7 @@ import '../model/node_type_model.dart';
 
 
 class NodeWidget extends StatelessWidget {
-  final PumpNode node;
+  final NodeObject node;
   final bool isSelected;
   final bool isConnectSource;
   final VoidCallback onTap;

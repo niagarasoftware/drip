@@ -10,6 +10,7 @@ import '../../config_maker/state_management/config_maker_provider.dart';
 import 'config_base_page.dart';
 import 'connection.dart';
 import 'device_list.dart';
+import 'draw_your_site.dart';
 
 class ConfigMobileView extends StatefulWidget {
   List<DeviceModel> listOfDevices;
@@ -36,8 +37,10 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
       _tabController.index = 1;
     }else if(configPvd.selectedTab == ConfigMakerTabs.connection){
       _tabController.index = 2;
-    }else{
+    }else if(configPvd.selectedTab == ConfigMakerTabs.siteConfigure){
       _tabController.index = 3;
+    }else{
+      _tabController.index = 4;
     }
   }
 
@@ -72,7 +75,9 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
                 ? ConfigMakerTabs.productLimit
                 : value == 2
                 ? ConfigMakerTabs.connection
-                : ConfigMakerTabs.siteConfigure;
+                : value == 3
+                ? ConfigMakerTabs.siteConfigure
+                : ConfigMakerTabs.siteDiagram;
 
             ConfigMakerTabs previousTab = updateConfigMakerTabs(
               context: context,
@@ -87,7 +92,9 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
                   ? 1
                   : previousTab == ConfigMakerTabs.connection
                   ? 2
-                  : 3;
+                  : previousTab == ConfigMakerTabs.siteConfigure
+                  ? 3
+                  : 4;
             });
           },
           tabs: ConfigMakerTabs.values.map((tab) {
@@ -102,7 +109,8 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
           DeviceList(listOfDevices: widget.listOfDevices),
           ProductLimit(listOfDevices: widget.listOfDevices, configPvd: configPvd,),
           Connection(configPvd: configPvd),
-          SiteConfigure(configPvd: configPvd)
+          SiteConfigure(configPvd: configPvd),
+          const DrawYourSiteScreen(),
         ],
       ),
     );
@@ -116,7 +124,7 @@ ConfigMakerTabs updateConfigMakerTabs({
   required ConfigMakerTabs selectedTab,
 }){
   bool update = true;
-  if([ConfigMakerTabs.connection, ConfigMakerTabs.siteConfigure].contains(selectedTab)){
+  if([ConfigMakerTabs.connection, ConfigMakerTabs.siteConfigure, ConfigMakerTabs.siteDiagram].contains(selectedTab)){
     final List<DeviceObjectModel> deviceObjects = configPvd.listOfSampleObjectModel;
     final pumpObject = getObjectById(deviceObjects, 5);
     final valveObject = getObjectById(deviceObjects, 13);

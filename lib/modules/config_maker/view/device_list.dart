@@ -1271,6 +1271,8 @@ class _DeviceListState extends State<DeviceList> {
         return 'Connection';
       case ConfigMakerTabs.siteConfigure:
         return 'Site Configure';
+      case ConfigMakerTabs.siteDiagram:
+        return 'Site Diagram';
       default:
         throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }
@@ -1286,6 +1288,8 @@ class _DeviceListState extends State<DeviceList> {
         return 'connection_';
       case ConfigMakerTabs.siteConfigure:
         return 'site_configure_';
+      case ConfigMakerTabs.siteDiagram:
+        return 'site_diagram_';
       default:
         throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }

@@ -39,6 +39,7 @@ import 'config_base_page.dart';
 import 'config_mobile_view.dart';
 import 'connection.dart';
 import 'device_list.dart';
+import 'draw_your_site.dart';
 
 class ConfigWebView extends StatefulWidget {
   List<DeviceModel> listOfDevices;
@@ -232,7 +233,12 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     final tabs = _visibleTabs;
     final index = tabs.indexOf(configPvd.selectedTab) + offset;
     if (index < 0 || index >= tabs.length) return;
-    setState(() => configPvd.selectedTab = tabs[index]);
+    updateConfigMakerTabs(
+      context: context,
+      configPvd: configPvd,
+      setState: setState,
+      selectedTab: tabs[index],
+    );
   }
 
   void _onSendConfig() {
@@ -281,7 +287,9 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                             ? ProductLimit(listOfDevices: widget.listOfDevices, configPvd: configPvd)
                             : configPvd.selectedTab == ConfigMakerTabs.connection
                             ? Connection(configPvd: configPvd)
-                            : SiteConfigure(configPvd: configPvd),
+                            : configPvd.selectedTab == ConfigMakerTabs.siteConfigure
+                            ? SiteConfigure(configPvd: configPvd)
+                            : const DrawYourSiteScreen(),
                       ),
                     ),
                   ),
@@ -1788,6 +1796,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         return 'connection';
       case ConfigMakerTabs.siteConfigure:
         return 'site_configure';
+      case ConfigMakerTabs.siteDiagram:
+        return 'site_diagram';
       default:
         throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }

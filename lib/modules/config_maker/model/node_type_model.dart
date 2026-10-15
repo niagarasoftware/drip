@@ -38,7 +38,7 @@ enum NodeType {
 }
 
 /// A draggable piece of equipment on the canvas (pump, tank, source, etc).
-class PumpNode {
+class NodeObject {
   String id;
   Offset position; // top-left corner in canvas coordinates
   Size size;
@@ -51,7 +51,7 @@ class PumpNode {
   double outletPipeLength; // Vertical outlet pipe extension
   double outletSpacing; // Horizontal spacing factor between outlets (1.0 = default)
 
-  PumpNode({
+  NodeObject({
     required this.id,
     required this.position,
     this.size = const Size(96, 74),
@@ -362,14 +362,14 @@ class PumpNode {
         'outletSpacing': outletSpacing,
       };
 
-  factory PumpNode.fromJson(Map<String, dynamic> j) {
+  factory NodeObject.fromJson(Map<String, dynamic> j) {
     final String rawType = j['type'] as String;
     final NodeType nodeType = rawType == 'mainValve'
         ? NodeType.multiMainValve
         : (rawType == 'multiTankValve'
             ? NodeType.multiOutletTankValve
             : NodeType.values.byName(rawType));
-    return PumpNode(
+    return NodeObject(
       id: j['id'] as String,
       position: Offset((j['dx'] as num).toDouble(), (j['dy'] as num).toDouble()),
       size: Size((j['w'] as num?)?.toDouble() ?? 96, (j['h'] as num?)?.toDouble() ?? 74),

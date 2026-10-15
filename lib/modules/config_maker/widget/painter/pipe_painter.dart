@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../model/node_type_model.dart';
 
 class PipePainter extends CustomPainter {
-  final List<PumpNode> nodes;
+  final List<NodeObject> nodes;
   final List<PipeConnection> pipes;
   final String? selectedPipeId;
   final String? pendingConnectFromId;
@@ -52,7 +52,7 @@ class PipePainter extends CustomPainter {
   /// Max distance (px) at which pipe ends / bends / sides count as touching.
   static const double _junctionTol = 3.0;
 
-  PumpNode? _findNode(String id) {
+  NodeObject? _findNode(String id) {
     for (final n in nodes) {
       if (n.id == id) return n;
     }
@@ -103,7 +103,7 @@ class PipePainter extends CustomPainter {
     return airNodeIds;
   }
 
-  bool _isAirPipe(PipeConnection pipe, PumpNode from, PumpNode to, Set<String> airNodeIds) {
+  bool _isAirPipe(PipeConnection pipe, NodeObject from, NodeObject to, Set<String> airNodeIds) {
     if (from.type == NodeType.blower || to.type == NodeType.blower) {
       return true;
     }
@@ -117,7 +117,7 @@ class PipePainter extends CustomPainter {
     return false;
   }
 
-  bool _isFertilizerPipe(PipeConnection pipe, PumpNode from, PumpNode to, Set<String> airNodeIds) {
+  bool _isFertilizerPipe(PipeConnection pipe, NodeObject from, NodeObject to, Set<String> airNodeIds) {
     if (_isAirPipe(pipe, from, to, airNodeIds)) {
       return false;
     }

@@ -19,7 +19,7 @@ class DrawYourSiteScreen extends StatefulWidget {
 }
 
 class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
-  final List<PumpNode> _nodes = [];
+  final List<NodeObject> _nodes = [];
   final List<PipeConnection> _pipes = [];
 
   String? _selectedNodeId;
@@ -50,7 +50,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _nodes.clear();
     _pipes.clear();
     for (final n in state['nodes']) {
-      _nodes.add(PumpNode.fromJson(n));
+      _nodes.add(NodeObject.fromJson(n));
     }
     for (final p in state['pipes']) {
       _pipes.add(PipeConnection.fromJson(p));
@@ -113,9 +113,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _pipes.clear();
     _idCounter = 0;
 
-    PumpNode addNode(NodeType type, String label, double dx, double dy,
+    NodeObject addNode(NodeType type, String label, double dx, double dy,
         {Size size = const Size(96, 74)}) {
-      final n = PumpNode(
+      final n = NodeObject(
         id: _nextId(type.name),
         position: Offset(dx, dy),
         size: size,
@@ -126,7 +126,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       return n;
     }
 
-    void connect(PumpNode from, PumpNode to, {List<Offset> bends = const []}) {
+    void connect(NodeObject from, NodeObject to, {List<Offset> bends = const []}) {
       _pipes.add(PipeConnection(
         id: _nextId('pipe'),
         fromNodeId: from.id,
@@ -232,7 +232,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     setState(() {
-      _nodes.add(PumpNode(
+      _nodes.add(NodeObject(
         id: id,
         position: Offset(300 + rnd.nextInt(200).toDouble(), 550 + rnd.nextInt(150).toDouble()),
         type: type,
@@ -299,7 +299,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
   }
 
-  void _onNodePanUpdate(PumpNode node, DragUpdateDetails details) {
+  void _onNodePanUpdate(NodeObject node, DragUpdateDetails details) {
     setState(() {
       final double dx = (node.position.dx + details.delta.dx / _scale)
           .clamp(0.0, kCanvasWidth - node.size.width)
@@ -311,7 +311,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     });
   }
 
-  void _onNodeResizeUpdate(PumpNode node, DragUpdateDetails details) {
+  void _onNodeResizeUpdate(NodeObject node, DragUpdateDetails details) {
     setState(() {
       final double deltaX = details.delta.dx / _scale;
       final double deltaY = details.delta.dy / _scale;
@@ -357,7 +357,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     });
   }
 
-  void _onNodeTap(PumpNode node) {
+  void _onNodeTap(NodeObject node) {
     if (_connectMode) {
       _handleConnectPick(node.id);
       return;
@@ -412,7 +412,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     return airNodeIds;
   }
 
-  bool _isAirSource(PumpNode node) {
+  bool _isAirSource(NodeObject node) {
     if (node.type == NodeType.blower) return true;
     if (node.type == NodeType.junction) {
       return _getAirNodeIds().contains(node.id);
@@ -467,11 +467,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     });
   }
 
-  void _onNodeLongPress(PumpNode node) {
+  void _onNodeLongPress(NodeObject node) {
     _showNodeEditor(node);
   }
 
-  void _showNodeEditor(PumpNode node) {
+  void _showNodeEditor(NodeObject node) {
     final controller = TextEditingController(text: node.label);
     showModalBottomSheet(
       context: context,
@@ -850,7 +850,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   // ---------------------------------------------------------------------
   // Pipe operations
   // ---------------------------------------------------------------------
-  PumpNode? _findNode(String id) {
+  NodeObject? _findNode(String id) {
     for (final n in _nodes) {
       if (n.id == id) return n;
     }
@@ -928,7 +928,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   String _splitPipeAtPoint(PipeConnection pipe, int segmentIndex, Offset point) {
     _saveToHistory();
     final junctionId = _nextId('junction');
-    final junction = PumpNode(
+    final junction = NodeObject(
       id: junctionId,
       position: point - const Offset(7, 7),
       size: const Size(14, 14),
@@ -1016,7 +1016,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     });
   }
 
-  void _onPortPanStart(PumpNode node, {required bool isInput, String? portId, Offset? initialPos}) {
+  void _onPortPanStart(NodeObject node, {required bool isInput, String? portId, Offset? initialPos}) {
     _saveToHistory();
     setState(() {
       _connectFromId = node.id;

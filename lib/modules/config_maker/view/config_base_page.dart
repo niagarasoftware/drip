@@ -6,7 +6,7 @@ import '../state_management/config_maker_provider.dart';
 import 'config_mobile_view.dart';
 import 'config_web_view.dart';
 
-enum ConfigMakerTabs {deviceList, productLimit, connection, siteConfigure}
+enum ConfigMakerTabs {deviceList, productLimit, connection, siteConfigure, siteDiagram}
 
 class ConfigBasePage extends StatefulWidget {
   final Map<String, dynamic> masterData;
@@ -81,5 +81,7 @@ String getTabName(ConfigMakerTabs configMakerTabs) {
       return 'Connection';
     case ConfigMakerTabs.siteConfigure:
       return 'Site Configure';
-    }
+    case ConfigMakerTabs.siteDiagram:
+      return 'Site Diagram';
+  }
 }
