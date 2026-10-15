@@ -49,7 +49,7 @@ class NodeObject {
   NodeObject({
     required this.id,
     required this.position,
-    this.size = const Size(96, 74),
+    this.size = const Size(91, 63),
     required this.type,
     required this.label,
     this.isOn = true,
@@ -295,44 +295,44 @@ class NodeObject {
       case NodeType.junction:
         return const Size(14, 14);
       case NodeType.mainFertilizerSource:
-        return const Size(140, 100);
+        return const Size(98, 70);
       case NodeType.fertilizerTank:
-        return const Size(100, 120);
+        return const Size(70, 84);
       case NodeType.multiInjector:
-        return const Size(280, 160);
+        return const Size(196, 112);
       case NodeType.multiFilter:
-        return const Size(280, 168);
+        return const Size(196, 118);
       case NodeType.multiValve:
-        return const Size(300, 180);
+        return const Size(210, 126);
       case NodeType.mainValve:
       case NodeType.multiMainValve:
-        return const Size(220, 200);
+        return const Size(154, 140);
       case NodeType.singleMainValve:
-        return const Size(160, 120);
+        return const Size(112, 84);
       case NodeType.singleTankValve:
-        return const Size(120, 120);
+        return const Size(84, 84);
       case NodeType.multiOutletTankValve:
-        return const Size(280, 120);
+        return const Size(196, 84);
       case NodeType.multiAgitator:
-        return const Size(320, 180);
+        return const Size(224, 126);
       case NodeType.singleAgitator:
-        return const Size(120, 196);
+        return const Size(84, 137);
       case NodeType.pressureSensor:
-        return const Size(50, 50);
+        return const Size(36, 36);
       case NodeType.moistureSensor:
-        return const Size(60, 80);
+        return const Size(42, 56);
       case NodeType.blower:
-        return const Size(160, 150);
+        return const Size(112, 105);
       case NodeType.waterMeter:
-        return isHorizontal ? const Size(180, 120) : const Size(120, 180);
+        return isHorizontal ? const Size(126, 84) : const Size(84, 126);
       case NodeType.overheadTank:
-        return const Size(110, 130);
+        return const Size(77, 91);
       case NodeType.sump:
       case NodeType.naturalSource:
       case NodeType.well:
-        return const Size(130, 90);
+        return const Size(91, 63);
       case NodeType.pump:
-        return const Size(130, 90);
+        return const Size(91, 63);
     }
   }
 
@@ -362,7 +362,7 @@ class NodeObject {
     return NodeObject(
       id: j['id'] as String,
       position: Offset((j['dx'] as num).toDouble(), (j['dy'] as num).toDouble()),
-      size: Size((j['w'] as num?)?.toDouble() ?? 96, (j['h'] as num?)?.toDouble() ?? 74),
+      size: Size((j['w'] as num?)?.toDouble() ?? 91, (j['h'] as num?)?.toDouble() ?? 63),
       type: nodeType,
       label: j['label'] as String,
       isOn: j['isOn'] as bool? ?? true,

@@ -5,20 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../model/node_type_model.dart';
-import '../model/pump_model.dart';
-import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/node_widget.dart';
 import '../widget/painter/pipe_painter.dart';
-
-extension IterableNullUtils<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T element) test) {
-    for (var element in this) {
-      if (test(element)) return element;
-    }
-    return null;
-  }
-}
 
 const double kCanvasWidth = 1900;
 const double kCanvasHeight = 1150;
@@ -90,6 +79,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Auto arrange (layered, compact, non-overlapping)
+  // ---------------------------------------------------------------------
   void _generateFromSourceConfig({bool showSnackBar = true}) {
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
     final sources = configPvd.source;
@@ -108,27 +100,25 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     _saveToHistory();
-
     _nodes.clear();
     _pipes.clear();
     _idCounter = 0;
 
+    // ---------------------------------------------------------------- nodes
     final Map<double, NodeObject> sourceMap = {};
     final Map<double, NodeObject> pumpMap = {};
 
-    // 1. Instantiate NodeObjects for all Sources and Pumps
     for (final src in sources) {
       final double sNo = src.commonDetails.sNo ?? 0.0;
       final NodeType type = _getNodeTypeForSource(src.sourceType);
       final String label = (src.commonDetails.name?.isNotEmpty == true)
           ? src.commonDetails.name!
           : _defaultLabelFor(type);
-
       final node = NodeObject(
         id: _nextId('source_${sNo.toInt()}'),
         position: Offset.zero,
         type: type,
-        size: const Size(96, 74),
+        size: const Size(91, 63),
         label: label,
         showJoints: !_globalHideJoints,
       );
@@ -142,288 +132,191 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       final String label = (p.commonDetails.name?.isNotEmpty == true)
           ? p.commonDetails.name!
           : 'Pump ${sNo.toInt()}';
-
       final node = NodeObject(
         id: _nextId('pump_${sNo.toInt()}'),
         position: Offset.zero,
         type: NodeType.pump,
-        size: const Size(130, 90),
         label: label,
         isOn: true,
         showJoints: !_globalHideJoints,
       );
+      node.size = node.defaultSize;
       _nodes.add(node);
       pumpMap[sNo] = node;
     }
 
-    // 2. Dynamic Compact Cluster Layout
-    final Set<double> placedSourceSNos = {};
-    final Set<double> placedPumpSNos = {};
-
-    const double startX = 80.0;
-    const double gapX = 90.0;          // Compact horizontal spacing
-    const double rowGapY = 60.0;        // Compact vertical gap between pipeline rows
-    const double pumpSpacingY = 110.0;  // Vertical spacing for multiple pumps on the same source
-
-    double currentY = 100.0;
-
-    // Process Primary Supply Sources first (sources with no inlet pump)
-    final primarySources = sources.where((s) => s.inletPump.isEmpty).toList();
-
-    for (final src in primarySources) {
-      final double sNo = src.commonDetails.sNo ?? 0.0;
-      if (placedSourceSNos.contains(sNo)) continue;
-
-      final sourceNode = sourceMap[sNo];
-      if (sourceNode == null) continue;
-
-      double posX = startX;
-      double rowMaxY = currentY + sourceNode.size.height;
-
-      sourceNode.position = Offset(posX, currentY);
-      placedSourceSNos.add(sNo);
-
-      posX += sourceNode.size.width + gapX;
-
-      final outletPumpsOfPrimary = src.outletPump;
-      final List<PumpModel> primaryOutletPumpModels = outletPumpsOfPrimary
-          .map((pNo) => pumps.firstWhereOrNull((p) => (p.commonDetails.sNo ?? 0.0) == pNo))
-          .whereType<PumpModel>()
-          .toList();
-
-      SourceModel? downstreamTank;
-      PumpModel? transferPump;
-
-      for (final pModel in primaryOutletPumpModels) {
-        final pNo = pModel.commonDetails.sNo ?? 0.0;
-        final tank = sources.firstWhereOrNull((s) => s.inletPump.contains(pNo));
-        if (tank != null) {
-          downstreamTank = tank;
-          transferPump = pModel;
-          break;
-        }
+    // ---------------------------------------------------------------- edges
+    final List<_LayoutEdge> edges = [];
+    final Set<String> edgeKeys = {};
+    void addEdge(NodeObject from, NodeObject to, String fp, String tp) {
+      if (edgeKeys.add('${from.id}>${to.id}')) {
+        edges.add(_LayoutEdge(from, to, fp, tp));
       }
-
-      if (downstreamTank != null && transferPump != null) {
-        final transferPumpNo = transferPump.commonDetails.sNo ?? 0.0;
-        final transferPumpNode = pumpMap[transferPumpNo];
-
-        if (transferPumpNode != null && !placedPumpSNos.contains(transferPumpNo)) {
-          final double pY = currentY + sourceNode.size.height / 2 - transferPumpNode.size.height / 2;
-          transferPumpNode.position = Offset(posX, pY);
-          placedPumpSNos.add(transferPumpNo);
-          posX += transferPumpNode.size.width + gapX;
-        }
-
-        final tankSNo = downstreamTank.commonDetails.sNo ?? 0.0;
-        final tankNode = sourceMap[tankSNo];
-
-        if (tankNode != null && !placedSourceSNos.contains(tankSNo)) {
-          final double tY = currentY + sourceNode.size.height / 2 - tankNode.size.height / 2;
-          tankNode.position = Offset(posX, tY);
-          placedSourceSNos.add(tankSNo);
-          rowMaxY = math.max(rowMaxY, tankNode.position.dy + tankNode.size.height);
-          posX += tankNode.size.width + gapX;
-
-          final tankOutletPumps = downstreamTank.outletPump;
-          final List<NodeObject> tankOutletPumpNodes = [];
-
-          for (final pNo in tankOutletPumps) {
-            final pNode = pumpMap[pNo];
-            if (pNode != null && !placedPumpSNos.contains(pNo)) {
-              tankOutletPumpNodes.add(pNode);
-              placedPumpSNos.add(pNo);
-            }
-          }
-
-          if (tankOutletPumpNodes.isNotEmpty) {
-            final int pCount = tankOutletPumpNodes.length;
-            final double tankCenterY = tankNode.position.dy + tankNode.size.height / 2;
-
-            for (int i = 0; i < pCount; i++) {
-              final pNode = tankOutletPumpNodes[i];
-              final double py = tankCenterY + (i - (pCount - 1) / 2.0) * pumpSpacingY - pNode.size.height / 2;
-              pNode.position = Offset(posX, py);
-              rowMaxY = math.max(rowMaxY, py + pNode.size.height);
-            }
-          }
-        }
-
-        final remainingPrimaryOutletPumps = primaryOutletPumpModels
-            .where((p) => (p.commonDetails.sNo ?? 0.0) != transferPumpNo)
-            .toList();
-
-        if (remainingPrimaryOutletPumps.isNotEmpty) {
-          final double pX = startX + sourceNode.size.width + gapX;
-          final double srcCenterY = sourceNode.position.dy + sourceNode.size.height / 2;
-          final int rCount = remainingPrimaryOutletPumps.length;
-
-          for (int i = 0; i < rCount; i++) {
-            final pNo = remainingPrimaryOutletPumps[i].commonDetails.sNo ?? 0.0;
-            final pNode = pumpMap[pNo];
-            if (pNode != null && !placedPumpSNos.contains(pNo)) {
-              final double py = srcCenterY + (i + 1) * pumpSpacingY - pNode.size.height / 2;
-              pNode.position = Offset(pX, py);
-              placedPumpSNos.add(pNo);
-              rowMaxY = math.max(rowMaxY, py + pNode.size.height);
-            }
-          }
-        }
-
-      } else {
-        final List<NodeObject> primaryOutletPumpNodes = [];
-        for (final pNo in outletPumpsOfPrimary) {
-          final pNode = pumpMap[pNo];
-          if (pNode != null && !placedPumpSNos.contains(pNo)) {
-            primaryOutletPumpNodes.add(pNode);
-            placedPumpSNos.add(pNo);
-          }
-        }
-
-        if (primaryOutletPumpNodes.isNotEmpty) {
-          final int pCount = primaryOutletPumpNodes.length;
-          final double srcCenterY = sourceNode.position.dy + sourceNode.size.height / 2;
-
-          for (int i = 0; i < pCount; i++) {
-            final pNode = primaryOutletPumpNodes[i];
-            final double py = srcCenterY + (i - (pCount - 1) / 2.0) * pumpSpacingY - pNode.size.height / 2;
-            pNode.position = Offset(posX, py);
-            rowMaxY = math.max(rowMaxY, py + pNode.size.height);
-          }
-        }
-      }
-
-      currentY = rowMaxY + rowGapY;
     }
 
-    // Process remaining unplaced Sources
     for (final src in sources) {
-      final double sNo = src.commonDetails.sNo ?? 0.0;
-      if (placedSourceSNos.contains(sNo)) continue;
-
-      final sourceNode = sourceMap[sNo];
-      if (sourceNode == null) continue;
-
-      double posX = startX;
-      double rowMaxY = currentY + sourceNode.size.height;
-
-      final List<NodeObject> inletPumpNodes = [];
+      final sn = sourceMap[src.commonDetails.sNo ?? 0.0];
+      if (sn == null) continue;
       for (final pNo in src.inletPump) {
-        final pNode = pumpMap[pNo];
-        if (pNode != null && !placedPumpSNos.contains(pNo)) {
-          inletPumpNodes.add(pNode);
-          placedPumpSNos.add(pNo);
-        }
+        final pn = pumpMap[pNo];
+        if (pn == null) continue;
+        addEdge(pn, sn, 'output', sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet');
       }
-
-      if (inletPumpNodes.isNotEmpty) {
-        final int iCount = inletPumpNodes.length;
-        final double targetY = currentY + sourceNode.size.height / 2;
-        for (int i = 0; i < iCount; i++) {
-          final pNode = inletPumpNodes[i];
-          final double py = targetY + (i - (iCount - 1) / 2.0) * pumpSpacingY - pNode.size.height / 2;
-          pNode.position = Offset(posX, py);
-          rowMaxY = math.max(rowMaxY, py + pNode.size.height);
-        }
-        posX += 130.0 + gapX;
-      }
-
-      sourceNode.position = Offset(posX, currentY);
-      placedSourceSNos.add(sNo);
-      posX += sourceNode.size.width + gapX;
-
-      final List<NodeObject> outletPumpNodes = [];
       for (final pNo in src.outletPump) {
-        final pNode = pumpMap[pNo];
-        if (pNode != null && !placedPumpSNos.contains(pNo)) {
-          outletPumpNodes.add(pNode);
-          placedPumpSNos.add(pNo);
-        }
-      }
-
-      if (outletPumpNodes.isNotEmpty) {
-        final int oCount = outletPumpNodes.length;
-        final double srcCenterY = sourceNode.position.dy + sourceNode.size.height / 2;
-        for (int i = 0; i < oCount; i++) {
-          final pNode = outletPumpNodes[i];
-          final double py = srcCenterY + (i - (oCount - 1) / 2.0) * pumpSpacingY - pNode.size.height / 2;
-          pNode.position = Offset(posX, py);
-          rowMaxY = math.max(rowMaxY, py + pNode.size.height);
-        }
-      }
-
-      currentY = rowMaxY + rowGapY;
-    }
-
-    // Process remaining unplaced Standalone Pumps
-    final List<NodeObject> unplacedPumps = pumps
-        .where((p) => !placedPumpSNos.contains(p.commonDetails.sNo ?? 0.0))
-        .map((p) => pumpMap[p.commonDetails.sNo ?? 0.0])
-        .whereType<NodeObject>()
-        .toList();
-
-    if (unplacedPumps.isNotEmpty) {
-      double posX = startX;
-      double maxH = 0.0;
-
-      for (final pNode in unplacedPumps) {
-        if (posX + pNode.size.width > 1200) {
-          posX = startX;
-          currentY += maxH + 30.0;
-          maxH = 0.0;
-        }
-        pNode.position = Offset(posX, currentY);
-        posX += pNode.size.width + gapX;
-        maxH = math.max(maxH, pNode.size.height);
+        final pn = pumpMap[pNo];
+        if (pn == null) continue;
+        addEdge(sn, pn, 'outlet', 'input');
       }
     }
 
-    // 3. Connect Pipes and Calculate Orthogonal Waypoints
-    int pipeCount = 0;
+    // ------------------------------------------- 1. layering (flow depth)
+    // Ignore the reverse edge of a 2-node loop so layering always terminates.
+    final layeringEdges =
+    edges.where((e) => !edgeKeys.contains('${e.to.id}>${e.from.id}')).toList();
+    final Map<String, int> rawLayer = {for (final n in _nodes) n.id: 0};
+    for (int it = 0; it < _nodes.length; it++) {
+      bool changed = false;
+      for (final e in layeringEdges) {
+        final next = rawLayer[e.from.id]! + 1;
+        if (rawLayer[e.to.id]! < next) {
+          rawLayer[e.to.id] = next;
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    final usedLayers = rawLayer.values.toSet().toList()..sort(); // drop empty columns
+    final Map<String, int> layerOf = {
+      for (final n in _nodes) n.id: usedLayers.indexOf(rawLayer[n.id]!),
+    };
+    final int L = usedLayers.length;
+    final List<List<NodeObject>> layers = List.generate(L, (_) => <NodeObject>[]);
+    for (final n in _nodes) {
+      layers[layerOf[n.id]!].add(n);
+    }
 
-    for (final src in sources) {
-      final sourceNode = sourceMap[src.commonDetails.sNo ?? 0.0];
-      if (sourceNode == null) continue;
+    final Map<String, List<NodeObject>> neighbours = {
+      for (final n in _nodes) n.id: <NodeObject>[],
+    };
+    for (final e in edges) {
+      neighbours[e.from.id]!.add(e.to);
+      neighbours[e.to.id]!.add(e.from);
+    }
 
-      // A. Inlet Pumps -> Source
-      for (int i = 0; i < src.inletPump.length; i++) {
-        final pNo = src.inletPump[i];
-        final pumpNode = pumpMap[pNo];
-        if (pumpNode == null) continue;
+    // ------------------------- 2. order inside each column (fewer crossings)
+    void sortLayer(int l, int ref) {
+      if (ref < 0 || ref >= L) return;
+      final refIdx = {for (int i = 0; i < layers[ref].length; i++) layers[ref][i].id: i};
+      final curIdx = {for (int i = 0; i < layers[l].length; i++) layers[l][i].id: i};
+      double key(NodeObject n) {
+        final idxs = neighbours[n.id]!
+            .where((m) => refIdx.containsKey(m.id))
+            .map((m) => refIdx[m.id]!)
+            .toList();
+        if (idxs.isEmpty) return curIdx[n.id]!.toDouble();
+        return idxs.reduce((a, b) => a + b) / idxs.length;
+      }
 
-        final pipe = _createOrthogonalPipe(
-          fromNode: pumpNode,
-          toNode: sourceNode,
-          fromPortId: 'output',
-          toPortId: sourceNode.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
-          indexOffset: i,
-          totalInGroup: src.inletPump.length,
+      final keys = {for (final n in layers[l]) n.id: key(n)};
+      layers[l].sort((a, b) {
+        final c = keys[a.id]!.compareTo(keys[b.id]!);
+        return c != 0 ? c : curIdx[a.id]!.compareTo(curIdx[b.id]!);
+      });
+    }
+
+    for (int it = 0; it < 4; it++) {
+      for (int l = 1; l < L; l++) {
+        sortLayer(l, l - 1);
+      }
+      for (int l = L - 2; l >= 0; l--) {
+        sortLayer(l, l + 1);
+      }
+    }
+
+    // -------------------------------------- 3. X positions (tight columns)
+    // Gap between two columns grows with the number of pipes crossing it.
+    final laneCount = List<int>.filled(math.max(L - 1, 1), 0);
+    for (final e in edges) {
+      final fl = layerOf[e.from.id]!, tl = layerOf[e.to.id]!;
+      if (tl > fl) laneCount[tl - 1]++;
+    }
+    // each lane needs ~18px; 48px free space (24 either side) so tees never touch nodes
+    final gaps = [for (final c in laneCount) 48.0 + 18.0 * math.max(c - 1, 0)];
+    final colW = [
+      for (final layer in layers) layer.map((n) => n.size.width).reduce(math.max),
+    ];
+    final colX = List<double>.filled(L, 0);
+    double x = 40.0;
+    for (int i = 0; i < L; i++) {
+      colX[i] = x;
+      x += colW[i] + (i < L - 1 ? gaps[i] : 0);
+    }
+
+    // -------------------------------------- 4. Y positions (no overlap)
+    const double vGap = 24.0;
+    double block(NodeObject n) =>
+        n.size.height +
+            ((n.type == NodeType.overheadTank || n.type == NodeType.fertilizerTank) ? 34.0 : 0.0);
+
+    final Map<String, double> top = {};
+    final colH = [
+      for (final layer in layers)
+        layer.fold<double>(0, (s, n) => s + block(n)) + vGap * (layer.length - 1),
+    ];
+    final double maxColH = colH.reduce(math.max);
+    for (int l = 0; l < L; l++) {
+      double y = (maxColH - colH[l]) / 2;
+      for (final n in layers[l]) {
+        top[n.id] = y;
+        y += block(n) + vGap;
+      }
+    }
+
+    double centerOf(NodeObject n) => top[n.id]! + n.size.height / 2;
+
+    // Pull every node toward the centre of the nodes it connects to so pipes
+    // become straight, then push down to remove any overlap.
+    void relax(int l) {
+      final layer = layers[l];
+      final desired = <double>[];
+      for (final n in layer) {
+        final nb = neighbours[n.id]!.where((m) => layerOf[m.id] != l).toList();
+        if (nb.isEmpty) {
+          desired.add(top[n.id]!);
+        } else {
+          final avg = nb.map(centerOf).reduce((a, b) => a + b) / nb.length;
+          desired.add(avg - n.size.height / 2);
+        }
+      }
+      double cursor = -double.infinity;
+      for (int i = 0; i < layer.length; i++) {
+        final t = math.max(desired[i], cursor);
+        top[layer[i].id] = t;
+        cursor = t + block(layer[i]) + vGap;
+      }
+    }
+
+    for (int it = 0; it < 4; it++) {
+      for (int l = 0; l < L; l++) {
+        relax(l);
+      }
+      for (int l = L - 1; l >= 0; l--) {
+        relax(l);
+      }
+    }
+
+    final double shiftY = 30.0 - top.values.reduce(math.min);
+    for (int l = 0; l < L; l++) {
+      for (final n in layers[l]) {
+        n.position = Offset(
+          colX[l] + (colW[l] - n.size.width) / 2,
+          top[n.id]! + shiftY,
         );
-        _pipes.add(pipe);
-        pipeCount++;
-      }
-
-      // B. Source -> Outlet Pumps
-      for (int i = 0; i < src.outletPump.length; i++) {
-        final pNo = src.outletPump[i];
-        final pumpNode = pumpMap[pNo];
-        if (pumpNode == null) continue;
-
-        final bool alreadyConnected = _pipes.any((p) => p.fromNodeId == sourceNode.id && p.toNodeId == pumpNode.id);
-        if (alreadyConnected) continue;
-
-        final pipe = _createOrthogonalPipe(
-          fromNode: sourceNode,
-          toNode: pumpNode,
-          fromPortId: 'outlet',
-          toPortId: 'input',
-          indexOffset: i,
-          totalInGroup: src.outletPump.length,
-        );
-        _pipes.add(pipe);
-        pipeCount++;
       }
     }
+
+    // ------------------------------------------- 5. clean pipe routing
+    _buildCleanPipes(edges, layerOf, colX, colW);
 
     setState(() {
       _selectedNodeId = null;
@@ -434,11 +327,254 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     if (showSnackBar && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Dynamically arranged ${sources.length} source(s), ${pumps.length} pump(s), and created $pipeCount pipe connection(s).'),
+          content: Text(
+              'Auto-arranged ${sources.length} source(s), ${pumps.length} pump(s) and ${edges.length} pipe(s).'),
           duration: const Duration(seconds: 3),
           backgroundColor: const Color(0xFF059669),
         ),
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Clean pipe routing
+  // ---------------------------------------------------------------------
+  bool _isTankNode(NodeObject n) =>
+      n.type == NodeType.overheadTank || n.type == NodeType.fertilizerTank;
+
+  NodeObject _newJunction(Offset p) {
+    final j = NodeObject(
+      id: _nextId('junction'),
+      position: p - const Offset(7, 7),
+      size: const Size(14, 14),
+      type: NodeType.junction,
+      label: '',
+      showJoints: !_globalHideJoints,
+    );
+    _nodes.add(j);
+    return j;
+  }
+
+  /// Removes duplicate and collinear bend points so pipes have only real corners.
+  List<Offset> _cleanWaypoints(Offset s, List<Offset> wps, Offset e) {
+    bool same(Offset a, Offset b) => (a - b).distance < 0.5;
+    final out = <Offset>[s];
+    for (final p in [...wps, e]) {
+      if (!same(out.last, p)) out.add(p);
+    }
+    final interior = out.sublist(1);
+    if (interior.isNotEmpty && same(interior.last, e)) interior.removeLast();
+
+    final full = <Offset>[s, ...interior, e];
+    final res = <Offset>[];
+    for (int i = 1; i < full.length - 1; i++) {
+      final a = full[i - 1], b = full[i], c = full[i + 1];
+      final vertical = (a.dx - b.dx).abs() < 0.5 && (b.dx - c.dx).abs() < 0.5;
+      final horizontal = (a.dy - b.dy).abs() < 0.5 && (b.dy - c.dy).abs() < 0.5;
+      if (!vertical && !horizontal) res.add(b);
+    }
+    return res;
+  }
+
+  void _buildCleanPipes(
+      List<_LayoutEdge> edges,
+      Map<String, int> layerOf,
+      List<double> colX,
+      List<double> colW,
+      ) {
+    const double laneMargin = 24.0;
+    const double maxLaneStep = 30.0;
+
+    // ---- describe every edge
+    final routes = <_Route>[];
+    for (final e in edges) {
+      final r = _Route(e);
+      r.start = portPosition(e.from, e.fromPort, isInput: false);
+      r.end = portPosition(e.to, e.toPort, isInput: true);
+      r.startPos = r.start;
+      r.endPos = r.end;
+      r.y1 = r.start.dy;
+      if (_isTankNode(e.from)) {
+        // tank outlet: pipe first drops below the tank, then runs sideways
+        r.y1 = math.max(r.start.dy + 30.0, e.from.position.dy + e.from.size.height + 20.0);
+        r.stem = [Offset(r.start.dx, r.y1)];
+      }
+      r.y2 = r.end.dy;
+      r.fromId = e.from.id;
+      r.fromPort = e.fromPort;
+      r.toId = e.to.id;
+      r.toPort = e.toPort;
+      final fl = layerOf[e.from.id]!, tl = layerOf[e.to.id]!;
+      r.forward = tl > fl;
+      r.gap = tl - 1;
+      r.straight = r.forward && r.stem.isEmpty && (r.y1 - r.y2).abs() < 2.0;
+      routes.add(r);
+    }
+
+    // ---- 1. lanes per gap, ordered to minimise crossings
+    bool inside(double v, double p, double q) =>
+        v > math.min(p, q) + 0.5 && v < math.max(p, q) - 0.5;
+    // crossings if [a] is drawn LEFT of [b]
+    int crossLeft(_Route a, _Route b) =>
+        (inside(b.y1, a.y1, a.y2) ? 1 : 0) + (inside(a.y2, b.y1, b.y2) ? 1 : 0);
+
+    final byGap = <int, List<_Route>>{};
+    for (final r in routes.where((r) => r.forward && !r.straight)) {
+      byGap.putIfAbsent(r.gap, () => []).add(r);
+    }
+    byGap.forEach((g, list) {
+      list.sort((a, b) {
+        final c = a.y1.compareTo(b.y1);
+        return c != 0 ? c : a.y2.compareTo(b.y2);
+      });
+      final order = <_Route>[];
+      for (final r in list) {
+        int bestPos = order.length, best = 1 << 30;
+        for (int pos = 0; pos <= order.length; pos++) {
+          int c = 0;
+          for (int i = 0; i < pos; i++) {
+            c += crossLeft(order[i], r);
+          }
+          for (int i = pos; i < order.length; i++) {
+            c += crossLeft(r, order[i]);
+          }
+          if (c < best) {
+            best = c;
+            bestPos = pos;
+          }
+        }
+        order.insert(bestPos, r);
+      }
+      final double left = colX[g] + colW[g];
+      final double right = colX[g + 1];
+      final int n = order.length;
+      final double step =
+      n > 1 ? math.min(maxLaneStep, (right - left - 2 * laneMargin) / (n - 1)) : 0.0;
+      final double first = (left + right) / 2 - step * (n - 1) / 2;
+      for (int k = 0; k < n; k++) {
+        order[k].lane = first + step * k;
+      }
+    });
+
+    final forwardRoutes = routes.where((r) => r.forward).toList();
+
+    // ---- 2. fan-OUT: one trunk leaves the port, a tee at every branch
+    final srcGroups = <String, List<_Route>>{};
+    for (final r in forwardRoutes) {
+      srcGroups.putIfAbsent('${r.edge.from.id}|${r.edge.fromPort}', () => []).add(r);
+    }
+    for (final g in srcGroups.values) {
+      if (g.length < 2) continue;
+      g.sort((a, b) {
+        if (a.lane == null && b.lane == null) return 0;
+        if (a.lane == null) return 1;
+        if (b.lane == null) return -1;
+        return a.lane!.compareTo(b.lane!);
+      });
+      String prevId = g.first.edge.from.id;
+      String? prevPort = g.first.edge.fromPort;
+      Offset prevPos = g.first.start;
+      List<Offset> prevWps = List.of(g.first.stem);
+      for (int i = 0; i < g.length - 1; i++) {
+        final r = g[i];
+        final p = Offset(r.lane ?? (r.start.dx + 20), r.y1);
+        final jn = _newJunction(p);
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: prevId,
+          fromPortId: prevPort,
+          toNodeId: jn.id,
+          waypoints: _cleanWaypoints(prevPos, prevWps, p),
+          flowActive: true,
+        ));
+        r.fromId = jn.id;
+        r.fromPort = null;
+        r.startPos = p;
+        prevId = jn.id;
+        prevPort = null;
+        prevPos = p;
+        prevWps = [];
+      }
+      final last = g.last;
+      last.fromId = prevId;
+      last.fromPort = null;
+      last.startPos = prevPos;
+      for (final r in g) {
+        r.stem = []; // the stem belongs to the trunk now
+      }
+    }
+
+    // ---- 3. fan-IN: branches merge into one trunk that enters the port
+    final dstGroups = <String, List<_Route>>{};
+    for (final r in forwardRoutes) {
+      dstGroups.putIfAbsent('${r.edge.to.id}|${r.edge.toPort}', () => []).add(r);
+    }
+    for (final g in dstGroups.values) {
+      if (g.length < 2) continue;
+      g.sort((a, b) {
+        if (a.lane == null && b.lane == null) return 0;
+        if (a.lane == null) return 1;
+        if (b.lane == null) return -1;
+        return b.lane!.compareTo(a.lane!); // closest to the port first
+      });
+      String prevId = g.first.edge.to.id;
+      String? prevPort = g.first.edge.toPort;
+      Offset prevPos = g.first.end;
+      for (int i = 0; i < g.length - 1; i++) {
+        final r = g[i];
+        final p = Offset(r.lane ?? (r.end.dx - 20), r.y2);
+        final jn = _newJunction(p);
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: jn.id,
+          toNodeId: prevId,
+          toPortId: prevPort,
+          waypoints: _cleanWaypoints(p, [], prevPos),
+          flowActive: true,
+        ));
+        r.toId = jn.id;
+        r.toPort = null;
+        r.endPos = p;
+        prevId = jn.id;
+        prevPort = null;
+        prevPos = p;
+      }
+      final last = g.last;
+      last.toId = prevId;
+      last.toPort = null;
+      last.endPos = prevPos;
+    }
+
+    // ---- 4. the actual branch pipes
+    for (final r in forwardRoutes) {
+      final wps = <Offset>[
+        ...r.stem,
+        if (r.lane != null) Offset(r.lane!, r.y1),
+        if (r.lane != null) Offset(r.lane!, r.y2),
+      ];
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: r.fromId,
+        fromPortId: r.fromPort,
+        toNodeId: r.toId,
+        toPortId: r.toPort,
+        waypoints: _cleanWaypoints(r.startPos, wps, r.endPos),
+        flowActive: true,
+      ));
+    }
+
+    // ---- 5. feedback / same-column edges: old simple routing
+    final outCount = <String, int>{};
+    for (final r in routes.where((r) => !r.forward)) {
+      final idx = outCount[r.edge.from.id] ?? 0;
+      outCount[r.edge.from.id] = idx + 1;
+      _pipes.add(_createOrthogonalPipe(
+        fromNode: r.edge.from,
+        toNode: r.edge.to,
+        fromPortId: r.edge.fromPort,
+        toPortId: r.edge.toPort,
+        indexOffset: idx,
+      ));
     }
   }
 
@@ -448,41 +584,31 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     String? fromPortId,
     String? toPortId,
     int indexOffset = 0,
-    int totalInGroup = 1,
+    double? laneX, // dedicated vertical lane chosen by the layout
   }) {
     final String pipeId = _nextId('pipe');
     final Offset start = portPosition(fromNode, fromPortId, isInput: false);
     final Offset end = portPosition(toNode, toPortId, isInput: true);
-
     final List<Offset> waypoints = [];
     final double dy = end.dy - start.dy;
+    final double midX = laneX ?? (start.dx + end.dx) / 2.0;
 
-    final double laneOffset = (totalInGroup > 1) ? (indexOffset - (totalInGroup - 1) / 2.0) * 24.0 : 0.0;
-
-    if (fromNode.type == NodeType.overheadTank ||
-        fromNode.type == NodeType.fertilizerTank) {
-      final double dropY = math.max(start.dy + 35.0, fromNode.position.dy + fromNode.size.height + 25.0) + laneOffset.abs() * 0.4;
-      final double midX = (start.dx + end.dx) / 2.0 + laneOffset;
-
+    if (fromNode.type == NodeType.overheadTank || fromNode.type == NodeType.fertilizerTank) {
+      final double dropY = math.max(start.dy + 30.0, fromNode.position.dy + fromNode.size.height + 20.0) +
+          indexOffset * 10.0;
       waypoints.add(Offset(start.dx, dropY));
       waypoints.add(Offset(midX, dropY));
       waypoints.add(Offset(midX, end.dy));
     } else if (fromNode.type == NodeType.sump ||
         fromNode.type == NodeType.well ||
-        fromNode.type == NodeType.naturalSource) {
-      final double midX = (start.dx + end.dx) / 2.0 + laneOffset;
+        fromNode.type == NodeType.naturalSource ||
+        toNode.type == NodeType.overheadTank ||
+        toNode.type == NodeType.fertilizerTank) {
       waypoints.add(Offset(midX, start.dy));
       waypoints.add(Offset(midX, end.dy));
-    } else if (toNode.type == NodeType.overheadTank || toNode.type == NodeType.fertilizerTank) {
-      final double midX = (start.dx + end.dx) / 2.0 + laneOffset;
+    } else if (dy.abs() > 8) {
       waypoints.add(Offset(midX, start.dy));
       waypoints.add(Offset(midX, end.dy));
-    } else {
-      if (dy.abs() > 8) {
-        final double midX = (start.dx + end.dx) / 2.0 + laneOffset;
-        waypoints.add(Offset(midX, start.dy));
-        waypoints.add(Offset(midX, end.dy));
-      }
     }
 
     return PipeConnection(
@@ -574,52 +700,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _saveToHistory();
     final rnd = math.Random();
     final id = _nextId(type.name);
-    Size size = const Size(96, 74);
-    if (type == NodeType.mainFertilizerSource) {
-      size = const Size(140, 100);
-    } else if (type == NodeType.fertilizerTank) {
-      size = const Size(100, 120);
-    } else if (type == NodeType.multiInjector) {
-      size = const Size(280, 160);
-    } else if (type == NodeType.multiFilter) {
-      size = const Size(280, 168);
-    } else if (type == NodeType.multiValve) {
-      size = const Size(300, 180);
-    } else if (type == NodeType.mainValve || type == NodeType.multiMainValve) {
-      size = const Size(220, 200);
-    } else if (type == NodeType.singleMainValve) {
-      size = const Size(160, 120);
-    } else if (type == NodeType.singleTankValve) {
-      size = const Size(120, 120);
-    } else if (type == NodeType.multiOutletTankValve) {
-      size = const Size(280, 120);
-    } else if (type == NodeType.multiAgitator) {
-      size = const Size(320, 180);
-    } else if (type == NodeType.singleAgitator) {
-      size = const Size(120, 196);
-    } else if (type == NodeType.pressureSensor) {
-      size = const Size(50, 50);
-    } else if (type == NodeType.moistureSensor) {
-      size = const Size(60, 80);
-    } else if (type == NodeType.waterMeter) {
-      size = const Size(120, 180);
-    } else if (type == NodeType.blower) {
-      size = const Size(160, 150);
-    } else if (type == NodeType.overheadTank) {
-      size = const Size(110, 130);
-    } else if (type == NodeType.sump || type == NodeType.naturalSource || type == NodeType.well) {
-      size = const Size(130, 90);
-    }
+
+    final node = NodeObject(
+      id: id,
+      position: Offset(300 + rnd.nextInt(200).toDouble(), 550 + rnd.nextInt(150).toDouble()),
+      type: type,
+      label: _defaultLabelFor(type),
+      showJoints: !_globalHideJoints,
+    );
+    node.size = node.defaultSize;
 
     setState(() {
-      _nodes.add(NodeObject(
-        id: id,
-        position: Offset(300 + rnd.nextInt(200).toDouble(), 550 + rnd.nextInt(150).toDouble()),
-        type: type,
-        size: size,
-        label: _defaultLabelFor(type),
-        showJoints: !_globalHideJoints,
-      ));
+      _nodes.add(node);
       _selectedNodeId = id;
       _selectedPipeId = null;
     });
@@ -1080,6 +1172,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           ),
                           onPressed: () => scaleBy(1.1),
                           child: const Text('+10%'),
+                        ),
+                        ActionChip(
+                          label: const Text('0.5x', style: TextStyle(fontSize: 11)),
+                          onPressed: () {
+                            final def = node.defaultSize;
+                            updateSize(def.width * 0.5, def.height * 0.5);
+                          },
                         ),
                         ActionChip(
                           label: const Text('0.75x', style: TextStyle(fontSize: 11)),
@@ -2464,6 +2563,30 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       ),
     );
   }
+}
+
+/// One pipe to be drawn by the auto-arrange layout.
+class _LayoutEdge {
+  final NodeObject from;
+  final NodeObject to;
+  final String fromPort;
+  final String toPort;
+  _LayoutEdge(this.from, this.to, this.fromPort, this.toPort);
+}
+
+/// Working data for one edge while the clean router builds pipes.
+class _Route {
+  final _LayoutEdge edge;
+  late Offset start, end, startPos, endPos;
+  late double y1, y2;
+  late String fromId, toId;
+  String? fromPort, toPort;
+  int gap = 0;
+  bool forward = true;
+  bool straight = false;
+  double? lane;
+  List<Offset> stem = [];
+  _Route(this.edge);
 }
 
 /// Result of a nearest-pipe-segment lookup: which pipe, which segment
