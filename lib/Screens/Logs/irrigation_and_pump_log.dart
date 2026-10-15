@@ -8,7 +8,7 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../StateManagement/customer_provider.dart';
 import '../../models/customer/site_model.dart';
 import '../../modules/Logs/repository/log_repos.dart';
-import '../../modules/Logs/view/pump_list.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 
 import '../../modules/irrigation_report/view/channel_log_page.dart';
 import '../../modules/irrigation_report/view/list_of_log_config.dart';
@@ -189,9 +189,10 @@ class _IrrigationAndPumpLogState
         ZoneCyclicLog(
           userData: widget.userData,
         ),
-        PumpList(
+        PumpLogDashboardScreen(
           pumpList: pumpList,
           userId: widget.userData['customerId'],
+          controllerId: widget.masterData.controllerId,
           masterData: widget.masterData,
           userData: widget.userData,
         ),
@@ -230,9 +231,10 @@ class _IrrigationAndPumpLogState
         );
 
         pages.add(
-          PumpList(
+          PumpLogDashboardScreen(
             pumpList: pumpList,
             userId: widget.userData['customerId'],
+            controllerId: widget.masterData.controllerId,
             masterData: widget.masterData,
             userData: widget.userData,
           ),
