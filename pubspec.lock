@@ -522,10 +522,10 @@ packages:
     dependency: transitive
     description:
       name: flutter_blue_plus_winrt
-      sha256: "0000b2d818e6f79ad07764206fdd8afb69426fd44453c6254c35828fd16aa09f"
+      sha256: f98bc9182d13d3eb02dfa033568b46dca97f6e2c2cc292705fa53279d07db421
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.20"
+    version: "0.0.22"
   flutter_bluetooth_serial_plus:
     dependency: "direct main"
     description:
@@ -780,10 +780,10 @@ packages:
     dependency: transitive
     description:
       name: geolocator_apple
-      sha256: "853803d6bb1713c094e935b4a5ae5f19c0308acf81da13fa9ff84fb4c70c0b73"
+      sha256: "3b3189beba8b59b2a0eee970b466e991e4ac1564a9034f82a825a3c45c4be1fa"
       url: "https://pub.dev"
     source: hosted
-    version: "2.3.14"
+    version: "2.3.15"
   geolocator_platform_interface:
     dependency: transitive
     description:
@@ -956,10 +956,10 @@ packages:
     dependency: transitive
     description:
       name: image_picker_ios
-      sha256: "815921d05ef87d64dc64e9f7f855967614a9a67086d0c60fa27d47a1cd9a8896"
+      sha256: "4fb88d4350ffc208c2a09fc321db1f80282688716b8cfe10c8c80acc5ae8934a"
       url: "https://pub.dev"
     source: hosted
-    version: "0.8.13+9"
+    version: "0.8.13+10"
   image_picker_linux:
     dependency: transitive
     description:
@@ -1180,10 +1180,10 @@ packages:
     dependency: "direct main"
     description:
       name: mqtt_client
-      sha256: "41c8edd3bc8efc80c1c8ebfb40081c24d12d13085faca96b9280a624eca2d893"
+      sha256: "37aae360fac0b3322cb37267696c1535e1ad2984a13064d877273ffe4b16ca7a"
       url: "https://pub.dev"
     source: hosted
-    version: "10.11.11"
+    version: "10.5.1"
   nested:
     dependency: transitive
     description:
@@ -1953,10 +1953,10 @@ packages:
     dependency: transitive
     description:
       name: vector_graphics_compiler
-      sha256: "4dca4feb77dc3ec7f6e27e49c53241eb8217f55e4f9b12599a27f8903bca5682"
+      sha256: "670a59098f5c4c9f8eab25edba4f72e1bc8172b428b012339ac892eb31c68f2b"
       url: "https://pub.dev"
     source: hosted
-    version: "1.3.0"
+    version: "1.3.1"
   vector_math:
     dependency: transitive
     description:

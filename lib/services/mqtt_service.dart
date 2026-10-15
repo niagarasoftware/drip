@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:mqtt_client/mqtt_browser_client.dart';
-import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
 import 'package:uuid/uuid.dart';
@@ -13,6 +11,7 @@ import '../utils/constants.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../utils/my_helper_class.dart';
+import 'mqtt_client_factory_io.dart';
 
 class MqttService {
   static MqttService? _instance;
@@ -94,7 +93,15 @@ class MqttService {
 
     if (_client != null) return;
 
-    if (kIsWeb) {
+    _client = createMqttClient(
+      webUrl: Environment.mqttWebUrl,
+      mobileUrl: Environment.mqttMobileUrl,
+      clientId: uniqueId,
+      webPort: AppConstants.mqttWebPort,
+      mobilePort: AppConstants.mqttMobilePort,
+    );
+
+    /*if (kIsWeb) {
       _client = MqttBrowserClient(
         Environment.mqttWebUrl,
         uniqueId,
@@ -109,7 +116,7 @@ class MqttService {
       );
 
       _client!.port = AppConstants.mqttMobilePort;
-    }
+    }*/
 
     _client!
       ..keepAlivePeriod = 30
