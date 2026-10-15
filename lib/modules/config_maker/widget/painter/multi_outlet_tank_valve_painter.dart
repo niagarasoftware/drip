@@ -1,0 +1,167 @@
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/material.dart';
+
+import 'tank_valve_parts.dart';
+import 'main_valve_parts.dart';
+
+/// Multi Outlet Tank Valve manifold painter (realistic).
+///
+/// One centre inlet pipe at the top that feeds into a horizontal stainless
+/// collector header with flanged end plates, and 4 vertical blue outlet lines
+/// at the bottom, each with a flanged cast-iron gate valve (orange handwheel,
+/// green status ring + halo when open; see [TankValveArt]) dropping to bolted
+/// blue end flanges at the bottom ports.
+class DetailedMultiOutletTankValvePainter extends CustomPainter {
+  final List<bool> states; // status of each of the 4 outlet valves [ch0, ch1, ch2, ch3]
+  final bool showJoints;
+
+  DetailedMultiOutletTankValvePainter({
+    required this.states,
+    this.showJoints = true,
+  });
+
+  /// Single common inlet port at the top center
+  static Offset inletPort(Size s) => Offset(s.width * 0.5, 0);
+
+  /// Outlets at the bottom of each vertical pipe channel (0..3)
+  static Offset outletPort(Size s, int index) {
+    final double step = s.width / 4;
+    final double cx = step * index + step / 2;
+    return Offset(cx, s.height);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+
+    final double step = w / 4;
+    final List<double> channelX = List.generate(4, (i) => step * i + step / 2);
+
+    final double p = math.min(step * 0.3, h * 0.1);
+    final double u = p / 40;
+    final double fh = p * 0.3;
+    final double fw = p * 2.15;
+    final double g = p * 0.05;
+    final double endH = MainValveArt.endH(p);
+
+    final double manifoldY = h * 0.32;
+    final double mh = p * 1.35;
+    final double neckH = p * 0.45;
+    final double valveCy = h * 0.7;
+    final double cxC = w * 0.5;
+
+    final double hl = channelX[0] - p * 1.3;
+    final double hr = channelX[3] + p * 1.3;
+
+    // 1. Centre top inlet: steel pipe + steel flange + gasket + top end flange
+    final double ySf1 = endH + g;
+    final Rect inPipe = Rect.fromLTRB(cxC - p * 0.55, ySf1, cxC + p * 0.55, manifoldY + mh * 0.5);
+    MainValveArt.pipe(canvas, inPipe, blue: false, seed: 41, u: u);
+    MainValveArt.flangeH(canvas, Rect.fromLTRB(cxC - fw * 0.46, ySf1, cxC + fw * 0.46, ySf1 + fh), blue: false, joints: showJoints, u: u);
+    MainValveArt.gasket(canvas, Rect.fromLTRB(cxC - fw * 0.48, ySf1 - g, cxC + fw * 0.48, ySf1));
+
+    // 2. Horizontal stainless collector header
+    final Rect header = Rect.fromLTRB(hl, manifoldY, hr, manifoldY + mh);
+    MainValveArt.pipe(canvas, header, blue: false, seed: 61, u: u, horizontal: true);
+
+    // Header end plates (flanged blind covers)
+    MainValveArt.flangeV(canvas, Rect.fromLTRB(hl - fh, manifoldY - mh * 0.3, hl, manifoldY + mh * 1.3), blue: false, joints: showJoints, u: u);
+    MainValveArt.flangeV(canvas, Rect.fromLTRB(hr, manifoldY - mh * 0.3, hr + fh, manifoldY + mh * 1.3), blue: false, joints: showJoints, u: u);
+
+    // Centre inlet weld bead above the header
+    canvas.drawLine(
+      Offset(cxC - p * 0.55, manifoldY),
+      Offset(cxC + p * 0.55, manifoldY),
+      MainValveArt.stroke(Colors.black.withValues(alpha: 0.4), math.max(1.2, u * 2.2)),
+    );
+
+    // 3. Welded necks + flange pairs under the bottom of the header
+    final double yNeckTop = manifoldY + mh;
+    final double yNeckBottom = yNeckTop + neckH;
+    final double yFlBottom = yNeckBottom + fh;
+    final double yPipeFlTop = yFlBottom + g;
+
+    for (int i = 0; i < 4; i++) {
+      final double cx = channelX[i];
+
+      final Rect neck = Rect.fromLTRB(cx - p * 0.55, manifoldY + mh * 0.75, cx + p * 0.55, yNeckBottom);
+      MainValveArt.pipe(canvas, neck, blue: false, seed: 71 + i, u: u);
+      // weld bead where the neck meets the header
+      canvas.drawLine(
+        Offset(cx - p * 0.55, yNeckTop),
+        Offset(cx + p * 0.55, yNeckTop),
+        MainValveArt.stroke(Colors.black.withValues(alpha: 0.4), math.max(1.2, u * 2.2)),
+      );
+
+      MainValveArt.flangeH(
+        canvas,
+        Rect.fromLTRB(cx - fw * 0.46, yNeckBottom, cx + fw * 0.46, yFlBottom),
+        blue: false,
+        joints: showJoints,
+        u: u,
+      );
+      MainValveArt.gasket(canvas, Rect.fromLTRB(cx - fw * 0.48, yFlBottom, cx + fw * 0.48, yPipeFlTop));
+      MainValveArt.flangeH(
+        canvas,
+        Rect.fromLTRB(cx - fw / 2, yPipeFlTop, cx + fw / 2, yPipeFlTop + fh),
+        blue: true,
+        joints: showJoints,
+        u: u,
+      );
+    }
+
+    // 4. Blue outlet pipes (behind valves and flanges)
+    for (int i = 0; i < 4; i++) {
+      final double cx = channelX[i];
+      MainValveArt.pipe(
+        canvas,
+        Rect.fromLTRB(cx - p / 2, yPipeFlTop + fh * 0.5, cx + p / 2, h - endH + 1),
+        blue: true,
+        seed: 11 + i * 5,
+        u: u,
+      );
+    }
+
+    // 5. Gate valves (one per outlet channel)
+    for (int i = 0; i < 4; i++) {
+      final bool active = i < states.length ? states[i] : false;
+      TankValveArt.valve(canvas, Offset(channelX[i], valveCy), p, active: active, joints: showJoints);
+    }
+
+    // 6. Bolted end flanges: 1 inlet port (top) + 4 outlet ports (bottom)
+    MainValveArt.endFlange(canvas, Offset(cxC, 0), p, top: true, joints: showJoints);
+    for (int i = 0; i < 4; i++) {
+      MainValveArt.endFlange(canvas, Offset(channelX[i], h), p, top: false, joints: showJoints);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant DetailedMultiOutletTankValvePainter old) =>
+      !listEquals(old.states, states) || old.showJoints != showJoints;
+}
+
+class MultiOutletTankValveView extends StatelessWidget {
+  final bool isOn;
+  final bool showJoints;
+  final Size size;
+
+  const MultiOutletTankValveView({
+    super.key,
+    required this.isOn,
+    this.size = const Size(280, 120),
+    this.showJoints = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: size,
+      painter: DetailedMultiOutletTankValvePainter(
+        states: [isOn, isOn, isOn, isOn],
+        showJoints: showJoints,
+      ),
+    );
+  }
+}
