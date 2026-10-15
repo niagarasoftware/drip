@@ -367,6 +367,7 @@ class NodeWidget extends StatelessWidget {
           isOn: node.isOn,
           showJoints: node.showJoints,
           size: node.size,
+          outletCount: node.outletPortCount,
         ),
       );
     }

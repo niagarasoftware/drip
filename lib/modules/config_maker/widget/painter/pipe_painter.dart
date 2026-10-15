@@ -332,7 +332,7 @@ class PipePainter extends CustomPainter {
                 }
               }
             } else if (n.type == NodeType.multiOutletTankValve) {
-              for (int i = 0; i < 4; i++) {
+              for (int i = 0; i < n.outletPortCount; i++) {
                 final p = n.getPort('channel_$i', isInput: false);
                 if ((p - pendingDragPos!).distance < 40) {
                   isFertilizerDrag = true;

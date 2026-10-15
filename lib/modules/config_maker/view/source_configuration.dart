@@ -76,8 +76,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
 
     final isFertilizerSource = [6, 7].contains(source.sourceType);
     final isBoreOrPond = [4, 5].contains(source.sourceType);
-    final hasValves = _hasObject(AppConstants.valveObjectId);
-    final hasTankValves = _hasObject(AppConstants.tankValveObjectId);
     final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
     final showSensors = !isBoreOrPond && !isFertilizerSource;
 
@@ -93,12 +91,11 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     final slots = <bool>[
       if (!isBoreOrPond) source.inletPump.isNotEmpty,
       source.outletPump.isNotEmpty,
-      if (!isBoreOrPond && hasValves) ...[source.valves.isNotEmpty, source.outletValves.isNotEmpty],
+      if (!isBoreOrPond && source.valves.isNotEmpty) true,
+      if (!isBoreOrPond && source.inletTankValve.isNotEmpty) true,
+      if (source.outletValves.isNotEmpty) true,
+      if (source.outletTankValve.isNotEmpty) true,
       if (showSensors) ...sensorSlots,
-      if (isFertilizerSource && hasTankValves) ...[
-        source.inletTankValve.isNotEmpty,
-        source.outletTankValve.isNotEmpty,
-      ],
       if (isFertilizerSource && hasAgitators) source.agitator.isNotEmpty,
     ];
 
@@ -574,8 +571,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   Widget _buildStandardSourceCard(SourceModel source, Color primaryColor) {
     final isFertilizerSource = [6, 7].contains(source.sourceType);
     final isBoreOrPond = [4, 5].contains(source.sourceType);
-    final hasValves = _hasObject(AppConstants.valveObjectId);
-    final hasTankValves = _hasObject(AppConstants.tankValveObjectId);
     final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
     final showSensors = !isBoreOrPond && !isFertilizerSource;
 
@@ -600,9 +595,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
             accent: _inletColor,
             children: [
               _buildParameterTileForPump(source, 1, _inletColor),
-              if (hasValves) _buildParameterTileForValve(source, true, _inletColor),
-              if (isFertilizerSource && hasTankValves)
-                _buildParameterTileForTankValve(source, true, _inletColor),
+              _buildParameterTileForValve(source, true, _inletColor),
+              _buildParameterTileForTankValve(source, true, _inletColor),
             ],
           ),
 
@@ -613,9 +607,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           accent: _outletColor,
           children: [
             _buildParameterTileForPump(source, 2, _outletColor),
-            if (!isBoreOrPond && hasValves) _buildParameterTileForValve(source, false, _outletColor),
-            if (isFertilizerSource && hasTankValves)
-              _buildParameterTileForTankValve(source, false, _outletColor),
+            _buildParameterTileForValve(source, false, _outletColor),
+            _buildParameterTileForTankValve(source, false, _outletColor),
           ],
         ),
 
@@ -1219,7 +1212,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   }
 
   Widget _buildParameterTileForTankValve(SourceModel source, bool isInlet, Color accent) {
-    List<double> currentList = isInlet ? source.inletTankValve : source.outletTankValve;
+    final List<double> currentList = isInlet ? source.inletTankValve : source.outletTankValve;
 
     return _buildComponentTile(
       title: isInlet ? 'Inlet tank valve' : 'Outlet tank valve',

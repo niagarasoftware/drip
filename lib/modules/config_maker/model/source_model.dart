@@ -19,6 +19,12 @@ class SourceModel {
   List<double> outletTankValve;
   List<double> agitator;
 
+  bool get isMultiInletTankValve => inletTankValve.length > 1;
+  int get inletTankValvePortCount => inletTankValve.isEmpty ? 1 : inletTankValve.length;
+
+  bool get isMultiOutletTankValve => outletTankValve.length > 1;
+  int get outletTankValvePortCount => outletTankValve.isEmpty ? 1 : outletTankValve.length;
+
   SourceModel({
     required this.commonDetails,
     this.sourceType = 1,

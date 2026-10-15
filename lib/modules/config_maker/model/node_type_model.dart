@@ -45,6 +45,7 @@ class NodeObject {
   bool isHorizontal; // toggle orientation (false = vertical, true = horizontal)
   double outletPipeLength; // Vertical outlet pipe extension
   double outletSpacing; // Horizontal spacing factor between outlets (1.0 = default)
+  int outletPortCount; // Number of outlet ports for multi-outlet nodes (e.g. multiOutletTankValve)
 
   NodeObject({
     required this.id,
@@ -58,6 +59,7 @@ class NodeObject {
     this.isHorizontal = false,
     this.outletPipeLength = 0.0,
     this.outletSpacing = 1.0,
+    this.outletPortCount = 4,
   });
 
   /// Connection point where pipes coming INTO this node should attach.
@@ -228,7 +230,7 @@ class NodeObject {
     if (type == NodeType.multiOutletTankValve) {
       if (portId != null && (portId.startsWith('channel_') || portId.startsWith('outlet_'))) {
         final int index = int.tryParse(portId.split('_').last) ?? 0;
-        final double step = size.width / 4;
+        final double step = size.width / math.max(1, outletPortCount);
         return Offset(position.dx + step * index + step / 2, position.dy + size.height);
       }
       if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
@@ -312,7 +314,7 @@ class NodeObject {
       case NodeType.singleTankValve:
         return const Size(84, 84);
       case NodeType.multiOutletTankValve:
-        return const Size(196, 84);
+        return Size(math.max(140.0, 49.0 * outletPortCount), 84);
       case NodeType.multiAgitator:
         return const Size(224, 126);
       case NodeType.singleAgitator:
@@ -350,6 +352,7 @@ class NodeObject {
         'isHorizontal': isHorizontal,
         'outletPipeLength': outletPipeLength,
         'outletSpacing': outletSpacing,
+        'outletPortCount': outletPortCount,
       };
 
   factory NodeObject.fromJson(Map<String, dynamic> j) {
@@ -371,6 +374,7 @@ class NodeObject {
       isHorizontal: j['isHorizontal'] as bool? ?? false,
       outletPipeLength: (j['outletPipeLength'] as num?)?.toDouble() ?? 0.0,
       outletSpacing: (j['outletSpacing'] as num?)?.toDouble() ?? 1.0,
+      outletPortCount: (j['outletPortCount'] as num?)?.toInt() ?? 4,
     );
   }
 }

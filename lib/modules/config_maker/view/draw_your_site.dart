@@ -155,17 +155,82 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     for (final src in sources) {
-      final sn = sourceMap[src.commonDetails.sNo ?? 0.0];
+      final double sNo = src.commonDetails.sNo ?? 0.0;
+      final sn = sourceMap[sNo];
       if (sn == null) continue;
+
+      // Create Tank Valve nodes if assigned
+      NodeObject? inletValveNode;
+      if (src.inletTankValve.isNotEmpty) {
+        final bool isMulti = src.isMultiInletTankValve;
+        inletValveNode = NodeObject(
+          id: _nextId('inlet_valve_${sNo.toInt()}'),
+          position: Offset.zero,
+          type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+          label: '${src.commonDetails.name ?? 'Source'} Inlet Valve',
+          outletPortCount: src.inletTankValvePortCount,
+          showJoints: !_globalHideJoints,
+        );
+        inletValveNode.size = inletValveNode.defaultSize;
+        _nodes.add(inletValveNode);
+
+        // Pipe from inlet valve to source
+        addEdge(
+          inletValveNode,
+          sn,
+          isMulti ? 'channel_0' : 'outlet',
+          sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
+        );
+      }
+
+      NodeObject? outletValveNode;
+      if (src.outletTankValve.isNotEmpty) {
+        final bool isMulti = src.isMultiOutletTankValve;
+        outletValveNode = NodeObject(
+          id: _nextId('outlet_valve_${sNo.toInt()}'),
+          position: Offset.zero,
+          type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+          label: '${src.commonDetails.name ?? 'Source'} Outlet Valve',
+          outletPortCount: src.outletTankValvePortCount,
+          showJoints: !_globalHideJoints,
+        );
+        outletValveNode.size = outletValveNode.defaultSize;
+        _nodes.add(outletValveNode);
+
+        // Pipe from source to outlet valve
+        addEdge(
+          sn,
+          outletValveNode,
+          'outlet',
+          'inlet',
+        );
+      }
+
+      // Connect inlet pumps
       for (final pNo in src.inletPump) {
         final pn = pumpMap[pNo];
         if (pn == null) continue;
-        addEdge(pn, sn, 'output', sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet');
+        if (inletValveNode != null) {
+          addEdge(pn, inletValveNode, 'output', 'inlet');
+        } else {
+          addEdge(pn, sn, 'output', sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet');
+        }
       }
+
+      // Connect outlet pumps
       for (final pNo in src.outletPump) {
         final pn = pumpMap[pNo];
         if (pn == null) continue;
-        addEdge(sn, pn, 'outlet', 'input');
+        if (outletValveNode != null) {
+          addEdge(
+            outletValveNode,
+            pn,
+            outletValveNode.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet',
+            'input',
+          );
+        } else {
+          addEdge(sn, pn, 'outlet', 'input');
+        }
       }
     }
 
@@ -1736,7 +1801,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           targetNodeId = node.id;
           targetPortId = 'inlet';
         } else {
-          for (int i = 0; i < 4; i++) {
+          for (int i = 0; i < node.outletPortCount; i++) {
             final p = node.getPort('channel_$i', isInput: false);
             if ((p - pos).distance < 35) {
               targetNodeId = node.id;
@@ -2200,7 +2265,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             color: Colors.cyan.withValues(alpha: 0.85),
           ),
         );
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < node.outletPortCount; i++) {
           handles.add(
             WaypointHandle(
               key: ValueKey('${node.id}_channel_$i'),
