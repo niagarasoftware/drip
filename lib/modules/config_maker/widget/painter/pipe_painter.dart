@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
@@ -24,20 +25,21 @@ class PipePainter extends CustomPainter {
   });
 
   // ---------------------------------------------------------------------------
-  // Pipe settings
+  // Pipe settings (Sleek, realistic industrial PVC)
   // ---------------------------------------------------------------------------
-  /// Outer diameter of standard water pipes.
-  static const double _pipeDiameter = 6.0;
+  /// Outer diameter of standard water pipes (reduced for a sleek, crisp visual balance).
+  static const double _pipeDiameter = 5.0;
 
   // PVC grey palette for water pipes.
-  static const Color _pipeEdge = Color(0xFF59636A); // dark outline / far edge
-  static const Color _pipeBody = Color(0xFF98A4AC); // main PVC colour
-  static const Color _pipeLight = Color(0xFFD3DBE0); // lit side of the tube
+  static const Color _pipeEdge = Color(0xFF424A50); // dark charcoal outline / far edge
+  static const Color _pipeBody = Color(0xFF8A97A0); // main PVC colour
+  static const Color _pipeShade = Color(0xFF5E6970); // shaded underside
+  static const Color _pipeLight = Color(0xFFE2E8EC); // lit top side
 
   // ---------------------------------------------------------------------------
   // Air hose settings (glossy ribbed hose with chrome clamps)
   // ---------------------------------------------------------------------------
-  static const double _airDiameter = 7.5;
+  static const double _airDiameter = 6.5;
 
   static const Color _airEdge = Color(0xFF0A3550); // dark navy outline
   static const Color _airBody = Color(0xFF1E9BE0); // vivid blue (running)
@@ -213,46 +215,43 @@ class PipePainter extends CustomPainter {
       allPipePoints.add(points);
       final isSelected = pipe.id == selectedPipeId;
 
-      final path = Path()..moveTo(points.first.dx, points.first.dy);
-      for (final p in points.skip(1)) {
-        path.lineTo(p.dx, p.dy);
-      }
-
       final bool isAir = _isAirPipe(pipe, from, to, airNodeIds);
       final bool isFertilizer = fertilizerPipeIds.contains(pipe.id);
 
       if (isAir) {
         // --- Air Pipe (glossy ribbed hose, static) ---
-        _drawAirPipe(canvas, points, path, isSelected, pipe.flowActive);
+        final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
+        _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
         airPipePoints.add(points);
       } else if (isFertilizer) {
         // --- Fertilizer / Chemical Dosing Pipe (Realistic thin flexible tubing) ---
+        final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
         canvas.drawPath(
-          path,
+          curvedPath,
           Paint()
             ..color = isSelected ? const Color(0xFFFF9800) : const Color(0xFF1B5E20)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = isSelected ? 6.5 : 4.5
+            ..strokeWidth = isSelected ? 5.5 : 4.0
             ..strokeCap = StrokeCap.round
             ..strokeJoin = StrokeJoin.round,
         );
 
-        // Inner chemical / natural fertilizer liquid solution
+        // Inner chemical solution stream
         canvas.drawPath(
-          path,
+          curvedPath,
           Paint()
             ..color = pipe.flowActive
                 ? const Color(0xFF4CAF50) // Vibrant green fertilizer solution
                 : const Color(0xFFA5D6A7) // Muted translucent green
             ..style = PaintingStyle.stroke
-            ..strokeWidth = isSelected ? 3.2 : 2.2
+            ..strokeWidth = isSelected ? 2.8 : 2.0
             ..strokeCap = StrokeCap.round
             ..strokeJoin = StrokeJoin.round,
         );
 
         // Sheen / gloss highlight streak
         canvas.drawPath(
-          path,
+          curvedPath,
           Paint()
             ..color = Colors.white.withValues(alpha: 0.40)
             ..style = PaintingStyle.stroke
@@ -261,8 +260,8 @@ class PipePainter extends CustomPainter {
             ..strokeJoin = StrokeJoin.round,
         );
       } else {
-        // --- Standard Main Water Pipe: static, realistic grey PVC ---
-        _drawWaterPipe(canvas, points, path, isSelected);
+        // --- Standard Main Water Pipe: realistic grey PVC ---
+        _drawWaterPipe(canvas, points, isSelected);
         waterPipePoints.add(points);
       }
     }
@@ -345,15 +344,15 @@ class PipePainter extends CustomPainter {
         }
 
         if (isAirDrag) {
-          // --- Dragging preview for Air Hose (matches the final hose look) ---
+          // --- Dragging preview for Air Hose ---
           final casingPaint = _tube(_airEdge, _airDiameter, cap: StrokeCap.round);
-          final bodyPaint = _tube(_airBody, _airDiameter - 1.6, cap: StrokeCap.round);
+          final bodyPaint = _tube(_airBody, _airDiameter - 1.4, cap: StrokeCap.round);
           final lightPaint = _tube(_airLight, _airDiameter * 0.3, cap: StrokeCap.round);
 
           // Metal ferrule dot at the start port
-          canvas.drawCircle(startPos, 5.5, Paint()..color = _metalEdge);
-          canvas.drawCircle(startPos, 4.2, Paint()..color = _metalBody);
-          canvas.drawCircle(startPos, 2.2, Paint()..color = _airBody);
+          canvas.drawCircle(startPos, 5.0, Paint()..color = _metalEdge);
+          canvas.drawCircle(startPos, 3.8, Paint()..color = _metalBody);
+          canvas.drawCircle(startPos, 2.0, Paint()..color = _airBody);
 
           if (pendingDragPos != null) {
             canvas.drawLine(startPos, pendingDragPos!, casingPaint);
@@ -365,21 +364,21 @@ class PipePainter extends CustomPainter {
             );
           }
         } else if (isFertilizerDrag) {
-          // --- Dragging preview for Fertilizer Tank (Thin chemical tube) ---
+          // --- Dragging preview for Fertilizer Tank ---
           final casingPaint = Paint()
             ..color = const Color(0xFF1B5E20)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.5
+            ..strokeWidth = 4.0
             ..strokeCap = StrokeCap.round;
 
           final innerPaint = Paint()
             ..color = const Color(0xFF4CAF50)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.2
+            ..strokeWidth = 2.0
             ..strokeCap = StrokeCap.round;
 
-          canvas.drawCircle(startPos, 5, Paint()..color = const Color(0xFF1B5E20));
-          canvas.drawCircle(startPos, 3, Paint()..color = const Color(0xFF4CAF50));
+          canvas.drawCircle(startPos, 4.5, Paint()..color = const Color(0xFF1B5E20));
+          canvas.drawCircle(startPos, 2.5, Paint()..color = const Color(0xFF4CAF50));
 
           if (pendingDragPos != null) {
             canvas.drawLine(startPos, pendingDragPos!, casingPaint);
@@ -390,8 +389,8 @@ class PipePainter extends CustomPainter {
           final dashPaint = Paint()
             ..color = Colors.orange
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 3;
-          canvas.drawCircle(startPos, 6, dashPaint);
+            ..strokeWidth = 2.8;
+          canvas.drawCircle(startPos, 5.5, dashPaint);
           if (pendingDragPos != null) {
             canvas.drawLine(startPos, pendingDragPos!, dashPaint);
           }
@@ -422,65 +421,122 @@ class PipePainter extends CustomPainter {
       }
     }
     if (best == null) return;
-    canvas.drawCircle(best, 9, Paint()..color = const Color(0x33FF9800));
+    canvas.drawCircle(best, 8, Paint()..color = const Color(0x33FF9800));
     canvas.drawCircle(
       best,
-      9,
+      8,
       Paint()
         ..color = const Color(0xFFFF9800)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.8,
     );
-    canvas.drawCircle(best, 2.5, Paint()..color = const Color(0xFFFF9800));
+    canvas.drawCircle(best, 2.2, Paint()..color = const Color(0xFFFF9800));
   }
 
   // ---------------------------------------------------------------------------
-  // Air hose: glossy blue ribbed hose with chrome clamps (static, no animation)
+  // Path Helper: Smooth Curved Corner Arc Construction
   // ---------------------------------------------------------------------------
 
-  void _drawAirPipe(Canvas canvas, List<Offset> points, Path path, bool isSelected, bool flowActive) {
+  /// Constructs a smooth path from [points], rounding orthogonal corners with [cornerRadius].
+  Path _buildCurvedPath(List<Offset> points, {double cornerRadius = 10.0}) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    if (points.length < 3) {
+      path.moveTo(points.first.dx, points.first.dy);
+      for (int i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      return path;
+    }
+
+    path.moveTo(points.first.dx, points.first.dy);
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final pPrev = points[i - 1];
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+
+      final vIn = pCurr - pPrev;
+      final lenIn = vIn.distance;
+      final vOut = pNext - pCurr;
+      final lenOut = vOut.distance;
+
+      if (lenIn < 0.1 || lenOut < 0.1) {
+        path.lineTo(pCurr.dx, pCurr.dy);
+        continue;
+      }
+
+      final uIn = vIn / lenIn;
+      final uOut = vOut / lenOut;
+
+      // Check if nearly colinear (straight run)
+      final dot = uIn.dx * uOut.dx + uIn.dy * uOut.dy;
+      if (dot.abs() > 0.98) {
+        path.lineTo(pCurr.dx, pCurr.dy);
+        continue;
+      }
+
+      // Determine radius based on available segment lengths
+      final double r = cornerRadius.clamp(2.0, math.min(lenIn / 2, lenOut / 2)).toDouble();
+
+      final pStart = pCurr - uIn * r;
+      final pEnd = pCurr + uOut * r;
+
+      path.lineTo(pStart.dx, pStart.dy);
+      path.quadraticBezierTo(pCurr.dx, pCurr.dy, pEnd.dx, pEnd.dy);
+    }
+
+    path.lineTo(points.last.dx, points.last.dy);
+    return path;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Air hose: glossy blue ribbed hose with chrome clamps (static)
+  // ---------------------------------------------------------------------------
+
+  void _drawAirPipe(Canvas canvas, List<Offset> points, Path curvedPath, bool isSelected, bool flowActive) {
     const double d = _airDiameter;
 
     // Selection halo
     if (isSelected) {
       canvas.drawPath(
-        path,
-        _tube(const Color(0xFFFF9800).withValues(alpha: 0.75), d + 6, cap: StrokeCap.round),
+        curvedPath,
+        _tube(const Color(0xFFFF9800).withValues(alpha: 0.75), d + 5.0, cap: StrokeCap.round),
       );
     }
 
     // Soft contact shadow
     canvas.drawPath(
-      path.shift(const Offset(0, 1.8)),
-      _tube(const Color(0x40000000), d + 1,
-          cap: StrokeCap.round, blur: const MaskFilter.blur(BlurStyle.normal, 1.8)),
+      curvedPath.shift(const Offset(0, 1.5)),
+      _tube(const Color(0x35000000), d + 0.8,
+          cap: StrokeCap.round, blur: const MaskFilter.blur(BlurStyle.normal, 1.5)),
     );
 
     // 1. Dark navy outline
-    canvas.drawPath(path, _tube(_airEdge, d, cap: StrokeCap.round));
+    canvas.drawPath(curvedPath, _tube(_airEdge, d, cap: StrokeCap.round));
     // 2. Main hose body
     canvas.drawPath(
-      path,
-      _tube(flowActive ? _airBody : _airBodyIdle, d - 1.6, cap: StrokeCap.round),
+      curvedPath,
+      _tube(flowActive ? _airBody : _airBodyIdle, d - 1.4, cap: StrokeCap.round),
     );
     // 3. Shaded underside (gives a round, 3D look)
     canvas.drawPath(
-      path.shift(const Offset(0.7, 1.1)),
-      _tube(_airShade.withValues(alpha: 0.75), d * 0.42, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(0.6, 0.9)),
+      _tube(_airShade.withValues(alpha: 0.70), d * 0.40, cap: StrokeCap.round),
     );
     // 4. Lit top side
     canvas.drawPath(
-      path.shift(const Offset(-0.8, -1.1)),
-      _tube(_airLight.withValues(alpha: 0.9), d * 0.32, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(-0.6, -0.9)),
+      _tube(_airLight.withValues(alpha: 0.85), d * 0.32, cap: StrokeCap.round),
     );
 
     // 5. Hose ribs (corrugation) across the tube
-    _drawRibs(canvas, path, d);
+    _drawRibs(canvas, curvedPath, d);
 
     // 6. Glossy glint on top of the ribs
     canvas.drawPath(
-      path.shift(const Offset(-1.0, -1.3)),
-      _tube(Colors.white.withValues(alpha: 0.75), 1.0, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(-0.8, -1.0)),
+      _tube(Colors.white.withValues(alpha: 0.70), 0.8, cap: StrokeCap.round),
     );
 
     // 7. Chrome end clamps
@@ -488,21 +544,21 @@ class PipePainter extends CustomPainter {
     _airClamp(canvas, points.last, points[points.length - 2]);
   }
 
-  /// Evenly spaced raised rings along the hose (static).
+  /// Evenly spaced raised rings along the hose.
   void _drawRibs(Canvas canvas, Path path, double d) {
-    const double spacing = 6.5;
-    const double margin = 16.0; // leave the clamp areas clean
+    const double spacing = 6.0;
+    const double margin = 14.0;
     final double half = (d - 1.0) / 2;
 
     final Paint dark = Paint()
       ..isAntiAlias = true
-      ..color = _airEdge.withValues(alpha: 0.38)
-      ..strokeWidth = 1.1
+      ..color = _airEdge.withValues(alpha: 0.35)
+      ..strokeWidth = 1.0
       ..strokeCap = StrokeCap.butt;
     final Paint light = Paint()
       ..isAntiAlias = true
-      ..color = Colors.white.withValues(alpha: 0.32)
-      ..strokeWidth = 0.8
+      ..color = Colors.white.withValues(alpha: 0.30)
+      ..strokeWidth = 0.7
       ..strokeCap = StrokeCap.butt;
 
     for (final metric in path.computeMetrics()) {
@@ -515,7 +571,7 @@ class PipePainter extends CustomPainter {
         final Offset a = t.position - n * half;
         final Offset b = t.position + n * half;
         canvas.drawLine(a, b, dark);
-        canvas.drawLine(a + u * 1.3, b + u * 1.3, light);
+        canvas.drawLine(a + u * 1.1, b + u * 1.1, light);
       }
     }
   }
@@ -524,49 +580,49 @@ class PipePainter extends CustomPainter {
   void _airClamp(Canvas canvas, Offset from, Offset toward) {
     final Offset v = toward - from;
     final double len = v.distance;
-    if (len < 28) return;
+    if (len < 24) return;
     final Offset u = v / len;
     final Offset n = Offset(-u.dy, u.dx);
 
     // Steel ferrule (the port nipple)
-    final Offset f0 = from + u * 1.5;
-    final Offset f1 = from + u * 6.0;
-    const double fw = _airDiameter + 1.6;
+    final Offset f0 = from + u * 1.2;
+    final Offset f1 = from + u * 5.0;
+    const double fw = _airDiameter + 1.4;
     canvas.drawLine(f0, f1, _tube(_metalEdge, fw));
-    canvas.drawLine(f0, f1, _tube(_metalSteel, fw - 1.2));
+    canvas.drawLine(f0, f1, _tube(_metalSteel, fw - 1.0));
     canvas.drawLine(
-      f0 + const Offset(-0.5, -0.7),
-      f1 + const Offset(-0.5, -0.7),
+      f0 + const Offset(-0.4, -0.6),
+      f1 + const Offset(-0.4, -0.6),
       _tube(_metalLight.withValues(alpha: 0.8), fw * 0.25),
     );
 
     // Clamp band
-    final Offset a = from + u * 7.0;
-    final Offset b = from + u * 15.0;
-    const double w = _airDiameter + 3.6;
+    final Offset a = from + u * 6.0;
+    final Offset b = from + u * 13.0;
+    const double w = _airDiameter + 2.8;
     canvas.drawLine(a, b, _tube(_metalEdge, w));
-    canvas.drawLine(a, b, _tube(_metalBody, w - 1.3));
+    canvas.drawLine(a, b, _tube(_metalBody, w - 1.1));
     canvas.drawLine(
-      a + const Offset(-0.6, -0.9),
-      b + const Offset(-0.6, -0.9),
+      a + const Offset(-0.5, -0.7),
+      b + const Offset(-0.5, -0.7),
       _tube(_metalLight, w * 0.3),
     );
 
     // Grooves at both edges of the band
-    final Paint groove = _tube(_metalEdge.withValues(alpha: 0.55), 0.7);
-    for (final Offset g in [a + u * 1.4, b - u * 1.4]) {
-      canvas.drawLine(g - n * (w / 2 - 0.6), g + n * (w / 2 - 0.6), groove);
+    final Paint groove = _tube(_metalEdge.withValues(alpha: 0.55), 0.6);
+    for (final Offset g in [a + u * 1.2, b - u * 1.2]) {
+      canvas.drawLine(g - n * (w / 2 - 0.5), g + n * (w / 2 - 0.5), groove);
     }
 
     // Screw lug on the upper side of the band
     final double sign = n.dy <= 0 ? 1.0 : -1.0;
-    final Offset lug = from + u * 11.0 + n * sign * (w / 2 - 0.2);
-    canvas.drawCircle(lug, 2.0, Paint()..color = _metalEdge);
-    canvas.drawCircle(lug, 1.4, Paint()..color = _metalBody);
+    final Offset lug = from + u * 9.5 + n * sign * (w / 2 - 0.2);
+    canvas.drawCircle(lug, 1.8, Paint()..color = _metalEdge);
+    canvas.drawCircle(lug, 1.2, Paint()..color = _metalBody);
     canvas.drawLine(
-      lug - u * 0.9,
-      lug + u * 0.9,
-      _tube(_metalEdge, 0.6),
+      lug - u * 0.8,
+      lug + u * 0.8,
+      _tube(_metalEdge, 0.5),
     );
   }
 
@@ -582,43 +638,114 @@ class PipePainter extends CustomPainter {
       if (dirs.length == 2) {
         final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
         if (dot < -0.97) return;
+
+        _drawAirElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        return;
       }
 
-      // Tee / cross: chrome sleeve on every arm.
-      if (dirs.length >= 3) {
-        const double w = d + 3.2;
-        for (final u in dirs) {
-          final a = pos;
-          final b = pos + u * (d * 1.9);
-          canvas.drawLine(a, b, _tube(_metalEdge, w));
-          canvas.drawLine(a, b, _tube(_metalBody, w - 1.3));
-          canvas.drawLine(
-            a + const Offset(-0.6, -0.9),
-            b + const Offset(-0.6, -0.9),
-            _tube(_metalLight, w * 0.3),
-          );
+      if (dirs.length == 3) {
+        _drawAirTeeFitting(canvas, pos, dirs, d);
+      } else if (dirs.length >= 4) {
+        _drawAirCrossFitting(canvas, pos, dirs, d);
+      }
+    });
+  }
+
+  void _drawAirElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {
+    final double sLen = d * 1.5;
+    final Offset p1 = pos + u1 * sLen;
+    final Offset p2 = pos + u2 * sLen;
+
+    final Path elbowPath = Path()
+      ..moveTo(p1.dx, p1.dy)
+      ..quadraticBezierTo(pos.dx, pos.dy, p2.dx, p2.dy);
+
+    canvas.drawPath(elbowPath, _tube(_metalEdge, d + 2.0, cap: StrokeCap.round));
+    canvas.drawPath(elbowPath, _tube(_metalBody, d + 0.6, cap: StrokeCap.round));
+    canvas.drawPath(
+      elbowPath.shift(const Offset(-0.6, -0.8)),
+      _tube(_metalLight, d * 0.35, cap: StrokeCap.round),
+    );
+
+    _metalSocketBand(canvas, p1, u1, d);
+    _metalSocketBand(canvas, p2, u2, d);
+  }
+
+  void _drawAirTeeFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    if (dirs.length < 3) return;
+
+    int m1 = 0, m2 = 1;
+    double minDot = 1.0;
+    for (int i = 0; i < dirs.length; i++) {
+      for (int j = i + 1; j < dirs.length; j++) {
+        final dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
+        if (dot < minDot) {
+          minDot = dot;
+          m1 = i;
+          m2 = j;
         }
       }
+    }
 
-      // Chrome ball elbow / tee body with a blue accent ring
-      final double r = dirs.length >= 3 ? d * 1.0 : d * 0.85;
-      final Rect rect = Rect.fromCircle(center: pos, radius: r);
-      canvas.drawCircle(
-          pos + const Offset(0, 1.3), r, Paint()..color = const Color(0x45000000));
-      canvas.drawCircle(
-        pos,
-        r,
-        Paint()
-          ..isAntiAlias = true
-          ..shader = const RadialGradient(
-            center: Alignment(-0.4, -0.5),
-            colors: [_metalLight, _metalBody, _metalSteel, _metalEdge],
-            stops: [0.0, 0.4, 0.8, 1.0],
-          ).createShader(rect),
+    final Offset uMain1 = dirs[m1];
+    final Offset uMain2 = dirs[m2];
+    final Offset uBranch = dirs.firstWhere((e) => e != uMain1 && e != uMain2, orElse: () => dirs[2]);
+
+    final double sDist = d * 1.8;
+    final Offset p1 = pos + uMain1 * sDist;
+    final Offset p2 = pos + uMain2 * sDist;
+    final Offset pB = pos + uBranch * sDist;
+
+    // Main run
+    canvas.drawLine(p1, p2, _tube(_metalEdge, d + 2.0, cap: StrokeCap.butt));
+    canvas.drawLine(p1, p2, _tube(_metalBody, d + 0.6, cap: StrokeCap.butt));
+    canvas.drawLine(
+      p1 + const Offset(-0.6, -0.8),
+      p2 + const Offset(-0.6, -0.8),
+      _tube(_metalLight, d * 0.35, cap: StrokeCap.butt),
+    );
+
+    // Branch run
+    canvas.drawLine(pos, pB, _tube(_metalEdge, d + 2.0, cap: StrokeCap.butt));
+    canvas.drawLine(pos, pB, _tube(_metalBody, d + 0.6, cap: StrokeCap.butt));
+    canvas.drawLine(
+      pos + const Offset(-0.6, -0.8),
+      pB + const Offset(-0.6, -0.8),
+      _tube(_metalLight, d * 0.35, cap: StrokeCap.butt),
+    );
+
+    // Accent blue ring on hub
+    canvas.drawCircle(pos, d * 0.5, _tube(_airBody, 1.2));
+
+    _metalSocketBand(canvas, p1, uMain1, d);
+    _metalSocketBand(canvas, p2, uMain2, d);
+    _metalSocketBand(canvas, pB, uBranch, d);
+  }
+
+  void _drawAirCrossFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    final double sDist = d * 1.8;
+    for (final u in dirs) {
+      final Offset p = pos + u * sDist;
+      canvas.drawLine(pos, p, _tube(_metalEdge, d + 2.0, cap: StrokeCap.butt));
+      canvas.drawLine(pos, p, _tube(_metalBody, d + 0.6, cap: StrokeCap.butt));
+      canvas.drawLine(
+        pos + const Offset(-0.6, -0.8),
+        p + const Offset(-0.6, -0.8),
+        _tube(_metalLight, d * 0.35, cap: StrokeCap.butt),
       );
-      canvas.drawCircle(pos, r, _tube(_metalEdge, 0.8));
-      canvas.drawCircle(pos, r * 0.52, _tube(_airBody, 1.3));
-    });
+      _metalSocketBand(canvas, p, u, d);
+    }
+    canvas.drawCircle(pos, d * 0.5, _tube(_airBody, 1.2));
+  }
+
+  void _metalSocketBand(Canvas canvas, Offset pos, Offset dir, double d) {
+    final double w = d + 2.4;
+    final Offset n = Offset(-dir.dy, dir.dx);
+    final Offset a = pos - n * (w / 2);
+    final Offset b = pos + n * (w / 2);
+
+    canvas.drawLine(a, b, _tube(_metalEdge, 2.0));
+    canvas.drawLine(a, b, _tube(_metalBody, 1.2));
   }
 
   // ---------------------------------------------------------------------------
@@ -637,62 +764,131 @@ class PipePainter extends CustomPainter {
       ..maskFilter = blur;
   }
 
-  void _drawWaterPipe(Canvas canvas, List<Offset> points, Path path, bool isSelected) {
+  void _drawWaterPipe(Canvas canvas, List<Offset> points, bool isSelected) {
     const double d = _pipeDiameter;
+    final Path curvedPath = _buildCurvedPath(points, cornerRadius: 10.0);
 
     // Selection halo (the pipe itself keeps its normal colours).
     if (isSelected) {
       canvas.drawPath(
-        path,
-        _tube(const Color(0xFFFF9800).withValues(alpha: 0.65), d + 6, cap: StrokeCap.round),
+        curvedPath,
+        _tube(const Color(0xFFFF9800).withValues(alpha: 0.65), d + 5.0, cap: StrokeCap.round),
       );
     }
 
     // Soft contact shadow.
     canvas.drawPath(
-      path.shift(const Offset(0, 1.6)),
-      _tube(const Color(0x47000000), d + 1,
-          cap: StrokeCap.round, blur: const MaskFilter.blur(BlurStyle.normal, 1.6)),
+      curvedPath.shift(const Offset(0, 1.4)),
+      _tube(const Color(0x38000000), d + 0.8,
+          cap: StrokeCap.round, blur: const MaskFilter.blur(BlurStyle.normal, 1.4)),
     );
 
     // Tube layers, lit from the top-left: edge -> body -> shade -> light -> glint.
-    canvas.drawPath(path, _tube(_pipeEdge, d, cap: StrokeCap.round));
-    canvas.drawPath(path, _tube(_pipeBody, d - 1.4, cap: StrokeCap.round));
+    canvas.drawPath(curvedPath, _tube(_pipeEdge, d, cap: StrokeCap.round));
+    canvas.drawPath(curvedPath, _tube(_pipeBody, d - 1.2, cap: StrokeCap.round));
     canvas.drawPath(
-      path.shift(const Offset(0.7, 1.0)),
-      _tube(_pipeEdge.withValues(alpha: 0.55), d * 0.4, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(0.6, 0.8)),
+      _tube(_pipeShade.withValues(alpha: 0.60), d * 0.38, cap: StrokeCap.round),
     );
     canvas.drawPath(
-      path.shift(const Offset(-0.7, -0.9)),
-      _tube(_pipeLight, d * 0.34, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(-0.6, -0.8)),
+      _tube(_pipeLight, d * 0.35, cap: StrokeCap.round),
     );
     canvas.drawPath(
-      path.shift(const Offset(-0.9, -1.1)),
-      _tube(Colors.white.withValues(alpha: 0.6), 0.9, cap: StrokeCap.round),
+      curvedPath.shift(const Offset(-0.8, -1.0)),
+      _tube(Colors.white.withValues(alpha: 0.65), 0.8, cap: StrokeCap.round),
     );
 
-    // Elbow fittings are drawn by _drawJunctions after all pipes are painted.
-
-    // Coupling collars near both ends of the pipe.
+    // Coupling collars near both ends of the pipe (where attached to nodes).
     _collar(canvas, points.first, points[1]);
     _collar(canvas, points.last, points[points.length - 2]);
+
+    // Socket collar bands framing intermediate 90-degree bend elbows.
+    _drawElbowBendCollars(canvas, points);
   }
 
   void _collar(Canvas canvas, Offset from, Offset toward) {
     final Offset v = toward - from;
     final double len = v.distance;
-    if (len < 20) return;
+    if (len < 18) return;
     final Offset u = v / len;
-    final Offset a = from + u * 4;
-    final Offset b = from + u * 10;
-    const double w = _pipeDiameter + 2.4;
+    final Offset a = from + u * 3.5;
+    final Offset b = from + u * 8.5;
+    const double w = _pipeDiameter + 2.0;
 
     canvas.drawLine(a, b, _tube(_pipeEdge, w));
-    canvas.drawLine(a, b, _tube(_pipeBody, w - 1.2));
+    canvas.drawLine(a, b, _tube(_pipeBody, w - 1.0));
     canvas.drawLine(
-      a + const Offset(-0.6, -0.8),
-      b + const Offset(-0.6, -0.8),
+      a + const Offset(-0.5, -0.7),
+      b + const Offset(-0.5, -0.7),
       _tube(_pipeLight, w * 0.3),
+    );
+  }
+
+  /// Socket collar bands at intermediate bends (waypoint elbows).
+  void _drawElbowBendCollars(Canvas canvas, List<Offset> points) {
+    if (points.length < 3) return;
+    const double d = _pipeDiameter;
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final pPrev = points[i - 1];
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+
+      final vIn = pCurr - pPrev;
+      final lenIn = vIn.distance;
+      final vOut = pNext - pCurr;
+      final lenOut = vOut.distance;
+
+      if (lenIn < 0.1 || lenOut < 0.1) continue;
+
+      final uIn = vIn / lenIn;
+      final uOut = vOut / lenOut;
+
+      final dot = uIn.dx * uOut.dx + uIn.dy * uOut.dy;
+      if (dot.abs() > 0.98) continue; // skip straight runs
+
+      final double r = (10.0).clamp(2.0, math.min(lenIn / 2, lenOut / 2)).toDouble();
+
+      final Offset pStart = pCurr - uIn * r;
+      final Offset pEnd = pCurr + uOut * r;
+
+      _socketBand(canvas, pStart, uIn, d);
+      _socketBand(canvas, pEnd, uOut, d);
+    }
+  }
+
+  void _socketBand(Canvas canvas, Offset pos, Offset dir, double d) {
+    final double w = d + 2.0;
+    final Offset n = Offset(-dir.dy, dir.dx);
+    final Offset a = pos - n * (w / 2);
+    final Offset b = pos + n * (w / 2);
+
+    final Offset bandOffset = dir * 2.0;
+    final Offset a2 = a + bandOffset;
+    final Offset b2 = b + bandOffset;
+
+    final Path bandPath = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(b.dx, b.dy)
+      ..lineTo(b2.dx, b2.dy)
+      ..lineTo(a2.dx, a2.dy)
+      ..close();
+
+    canvas.drawPath(bandPath, Paint()..color = _pipeEdge..style = PaintingStyle.fill);
+
+    final Path innerPath = Path()
+      ..moveTo(a.dx + dir.dx * 0.3, a.dy + dir.dy * 0.3)
+      ..lineTo(b.dx + dir.dx * 0.3, b.dy + dir.dy * 0.3)
+      ..lineTo(b2.dx - dir.dx * 0.3, b2.dy - dir.dy * 0.3)
+      ..lineTo(a2.dx - dir.dx * 0.3, a2.dy - dir.dy * 0.3)
+      ..close();
+    canvas.drawPath(innerPath, Paint()..color = _pipeBody..style = PaintingStyle.fill);
+
+    canvas.drawLine(
+      a + const Offset(-0.4, -0.6),
+      b + const Offset(-0.4, -0.6),
+      Paint()..color = _pipeLight..strokeWidth = 0.8..style = PaintingStyle.stroke,
     );
   }
 
@@ -765,42 +961,184 @@ class PipePainter extends CustomPainter {
       if (dirs.length == 2) {
         final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
         if (dot < -0.97) return;
+
+        // Draw sleek elbow fitting for 2-way meeting point
+        _drawElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        return;
       }
 
-      // Tee / cross: a short sleeve on every arm.
-      if (dirs.length >= 3) {
-        const double w = d + 2.4;
-        for (final u in dirs) {
-          final a = pos;
-          final b = pos + u * (d * 1.9);
-          canvas.drawLine(a, b, _tube(_pipeEdge, w));
-          canvas.drawLine(a, b, _tube(_pipeBody, w - 1.2));
-          canvas.drawLine(
-            a + const Offset(-0.6, -0.8),
-            b + const Offset(-0.6, -0.8),
-            _tube(_pipeLight, w * 0.3),
-          );
+      // Tee (3-way) or Cross (4-way) fittings
+      if (dirs.length == 3) {
+        _drawTeeFitting(canvas, pos, dirs, d);
+      } else if (dirs.length >= 4) {
+        _drawCrossFitting(canvas, pos, dirs, d);
+      }
+    });
+  }
+
+  void _drawElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {
+    final double sLen = d * 1.5;
+    final Offset p1 = pos + u1 * sLen;
+    final Offset p2 = pos + u2 * sLen;
+
+    final Path elbowPath = Path()
+      ..moveTo(p1.dx, p1.dy)
+      ..quadraticBezierTo(pos.dx, pos.dy, p2.dx, p2.dy);
+
+    canvas.drawPath(
+      elbowPath.shift(const Offset(0, 1.2)),
+      _tube(const Color(0x35000000), d + 1.2, cap: StrokeCap.round, blur: const MaskFilter.blur(BlurStyle.normal, 1.4)),
+    );
+
+    canvas.drawPath(elbowPath, _tube(_pipeEdge, d + 1.2, cap: StrokeCap.round));
+    canvas.drawPath(elbowPath, _tube(_pipeBody, d - 0.2, cap: StrokeCap.round));
+    canvas.drawPath(
+      elbowPath.shift(const Offset(0.6, 0.8)),
+      _tube(_pipeShade.withValues(alpha: 0.60), d * 0.38, cap: StrokeCap.round),
+    );
+    canvas.drawPath(
+      elbowPath.shift(const Offset(-0.6, -0.8)),
+      _tube(_pipeLight, d * 0.35, cap: StrokeCap.round),
+    );
+    canvas.drawPath(
+      elbowPath.shift(const Offset(-0.8, -1.0)),
+      _tube(Colors.white.withValues(alpha: 0.65), 0.8, cap: StrokeCap.round),
+    );
+
+    _socketBand(canvas, p1, u1, d);
+    _socketBand(canvas, p2, u2, d);
+  }
+
+  void _drawTeeFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    if (dirs.length < 3) return;
+
+    int m1 = 0, m2 = 1;
+    double minDot = 1.0;
+    for (int i = 0; i < dirs.length; i++) {
+      for (int j = i + 1; j < dirs.length; j++) {
+        final dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
+        if (dot < minDot) {
+          minDot = dot;
+          m1 = i;
+          m2 = j;
         }
       }
+    }
 
-      // Hub (round elbow for 2 arms, larger body for tee / cross).
-      final double r = dirs.length >= 3 ? d * 1.0 : d * 0.82;
-      final Rect rect = Rect.fromCircle(center: pos, radius: r);
-      canvas.drawCircle(
-          pos + const Offset(0, 1.2), r, Paint()..color = const Color(0x40000000));
-      canvas.drawCircle(
-        pos,
-        r,
-        Paint()
-          ..isAntiAlias = true
-          ..shader = const RadialGradient(
-            center: Alignment(-0.4, -0.5),
-            colors: [_pipeLight, _pipeBody, _pipeEdge],
-            stops: [0.0, 0.55, 1.0],
-          ).createShader(rect),
+    final Offset uMain1 = dirs[m1];
+    final Offset uMain2 = dirs[m2];
+    final Offset uBranch = dirs.firstWhere((e) => e != uMain1 && e != uMain2, orElse: () => dirs[2]);
+
+    final double sDist = d * 1.8;
+    final Offset p1 = pos + uMain1 * sDist;
+    final Offset p2 = pos + uMain2 * sDist;
+    final Offset pB = pos + uBranch * sDist;
+
+    // Drop shadow
+    canvas.drawLine(
+      p1 + const Offset(0, 1.2),
+      p2 + const Offset(0, 1.2),
+      _tube(const Color(0x35000000), d + 1.2, blur: const MaskFilter.blur(BlurStyle.normal, 1.4)),
+    );
+    canvas.drawLine(
+      pos + const Offset(0, 1.2),
+      pB + const Offset(0, 1.2),
+      _tube(const Color(0x35000000), d + 1.2, blur: const MaskFilter.blur(BlurStyle.normal, 1.4)),
+    );
+
+    // Main run
+    canvas.drawLine(p1, p2, _tube(_pipeEdge, d + 1.2, cap: StrokeCap.butt));
+    canvas.drawLine(p1, p2, _tube(_pipeBody, d - 0.2, cap: StrokeCap.butt));
+    canvas.drawLine(
+      p1 + const Offset(0.6, 0.8),
+      p2 + const Offset(0.6, 0.8),
+      _tube(_pipeShade.withValues(alpha: 0.60), d * 0.38, cap: StrokeCap.butt),
+    );
+    canvas.drawLine(
+      p1 + const Offset(-0.6, -0.8),
+      p2 + const Offset(-0.6, -0.8),
+      _tube(_pipeLight, d * 0.35, cap: StrokeCap.butt),
+    );
+
+    // Branch run
+    canvas.drawLine(pos, pB, _tube(_pipeEdge, d + 1.2, cap: StrokeCap.butt));
+    canvas.drawLine(pos, pB, _tube(_pipeBody, d - 0.2, cap: StrokeCap.butt));
+    canvas.drawLine(
+      pos + const Offset(0.6, 0.8),
+      pB + const Offset(0.6, 0.8),
+      _tube(_pipeShade.withValues(alpha: 0.60), d * 0.38, cap: StrokeCap.butt),
+    );
+    canvas.drawLine(
+      pos + const Offset(-0.6, -0.8),
+      pB + const Offset(-0.6, -0.8),
+      _tube(_pipeLight, d * 0.35, cap: StrokeCap.butt),
+    );
+
+    // Compact T-center reinforcement cap
+    final double hubR = d * 0.65;
+    final Rect hubRect = Rect.fromCircle(center: pos, radius: hubR);
+    canvas.drawCircle(pos + const Offset(0, 0.8), hubR, Paint()..color = const Color(0x30000000));
+    canvas.drawCircle(
+      pos,
+      hubR,
+      Paint()
+        ..isAntiAlias = true
+        ..shader = const RadialGradient(
+          center: Alignment(-0.4, -0.5),
+          colors: [_pipeLight, _pipeBody, _pipeEdge],
+          stops: [0.0, 0.6, 1.0],
+        ).createShader(hubRect),
+    );
+    canvas.drawCircle(pos, hubR, _tube(_pipeEdge, 0.7));
+
+    _socketBand(canvas, p1, uMain1, d);
+    _socketBand(canvas, p2, uMain2, d);
+    _socketBand(canvas, pB, uBranch, d);
+  }
+
+  void _drawCrossFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    final double sDist = d * 1.8;
+
+    for (final u in dirs) {
+      final Offset pArm = pos + u * sDist;
+      canvas.drawLine(
+        pos + const Offset(0, 1.2),
+        pArm + const Offset(0, 1.2),
+        _tube(const Color(0x35000000), d + 1.2, blur: const MaskFilter.blur(BlurStyle.normal, 1.4)),
       );
-      canvas.drawCircle(pos, r, _tube(_pipeEdge, 0.8));
-    });
+      canvas.drawLine(pos, pArm, _tube(_pipeEdge, d + 1.2, cap: StrokeCap.butt));
+      canvas.drawLine(pos, pArm, _tube(_pipeBody, d - 0.2, cap: StrokeCap.butt));
+      canvas.drawLine(
+        pos + const Offset(0.6, 0.8),
+        pArm + const Offset(0.6, 0.8),
+        _tube(_pipeShade.withValues(alpha: 0.60), d * 0.38, cap: StrokeCap.butt),
+      );
+      canvas.drawLine(
+        pos + const Offset(-0.6, -0.8),
+        pArm + const Offset(-0.6, -0.8),
+        _tube(_pipeLight, d * 0.35, cap: StrokeCap.butt),
+      );
+    }
+
+    final double hubR = d * 0.75;
+    final Rect hubRect = Rect.fromCircle(center: pos, radius: hubR);
+    canvas.drawCircle(pos + const Offset(0, 0.8), hubR, Paint()..color = const Color(0x30000000));
+    canvas.drawCircle(
+      pos,
+      hubR,
+      Paint()
+        ..isAntiAlias = true
+        ..shader = const RadialGradient(
+          center: Alignment(-0.4, -0.5),
+          colors: [_pipeLight, _pipeBody, _pipeEdge],
+          stops: [0.0, 0.6, 1.0],
+        ).createShader(hubRect),
+    );
+    canvas.drawCircle(pos, hubR, _tube(_pipeEdge, 0.7));
+
+    for (final u in dirs) {
+      _socketBand(canvas, pos + u * sDist, u, d);
+    }
   }
 
   @override
