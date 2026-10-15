@@ -7,15 +7,9 @@ import '../widget/painter/multi_injector_painter.dart';
 
 
 /// Type of equipment a node represents on the canvas.
-/// [junction] is a small pass-through point created when a new pipe is
-/// branched off an *existing* pipe (a "T" joint) rather than off a node.
 enum NodeType {
-  source,
   pump,
-  tank,
   sump,
-  distribution,
-  junction,
   well,
   overheadTank,
   naturalSource,
@@ -67,7 +61,6 @@ class NodeObject {
 
   /// Connection point where pipes coming INTO this node should attach.
   Offset get inputPort {
-    if (type == NodeType.junction) return center;
     if (type == NodeType.pump) {
       final double s = math.min(size.width / 640, size.height / 380);
       final double tx = (size.width - 640 * s) / 2;
@@ -118,7 +111,6 @@ class NodeObject {
 
   /// Connection point where pipes going OUT of this node should attach.
   Offset get outputPort {
-    if (type == NodeType.junction) return center;
     if (type == NodeType.pump) {
       final double s = math.min(size.width / 640, size.height / 380);
       final double tx = (size.width - 640 * s) / 2;
@@ -330,19 +322,14 @@ class NodeObject {
         return const Size(160, 150);
       case NodeType.waterMeter:
         return isHorizontal ? const Size(180, 120) : const Size(120, 180);
-      case NodeType.tank:
       case NodeType.overheadTank:
         return const Size(110, 130);
       case NodeType.sump:
       case NodeType.naturalSource:
       case NodeType.well:
         return const Size(130, 90);
-      case NodeType.junction:
-        return const Size(14, 14);
       case NodeType.pump:
-      case NodeType.source:
-      case NodeType.distribution:
-        return const Size(96, 74);
+        return const Size(130, 90);
     }
   }
 

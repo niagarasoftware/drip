@@ -20,6 +20,7 @@ class PipePainter extends CustomPainter {
     this.pendingFromPortId,
     this.pendingDragPos,
     this.pendingIsInput = false,
+    super.repaint,
   });
 
   // ---------------------------------------------------------------------------
@@ -78,28 +79,6 @@ class PipePainter extends CustomPainter {
       }
     }
 
-    bool added = true;
-    while (added) {
-      added = false;
-      for (final pipe in pipes) {
-        final from = _findNode(pipe.fromNodeId);
-        final to = _findNode(pipe.toNodeId);
-        if (from == null || to == null) continue;
-
-        if (airNodeIds.contains(pipe.fromNodeId)) {
-          if (to.type == NodeType.junction && !airNodeIds.contains(to.id)) {
-            airNodeIds.add(to.id);
-            added = true;
-          }
-        }
-        if (airNodeIds.contains(pipe.toNodeId)) {
-          if (from.type == NodeType.junction && !airNodeIds.contains(from.id)) {
-            airNodeIds.add(from.id);
-            added = true;
-          }
-        }
-      }
-    }
     return airNodeIds;
   }
 
@@ -521,10 +500,10 @@ class PipePainter extends CustomPainter {
         r,
         Paint()
           ..isAntiAlias = true
-          ..shader = RadialGradient(
-            center: const Alignment(-0.4, -0.5),
-            colors: const [_metalLight, _metalBody, _metalSteel, _metalEdge],
-            stops: const [0.0, 0.4, 0.8, 1.0],
+          ..shader = const RadialGradient(
+            center: Alignment(-0.4, -0.5),
+            colors: [_metalLight, _metalBody, _metalSteel, _metalEdge],
+            stops: [0.0, 0.4, 0.8, 1.0],
           ).createShader(rect),
       );
       canvas.drawCircle(pos, r, _tube(_metalEdge, 0.8));
@@ -704,10 +683,10 @@ class PipePainter extends CustomPainter {
         r,
         Paint()
           ..isAntiAlias = true
-          ..shader = RadialGradient(
-            center: const Alignment(-0.4, -0.5),
+          ..shader = const RadialGradient(
+            center: Alignment(-0.4, -0.5),
             colors: [_pipeLight, _pipeBody, _pipeEdge],
-            stops: const [0.0, 0.55, 1.0],
+            stops: [0.0, 0.55, 1.0],
           ).createShader(rect),
       );
       canvas.drawCircle(pos, r, _tube(_pipeEdge, 0.8));

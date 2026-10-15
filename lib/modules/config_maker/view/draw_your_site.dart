@@ -11,6 +11,10 @@ const double kCanvasWidth = 1900;
 const double kCanvasHeight = 1150;
 const double kPipeHitTolerance = 14;
 
+class CanvasNotifier extends ChangeNotifier {
+  void notify() => notifyListeners();
+}
+
 class DrawYourSiteScreen extends StatefulWidget {
   const DrawYourSiteScreen({super.key});
 
@@ -21,6 +25,7 @@ class DrawYourSiteScreen extends StatefulWidget {
 class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   final List<NodeObject> _nodes = [];
   final List<PipeConnection> _pipes = [];
+  final CanvasNotifier _canvasNotifier = CanvasNotifier();
 
   String? _selectedNodeId;
   String? _selectedPipeId;
@@ -59,6 +64,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _selectedNodeId = null;
     _selectedPipeId = null;
     _connectFromId = null;
+    _canvasNotifier.notify();
   }
 
   void _saveToHistory() {
@@ -103,6 +109,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     // Start with a fresh page without default layout
   }
 
+  @override
+  void dispose() {
+    _canvasNotifier.dispose();
+    super.dispose();
+  }
+
   String _nextId(String prefix) => '${prefix}_${_idCounter++}';
 
   // ---------------------------------------------------------------------
@@ -135,32 +147,32 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       ));
     }
 
-    final source1 = addNode(NodeType.source, 'Source 1\n(Borewell)', 40, 60);
-    final source2 = addNode(NodeType.source, 'Source 2\n(Pond)', 40, 260);
-    final source3 = addNode(NodeType.source, 'Source 3\n(U/G Tank)', 40, 460);
+    final source1 = addNode(NodeType.naturalSource, 'Source 1\n(Borewell)', 40, 60);
+    final source2 = addNode(NodeType.naturalSource, 'Source 2\n(Pond)', 40, 260);
+    final source3 = addNode(NodeType.naturalSource, 'Source 3\n(U/G Tank)', 40, 460);
 
     final pumpS1A = addNode(NodeType.pump, 'Pump S1A', 230, 60);
     final pumpS2A = addNode(NodeType.pump, 'Pump S2A', 230, 260);
     final pumpS3A = addNode(NodeType.pump, 'Pump S3A', 230, 460);
 
     final overheadTank = addNode(
-        NodeType.tank, 'Overhead Tank', 760, 40,
+        NodeType.overheadTank, 'Overhead Tank', 760, 40,
         size: const Size(110, 130));
     final intermediateTank = addNode(
-        NodeType.tank, 'Intermediate Tank', 760, 330,
+        NodeType.overheadTank, 'Intermediate Tank', 760, 330,
         size: const Size(110, 130));
 
     final pumpT1 = addNode(NodeType.pump, 'Transfer\nPump T1', 520, 340);
     final pumpT2 = addNode(NodeType.pump, 'Transfer\nPump T2', 520, 460);
 
-    final dist1 = addNode(NodeType.distribution, 'Distribution\n(Irrigation)', 1080, 60);
-    final dist2 = addNode(NodeType.distribution, 'Distribution\n(Users)', 1080, 340);
+    final dist1 = addNode(NodeType.singleMainValve, 'Distribution\n(Irrigation)', 1080, 60);
+    final dist2 = addNode(NodeType.singleMainValve, 'Distribution\n(Users)', 1080, 340);
 
     final sump = addNode(NodeType.sump, 'Sump /\nCollection Tank', 40, 760,
         size: const Size(130, 90));
     final pumpE1 = addNode(NodeType.pump, 'Extraction\nPump E1', 260, 720);
     final pumpE2 = addNode(NodeType.pump, 'Extraction\nPump E2', 260, 840);
-    final otherTank = addNode(NodeType.source, 'Other Source\n/ Drain', 500, 780);
+    final otherTank = addNode(NodeType.naturalSource, 'Other Source\n/ Drain', 500, 780);
 
     connect(source1, pumpS1A);
     connect(pumpS1A, overheadTank);
@@ -225,7 +237,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       size = const Size(120, 180);
     } else if (type == NodeType.blower) {
       size = const Size(160, 150);
-    } else if (type == NodeType.tank || type == NodeType.overheadTank) {
+    } else if (type == NodeType.overheadTank) {
       size = const Size(110, 130);
     } else if (type == NodeType.sump || type == NodeType.naturalSource || type == NodeType.well) {
       size = const Size(130, 90);
@@ -243,22 +255,15 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _selectedNodeId = id;
       _selectedPipeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   String _defaultLabelFor(NodeType type) {
     switch (type) {
       case NodeType.pump:
         return 'New Pump';
-      case NodeType.source:
-        return 'New Source';
-      case NodeType.tank:
-        return 'New Tank';
       case NodeType.sump:
         return 'New Sump';
-      case NodeType.distribution:
-        return 'Distribution';
-      case NodeType.junction:
-        return '';
       case NodeType.well:
         return 'Open Well';
       case NodeType.overheadTank:
@@ -300,43 +305,41 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   }
 
   void _onNodePanUpdate(NodeObject node, DragUpdateDetails details) {
-    setState(() {
-      final double dx = (node.position.dx + details.delta.dx / _scale)
-          .clamp(0.0, kCanvasWidth - node.size.width)
-          .toDouble();
-      final double dy = (node.position.dy + details.delta.dy / _scale)
-          .clamp(0.0, kCanvasHeight - node.size.height)
-          .toDouble();
-      node.position = Offset(dx, dy);
-    });
+    final double dx = (node.position.dx + details.delta.dx / _scale)
+        .clamp(0.0, kCanvasWidth - node.size.width)
+        .toDouble();
+    final double dy = (node.position.dy + details.delta.dy / _scale)
+        .clamp(0.0, kCanvasHeight - node.size.height)
+        .toDouble();
+    node.position = Offset(dx, dy);
+    _canvasNotifier.notify();
   }
 
   void _onNodeResizeUpdate(NodeObject node, DragUpdateDetails details) {
-    setState(() {
-      final double deltaX = details.delta.dx / _scale;
-      final double deltaY = details.delta.dy / _scale;
+    final double deltaX = details.delta.dx / _scale;
+    final double deltaY = details.delta.dy / _scale;
 
-      double maxW = (kCanvasWidth - node.position.dx).clamp(30.0, 800.0);
-      double maxH = (kCanvasHeight - node.position.dy).clamp(30.0, 800.0);
+    double maxW = (kCanvasWidth - node.position.dx).clamp(30.0, 800.0);
+    double maxH = (kCanvasHeight - node.position.dy).clamp(30.0, 800.0);
 
-      if (_isShiftPressed && node.size.width > 0) {
-        final double aspectRatio = node.size.width / node.size.height;
-        double newWidth = (node.size.width + deltaX).clamp(30.0, maxW);
-        double newHeight = (newWidth / aspectRatio).clamp(30.0, maxH);
-        newWidth = newHeight * aspectRatio;
-        node.size = Size(newWidth, newHeight);
-      } else {
-        double newWidth = (node.size.width + deltaX).clamp(30.0, maxW);
-        double newHeight = (node.size.height + deltaY).clamp(30.0, maxH);
-        node.size = Size(newWidth, newHeight);
-      }
-    });
+    if (_isShiftPressed && node.size.width > 0) {
+      final double aspectRatio = node.size.width / node.size.height;
+      double newWidth = (node.size.width + deltaX).clamp(30.0, maxW);
+      double newHeight = (newWidth / aspectRatio).clamp(30.0, maxH);
+      newWidth = newHeight * aspectRatio;
+      node.size = Size(newWidth, newHeight);
+    } else {
+      double newWidth = (node.size.width + deltaX).clamp(30.0, maxW);
+      double newHeight = (node.size.height + deltaY).clamp(30.0, maxH);
+      node.size = Size(newWidth, newHeight);
+    }
+    _canvasNotifier.notify();
   }
 
   void _scaleSelectedNode(double factor) {
     if (_selectedNodeId == null) return;
     final node = _findNode(_selectedNodeId!);
-    if (node == null || node.type == NodeType.junction) return;
+    if (node == null) return;
     _saveToHistory();
     setState(() {
       final double maxW = (kCanvasWidth - node.position.dx).clamp(30.0, 800.0);
@@ -366,6 +369,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _selectedNodeId = node.id;
       _selectedPipeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   Set<String> _getAirNodeIds() {
@@ -386,38 +390,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         airNodeIds.add(to.id);
       }
     }
-
-    bool added = true;
-    while (added) {
-      added = false;
-      for (final pipe in _pipes) {
-        final from = _findNode(pipe.fromNodeId);
-        final to = _findNode(pipe.toNodeId);
-        if (from == null || to == null) continue;
-
-        if (airNodeIds.contains(pipe.fromNodeId)) {
-          if (to.type == NodeType.junction && !airNodeIds.contains(to.id)) {
-            airNodeIds.add(to.id);
-            added = true;
-          }
-        }
-        if (airNodeIds.contains(pipe.toNodeId)) {
-          if (from.type == NodeType.junction && !airNodeIds.contains(from.id)) {
-            airNodeIds.add(from.id);
-            added = true;
-          }
-        }
-      }
-    }
     return airNodeIds;
   }
 
   bool _isAirSource(NodeObject node) {
     if (node.type == NodeType.blower) return true;
-    if (node.type == NodeType.junction) {
-      return _getAirNodeIds().contains(node.id);
-    }
-    return false;
+    return _getAirNodeIds().contains(node.id);
   }
 
   /// Common "connect mode" logic: the first tap (on a node OR on a pipe,
@@ -465,6 +443,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         _connectMode = false; // Turn off connect mode after successful connection
       }
     });
+    _canvasNotifier.notify();
   }
 
   void _onNodeLongPress(NodeObject node) {
@@ -644,7 +623,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                         ),
                       ],
                     ],
-                    if (node.type != NodeType.junction) ...[
                       const Divider(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -767,7 +745,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           const Text('Lock Aspect Ratio', style: TextStyle(fontSize: 12)),
                         ],
                       ),
-                    ],
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -806,45 +783,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
   void _deleteNode(String nodeId) {
     _saveToHistory();
-    final node = _findNode(nodeId);
-
-    // A junction with exactly two pipes attached is just a pass-through
-    // point on what was originally one pipe — deleting it should reconnect
-    // the two halves into a single pipe again, rather than breaking the run.
-    if (node != null && node.type == NodeType.junction) {
-      final attached = _pipes.where((p) => p.fromNodeId == nodeId || p.toNodeId == nodeId).toList();
-      if (attached.length == 2) {
-        PipeConnection? before, after;
-        for (final p in attached) {
-          if (p.toNodeId == nodeId) before = p;
-          if (p.fromNodeId == nodeId) after = p;
-        }
-        if (before != null && after != null) {
-          final merged = PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: before.fromNodeId,
-            fromPortId: before.fromPortId,
-            toNodeId: after.toNodeId,
-            toPortId: after.toPortId,
-            waypoints: [...before.waypoints, ...after.waypoints],
-            flowActive: before.flowActive,
-          );
-          setState(() {
-            _pipes.removeWhere((p) => p.id == before!.id || p.id == after!.id);
-            _pipes.add(merged);
-            _nodes.removeWhere((n) => n.id == nodeId);
-            if (_selectedNodeId == nodeId) _selectedNodeId = null;
-          });
-          return;
-        }
-      }
-    }
-
     setState(() {
       _nodes.removeWhere((n) => n.id == nodeId);
       _pipes.removeWhere((p) => p.fromNodeId == nodeId || p.toNodeId == nodeId);
       if (_selectedNodeId == nodeId) _selectedNodeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   // ---------------------------------------------------------------------
@@ -859,29 +803,16 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
   void _onCanvasTapUp(TapUpDetails details) {
     final pos = details.localPosition;
-
-    if (_connectMode) {
-      // Tapping empty canvas near an existing pipe branches a new
-      // junction off it, so a pipe can start/end on another pipe and not
-      // only on a node.
-      final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance + 4);
-      if (hit != null) {
-        final junctionId = _splitPipeAtPoint(hit.pipe, hit.segmentIndex, pos);
-        _handleConnectPick(junctionId);
-      }
-      return;
-    }
-
-    final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance);
+    final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance + 4);
     setState(() {
       _selectedPipeId = hit?.pipe.id;
       _selectedNodeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   /// Finds the pipe segment nearest to [pos], if any is within [tolerance].
-  /// Used for: selecting a pipe by tap, adding a bend point by double-tap,
-  /// and branching a new pipe off an existing one in connect mode.
+  /// Used for selecting a pipe by tap and adding a bend point by double-tap.
   _PipeHit? _locateNearestPipeSegment(Offset pos, {required double tolerance}) {
     PipeConnection? bestPipe;
     int bestSegment = -1;
@@ -910,7 +841,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
   void _onCanvasDoubleTapDown(TapDownDetails details) {
     final pos = details.localPosition;
-    final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance + 4);
+    final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance + 8);
     if (hit == null) return;
     _saveToHistory();
     final int clampedIndex = hit.segmentIndex.clamp(0, hit.pipe.waypoints.length).toInt();
@@ -918,87 +849,41 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       hit.pipe.waypoints.insert(clampedIndex, pos);
       _selectedPipeId = hit.pipe.id;
     });
-  }
-
-  /// Splits [pipe] into two pipes joined by a new small junction node placed
-  /// at [point] (which lies on the segment at [segmentIndex]). Returns the
-  /// new junction's node id so it can immediately be used as a connect
-  /// endpoint. This is how a new pipe gets to "join onto" an existing pipe
-  /// rather than only onto a pump/tank/source node.
-  String _splitPipeAtPoint(PipeConnection pipe, int segmentIndex, Offset point) {
-    _saveToHistory();
-    final junctionId = _nextId('junction');
-    final junction = NodeObject(
-      id: junctionId,
-      position: point - const Offset(7, 7),
-      size: const Size(14, 14),
-      type: NodeType.junction,
-      label: '',
-    );
-
-    final int splitAt = segmentIndex.clamp(0, pipe.waypoints.length).toInt();
-    final beforeWaypoints = pipe.waypoints.sublist(0, splitAt);
-    final afterWaypoints = pipe.waypoints.sublist(splitAt);
-
-    final pipeBefore = PipeConnection(
-      id: _nextId('pipe'),
-      fromNodeId: pipe.fromNodeId,
-      fromPortId: pipe.fromPortId,
-      toNodeId: junctionId,
-      waypoints: beforeWaypoints,
-      flowActive: pipe.flowActive,
-    );
-    final pipeAfter = PipeConnection(
-      id: _nextId('pipe'),
-      fromNodeId: junctionId,
-      toNodeId: pipe.toNodeId,
-      toPortId: pipe.toPortId,
-      waypoints: afterWaypoints,
-      flowActive: pipe.flowActive,
-    );
-
-    setState(() {
-      _nodes.add(junction);
-      _pipes.remove(pipe);
-      _pipes.addAll([pipeBefore, pipeAfter]);
-    });
-
-    return junctionId;
+    _canvasNotifier.notify();
   }
 
   void _onWaypointPanUpdate(PipeConnection pipe, int index, DragUpdateDetails details) {
-    setState(() {
-      final current = pipe.waypoints[index];
-      double nx = (current.dx + details.delta.dx / _scale).clamp(0.0, kCanvasWidth).toDouble();
-      double ny = (current.dy + details.delta.dy / _scale).clamp(0.0, kCanvasHeight).toDouble();
+    final current = pipe.waypoints[index];
+    double nx = (current.dx + details.delta.dx / _scale).clamp(0.0, kCanvasWidth).toDouble();
+    double ny = (current.dy + details.delta.dy / _scale).clamp(0.0, kCanvasHeight).toDouble();
 
-      if (_isShiftPressed) {
-        // Find reference points before and after this waypoint to align to
-        final fromNode = _findNode(pipe.fromNodeId);
-        final toNode = _findNode(pipe.toNodeId);
-        if (fromNode != null && toNode != null) {
-          final points = <Offset>[fromNode.outputPort, ...pipe.waypoints, toNode.inputPort];
-          // index in pipe.waypoints corresponds to index + 1 in points
-          final refIndex = index + 1;
-          final prevPoint = points[refIndex - 1];
-          final nextPoint = points[refIndex + 1];
+    if (_isShiftPressed) {
+      // Find reference points before and after this waypoint to align to
+      final fromNode = _findNode(pipe.fromNodeId);
+      final toNode = _findNode(pipe.toNodeId);
+      if (fromNode != null && toNode != null) {
+        final points = <Offset>[fromNode.outputPort, ...pipe.waypoints, toNode.inputPort];
+        // index in pipe.waypoints corresponds to index + 1 in points
+        final refIndex = index + 1;
+        final prevPoint = points[refIndex - 1];
+        final nextPoint = points[refIndex + 1];
 
-          // Determine closer reference point
-          final refPoint = (nx - prevPoint.dx).abs() + (ny - prevPoint.dy).abs() < 
-                           (nx - nextPoint.dx).abs() + (ny - nextPoint.dy).abs()
-              ? prevPoint
-              : nextPoint;
+        // Determine closer reference point
+        final refPoint = (nx - prevPoint.dx).abs() + (ny - prevPoint.dy).abs() < 
+                         (nx - nextPoint.dx).abs() + (ny - nextPoint.dy).abs()
+            ? prevPoint
+            : nextPoint;
 
-          if ((nx - refPoint.dx).abs() < (ny - refPoint.dy).abs()) {
-            nx = refPoint.dx;
-          } else {
-            ny = refPoint.dy;
-          }
+        if ((nx - refPoint.dx).abs() < (ny - refPoint.dy).abs()) {
+          nx = refPoint.dx;
+        } else {
+          ny = refPoint.dy;
         }
       }
+    }
 
-      pipe.waypoints[index] = Offset(nx, ny);
-    });
+    pipe.waypoints[index] = Offset(nx, ny);
+    _canvasNotifier.notify();
   }
 
   void _removeWaypoint(PipeConnection pipe, int index) {
@@ -1006,6 +891,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     setState(() {
       pipe.waypoints.removeAt(index);
     });
+    _canvasNotifier.notify();
   }
 
   void _deletePipe(String pipeId) {
@@ -1014,22 +900,23 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _pipes.removeWhere((p) => p.id == pipeId);
       if (_selectedPipeId == pipeId) _selectedPipeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   void _onPortPanStart(NodeObject node, {required bool isInput, String? portId, Offset? initialPos}) {
     _saveToHistory();
-    setState(() {
-      _connectFromId = node.id;
-      _connectFromPortId = portId;
-      _pendingDragIsInput = isInput;
-      _pendingDragConnectionPos = initialPos ?? (isInput ? node.getPort(portId, isInput: true) : node.getPort(portId, isInput: false));
-    });
+    _connectFromId = node.id;
+    _connectFromPortId = portId;
+    _pendingDragIsInput = isInput;
+    _pendingDragConnectionPos = initialPos ?? (isInput ? node.getPort(portId, isInput: true) : node.getPort(portId, isInput: false));
+    _canvasNotifier.notify();
   }
 
   void _onPortPanUpdate(DragUpdateDetails details) {
-    setState(() {
+    if (_pendingDragConnectionPos != null) {
       _pendingDragConnectionPos = (_pendingDragConnectionPos! + details.delta / _scale);
-    });
+      _canvasNotifier.notify();
+    }
   }
 
   void _onPortPanEnd(DragEndDetails details) {
@@ -1260,34 +1147,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         );
         _pipes.add(newPipe);
       });
-    } else {
-      // Check if dropped on a pipe
-      final hit = _locateNearestPipeSegment(pos, tolerance: kPipeHitTolerance + 4);
-      if (hit != null) {
-        final junctionId = _splitPipeAtPoint(hit.pipe, hit.segmentIndex, pos);
-        final fromNode = _connectFromId != null ? _findNode(_connectFromId!) : null;
-        String? newFromPortId = _pendingDragIsInput ? null : _connectFromPortId;
-        String? newToPortId = _pendingDragIsInput ? _connectFromPortId : null;
-
-        if (fromNode != null && fromNode.type == NodeType.fertilizerTank && _connectFromPortId == 'top_inlet') {
-          if (_pendingDragIsInput) {
-            newToPortId = 'top_inlet';
-          } else {
-            newFromPortId = 'top_inlet';
-          }
-        }
-
-        setState(() {
-          final newPipe = PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: _pendingDragIsInput ? junctionId : _connectFromId!,
-            fromPortId: newFromPortId,
-            toNodeId: _pendingDragIsInput ? _connectFromId! : junctionId,
-            toPortId: newToPortId,
-          );
-          _pipes.add(newPipe);
-        });
-      }
     }
 
     setState(() {
@@ -1295,6 +1154,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _pendingDragConnectionPos = null;
       _pendingDragIsInput = false;
     });
+    _canvasNotifier.notify();
   }
 
   void _deleteSelected() {
@@ -1340,64 +1200,337 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     );
   }
 
+  List<Widget> _buildPortHandles() {
+    if (_globalHideJoints) return const [];
+    final List<Widget> handles = [];
+    for (final node in _nodes) {
+      if (node.type == NodeType.pump) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_out'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blue.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_in'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.sump) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_in'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blueGrey.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_out'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.overheadTank) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_in'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blue.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_out'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.well || node.type == NodeType.naturalSource) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_out'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.mainFertilizerSource) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_in'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightGreen.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_out'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.green.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.fertilizerTank) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.getPort('inlet', isInput: true),
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: const Color(0xFF2E7D32).withValues(alpha: 0.85),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_top_inlet'),
+            position: node.getPort('top_inlet', isInput: true),
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'top_inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: const Color(0xFF1565C0).withValues(alpha: 0.85),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.getPort('outlet', isInput: false),
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: const Color(0xFF4CAF50).withValues(alpha: 0.85),
+          ),
+        );
+      } else if (node.type == NodeType.multiInjector) {
+        for (int i = 0; i < 4; i++) {
+          handles.add(
+            WaypointHandle(
+              key: ValueKey('${node.id}_channel_$i'),
+              position: node.getPort('channel_$i', isInput: true),
+              onPanStart: (d) => _onPortPanStart(
+                node,
+                isInput: true,
+                portId: 'channel_$i',
+                initialPos: node.getPort('channel_$i', isInput: true),
+              ),
+              onPanUpdate: _onPortPanUpdate,
+              onPanEnd: _onPortPanEnd,
+              onLongPress: () {},
+              color: Colors.lightBlue.withValues(alpha: 0.8),
+            ),
+          );
+        }
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blueGrey.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.multiFilter) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_backwash'),
+            position: node.getPort('backwash', isInput: true),
+            onPanStart: (d) => _onPortPanStart(
+              node,
+              isInput: true,
+              portId: 'backwash',
+              initialPos: node.getPort('backwash', isInput: true),
+            ),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blueGrey.withValues(alpha: 0.8),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.cyan.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.multiValve) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blueGrey.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.mainValve ||
+          node.type == NodeType.multiMainValve ||
+          node.type == NodeType.singleMainValve ||
+          node.type == NodeType.singleTankValve) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.cyan.withValues(alpha: 0.7),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.7),
+          ),
+        );
+      } else if (node.type == NodeType.multiOutletTankValve) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.cyan.withValues(alpha: 0.85),
+          ),
+        );
+        for (int i = 0; i < 4; i++) {
+          handles.add(
+            WaypointHandle(
+              key: ValueKey('${node.id}_channel_$i'),
+              position: node.getPort('channel_$i', isInput: false),
+              onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'channel_$i'),
+              onPanUpdate: _onPortPanUpdate,
+              onPanEnd: _onPortPanEnd,
+              onLongPress: () {},
+              color: Colors.lightBlue.withValues(alpha: 0.85),
+            ),
+          );
+        }
+      } else if (node.type == NodeType.multiAgitator) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.cyan.withValues(alpha: 0.85),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.85),
+          ),
+        );
+      } else if (node.type == NodeType.blower) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.blue.withValues(alpha: 0.85),
+          ),
+        );
+      }
+    }
+    return handles;
+  }
+
   // ---------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Draw Your Site'),
-        actions: [
-          IconButton(
-            tooltip: 'Zoom out',
-            icon: const Icon(Icons.zoom_out),
-            onPressed: () => setState(() => _scale = (_scale - 0.1).clamp(0.4, 2.0).toDouble()),
-          ),
-          Center(child: Text('${(_scale * 100).round()}%')),
-          IconButton(
-            tooltip: 'Zoom in',
-            icon: const Icon(Icons.zoom_in),
-            onPressed: () => setState(() => _scale = (_scale + 0.1).clamp(0.4, 2.0).toDouble()),
-          ),
-          IconButton(
-            tooltip: 'Undo',
-            icon: const Icon(Icons.undo),
-            onPressed: _undoStack.isNotEmpty ? _undo : null,
-          ),
-          IconButton(
-            tooltip: 'Redo',
-            icon: const Icon(Icons.redo),
-            onPressed: _redoStack.isNotEmpty ? _redo : null,
-          ),
-          IconButton(
-            tooltip: 'Export configuration (JSON)',
-            icon: const Icon(Icons.file_download),
-            onPressed: _showExportDialog,
-          ),
-          IconButton(
-            tooltip: _globalHideJoints ? 'Disable Hide Joints' : 'Enable Hide Joints',
-            icon: Icon(_globalHideJoints ? Icons.layers_clear : Icons.layers),
-            onPressed: () {
-              setState(() {
-                _globalHideJoints = !_globalHideJoints;
-                // Apply to all existing nodes
-                for (final node in _nodes) {
-                  node.showJoints = !_globalHideJoints;
-                }
-              });
-            },
-          ),
-          IconButton(
-            tooltip: 'Reset to default layout',
-            icon: const Icon(Icons.restart_alt),
-            onPressed: () {
-              _saveToHistory();
-              setState(_loadDefaultLayout);
-            },
-          ),
-        ],
-      ),
       body: KeyboardListener(
         focusNode: FocusNode()..requestFocus(),
         onKeyEvent: (KeyEvent event) {
@@ -1415,396 +1548,183 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         },
         child: Column(
           children: [
-            _buildToolbar(),
+            RepaintBoundary(child: _buildToolbar()),
             Expanded(
               child: Container(
                 color: const Color(0xFFF3F5F7),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.vertical,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Transform.scale(
-                      scale: _scale,
-                      alignment: Alignment.topLeft,
-                      child: SizedBox(
-                        width: kCanvasWidth,
-                        height: kCanvasHeight,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapUp: _onCanvasTapUp,
-                          onDoubleTapDown: _onCanvasDoubleTapDown,
-                          onDoubleTap: () {}, // required so onDoubleTapDown fires
-                          child: Stack(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Transform.scale(
+                            scale: _scale,
+                            alignment: Alignment.topLeft,
+                            child: SizedBox(
+                              width: kCanvasWidth,
+                              height: kCanvasHeight,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTapUp: _onCanvasTapUp,
+                                onDoubleTapDown: _onCanvasDoubleTapDown,
+                                onDoubleTap: () {}, // required so onDoubleTapDown fires
+                                child: Stack(
+                                  children: [
+                                    // grid background
+                                    Positioned.fill(
+                                      child: RepaintBoundary(
+                                        child: CustomPaint(painter: _GridPainter()),
+                                      ),
+                                    ),
+                                    ListenableBuilder(
+                                      listenable: _canvasNotifier,
+                                      builder: (context, _) {
+                                        return Stack(
+                                          children: [
+                                            // pipes
+                                            Positioned.fill(
+                                              child: RepaintBoundary(
+                                                child: CustomPaint(
+                                                  painter: PipePainter(
+                                                    nodes: _nodes,
+                                                    pipes: _pipes,
+                                                    selectedPipeId: _selectedPipeId,
+                                                    pendingConnectFromId: _connectFromId,
+                                                    pendingFromPortId: _connectFromPortId,
+                                                    pendingDragPos: _pendingDragConnectionPos,
+                                                    pendingIsInput: _pendingDragIsInput,
+                                                    repaint: _canvasNotifier,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            // nodes
+                                            for (final node in _nodes)
+                                              NodeWidget(
+                                                key: ValueKey(node.id),
+                                                node: node,
+                                                isSelected: node.id == _selectedNodeId,
+                                                isConnectSource: node.id == _connectFromId,
+                                                onTap: () => _onNodeTap(node),
+                                                onLongPress: () => _onNodeLongPress(node),
+                                                onPanStart: (d) => _saveToHistory(),
+                                                onPanUpdate: (d) => _onNodePanUpdate(node, d),
+                                                onResizeStart: (d) => _saveToHistory(),
+                                                onResizeUpdate: (d) => _onNodeResizeUpdate(node, d),
+                                              ),
+                                            // waypoint drag handles
+                                            if (!_globalHideJoints)
+                                              for (final pipe in _pipes)
+                                                for (int i = 0; i < pipe.waypoints.length; i++)
+                                                  WaypointHandle(
+                                                    key: ValueKey('wp_${pipe.id}_$i'),
+                                                    position: pipe.waypoints[i],
+                                                    onPanStart: (d) => _saveToHistory(),
+                                                    onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
+                                                    onLongPress: () => _removeWaypoint(pipe, i),
+                                                    color: pipe.id == _selectedPipeId
+                                                        ? Colors.deepOrange
+                                                        : const Color(0xFFFFA726),
+                                                  ),
+                                            // port handles
+                                            ..._buildPortHandles(),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Right side vertical floating action buttons
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: Material(
+                        elevation: 4,
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              // grid background
-                              Positioned.fill(
-                                child: CustomPaint(painter: _GridPainter()),
+                              IconButton(
+                                tooltip: 'Undo',
+                                icon: const Icon(Icons.undo),
+                                onPressed: _undoStack.isNotEmpty ? _undo : null,
                               ),
-                              // pipes
-                              Positioned.fill(
-                                child: CustomPaint(
-                                  painter: PipePainter(
-                                    nodes: _nodes,
-                                    pipes: _pipes,
-                                    selectedPipeId: _selectedPipeId,
-                                    pendingConnectFromId: _connectFromId,
-                                    pendingFromPortId: _connectFromPortId,
-                                    pendingDragPos: _pendingDragConnectionPos,
-                                    pendingIsInput: _pendingDragIsInput,
-                                  ),
+                              IconButton(
+                                tooltip: 'Redo',
+                                icon: const Icon(Icons.redo),
+                                onPressed: _redoStack.isNotEmpty ? _redo : null,
+                              ),
+                              const SizedBox(height: 4),
+                              Container(width: 24, height: 1, color: Colors.black12),
+                              const SizedBox(height: 4),
+                              IconButton(
+                                tooltip: _globalHideJoints ? 'Disable Hide Joints' : 'Enable Hide Joints',
+                                icon: Icon(_globalHideJoints ? Icons.layers_clear : Icons.layers),
+                                onPressed: () {
+                                  setState(() {
+                                    _globalHideJoints = !_globalHideJoints;
+                                    for (final node in _nodes) {
+                                      node.showJoints = !_globalHideJoints;
+                                    }
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 4),
+                              Container(width: 24, height: 1, color: Colors.black12),
+                              const SizedBox(height: 4),
+                              IconButton(
+                                tooltip: 'Zoom in',
+                                icon: const Icon(Icons.zoom_in),
+                                onPressed: () => setState(() => _scale = (_scale + 0.1).clamp(0.4, 2.0).toDouble()),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Text(
+                                  '${(_scale * 100).round()}%',
+                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              // nodes
-                              for (final node in _nodes)
-                                NodeWidget(
-                                  node: node,
-                                  isSelected: node.id == _selectedNodeId,
-                                  isConnectSource: node.id == _connectFromId,
-                                  onTap: () => _onNodeTap(node),
-                                  onLongPress: () => _onNodeLongPress(node),
-                                  onPanStart: (d) => _saveToHistory(),
-                                  onPanUpdate: (d) => _onNodePanUpdate(node, d),
-                                  onResizeStart: (d) => _saveToHistory(),
-                                  onResizeUpdate: (d) => _onNodeResizeUpdate(node, d),
-                                ),
-                              // waypoint drag handles
-                              if (!_globalHideJoints)
-                                for (final pipe in _pipes)
-                                  for (int i = 0; i < pipe.waypoints.length; i++)
-                                    WaypointHandle(
-                                      position: pipe.waypoints[i],
-                                      onPanStart: (d) => _saveToHistory(),
-                                      onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
-                                      onLongPress: () => _removeWaypoint(pipe, i),
-                                      color: pipe.id == _selectedPipeId
-                                          ? Colors.deepOrange
-                                          : const Color(0xFFFFA726),
-                                    ),
-                              // port handles for pumps
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.pump) ...[
-                                    // Discharge port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blue.withValues(alpha: 0.7),
-                                    ),
-                                    // Suction port (Input)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.sump) ...[
-                                    // Inlet port (Input)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blueGrey.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.overheadTank) ...[
-                                    // Inlet port (Input)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blue.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.well) ...[
-                                    // Suction port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.naturalSource) ...[
-                                    // Intake port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.mainFertilizerSource) ...[
-                                    // Inlet port (Input)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightGreen.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (Output)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.green.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.fertilizerTank) ...[
-                                    // Fertilizer Inlet port (Left Input)
-                                    WaypointHandle(
-                                      position: node.getPort('inlet', isInput: true),
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: const Color(0xFF2E7D32).withValues(alpha: 0.85),
-                                    ),
-                                    // Ordinary Pipe Inlet port (Top Input)
-                                    WaypointHandle(
-                                      position: node.getPort('top_inlet', isInput: true),
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'top_inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: const Color(0xFF1565C0).withValues(alpha: 0.85),
-                                    ),
-                                    // Outlet port (Output)
-                                    WaypointHandle(
-                                      position: node.getPort('outlet', isInput: false),
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: const Color(0xFF4CAF50).withValues(alpha: 0.85),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.multiInjector) ...[
-                                    // 4 top channel ports (Inputs)
-                                    for (int i = 0; i < 4; i++)
-                                      WaypointHandle(
-                                        position: node.getPort('channel_$i', isInput: true),
-                                        onPanStart: (d) => _onPortPanStart(
-                                          node,
-                                          isInput: true,
-                                          portId: 'channel_$i',
-                                          initialPos: node.getPort('channel_$i', isInput: true),
-                                        ),
-                                        onPanUpdate: _onPortPanUpdate,
-                                        onPanEnd: _onPortPanEnd,
-                                        onLongPress: () {},
-                                        color: Colors.lightBlue.withValues(alpha: 0.8),
-                                      ),
-                                    // Inlet port (left)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blueGrey.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (right)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.multiFilter) ...[
-                                    // Backwash port (top left)
-                                    WaypointHandle(
-                                      position: node.getPort('backwash', isInput: true),
-                                      onPanStart: (d) => _onPortPanStart(
-                                        node,
-                                        isInput: true,
-                                        portId: 'backwash',
-                                        initialPos: node.getPort('backwash', isInput: true),
-                                      ),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blueGrey.withValues(alpha: 0.8),
-                                    ),
-                                    // Inlet port (left)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.cyan.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (right)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.multiValve) ...[
-                                    // Inlet port (left)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blueGrey.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.mainValve ||
-                                      node.type == NodeType.multiMainValve ||
-                                      node.type == NodeType.singleMainValve ||
-                                      node.type == NodeType.singleTankValve) ...[
-                                    // Inlet port (top)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.cyan.withValues(alpha: 0.7),
-                                    ),
-                                    // Outlet port (bottom)
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.7),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.multiOutletTankValve) ...[
-                                    // Inlet port (top center)
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.cyan.withValues(alpha: 0.85),
-                                    ),
-                                    // 4 bottom channel ports (Outputs)
-                                    for (int i = 0; i < 4; i++)
-                                      WaypointHandle(
-                                        position: node.getPort('channel_$i', isInput: false),
-                                        onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'channel_$i'),
-                                        onPanUpdate: _onPortPanUpdate,
-                                        onPanEnd: _onPortPanEnd,
-                                        onLongPress: () {},
-                                        color: Colors.lightBlue.withValues(alpha: 0.85),
-                                      ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.multiAgitator) ...[
-                                    // Left Inlet port
-                                    WaypointHandle(
-                                      position: node.inputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.cyan.withValues(alpha: 0.85),
-                                    ),
-                                    // Right Outlet port
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.lightBlue.withValues(alpha: 0.85),
-                                    ),
-                                  ],
-                              if (!_globalHideJoints)
-                                for (final node in _nodes)
-                                  if (node.type == NodeType.blower) ...[
-                                    // Outlet port (Output) - Left side
-                                    WaypointHandle(
-                                      position: node.outputPort,
-                                      onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
-                                      onPanUpdate: _onPortPanUpdate,
-                                      onPanEnd: _onPortPanEnd,
-                                      onLongPress: () {},
-                                      color: Colors.blue.withValues(alpha: 0.85),
-                                    ),
-                                  ],
+                              IconButton(
+                                tooltip: 'Zoom out',
+                                icon: const Icon(Icons.zoom_out),
+                                onPressed: () => setState(() => _scale = (_scale - 0.1).clamp(0.4, 2.0).toDouble()),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(width: 24, height: 1, color: Colors.black12),
+                              const SizedBox(height: 4),
+                              IconButton(
+                                tooltip: 'Export configuration (JSON)',
+                                icon: const Icon(Icons.file_download),
+                                onPressed: _showExportDialog,
+                              ),
+                              IconButton(
+                                tooltip: 'Reset to default layout',
+                                icon: const Icon(Icons.restart_alt),
+                                onPressed: () {
+                                  _saveToHistory();
+                                  setState(_loadDefaultLayout);
+                                },
+                              ),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
-            _buildHint(),
           ],
         ),
       ),
@@ -1819,9 +1739,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(
           children: [
-            _toolButton(Icons.water, 'Source', () => _addNode(NodeType.source)),
             _toolButton(Icons.settings_input_component, 'Pump', () => _addNode(NodeType.pump)),
-            _toolButton(Icons.propane_tank_outlined, 'Tank', () => _addNode(NodeType.tank)),
             _toolButton(Icons.inbox, 'Sump', () => _addNode(NodeType.sump)),
             _toolButton(Icons.waves, 'Well', () => _addNode(NodeType.well)),
             _toolButton(Icons.architecture, 'OH Tank', () => _addNode(NodeType.overheadTank)),
@@ -1841,7 +1759,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             _toolButton(Icons.grass, 'Moisture Sensor', () => _addNode(NodeType.moistureSensor)),
             _toolButton(Icons.water_drop, 'Water Meter', () => _addNode(NodeType.waterMeter)),
             _toolButton(Icons.air, 'Air Blower', () => _addNode(NodeType.blower)),
-            _toolButton(Icons.call_split, 'Distribution', () => _addNode(NodeType.distribution)),
             const SizedBox(width: 12),
             const VerticalDivider(width: 1),
             const SizedBox(width: 12),
@@ -1890,20 +1807,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         onPressed: onPressed,
         icon: Icon(icon, size: 18),
         label: Text(label),
-      ),
-    );
-  }
-
-  Widget _buildHint() {
-    return Container(
-      width: double.infinity,
-      color: const Color(0xFFECEFF1),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Text(
-        _connectMode
-            ? 'Connect mode: tap a node or an existing pipe for the start point, then tap another node or pipe for the end point. Tapping a pipe drops a small junction there and branches your new pipe off it.'
-            : 'Drag any pump/tank to move it • Drag blue corner handle when selected to resize • Double-tap a pipe to add a bend point • Drag orange handle to reshape pipe • Long-press a node to edit size/labels/joints.',
-        style: const TextStyle(fontSize: 12, color: Colors.black87),
       ),
     );
   }

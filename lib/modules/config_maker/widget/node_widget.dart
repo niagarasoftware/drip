@@ -50,11 +50,9 @@ class NodeWidget extends StatelessWidget {
     switch (node.type) {
       case NodeType.pump:
         return Icons.settings_input_component;
-      case NodeType.source:
       case NodeType.naturalSource:
       case NodeType.well:
         return Icons.water;
-      case NodeType.tank:
       case NodeType.overheadTank:
         return Icons.propane_tank_outlined;
       case NodeType.sump:
@@ -63,10 +61,6 @@ class NodeWidget extends StatelessWidget {
         return Icons.science;
       case NodeType.fertilizerTank:
         return Icons.biotech;
-      case NodeType.distribution:
-        return Icons.call_split;
-      case NodeType.junction:
-        return Icons.circle;
       case NodeType.multiInjector:
         return Icons.tune;
       case NodeType.multiFilter:
@@ -100,11 +94,9 @@ class NodeWidget extends StatelessWidget {
     switch (node.type) {
       case NodeType.pump:
         return node.isOn ? const Color(0xFF1565C0) : Colors.grey;
-      case NodeType.source:
       case NodeType.naturalSource:
       case NodeType.well:
         return const Color(0xFF00897B);
-      case NodeType.tank:
       case NodeType.overheadTank:
         return const Color(0xFF3949AB);
       case NodeType.sump:
@@ -113,10 +105,6 @@ class NodeWidget extends StatelessWidget {
         return const Color(0xFF2E7D32);
       case NodeType.fertilizerTank:
         return const Color(0xFF0288D1);
-      case NodeType.distribution:
-        return const Color(0xFF6A1B9A);
-      case NodeType.junction:
-        return const Color(0xFF455A64);
       case NodeType.multiInjector:
         return const Color(0xFF1976D2);
       case NodeType.multiFilter:
@@ -154,61 +142,63 @@ class NodeWidget extends StatelessWidget {
     return Positioned(
       left: node.position.dx,
       top: node.position.dy,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            onLongPress: onLongPress,
-            onPanStart: onPanStart,
-            onPanUpdate: onPanUpdate,
-            child: Container(
-              width: node.size.width,
-              height: node.size.height,
-              padding: padding ?? const EdgeInsets.all(4),
-              decoration: decoration ??
-                  BoxDecoration(
-                    color: Colors.transparent,
-                    borderRadius: BorderRadius.circular(8),
-                    border: isSelected || isConnectSource
-                        ? Border.all(
-                            color: isConnectSource ? Colors.orange : Colors.blue,
-                            width: 2,
-                          )
-                        : null,
-                  ),
-              child: child,
+      child: RepaintBoundary(
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              onLongPress: onLongPress,
+              onPanStart: onPanStart,
+              onPanUpdate: onPanUpdate,
+              child: Container(
+                width: node.size.width,
+                height: node.size.height,
+                padding: padding ?? const EdgeInsets.all(4),
+                decoration: decoration ??
+                    BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: isSelected || isConnectSource
+                          ? Border.all(
+                              color: isConnectSource ? Colors.orange : Colors.blue,
+                              width: 2,
+                            )
+                          : null,
+                    ),
+                child: child,
+              ),
             ),
-          ),
-          if (isSelected && onResizeUpdate != null && node.type != NodeType.junction)
-            Positioned(
-              right: -10,
-              bottom: -10,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanStart: onResizeStart,
-                onPanUpdate: onResizeUpdate,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black38, blurRadius: 3),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.open_in_full,
-                    size: 11,
-                    color: Colors.white,
+            if (isSelected && onResizeUpdate != null)
+              Positioned(
+                right: -10,
+                bottom: -10,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: onResizeStart,
+                  onPanUpdate: onResizeUpdate,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.black38, blurRadius: 3),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.open_in_full,
+                      size: 11,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -218,39 +208,6 @@ class NodeWidget extends StatelessWidget {
     final borderColor = isConnectSource
         ? Colors.orange
         : (isSelected ? Colors.blue : Colors.grey.shade400);
-
-    if (node.type == NodeType.junction) {
-      if (!node.showJoints) return const SizedBox.shrink();
-      
-      // Small pass-through dot representing a pipe-to-pipe (T) joint —
-      // no icon/label, just a draggable, tappable marker.
-      return Positioned(
-        left: node.position.dx,
-        top: node.position.dy,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          onLongPress: onLongPress,
-          onPanStart: onPanStart,
-          onPanUpdate: onPanUpdate,
-          child: Container(
-            width: node.size.width,
-            height: node.size.height,
-            decoration: BoxDecoration(
-              color: const Color(0xFF37474F),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isConnectSource
-                    ? Colors.orange
-                    : (isSelected ? Colors.blue : Colors.white),
-                width: isSelected || isConnectSource ? 3 : 2,
-              ),
-              boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3)],
-            ),
-          ),
-        ),
-      );
-    }
 
     if (node.type == NodeType.pump) {
       return _buildWrapper(
@@ -540,20 +497,22 @@ class WaypointHandle extends StatelessWidget {
     return Positioned(
       left: position.dx - diameter / 2,
       top: position.dy - diameter / 2,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onPanStart: onPanStart,
-        onPanUpdate: onPanUpdate,
-        onPanEnd: onPanEnd,
-        onLongPress: onLongPress,
-        child: Container(
-          width: diameter,
-          height: diameter,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3)],
+      child: RepaintBoundary(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onPanStart: onPanStart,
+          onPanUpdate: onPanUpdate,
+          onPanEnd: onPanEnd,
+          onLongPress: onLongPress,
+          child: Container(
+            width: diameter,
+            height: diameter,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 3)],
+            ),
           ),
         ),
       ),
