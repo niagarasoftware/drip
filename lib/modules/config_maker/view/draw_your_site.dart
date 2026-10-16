@@ -954,50 +954,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _canvasNotifier.notify();
   }
 
-  Set<String> _getAirNodeIds() {
-    final Set<String> airNodeIds = {};
-    for (final node in _nodes) {
-      if (node.type == NodeType.blower) {
-        airNodeIds.add(node.id);
-      }
-    }
-    for (final pipe in _pipes) {
-      final from = _findNode(pipe.fromNodeId);
-      final to = _findNode(pipe.toNodeId);
-      if (from == null || to == null) continue;
-      if (from.type == NodeType.fertilizerTank && pipe.fromPortId == 'top_inlet') {
-        airNodeIds.add(from.id);
-      }
-      if (to.type == NodeType.fertilizerTank && pipe.toPortId == 'top_inlet') {
-        airNodeIds.add(to.id);
-      }
-    }
-
-    // Air propagates through junction (T / cross) fittings.
-    bool added = true;
-    while (added) {
-      added = false;
-      for (final pipe in _pipes) {
-        final from = _findNode(pipe.fromNodeId);
-        final to = _findNode(pipe.toNodeId);
-        if (from == null || to == null) continue;
-
-        if (airNodeIds.contains(pipe.fromNodeId)) {
-          if (to.type == NodeType.junction && !airNodeIds.contains(to.id)) {
-            airNodeIds.add(to.id);
-            added = true;
-          }
-        }
-        if (airNodeIds.contains(pipe.toNodeId)) {
-          if (from.type == NodeType.junction && !airNodeIds.contains(from.id)) {
-            airNodeIds.add(from.id);
-            added = true;
-          }
-        }
-      }
-    }
-    return airNodeIds;
-  }
+  Set<String> _getAirNodeIds() => computeAirNodeIds(_nodes, _pipes);
 
   bool _isAirSource(NodeObject node) {
     if (node.type == NodeType.blower) return true;
@@ -1792,9 +1749,16 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         final leftInlet = node.getPort('inlet', isInput: true);
         final topInlet = node.getPort('top_inlet', isInput: true);
         final outlet = node.getPort('outlet', isInput: false);
-        final ports = [
+        // The top port is AIR ONLY; the side inlet / bottom outlet are LIQUID
+        // ONLY. Offer just the ports that match the pipe being dragged, so an
+        // air hose can never land on a fertilizer port (or the reverse).
+        final dragFrom = _connectFromId != null ? _findNode(_connectFromId!) : null;
+        final bool dragIsAir = _connectFromPortId == 'top_inlet' ||
+            (dragFrom != null && _isAirSource(dragFrom));
+        final ports = dragIsAir
+            ? [MapEntry('top_inlet', (topInlet - pos).distance)]
+            : [
           MapEntry('inlet', (leftInlet - pos).distance),
-          MapEntry('top_inlet', (topInlet - pos).distance),
           MapEntry('outlet', (outlet - pos).distance),
         ];
         ports.sort((a, b) => a.value.compareTo(b.value));

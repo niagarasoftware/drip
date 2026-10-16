@@ -62,50 +62,7 @@ class PipePainter extends CustomPainter {
     return null;
   }
 
-  Set<String> _getAirNodeIds() {
-    final Set<String> airNodeIds = {};
-    for (final node in nodes) {
-      if (node.type == NodeType.blower) {
-        airNodeIds.add(node.id);
-      }
-    }
-    for (final pipe in pipes) {
-      final from = _findNode(pipe.fromNodeId);
-      final to = _findNode(pipe.toNodeId);
-      if (from == null || to == null) continue;
-      if (from.type == NodeType.fertilizerTank && pipe.fromPortId == 'top_inlet') {
-        airNodeIds.add(from.id);
-      }
-      if (to.type == NodeType.fertilizerTank && pipe.toPortId == 'top_inlet') {
-        airNodeIds.add(to.id);
-      }
-    }
-
-    // Air propagates through junction (T / cross) fittings.
-    bool added = true;
-    while (added) {
-      added = false;
-      for (final pipe in pipes) {
-        final from = _findNode(pipe.fromNodeId);
-        final to = _findNode(pipe.toNodeId);
-        if (from == null || to == null) continue;
-
-        if (airNodeIds.contains(pipe.fromNodeId)) {
-          if (to.type == NodeType.junction && !airNodeIds.contains(to.id)) {
-            airNodeIds.add(to.id);
-            added = true;
-          }
-        }
-        if (airNodeIds.contains(pipe.toNodeId)) {
-          if (from.type == NodeType.junction && !airNodeIds.contains(from.id)) {
-            airNodeIds.add(from.id);
-            added = true;
-          }
-        }
-      }
-    }
-    return airNodeIds;
-  }
+  Set<String> _getAirNodeIds() => computeAirNodeIds(nodes, pipes);
 
   /// Ids of pipes that carry fertilizer. A pipe is fertilizer if its own
   /// endpoints say so, or if it is the other half of a fertilizer run that
@@ -169,15 +126,20 @@ class PipePainter extends CustomPainter {
     return result;
   }
 
+  /// A pipe is an AIR pipe only when:
+  ///  * it touches a blower, or
+  ///  * it touches the TOP port of a fertilizer tank (that port is air-only), or
+  ///  * both its ends are junctions of a pure-air network (see [computeAirNodeIds]).
+  /// Everything else is liquid. A junction shared with liquid pipes is never
+  /// treated as air, so fertilizer pipes can no longer be recoloured by air.
   bool _isAirPipe(PipeConnection pipe, NodeObject from, NodeObject to, Set<String> airNodeIds) {
-    if (from.type == NodeType.blower || to.type == NodeType.blower) {
-      return true;
-    }
-    if ((from.type == NodeType.fertilizerTank && pipe.fromPortId == 'top_inlet') ||
-        (to.type == NodeType.fertilizerTank && pipe.toPortId == 'top_inlet')) {
-      return true;
-    }
-    if (airNodeIds.contains(pipe.fromNodeId) && airNodeIds.contains(pipe.toNodeId)) {
+    if (from.type == NodeType.blower || to.type == NodeType.blower) return true;
+    if (from.type == NodeType.fertilizerTank && pipe.fromPortId == 'top_inlet') return true;
+    if (to.type == NodeType.fertilizerTank && pipe.toPortId == 'top_inlet') return true;
+    if (from.type == NodeType.junction &&
+        to.type == NodeType.junction &&
+        airNodeIds.contains(from.id) &&
+        airNodeIds.contains(to.id)) {
       return true;
     }
     return false;
@@ -1215,4 +1177,69 @@ Offset portPosition(NodeObject node, String? portId, {required bool isInput}) {
     return node.position + Offset(node.size.width / 2, node.size.height / 2);
   }
   return node.getPort(portId, isInput: isInput);
+}
+
+/// Ids of nodes that belong to a PURE air network: every blower, plus every
+/// junction whose connected group of junctions reaches only air terminals
+/// (a blower outlet or a fertilizer tank's top port) and no liquid terminal.
+///
+/// A junction group that also touches a liquid port (pump, valve, tank side
+/// inlet/outlet, injector...) is mixed and is NOT air, so connecting a blower
+/// can never turn the fertilizer pipes blue.
+Set<String> computeAirNodeIds(List<NodeObject> nodes, List<PipeConnection> pipes) {
+  final byId = {for (final n in nodes) n.id: n};
+  final result = <String>{
+    for (final n in nodes)
+      if (n.type == NodeType.blower) n.id,
+  };
+
+  // union-find over junctions
+  final parent = <String, String>{};
+  String find(String x) {
+    var r = x;
+    while (parent[r] != r) {
+      r = parent[r]!;
+    }
+    while (parent[x] != r) {
+      final nx = parent[x]!;
+      parent[x] = r;
+      x = nx;
+    }
+    return r;
+  }
+
+  bool isJ(String id) => byId[id]?.type == NodeType.junction;
+  for (final n in nodes) {
+    if (n.type == NodeType.junction) parent[n.id] = n.id;
+  }
+  for (final p in pipes) {
+    if (isJ(p.fromNodeId) && isJ(p.toNodeId)) {
+      parent[find(p.fromNodeId)] = find(p.toNodeId);
+    }
+  }
+
+  final airTerminals = <String, int>{};
+  final liquidTerminals = <String, int>{};
+  void terminal(String junctionId, NodeObject? other, String? port) {
+    if (other == null) return;
+    final root = find(junctionId);
+    final bool air = other.type == NodeType.blower ||
+        (other.type == NodeType.fertilizerTank && port == 'top_inlet');
+    final map = air ? airTerminals : liquidTerminals;
+    map[root] = (map[root] ?? 0) + 1;
+  }
+
+  for (final p in pipes) {
+    final fj = isJ(p.fromNodeId), tj = isJ(p.toNodeId);
+    if (fj && !tj) terminal(p.fromNodeId, byId[p.toNodeId], p.toPortId);
+    if (tj && !fj) terminal(p.toNodeId, byId[p.fromNodeId], p.fromPortId);
+  }
+
+  for (final id in parent.keys) {
+    final root = find(id);
+    if ((airTerminals[root] ?? 0) > 0 && (liquidTerminals[root] ?? 0) == 0) {
+      result.add(id);
+    }
+  }
+  return result;
 }
