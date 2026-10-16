@@ -121,12 +121,15 @@ class PipePainter extends CustomPainter {
       if (_isFertilizerPipe(pipe, from, to, airNodeIds)) result.add(pipe.id);
     }
 
-    // Pipes attached to each junction.
+    // Pipes attached to each junction or tank valve.
     final Map<String, List<PipeConnection>> attached = {};
     for (final pipe in pipes) {
       for (final id in [pipe.fromNodeId, pipe.toNodeId]) {
         final n = _findNode(id);
-        if (n != null && n.type == NodeType.junction) {
+        if (n != null &&
+            (n.type == NodeType.junction ||
+                n.type == NodeType.singleTankValve ||
+                n.type == NodeType.multiOutletTankValve)) {
           attached.putIfAbsent(id, () => []).add(pipe);
         }
       }
@@ -136,18 +139,31 @@ class PipePainter extends CustomPainter {
     while (added) {
       added = false;
       attached.forEach((junctionId, list) {
-        if (list.length != 2) return;
-        final a = list[0], b = list[1];
-        final aFert = result.contains(a.id);
-        final bFert = result.contains(b.id);
-        if (aFert == bFert) return;
-        final other = aFert ? b : a;
-        final from = _findNode(other.fromNodeId);
-        final to = _findNode(other.toNodeId);
-        if (from == null || to == null) return;
-        if (_isAirPipe(other, from, to, airNodeIds)) return;
-        result.add(other.id);
-        added = true;
+        if (list.length < 2) return;
+        final bool hasFertilizer = list.any((p) => result.contains(p.id));
+        if (!hasFertilizer) return;
+        for (final p in list) {
+          if (!result.contains(p.id)) {
+            final from = _findNode(p.fromNodeId);
+            final to = _findNode(p.toNodeId);
+            if (from == null || to == null) continue;
+            if (_isAirPipe(p, from, to, airNodeIds)) continue;
+
+            // Do not propagate fertilizer onto water sources
+            final bool isFromWaterSource = from.type == NodeType.sump ||
+                from.type == NodeType.well ||
+                from.type == NodeType.overheadTank ||
+                from.type == NodeType.naturalSource;
+            final bool isToWaterSource = to.type == NodeType.sump ||
+                to.type == NodeType.well ||
+                to.type == NodeType.overheadTank ||
+                to.type == NodeType.naturalSource;
+            if (isFromWaterSource || isToWaterSource) continue;
+
+            result.add(p.id);
+            added = true;
+          }
+        }
       });
     }
     return result;
@@ -171,13 +187,24 @@ class PipePainter extends CustomPainter {
     if (_isAirPipe(pipe, from, to, airNodeIds)) {
       return false;
     }
+
+    // Tank valves used to fill or drain water sources carry water (ordinary pipe)
+    final bool isFromWaterSource = from.type == NodeType.sump ||
+        from.type == NodeType.well ||
+        from.type == NodeType.overheadTank ||
+        from.type == NodeType.naturalSource;
+    final bool isToWaterSource = to.type == NodeType.sump ||
+        to.type == NodeType.well ||
+        to.type == NodeType.overheadTank ||
+        to.type == NodeType.naturalSource;
+    if (isFromWaterSource || isToWaterSource) {
+      return false;
+    }
+
     if (from.type == NodeType.mainFertilizerSource ||
         to.type == NodeType.mainFertilizerSource) {
       return true;
     }
-    bool isCh(String? id) =>
-        id != null &&
-            (id.startsWith('channel_') || id.startsWith('outlet_') || id == 'outlet');
 
     final bool fromFertTank =
         from.type == NodeType.fertilizerTank && pipe.fromPortId != 'top_inlet';
@@ -187,12 +214,8 @@ class PipePainter extends CustomPainter {
         (pipe.fromPortId?.startsWith('channel_') ?? false);
     final bool toInj = to.type == NodeType.multiInjector &&
         (pipe.toPortId?.startsWith('channel_') ?? false);
-    final bool fromValve =
-        from.type == NodeType.multiOutletTankValve && isCh(pipe.fromPortId);
-    final bool toValve =
-        to.type == NodeType.multiOutletTankValve && isCh(pipe.toPortId);
 
-    return fromFertTank || toFertTank || fromInj || toInj || fromValve || toValve;
+    return fromFertTank || toFertTank || fromInj || toInj;
   }
 
   @override
@@ -291,8 +314,10 @@ class PipePainter extends CustomPainter {
           isFertilizerDrag = (pendingFromPortId != 'top_inlet');
         } else if (from.type == NodeType.multiInjector) {
           isFertilizerDrag = (pendingFromPortId != null && pendingFromPortId!.startsWith('channel_'));
-        } else if (from.type == NodeType.multiOutletTankValve) {
-          isFertilizerDrag = (pendingFromPortId != null && (pendingFromPortId!.startsWith('channel_') || pendingFromPortId!.startsWith('outlet_') || pendingFromPortId == 'outlet'));
+        } else if (from.type == NodeType.singleTankValve || from.type == NodeType.multiOutletTankValve) {
+          isFertilizerDrag = pipes.any((p) =>
+              fertilizerPipeIds.contains(p.id) &&
+              (p.fromNodeId == from.id || p.toNodeId == from.id));
         }
 
         if (!isAirDrag && !isFertilizerDrag && pendingDragPos != null) {
@@ -331,13 +356,12 @@ class PipePainter extends CustomPainter {
                   break;
                 }
               }
-            } else if (n.type == NodeType.multiOutletTankValve) {
-              for (int i = 0; i < n.outletPortCount; i++) {
-                final p = n.getPort('channel_$i', isInput: false);
-                if ((p - pendingDragPos!).distance < 40) {
-                  isFertilizerDrag = true;
-                  break;
-                }
+            } else if (n.type == NodeType.singleTankValve || n.type == NodeType.multiOutletTankValve) {
+              if (pipes.any((p) =>
+                  fertilizerPipeIds.contains(p.id) &&
+                  (p.fromNodeId == n.id || p.toNodeId == n.id))) {
+                isFertilizerDrag = true;
+                break;
               }
             }
           }

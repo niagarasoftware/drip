@@ -964,9 +964,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  // ───────────────────────────────────────────────────────────
-  //  PARAMETER HANDLERS
-  // ───────────────────────────────────────────────────────────
   Widget _buildParameterTileForPump(SourceModel source, int pumpMode, Color accent) {
     List<double> currentParameter = pumpMode == 1 ? source.inletPump : source.outletPump;
     List<double> checkingParameter = pumpMode == 1 ? source.outletPump : source.inletPump;

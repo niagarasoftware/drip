@@ -1,0 +1,69 @@
+var multiTankPayload = {
+  'sNo': 1,
+  'mode': 1,
+  'selectedSource': [
+    {
+      'sNo': 1,
+      'name': 'Tank 1',
+      'sourceType': 1,
+      'tankValve': [
+        {
+          'sNo': 1,
+          'name': 'Tank valve 1',
+          'active': true
+        }
+      ],
+      'mainValve': [
+        {
+          'sNo': 1,
+          'name': 'Main valve 1',
+          'active': true
+        }
+      ],
+      'pump': [
+        {
+          'sNo': 1,
+          'name': 'pump 1',
+          'active': true
+        }
+      ],
+      'level': {
+        'sNo': 1,
+        'name': '',
+        'startWhen': 0,
+        'stopWhen': 0,
+        'active': true
+      },
+      'bottomFloat': {
+        'sNo': 1,
+        'name': '',
+        'active': true
+      },
+      'topFloat': {
+        'sNo': 1,
+        'name': '',
+        'active': true
+      },
+    },
+  ],
+  'priority' : [
+    {
+      'sNo': 1,
+      'name': 'Tank 1',
+      'sensor':{
+        'sNo': 1,
+        'name': 'Level sensor',
+        'value': 0.0
+      }
+    },
+    {
+      'sNo': 1,
+      'name': 'Tank 2',
+      'sensor':{
+        'sNo': 1,
+        'name': 'Float',
+        'value': 0.0
+      }
+    }
+  ]
+};
