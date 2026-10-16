@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../model/channel_config_model.dart';
 import '../model/node_type_model.dart';
+import '../model/pump_model.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/node_widget.dart';
 import '../widget/painter/pipe_painter.dart';
@@ -51,7 +53,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_nodes.isEmpty && mounted) {
           final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
-          if (configPvd.source.isNotEmpty || configPvd.pump.isNotEmpty) {
+          if (configPvd.source.isNotEmpty ||
+              configPvd.pump.isNotEmpty ||
+              configPvd.fertilization.isNotEmpty ||
+              configPvd.channelConfig.isNotEmpty) {
             _generateFromSourceConfig(showSnackBar: false);
           }
         }
@@ -86,12 +91,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
     final sources = configPvd.source;
     final pumps = configPvd.pump;
+    final fertSites = configPvd.fertilization;
+    final channelConfigs = configPvd.channelConfig;
 
-    if (sources.isEmpty && pumps.isEmpty) {
+    if (sources.isEmpty && pumps.isEmpty && fertSites.isEmpty && channelConfigs.isEmpty) {
       if (showSnackBar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No source or pump configuration found in Source Configuration.'),
+            content: Text('No configuration found for sources, pumps, or fertilization.'),
             duration: Duration(seconds: 2),
           ),
         );
@@ -104,309 +111,659 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _pipes.clear();
     _idCounter = 0;
 
-    // ---------------------------------------------------------------- nodes
-    final Map<double, NodeObject> sourceMap = {};
-    final Map<double, NodeObject> pumpMap = {};
+    // Separate water configuration and fertilization configuration
+    final waterSources = sources.where((s) => s.sourceType >= 1 && s.sourceType <= 5).toList();
+    final mainFertSources = sources.where((s) => s.sourceType == 6).toList();
+    final fertTanks = sources.where((s) => s.sourceType == 7).toList();
 
-    for (final src in sources) {
-      final double sNo = src.commonDetails.sNo ?? 0.0;
-      final NodeType type = _getNodeTypeForSource(src.sourceType);
-      final String label = (src.commonDetails.name?.isNotEmpty == true)
-          ? src.commonDetails.name!
-          : _defaultLabelFor(type);
-      final node = NodeObject(
-        id: _nextId('source_${sNo.toInt()}'),
-        position: Offset.zero,
-        type: type,
-        size: const Size(91, 63),
-        label: label,
-        showJoints: !_globalHideJoints,
-      );
-      node.size = node.defaultSize;
-      _nodes.add(node);
-      sourceMap[sNo] = node;
+    // Collect sNos of pumps used by fertilizer sources/sites
+    final fertPumpSNos = <double>{};
+    for (final mfs in mainFertSources) {
+      fertPumpSNos.addAll(mfs.inletPump);
+      fertPumpSNos.addAll(mfs.outletPump);
+    }
+    for (final ft in fertTanks) {
+      fertPumpSNos.addAll(ft.inletPump);
+      fertPumpSNos.addAll(ft.outletPump);
+    }
+    for (final fs in fertSites) {
+      fertPumpSNos.addAll(fs.boosterPump);
     }
 
-    for (final p in pumps) {
-      final double sNo = p.commonDetails.sNo ?? 0.0;
-      final String label = (p.commonDetails.name?.isNotEmpty == true)
-          ? p.commonDetails.name!
-          : 'Pump ${sNo.toInt()}';
-      final node = NodeObject(
-        id: _nextId('pump_${sNo.toInt()}'),
-        position: Offset.zero,
-        type: NodeType.pump,
-        label: label,
-        isOn: true,
-        showJoints: !_globalHideJoints,
-      );
-      node.size = node.defaultSize;
-      _nodes.add(node);
-      pumpMap[sNo] = node;
-    }
+    final waterPumps = pumps.where((p) => !fertPumpSNos.contains(p.commonDetails.sNo)).toList();
+    final fertPumps = pumps.where((p) => fertPumpSNos.contains(p.commonDetails.sNo)).toList();
 
-    // ---------------------------------------------------------------- edges
-    final List<_LayoutEdge> edges = [];
-    final Set<String> edgeKeys = {}; // from.port > to.port (unique pipe)
-    final Set<String> pairKeys = {}; // from > to (used for loop detection)
-    void addEdge(NodeObject from, NodeObject to, String fp, String tp) {
-      if (edgeKeys.add('${from.id}.$fp>${to.id}.$tp')) {
-        edges.add(_LayoutEdge(from, to, fp, tp));
-        pairKeys.add('${from.id}>${to.id}');
+    // -------------------------------------------------------------------------
+    // WATER FORMATION (Top section - sources sourceType 1..5 and water pumps)
+    // -------------------------------------------------------------------------
+    if (waterSources.isNotEmpty || waterPumps.isNotEmpty) {
+      final Map<double, NodeObject> sourceMap = {};
+      final Map<double, NodeObject> pumpMap = {};
+
+      for (final src in waterSources) {
+        final double sNo = src.commonDetails.sNo ?? 0.0;
+        final NodeType type = _getNodeTypeForSource(src.sourceType);
+        final String label = (src.commonDetails.name?.isNotEmpty == true)
+            ? src.commonDetails.name!
+            : _defaultLabelFor(type);
+        final node = NodeObject(
+          id: _nextId('source_${sNo.toInt()}'),
+          position: Offset.zero,
+          type: type,
+          size: const Size(91, 63),
+          label: label,
+          showJoints: !_globalHideJoints,
+        );
+        node.size = node.defaultSize;
+        _nodes.add(node);
+        sourceMap[sNo] = node;
       }
-    }
 
-    final Map<double, NodeObject> tankValveMap = {};
+      for (final p in waterPumps) {
+        final double sNo = p.commonDetails.sNo ?? 0.0;
+        final String label = (p.commonDetails.name?.isNotEmpty == true)
+            ? p.commonDetails.name!
+            : 'Pump ${sNo.toInt()}';
+        final node = NodeObject(
+          id: _nextId('pump_${sNo.toInt()}'),
+          position: Offset.zero,
+          type: NodeType.pump,
+          label: label,
+          isOn: true,
+          showJoints: !_globalHideJoints,
+        );
+        node.size = node.defaultSize;
+        _nodes.add(node);
+        pumpMap[sNo] = node;
+      }
 
-    for (final src in sources) {
-      final double sNo = src.commonDetails.sNo ?? 0.0;
-      final sn = sourceMap[sNo];
-      if (sn == null) continue;
+      final List<_LayoutEdge> edges = [];
+      final Set<String> edgeKeys = {}; // from.port > to.port (unique pipe)
+      final Set<String> pairKeys = {}; // from > to (used for loop detection)
+      void addEdge(NodeObject from, NodeObject to, String fp, String tp) {
+        if (edgeKeys.add('${from.id}.$fp>${to.id}.$tp')) {
+          edges.add(_LayoutEdge(from, to, fp, tp));
+          pairKeys.add('${from.id}>${to.id}');
+        }
+      }
 
-      // Create Tank Valve nodes if assigned
-      NodeObject? inletValveNode;
-      if (src.inletTankValve.isNotEmpty) {
-        final double vSNo = src.inletTankValve.first;
-        if (tankValveMap.containsKey(vSNo)) {
-          inletValveNode = tankValveMap[vSNo]!;
-        } else {
-          final bool isMulti = src.isMultiInletTankValve;
-          inletValveNode = NodeObject(
-            id: _nextId('inlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
-            position: Offset.zero,
-            type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
-            label: '${src.commonDetails.name ?? 'Source'} Inlet Valve',
-            outletPortCount: src.inletTankValvePortCount,
-            isHorizontal: true,
-            showJoints: !_globalHideJoints,
-          );
-          inletValveNode.size = inletValveNode.defaultSize;
-          _nodes.add(inletValveNode);
-          tankValveMap[vSNo] = inletValveNode;
+      final Map<double, NodeObject> tankValveMap = {};
+
+      for (final src in waterSources) {
+        final double sNo = src.commonDetails.sNo ?? 0.0;
+        final sn = sourceMap[sNo];
+        if (sn == null) continue;
+
+        // Create Tank Valve nodes if assigned
+        NodeObject? inletValveNode;
+        if (src.inletTankValve.isNotEmpty) {
+          final double vSNo = src.inletTankValve.first;
+          if (tankValveMap.containsKey(vSNo)) {
+            inletValveNode = tankValveMap[vSNo]!;
+          } else {
+            final bool isMulti = src.isMultiInletTankValve;
+            inletValveNode = NodeObject(
+              id: _nextId('inlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
+              position: Offset.zero,
+              type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+              label: '${src.commonDetails.name ?? 'Source'} Inlet Valve',
+              outletPortCount: src.inletTankValvePortCount,
+              isHorizontal: true,
+              showJoints: !_globalHideJoints,
+            );
+            inletValveNode.size = inletValveNode.defaultSize;
+            _nodes.add(inletValveNode);
+            tankValveMap[vSNo] = inletValveNode;
+          }
+
+          final bool multiValve = inletValveNode.type == NodeType.multiOutletTankValve;
+          final int channels = multiValve ? math.max(1, inletValveNode.outletPortCount) : 1;
+          for (int c = 0; c < channels; c++) {
+            addEdge(
+              inletValveNode,
+              sn,
+              multiValve ? 'channel_$c' : 'outlet',
+              'inlet',
+            );
+          }
         }
 
-        // Pipe(s) from inlet valve to source. A multi-outlet valve has one
-        // outlet port per channel: join ALL of them to the source inlet (the
-        // router merges them into a single trunk with tee fittings).
-        final bool multiValve = inletValveNode.type == NodeType.multiOutletTankValve;
-        final int channels = multiValve ? math.max(1, inletValveNode.outletPortCount) : 1;
-        for (int c = 0; c < channels; c++) {
+        NodeObject? outletValveNode;
+        if (src.outletTankValve.isNotEmpty) {
+          final double vSNo = src.outletTankValve.first;
+          if (tankValveMap.containsKey(vSNo)) {
+            outletValveNode = tankValveMap[vSNo]!;
+          } else {
+            final bool isMulti = src.isMultiOutletTankValve;
+            outletValveNode = NodeObject(
+              id: _nextId('outlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
+              position: Offset.zero,
+              type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+              label: '${src.commonDetails.name ?? 'Source'} Outlet Valve',
+              outletPortCount: src.outletTankValvePortCount,
+              isHorizontal: true,
+              showJoints: !_globalHideJoints,
+            );
+            outletValveNode.size = outletValveNode.defaultSize;
+            _nodes.add(outletValveNode);
+            tankValveMap[vSNo] = outletValveNode;
+          }
+
           addEdge(
-            inletValveNode,
             sn,
-            multiValve ? 'channel_$c' : 'outlet',
-            sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
+            outletValveNode,
+            'outlet',
+            'inlet',
+          );
+        }
+
+        // Connect inlet pumps
+        for (final pNo in src.inletPump) {
+          final pn = pumpMap[pNo];
+          if (pn == null) continue;
+          if (inletValveNode != null) {
+            addEdge(pn, inletValveNode, 'output', 'inlet');
+          } else {
+            addEdge(pn, sn, 'output', 'inlet');
+          }
+        }
+
+        // Connect outlet pumps
+        for (final pNo in src.outletPump) {
+          final pn = pumpMap[pNo];
+          if (pn == null) continue;
+          if (outletValveNode != null) {
+            addEdge(
+              outletValveNode,
+              pn,
+              outletValveNode.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet',
+              'input',
+            );
+          } else {
+            addEdge(sn, pn, 'outlet', 'input');
+          }
+        }
+      }
+
+      // 1. Layering
+      final layeringEdges =
+          edges.where((e) => !pairKeys.contains('${e.to.id}>${e.from.id}')).toList();
+      final Map<String, int> rawLayer = {for (final n in _nodes) n.id: 0};
+      for (int it = 0; it < _nodes.length; it++) {
+        bool changed = false;
+        for (final e in layeringEdges) {
+          final next = rawLayer[e.from.id]! + 1;
+          if (rawLayer[e.to.id]! < next) {
+            rawLayer[e.to.id] = next;
+            changed = true;
+          }
+        }
+        if (!changed) break;
+      }
+      final usedLayers = rawLayer.values.toSet().toList()..sort();
+      final Map<String, int> layerOf = {
+        for (final n in _nodes) n.id: usedLayers.indexOf(rawLayer[n.id]!),
+      };
+      final int L = usedLayers.length;
+      final List<List<NodeObject>> layers = List.generate(L, (_) => <NodeObject>[]);
+      for (final n in _nodes) {
+        layers[layerOf[n.id]!].add(n);
+      }
+
+      final Map<String, List<NodeObject>> neighbours = {
+        for (final n in _nodes) n.id: <NodeObject>[],
+      };
+      for (final e in edges) {
+        neighbours[e.from.id]!.add(e.to);
+        neighbours[e.to.id]!.add(e.from);
+      }
+
+      // 2. Order inside columns
+      void sortLayer(int l, int ref) {
+        if (ref < 0 || ref >= L) return;
+        final refIdx = {for (int i = 0; i < layers[ref].length; i++) layers[ref][i].id: i};
+        final curIdx = {for (int i = 0; i < layers[l].length; i++) layers[l][i].id: i};
+        double key(NodeObject n) {
+          final idxs = neighbours[n.id]!
+              .where((m) => refIdx.containsKey(m.id))
+              .map((m) => refIdx[m.id]!)
+              .toList();
+          if (idxs.isEmpty) return curIdx[n.id]!.toDouble();
+          return idxs.reduce((a, b) => a + b) / idxs.length;
+        }
+
+        final keys = {for (final n in layers[l]) n.id: key(n)};
+        layers[l].sort((a, b) {
+          final c = keys[a.id]!.compareTo(keys[b.id]!);
+          return c != 0 ? c : curIdx[a.id]!.compareTo(curIdx[b.id]!);
+        });
+      }
+
+      for (int it = 0; it < 4; it++) {
+        for (int l = 1; l < L; l++) {
+          sortLayer(l, l - 1);
+        }
+        for (int l = L - 2; l >= 0; l--) {
+          sortLayer(l, l + 1);
+        }
+      }
+
+      // 3. X positions
+      final laneCount = List<int>.filled(math.max(L - 1, 1), 0);
+      for (final e in edges) {
+        final fl = layerOf[e.from.id]!, tl = layerOf[e.to.id]!;
+        if (tl > fl) laneCount[tl - 1]++;
+      }
+      final gaps = [for (final c in laneCount) 48.0 + 18.0 * math.max(c - 1, 0)];
+      final colW = [
+        for (final layer in layers) layer.map((n) => n.size.width).reduce(math.max),
+      ];
+      final colX = List<double>.filled(L, 0);
+      double x = 40.0;
+      for (int i = 0; i < L; i++) {
+        colX[i] = x;
+        x += colW[i] + (i < L - 1 ? gaps[i] : 0);
+      }
+
+      // 4. Y positions
+      const double vGap = 24.0;
+      double block(NodeObject n) =>
+          n.size.height + (n.type == NodeType.overheadTank ? 34.0 : 0.0);
+
+      final Map<String, double> top = {};
+      final colH = [
+        for (final layer in layers)
+          layer.fold<double>(0, (s, n) => s + block(n)) + vGap * (layer.length - 1),
+      ];
+      final double maxColH = colH.reduce(math.max);
+      for (int l = 0; l < L; l++) {
+        double y = (maxColH - colH[l]) / 2;
+        for (final n in layers[l]) {
+          top[n.id] = y;
+          y += block(n) + vGap;
+        }
+      }
+
+      double centerOf(NodeObject n) => top[n.id]! + n.size.height / 2;
+
+      void relax(int l) {
+        final layer = layers[l];
+        final desired = <double>[];
+        for (final n in layer) {
+          final nb = neighbours[n.id]!.where((m) => layerOf[m.id] != l).toList();
+          if (nb.isEmpty) {
+            desired.add(top[n.id]!);
+          } else {
+            final avg = nb.map(centerOf).reduce((a, b) => a + b) / nb.length;
+            desired.add(avg - n.size.height / 2);
+          }
+        }
+        double cursor = -double.infinity;
+        for (int i = 0; i < layer.length; i++) {
+          final t = math.max(desired[i], cursor);
+          top[layer[i].id] = t;
+          cursor = t + block(layer[i]) + vGap;
+        }
+      }
+
+      for (int it = 0; it < 4; it++) {
+        for (int l = 0; l < L; l++) {
+          relax(l);
+        }
+        for (int l = L - 1; l >= 0; l--) {
+          relax(l);
+        }
+      }
+
+      final double shiftY = 30.0 - top.values.reduce(math.min);
+      for (int l = 0; l < L; l++) {
+        for (final n in layers[l]) {
+          n.position = Offset(
+            colX[l] + (colW[l] - n.size.width) / 2,
+            top[n.id]! + shiftY,
           );
         }
       }
 
-      NodeObject? outletValveNode;
-      if (src.outletTankValve.isNotEmpty) {
-        final double vSNo = src.outletTankValve.first;
-        if (tankValveMap.containsKey(vSNo)) {
-          outletValveNode = tankValveMap[vSNo]!;
-        } else {
-          final bool isMulti = src.isMultiOutletTankValve;
-          outletValveNode = NodeObject(
-            id: _nextId('outlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
-            position: Offset.zero,
-            type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
-            label: '${src.commonDetails.name ?? 'Source'} Outlet Valve',
-            outletPortCount: src.outletTankValvePortCount,
+      // 5. Clean pipe routing for water edges
+      _snapNearStraightEdges(edges);
+      _buildCleanPipes(edges, layerOf, colX, colW);
+    }
+
+    // -------------------------------------------------------------------------
+    // FERTILIZATION FORMATION (Placed under Water & Pump formation)
+    // -------------------------------------------------------------------------
+    final bool hasFertData = mainFertSources.isNotEmpty ||
+        fertTanks.isNotEmpty ||
+        fertSites.isNotEmpty ||
+        channelConfigs.isNotEmpty ||
+        fertPumps.isNotEmpty;
+
+    if (hasFertData) {
+      final double fertStartY = _nodes.isNotEmpty
+          ? math.max(380.0, _nodes.map((n) => n.position.dy + n.size.height).reduce(math.max) + 100.0)
+          : 40.0;
+
+      // Row 1: Main Fert Source + Pump (Left) & Air Blower (Right)
+      final double row1Y = fertStartY;
+      NodeObject? supplyStartNode;
+      String? supplyStartPort;
+
+      final Map<double, NodeObject> mainFertNodeMap = {};
+      final Map<double, NodeObject> fertPumpNodeMap = {};
+
+      double mfsX = 40.0;
+      for (final mfs in mainFertSources) {
+        final double sNo = mfs.commonDetails.sNo ?? 0.0;
+        final String label = (mfs.commonDetails.name?.isNotEmpty == true)
+            ? mfs.commonDetails.name!
+            : 'Main Fert Source';
+        final mfsNode = NodeObject(
+          id: _nextId('main_fert_${sNo.toInt()}'),
+          position: Offset(mfsX, row1Y + 20.0),
+          type: NodeType.mainFertilizerSource,
+          size: const Size(98, 70),
+          label: label,
+          showJoints: !_globalHideJoints,
+        );
+        mfsNode.size = mfsNode.defaultSize;
+        _nodes.add(mfsNode);
+        mainFertNodeMap[sNo] = mfsNode;
+
+        supplyStartNode = mfsNode;
+        supplyStartPort = 'outlet';
+
+        // Outlet pump for Main Fert Source (e.g. "New Pump")
+        if (mfs.outletPump.isNotEmpty) {
+          final double pNo = mfs.outletPump.first;
+          final pumpModel = pumps.cast<PumpModel?>().firstWhere(
+            (p) => p?.commonDetails.sNo == pNo,
+            orElse: () => null,
+          );
+          final String pumpLabel = (pumpModel?.commonDetails.name?.isNotEmpty == true)
+              ? pumpModel!.commonDetails.name!
+              : 'New Pump';
+          final pumpNode = NodeObject(
+            id: _nextId('fert_pump_${pNo.toInt()}'),
+            position: Offset(mfsX + 98.0 + 35.0, row1Y + 23.0),
+            type: NodeType.pump,
+            size: const Size(91, 63),
+            label: pumpLabel,
+            isOn: true,
+            showJoints: !_globalHideJoints,
+          );
+          pumpNode.size = pumpNode.defaultSize;
+          _nodes.add(pumpNode);
+          fertPumpNodeMap[pNo] = pumpNode;
+
+          // Connect Main Fert Source -> Pump
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: mfsNode.id,
+            toNodeId: pumpNode.id,
+            fromPortId: 'outlet',
+            toPortId: 'input',
+            waypoints: [],
+          ));
+
+          supplyStartNode = pumpNode;
+          supplyStartPort = 'output';
+        }
+        mfsX += 260.0;
+      }
+
+      // Air Blower node
+      NodeObject? blowerNode;
+      if (fertTanks.isNotEmpty || fertSites.any((s) => s.agitator.isNotEmpty)) {
+        final double totalTanksW = fertTanks.isEmpty ? 170.0 : fertTanks.length * 170.0;
+        final double blowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
+        blowerNode = NodeObject(
+          id: _nextId('blower'),
+          position: Offset(blowerX, row1Y),
+          type: NodeType.blower,
+          size: const Size(112, 105),
+          label: 'Air Blower',
+          showJoints: !_globalHideJoints,
+        );
+        blowerNode.size = blowerNode.defaultSize;
+        _nodes.add(blowerNode);
+      }
+
+      // Row 2: Fertilizer Tanks
+      final double tanksY = row1Y + 140.0;
+      const double tankStartX = 260.0;
+      const double tankSpacing = 170.0;
+      final Map<double, NodeObject> fertTankNodeMap = {};
+
+      for (int t = 0; t < fertTanks.length; t++) {
+        final tankSpec = fertTanks[t];
+        final double sNo = tankSpec.commonDetails.sNo ?? 0.0;
+        final String label = (tankSpec.commonDetails.name?.isNotEmpty == true)
+            ? tankSpec.commonDetails.name!
+            : 'Fertilizer Tank';
+        final tankNode = NodeObject(
+          id: _nextId('fert_tank_${sNo.toInt()}'),
+          position: Offset(tankStartX + t * tankSpacing, tanksY),
+          type: NodeType.fertilizerTank,
+          size: const Size(70, 84),
+          label: label,
+          showJoints: !_globalHideJoints,
+        );
+        tankNode.size = tankNode.defaultSize;
+        _nodes.add(tankNode);
+        fertTankNodeMap[sNo] = tankNode;
+      }
+
+      // Connect Main Fert Supply Line (Green) to Fertilizer Tanks
+      if (supplyStartNode != null && fertTanks.isNotEmpty) {
+        final double supplyY = tanksY - 30.0;
+        final Offset startPt = portPosition(supplyStartNode, supplyStartPort, isInput: false);
+
+        for (int t = 0; t < fertTanks.length; t++) {
+          final tankNode = fertTankNodeMap[fertTanks[t].commonDetails.sNo ?? 0.0]!;
+          final Offset inletPt = tankNode.getPort('inlet', isInput: true);
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: supplyStartNode.id,
+            toNodeId: tankNode.id,
+            fromPortId: supplyStartPort,
+            toPortId: 'inlet',
+            waypoints: [
+              Offset(startPt.dx + 20.0, startPt.dy),
+              Offset(startPt.dx + 20.0, supplyY),
+              Offset(inletPt.dx, supplyY),
+            ],
+          ));
+        }
+      }
+
+      // Connect Air Blower Line (Blue) to Fertilizer Tanks
+      if (blowerNode != null && fertTanks.isNotEmpty) {
+        final double airY = tanksY - 50.0;
+        final Offset blowerPt = blowerNode.outputPort;
+
+        for (int t = 0; t < fertTanks.length; t++) {
+          final tankNode = fertTankNodeMap[fertTanks[t].commonDetails.sNo ?? 0.0]!;
+          final Offset topInletPt = tankNode.getPort('top_inlet', isInput: true);
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: blowerNode.id,
+            toNodeId: tankNode.id,
+            fromPortId: 'outlet',
+            toPortId: 'top_inlet',
+            waypoints: [
+              Offset(blowerPt.dx - 20.0, blowerPt.dy),
+              Offset(blowerPt.dx - 20.0, airY),
+              Offset(topInletPt.dx, airY),
+            ],
+          ));
+        }
+      }
+
+      // Row 3: Outlet Tank Valves
+      final double valvesY = tanksY + 84.0 + 50.0;
+      final Map<double, NodeObject> fertTankValveNodeMap = {};
+
+      for (int t = 0; t < fertTanks.length; t++) {
+        final tankSpec = fertTanks[t];
+        final double sNo = tankSpec.commonDetails.sNo ?? 0.0;
+        final tankNode = fertTankNodeMap[sNo]!;
+
+        if (tankSpec.outletTankValve.isNotEmpty) {
+          final bool isMulti = tankSpec.isMultiOutletTankValve || tankSpec.outletTankValve.length > 1;
+          final int portCount = tankSpec.outletTankValvePortCount;
+          final NodeType valveType = isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve;
+          final String valveLabel = isMulti ? 'Multi Outlet Tank Valve' : 'Single Tank Valve';
+          final double valveW = isMulti ? math.max(105.0, 35.0 * portCount) : 56.0;
+
+          final valveNode = NodeObject(
+            id: _nextId('fert_valve_${sNo.toInt()}'),
+            position: Offset(tankNode.position.dx + (70.0 - valveW) / 2.0, valvesY),
+            type: valveType,
+            label: valveLabel,
+            outletPortCount: portCount,
             isHorizontal: true,
             showJoints: !_globalHideJoints,
           );
-          outletValveNode.size = outletValveNode.defaultSize;
-          _nodes.add(outletValveNode);
-          tankValveMap[vSNo] = outletValveNode;
-        }
+          valveNode.size = valveNode.defaultSize;
+          _nodes.add(valveNode);
 
-        // Pipe from source to outlet valve
-        addEdge(
-          sn,
-          outletValveNode,
-          'outlet',
-          'inlet',
-        );
-      }
+          for (final vSNo in tankSpec.outletTankValve) {
+            fertTankValveNodeMap[vSNo] = valveNode;
+          }
 
-      // Connect inlet pumps
-      for (final pNo in src.inletPump) {
-        final pn = pumpMap[pNo];
-        if (pn == null) continue;
-        if (inletValveNode != null) {
-          addEdge(pn, inletValveNode, 'output', 'inlet');
-        } else {
-          addEdge(pn, sn, 'output', sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet');
+          // Pipe: Tank outlet -> Valve inlet
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: tankNode.id,
+            toNodeId: valveNode.id,
+            fromPortId: 'outlet',
+            toPortId: 'inlet',
+            waypoints: [],
+          ));
         }
       }
 
-      // Connect outlet pumps
-      for (final pNo in src.outletPump) {
-        final pn = pumpMap[pNo];
-        if (pn == null) continue;
-        if (outletValveNode != null) {
-          addEdge(
-            outletValveNode,
-            pn,
-            outletValveNode.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet',
-            'input',
+      // Row 4: Multi-Injector Skid(s) / Multi Channel Connection
+      final double skidY = valvesY + 56.0 + 120.0;
+      final double totalAreaW = fertTanks.isEmpty ? 300.0 : fertTanks.length * 170.0;
+
+      if (fertSites.isNotEmpty) {
+        for (int s = 0; s < fertSites.length; s++) {
+          final site = fertSites[s];
+          final String label = (site.commonDetails.name?.isNotEmpty == true)
+              ? site.commonDetails.name!
+              : 'Multi-Injector Skid';
+
+          final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0 + s * 230.0;
+          final skidNode = NodeObject(
+            id: _nextId('skid_${site.commonDetails.sNo?.toInt() ?? s}'),
+            position: Offset(skidX, skidY),
+            type: NodeType.multiInjector,
+            size: const Size(196, 112),
+            label: label,
+            showJoints: !_globalHideJoints,
           );
-        } else {
-          addEdge(sn, pn, 'outlet', 'input');
+          skidNode.size = skidNode.defaultSize;
+          _nodes.add(skidNode);
+
+          // Connect Tank Valves -> Skid Channels
+          for (int c = 0; c < site.channel.length; c++) {
+            final inj = site.channel[c];
+            final String targetPort = 'channel_$c';
+
+            final cConfig = channelConfigs.cast<ChannelConfigModel?>().firstWhere(
+              (ch) => ch?.commonDetails.sNo == inj.sNo,
+              orElse: () => null,
+            );
+
+            NodeObject? targetValveNode;
+            String sourcePort = 'outlet';
+
+            if (cConfig != null && cConfig.outletTankValve.isNotEmpty) {
+              final double vSNo = cConfig.outletTankValve.first;
+              if (fertTankValveNodeMap.containsKey(vSNo)) {
+                targetValveNode = fertTankValveNodeMap[vSNo]!;
+                if (targetValveNode.type == NodeType.multiOutletTankValve) {
+                  final int vIndex = cConfig.outletTankValve.indexOf(vSNo);
+                  sourcePort = 'channel_${vIndex >= 0 ? vIndex : 0}';
+                }
+              }
+            }
+
+            if (targetValveNode == null && fertTankValveNodeMap.isNotEmpty) {
+              final valves = fertTankValveNodeMap.values.toSet().toList();
+              targetValveNode = valves[c % valves.length];
+              if (targetValveNode.type == NodeType.multiOutletTankValve) {
+                sourcePort = 'channel_${c % targetValveNode.outletPortCount}';
+              }
+            }
+
+            if (targetValveNode != null) {
+              final Offset vPort = targetValveNode.getPort(sourcePort, isInput: false);
+              final Offset cPort = skidNode.getPort(targetPort, isInput: true);
+              final double midY = (vPort.dy + cPort.dy) / 2.0;
+
+              _pipes.add(PipeConnection(
+                id: _nextId('pipe'),
+                fromNodeId: targetValveNode.id,
+                toNodeId: skidNode.id,
+                fromPortId: sourcePort,
+                toPortId: targetPort,
+                waypoints: [
+                  Offset(vPort.dx, midY),
+                  Offset(cPort.dx, midY),
+                ],
+              ));
+            }
+          }
         }
-      }
-    }
-
-    // ------------------------------------------- 1. layering (flow depth)
-    // Ignore the reverse edge of a 2-node loop so layering always terminates.
-    final layeringEdges =
-    edges.where((e) => !pairKeys.contains('${e.to.id}>${e.from.id}')).toList();
-    final Map<String, int> rawLayer = {for (final n in _nodes) n.id: 0};
-    for (int it = 0; it < _nodes.length; it++) {
-      bool changed = false;
-      for (final e in layeringEdges) {
-        final next = rawLayer[e.from.id]! + 1;
-        if (rawLayer[e.to.id]! < next) {
-          rawLayer[e.to.id] = next;
-          changed = true;
-        }
-      }
-      if (!changed) break;
-    }
-    final usedLayers = rawLayer.values.toSet().toList()..sort(); // drop empty columns
-    final Map<String, int> layerOf = {
-      for (final n in _nodes) n.id: usedLayers.indexOf(rawLayer[n.id]!),
-    };
-    final int L = usedLayers.length;
-    final List<List<NodeObject>> layers = List.generate(L, (_) => <NodeObject>[]);
-    for (final n in _nodes) {
-      layers[layerOf[n.id]!].add(n);
-    }
-
-    final Map<String, List<NodeObject>> neighbours = {
-      for (final n in _nodes) n.id: <NodeObject>[],
-    };
-    for (final e in edges) {
-      neighbours[e.from.id]!.add(e.to);
-      neighbours[e.to.id]!.add(e.from);
-    }
-
-    // ------------------------- 2. order inside each column (fewer crossings)
-    void sortLayer(int l, int ref) {
-      if (ref < 0 || ref >= L) return;
-      final refIdx = {for (int i = 0; i < layers[ref].length; i++) layers[ref][i].id: i};
-      final curIdx = {for (int i = 0; i < layers[l].length; i++) layers[l][i].id: i};
-      double key(NodeObject n) {
-        final idxs = neighbours[n.id]!
-            .where((m) => refIdx.containsKey(m.id))
-            .map((m) => refIdx[m.id]!)
-            .toList();
-        if (idxs.isEmpty) return curIdx[n.id]!.toDouble();
-        return idxs.reduce((a, b) => a + b) / idxs.length;
-      }
-
-      final keys = {for (final n in layers[l]) n.id: key(n)};
-      layers[l].sort((a, b) {
-        final c = keys[a.id]!.compareTo(keys[b.id]!);
-        return c != 0 ? c : curIdx[a.id]!.compareTo(curIdx[b.id]!);
-      });
-    }
-
-    for (int it = 0; it < 4; it++) {
-      for (int l = 1; l < L; l++) {
-        sortLayer(l, l - 1);
-      }
-      for (int l = L - 2; l >= 0; l--) {
-        sortLayer(l, l + 1);
-      }
-    }
-
-    // -------------------------------------- 3. X positions (tight columns)
-    // Gap between two columns grows with the number of pipes crossing it.
-    final laneCount = List<int>.filled(math.max(L - 1, 1), 0);
-    for (final e in edges) {
-      final fl = layerOf[e.from.id]!, tl = layerOf[e.to.id]!;
-      if (tl > fl) laneCount[tl - 1]++;
-    }
-    // each lane needs ~18px; 48px free space (24 either side) so tees never touch nodes
-    final gaps = [for (final c in laneCount) 48.0 + 18.0 * math.max(c - 1, 0)];
-    final colW = [
-      for (final layer in layers) layer.map((n) => n.size.width).reduce(math.max),
-    ];
-    final colX = List<double>.filled(L, 0);
-    double x = 40.0;
-    for (int i = 0; i < L; i++) {
-      colX[i] = x;
-      x += colW[i] + (i < L - 1 ? gaps[i] : 0);
-    }
-
-    // -------------------------------------- 4. Y positions (no overlap)
-    const double vGap = 24.0;
-    double block(NodeObject n) =>
-        n.size.height +
-            ((n.type == NodeType.overheadTank || n.type == NodeType.fertilizerTank) ? 34.0 : 0.0);
-
-    final Map<String, double> top = {};
-    final colH = [
-      for (final layer in layers)
-        layer.fold<double>(0, (s, n) => s + block(n)) + vGap * (layer.length - 1),
-    ];
-    final double maxColH = colH.reduce(math.max);
-    for (int l = 0; l < L; l++) {
-      double y = (maxColH - colH[l]) / 2;
-      for (final n in layers[l]) {
-        top[n.id] = y;
-        y += block(n) + vGap;
-      }
-    }
-
-    double centerOf(NodeObject n) => top[n.id]! + n.size.height / 2;
-
-    // Pull every node toward the centre of the nodes it connects to so pipes
-    // become straight, then push down to remove any overlap.
-    void relax(int l) {
-      final layer = layers[l];
-      final desired = <double>[];
-      for (final n in layer) {
-        final nb = neighbours[n.id]!.where((m) => layerOf[m.id] != l).toList();
-        if (nb.isEmpty) {
-          desired.add(top[n.id]!);
-        } else {
-          final avg = nb.map(centerOf).reduce((a, b) => a + b) / nb.length;
-          desired.add(avg - n.size.height / 2);
-        }
-      }
-      double cursor = -double.infinity;
-      for (int i = 0; i < layer.length; i++) {
-        final t = math.max(desired[i], cursor);
-        top[layer[i].id] = t;
-        cursor = t + block(layer[i]) + vGap;
-      }
-    }
-
-    for (int it = 0; it < 4; it++) {
-      for (int l = 0; l < L; l++) {
-        relax(l);
-      }
-      for (int l = L - 1; l >= 0; l--) {
-        relax(l);
-      }
-    }
-
-    final double shiftY = 30.0 - top.values.reduce(math.min);
-    for (int l = 0; l < L; l++) {
-      for (final n in layers[l]) {
-        n.position = Offset(
-          colX[l] + (colW[l] - n.size.width) / 2,
-          top[n.id]! + shiftY,
+      } else if (fertTanks.isNotEmpty || channelConfigs.isNotEmpty) {
+        // Create 1 default Multi-Injector Skid if channels exist but no site object
+        final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0;
+        final skidNode = NodeObject(
+          id: _nextId('skid_0'),
+          position: Offset(skidX, skidY),
+          type: NodeType.multiInjector,
+          size: const Size(196, 112),
+          label: 'Multi-Injector Skid',
+          showJoints: !_globalHideJoints,
         );
+        skidNode.size = skidNode.defaultSize;
+        _nodes.add(skidNode);
+
+        final valves = fertTankValveNodeMap.values.toSet().toList();
+        final int channelCount = math.max(4, channelConfigs.length);
+
+        for (int c = 0; c < channelCount; c++) {
+          final String targetPort = 'channel_$c';
+          if (valves.isNotEmpty) {
+            final targetValveNode = valves[c % valves.length];
+            final String sourcePort = targetValveNode.type == NodeType.multiOutletTankValve
+                ? 'channel_${c % targetValveNode.outletPortCount}'
+                : 'outlet';
+
+            final Offset vPort = targetValveNode.getPort(sourcePort, isInput: false);
+            final Offset cPort = skidNode.getPort(targetPort, isInput: true);
+            final double midY = (vPort.dy + cPort.dy) / 2.0;
+
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: targetValveNode.id,
+              toNodeId: skidNode.id,
+              fromPortId: sourcePort,
+              toPortId: targetPort,
+              waypoints: [
+                Offset(vPort.dx, midY),
+                Offset(cPort.dx, midY),
+              ],
+            ));
+          }
+        }
       }
     }
-
-    // ------------------------------------------- 5. clean pipe routing
-    _snapNearStraightEdges(edges);
-    _buildCleanPipes(edges, layerOf, colX, colW);
 
     setState(() {
       _selectedNodeId = null;
@@ -418,7 +775,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Auto-arranged ${sources.length} source(s), ${pumps.length} pump(s) and ${edges.length} pipe(s).'),
+              'Auto-arranged layout with ${_nodes.length} equipment and ${_pipes.length} connection(s).'),
           duration: const Duration(seconds: 3),
           backgroundColor: const Color(0xFF059669),
         ),

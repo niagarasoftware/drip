@@ -79,7 +79,6 @@ class _MyAppState extends State<MyApp> {
           // home: navigateToInitialScreen(snapshot.data ?? Routes.login),
           // onGenerateRoute: Routes.generateRoute,
           home: const ConfigBasePage(masterData:{"userId":2,"customerId":1183,"controllerId":3906,"productId":4276,"deviceId":"EE765EE76E71","deviceName":"Gem+ (RL)","categoryId":1,"categoryName":"ORO GEM","modelId":4,"modelDescription":"Gem+ (RL)","modelName":"NAm2000ROOL","groupId":1052,"groupName":"Siva Prakash Site","connectingObjectId":["1","2","3","4","-"],"productStock":[]}, fromDashboard: true),
-          // home: const ConfigBasePage(masterData:{"userId":2,"customerId":926,"controllerId":3552,"productId":3829,"deviceId":"98FE540DBF0D","deviceName":"Gem+ (RL)","categoryId":1,"categoryName":"ORO GEM","modelId":4,"modelDescription":"Gem+ (RL)","modelName":"NAm2000ROOL","groupId":943,"groupName":"70 Acres Grapes","connectingObjectId":["1","2","3","4","-"],"productStock":[]}, fromDashboard: true),
         );
       },
     );
