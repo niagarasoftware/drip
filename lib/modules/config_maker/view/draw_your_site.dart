@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../model/channel_config_model.dart';
+import '../model/device_object_model.dart';
 import '../model/node_type_model.dart';
 import '../model/pump_model.dart';
 import '../state_management/config_maker_provider.dart';
@@ -64,6 +65,20 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
   }
 
+  DeviceObjectModel _getObjectName(double sNo, ConfigMakerProvider configPvd) {
+    return configPvd.listOfGeneratedObject.firstWhere(
+      (object) => object.sNo == sNo,
+      orElse: () => DeviceObjectModel(
+        objectId: 0,
+        sNo: sNo,
+        name: '-',
+        objectName: '',
+        type: '',
+        assignObject: [],
+      ),
+    );
+  }
+
   NodeType _getNodeTypeForSource(int sourceType) {
     switch (sourceType) {
       case 1:
@@ -115,6 +130,45 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final waterSources = sources.where((s) => s.sourceType >= 1 && s.sourceType <= 5).toList();
     final mainFertSources = sources.where((s) => s.sourceType == 6).toList();
     final fertTanks = sources.where((s) => s.sourceType == 7).toList();
+
+    // Where (left -> right) on the injector skid does a tank valve end up?
+    // Used to order the tanks / valve outlets so the pipes never cross.
+    double? valveChannelPos(double vSNo) {
+      double sum = 0;
+      int n = 0;
+      for (int s = 0; s < fertSites.length; s++) {
+        final site = fertSites[s];
+        for (int c = 0; c < site.channel.length; c++) {
+          final inj = site.channel[c];
+          for (final ch in channelConfigs) {
+            if (ch.commonDetails.sNo == inj.sNo && ch.outletTankValve.contains(vSNo)) {
+              sum += s * 10.0 + c;
+              n++;
+            }
+          }
+        }
+      }
+      return n == 0 ? null : sum / n;
+    }
+
+    final origTankOrder = List.of(fertTanks);
+    double tankKey(dynamic src) {
+      double sum = 0;
+      int n = 0;
+      for (final double v in src.outletTankValve) {
+        final p = valveChannelPos(v);
+        if (p != null) {
+          sum += p;
+          n++;
+        }
+      }
+      return n == 0 ? 1000.0 + origTankOrder.indexOf(src) : sum / n;
+    }
+
+    fertTanks.sort((a, b) {
+      final c = tankKey(a).compareTo(tankKey(b));
+      return c != 0 ? c : origTankOrder.indexOf(a).compareTo(origTankOrder.indexOf(b));
+    });
 
     // Collect sNos of pumps used by fertilizer sources/sites
     final fertPumpSNos = <double>{};
@@ -195,6 +249,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         if (sn == null) continue;
 
         // Create Tank Valve nodes if assigned
+        // (water sources keep HORIZONTAL tank valves: inlet left, outlet right)
         NodeObject? inletValveNode;
         if (src.inletTankValve.isNotEmpty) {
           final double vSNo = src.inletTankValve.first;
@@ -287,7 +342,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
       // 1. Layering
       final layeringEdges =
-          edges.where((e) => !pairKeys.contains('${e.to.id}>${e.from.id}')).toList();
+      edges.where((e) => !pairKeys.contains('${e.to.id}>${e.from.id}')).toList();
       final Map<String, int> rawLayer = {for (final n in _nodes) n.id: 0};
       for (int it = 0; it < _nodes.length; it++) {
         bool changed = false;
@@ -477,7 +532,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         if (mfs.outletPump.isNotEmpty) {
           final double pNo = mfs.outletPump.first;
           final pumpModel = pumps.cast<PumpModel?>().firstWhere(
-            (p) => p?.commonDetails.sNo == pNo,
+                (p) => p?.commonDetails.sNo == pNo,
             orElse: () => null,
           );
           final String pumpLabel = (pumpModel?.commonDetails.name?.isNotEmpty == true)
@@ -485,7 +540,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
               : 'New Pump';
           final pumpNode = NodeObject(
             id: _nextId('fert_pump_${pNo.toInt()}'),
-            position: Offset(mfsX + 98.0 + 35.0, row1Y + 23.0),
+            position: Offset(mfsX + 98.0 + 35.0, row1Y + 47.89),
             type: NodeType.pump,
             size: const Size(91, 63),
             label: pumpLabel,
@@ -493,6 +548,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             showJoints: !_globalHideJoints,
           );
           pumpNode.size = pumpNode.defaultSize;
+          // Line the pump inlet up with the source outlet so the
+          // source -> pump pipe is one short straight run.
+          final Offset mfsOutPt = portPosition(mfsNode, 'outlet', isInput: false);
+          final Offset pumpInPt = portPosition(pumpNode, 'input', isInput: true);
+          pumpNode.position = pumpNode.position + Offset(0, mfsOutPt.dy - pumpInPt.dy);
           _nodes.add(pumpNode);
           fertPumpNodeMap[pNo] = pumpNode;
 
@@ -512,10 +572,19 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         mfsX += 260.0;
       }
 
+      // Horizontal distance between fertilizer tanks. Wide multi-outlet
+      // valves (now vertical, outlets facing down) need more room.
+      final bool anyMultiFertValve =
+      fertTanks.any((t) => t.isMultiOutletTankValve || t.outletTankValve.length > 1);
+      final int maxFertValvePorts =
+      fertTanks.fold<int>(1, (m, t) => math.max(m, t.outletTankValvePortCount));
+      final double tankSpacing =
+      anyMultiFertValve ? math.max(170.0, 40.0 * maxFertValvePorts + 50.0) : 170.0;
+
       // Air Blower node
       NodeObject? blowerNode;
       if (fertTanks.isNotEmpty || fertSites.any((s) => s.agitator.isNotEmpty)) {
-        final double totalTanksW = fertTanks.isEmpty ? 170.0 : fertTanks.length * 170.0;
+        final double totalTanksW = fertTanks.isEmpty ? 170.0 : fertTanks.length * tankSpacing;
         final double blowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
         blowerNode = NodeObject(
           id: _nextId('blower'),
@@ -532,7 +601,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Row 2: Fertilizer Tanks
       final double tanksY = row1Y + 140.0;
       const double tankStartX = 260.0;
-      const double tankSpacing = 170.0;
       final Map<double, NodeObject> fertTankNodeMap = {};
 
       for (int t = 0; t < fertTanks.length; t++) {
@@ -554,33 +622,59 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         fertTankNodeMap[sNo] = tankNode;
       }
 
-      // Connect Main Fert Supply Line (Green) to Fertilizer Tanks
+      // Main fertilizer supply line (green): ONE trunk from the pump with a
+      // tee above every tank, instead of several pipes drawn on top of each other.
       if (supplyStartNode != null && fertTanks.isNotEmpty) {
-        final double supplyY = tanksY - 30.0;
+        final double supplyY = tanksY - 65.0;
         final Offset startPt = portPosition(supplyStartNode, supplyStartPort, isInput: false);
+        final double trunkX = startPt.dx + 20.0;
+
+        String prevId = supplyStartNode.id;
+        String? prevPort = supplyStartPort;
+        Offset prevPos = startPt;
+        List<Offset> prevWps = [Offset(trunkX, startPt.dy), Offset(trunkX, supplyY)];
 
         for (int t = 0; t < fertTanks.length; t++) {
           final tankNode = fertTankNodeMap[fertTanks[t].commonDetails.sNo ?? 0.0]!;
           final Offset inletPt = tankNode.getPort('inlet', isInput: true);
+          final Offset dropPt = Offset(inletPt.dx, supplyY);
 
-          _pipes.add(PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: supplyStartNode.id,
-            toNodeId: tankNode.id,
-            fromPortId: supplyStartPort,
-            toPortId: 'inlet',
-            waypoints: [
-              Offset(startPt.dx + 20.0, startPt.dy),
-              Offset(startPt.dx + 20.0, supplyY),
-              Offset(inletPt.dx, supplyY),
-            ],
-          ));
+          if (t == fertTanks.length - 1) {
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: prevId,
+              fromPortId: prevPort,
+              toNodeId: tankNode.id,
+              toPortId: 'inlet',
+              waypoints: _cleanWaypoints(prevPos, [...prevWps, dropPt], inletPt),
+            ));
+          } else {
+            final jn = _newJunction(dropPt);
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: prevId,
+              fromPortId: prevPort,
+              toNodeId: jn.id,
+              waypoints: _cleanWaypoints(prevPos, prevWps, dropPt),
+            ));
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jn.id,
+              toNodeId: tankNode.id,
+              toPortId: 'inlet',
+              waypoints: [],
+            ));
+            prevId = jn.id;
+            prevPort = null;
+            prevPos = dropPt;
+            prevWps = [];
+          }
         }
       }
 
       // Connect Air Blower Line (Blue) to Fertilizer Tanks
       if (blowerNode != null && fertTanks.isNotEmpty) {
-        final double airY = tanksY - 50.0;
+        final double airY = tanksY - 35.0;
         final Offset blowerPt = blowerNode.outputPort;
 
         for (int t = 0; t < fertTanks.length; t++) {
@@ -602,9 +696,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         }
       }
 
-      // Row 3: Outlet Tank Valves
-      final double valvesY = tanksY + 84.0 + 50.0;
+      // Row 3: Outlet Tank Valves.
+      // Fertilizer tank valves are VERTICAL: inlet on top (straight under the
+      // tank outlet) and the outlet port(s) facing DOWNWARDS.
+      final double valvesY = tanksY + 84.0 + 60.0;
       final Map<double, NodeObject> fertTankValveNodeMap = {};
+      final Map<double, String> fertTankValvePortMap = {};
+      double maxValveBottom = valvesY + 60.0;
 
       for (int t = 0; t < fertTanks.length; t++) {
         final tankSpec = fertTanks[t];
@@ -613,28 +711,67 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
         if (tankSpec.outletTankValve.isNotEmpty) {
           final bool isMulti = tankSpec.isMultiOutletTankValve || tankSpec.outletTankValve.length > 1;
-          final int portCount = tankSpec.outletTankValvePortCount;
+          final int portCount = math.max(1, tankSpec.outletTankValvePortCount);
           final NodeType valveType = isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve;
           final String valveLabel = isMulti ? 'Multi Outlet Tank Valve' : 'Single Tank Valve';
-          final double valveW = isMulti ? math.max(105.0, 35.0 * portCount) : 56.0;
 
           final valveNode = NodeObject(
             id: _nextId('fert_valve_${sNo.toInt()}'),
-            position: Offset(tankNode.position.dx + (70.0 - valveW) / 2.0, valvesY),
+            position: Offset(0, valvesY),
             type: valveType,
             label: valveLabel,
             outletPortCount: portCount,
-            isHorizontal: true,
+            isHorizontal: false, // outlets face downwards
             showJoints: !_globalHideJoints,
           );
           valveNode.size = valveNode.defaultSize;
+
+          // Centre the valve inlet exactly under the tank outlet so the
+          // tank -> valve pipe is a perfectly straight vertical run.
+          final Offset tankOut = tankNode.getPort('outlet', isInput: false);
+          final double inletOffset = valveNode.inputPort.dx - valveNode.position.dx;
+          valveNode.position = Offset(tankOut.dx - inletOffset, valvesY);
           _nodes.add(valveNode);
 
-          for (final vSNo in tankSpec.outletTankValve) {
-            fertTankValveNodeMap[vSNo] = valveNode;
-          }
+          maxValveBottom = math.max(maxValveBottom, valveNode.position.dy + valveNode.size.height);
 
-          // Pipe: Tank outlet -> Valve inlet
+          // Outlet ports are handed out left -> right:
+          // 1. Single-channel dedicated valves first (ordered by target channel index)
+          // 2. Multi-channel / common valves last
+          final ranked = List<int>.generate(tankSpec.outletTankValve.length, (i) => i);
+          ranked.sort((a, b) {
+            final vA = tankSpec.outletTankValve[a];
+            final vB = tankSpec.outletTankValve[b];
+
+            final countA = channelConfigs.where((ch) => ch.outletTankValve.contains(vA)).length;
+            final countB = channelConfigs.where((ch) => ch.outletTankValve.contains(vB)).length;
+
+            if (countA != countB) {
+              return countA.compareTo(countB);
+            }
+
+            final pa = valveChannelPos(vA) ?? (1000.0 + a);
+            final pb = valveChannelPos(vB) ?? (1000.0 + b);
+            final c = pa.compareTo(pb);
+            return c != 0 ? c : a.compareTo(b);
+          });
+
+          final List<String> portLabels = [];
+          for (int rank = 0; rank < ranked.length; rank++) {
+            final double vSNo = tankSpec.outletTankValve[ranked[rank]];
+            fertTankValveNodeMap[vSNo] = valveNode;
+            fertTankValvePortMap[vSNo] =
+                isMulti ? 'channel_${math.min(rank, portCount - 1)}' : 'outlet';
+
+            final deviceObj = _getObjectName(vSNo, configPvd);
+            final String name = (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
+                ? deviceObj.name!
+                : 'Tank Valve ${rank + 1}';
+            portLabels.add(name);
+          }
+          valveNode.portLabels = portLabels;
+
+          // Pipe: Tank outlet -> Valve inlet (straight down)
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
             fromNodeId: tankNode.id,
@@ -647,8 +784,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       // Row 4: Multi-Injector Skid(s) / Multi Channel Connection
-      final double skidY = valvesY + 56.0 + 120.0;
-      final double totalAreaW = fertTanks.isEmpty ? 300.0 : fertTanks.length * 170.0;
+      // (final Y is set after the fertilizer pipes are laid out so there is
+      // always enough room for the horizontal pipe lanes)
+      final double provisionalSkidY = maxValveBottom + 150.0;
+      final double totalAreaW = fertTanks.isEmpty ? 300.0 : fertTanks.length * tankSpacing;
+
+      final List<NodeObject> skidNodes = [];
+      final List<_FertLink> fertLinks = [];
 
       if (fertSites.isNotEmpty) {
         for (int s = 0; s < fertSites.length; s++) {
@@ -660,7 +802,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0 + s * 230.0;
           final skidNode = NodeObject(
             id: _nextId('skid_${site.commonDetails.sNo?.toInt() ?? s}'),
-            position: Offset(skidX, skidY),
+            position: Offset(skidX, provisionalSkidY),
             type: NodeType.multiInjector,
             size: const Size(196, 112),
             label: label,
@@ -668,55 +810,37 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           );
           skidNode.size = skidNode.defaultSize;
           _nodes.add(skidNode);
+          skidNodes.add(skidNode);
 
-          // Connect Tank Valves -> Skid Channels
+          // Tank Valves -> Skid Channels
           for (int c = 0; c < site.channel.length; c++) {
             final inj = site.channel[c];
             final String targetPort = 'channel_$c';
 
             final cConfig = channelConfigs.cast<ChannelConfigModel?>().firstWhere(
-              (ch) => ch?.commonDetails.sNo == inj.sNo,
+                  (ch) => ch?.commonDetails.sNo == inj.sNo,
               orElse: () => null,
             );
 
-            NodeObject? targetValveNode;
-            String sourcePort = 'outlet';
-
+            bool linkAdded = false;
             if (cConfig != null && cConfig.outletTankValve.isNotEmpty) {
-              final double vSNo = cConfig.outletTankValve.first;
-              if (fertTankValveNodeMap.containsKey(vSNo)) {
-                targetValveNode = fertTankValveNodeMap[vSNo]!;
-                if (targetValveNode.type == NodeType.multiOutletTankValve) {
-                  final int vIndex = cConfig.outletTankValve.indexOf(vSNo);
-                  sourcePort = 'channel_${vIndex >= 0 ? vIndex : 0}';
+              for (final double vSNo in cConfig.outletTankValve) {
+                if (fertTankValveNodeMap.containsKey(vSNo)) {
+                  final targetValveNode = fertTankValveNodeMap[vSNo]!;
+                  final sourcePort = fertTankValvePortMap[vSNo] ?? 'outlet';
+                  fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
+                  linkAdded = true;
                 }
               }
             }
 
-            if (targetValveNode == null && fertTankValveNodeMap.isNotEmpty) {
+            if (!linkAdded && fertTankValveNodeMap.isNotEmpty) {
               final valves = fertTankValveNodeMap.values.toSet().toList();
-              targetValveNode = valves[c % valves.length];
-              if (targetValveNode.type == NodeType.multiOutletTankValve) {
-                sourcePort = 'channel_${c % targetValveNode.outletPortCount}';
-              }
-            }
-
-            if (targetValveNode != null) {
-              final Offset vPort = targetValveNode.getPort(sourcePort, isInput: false);
-              final Offset cPort = skidNode.getPort(targetPort, isInput: true);
-              final double midY = (vPort.dy + cPort.dy) / 2.0;
-
-              _pipes.add(PipeConnection(
-                id: _nextId('pipe'),
-                fromNodeId: targetValveNode.id,
-                toNodeId: skidNode.id,
-                fromPortId: sourcePort,
-                toPortId: targetPort,
-                waypoints: [
-                  Offset(vPort.dx, midY),
-                  Offset(cPort.dx, midY),
-                ],
-              ));
+              final targetValveNode = valves[c % valves.length];
+              final sourcePort = targetValveNode.type == NodeType.multiOutletTankValve
+                  ? 'channel_${c % math.max(1, targetValveNode.outletPortCount)}'
+                  : 'outlet';
+              fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
             }
           }
         }
@@ -725,7 +849,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0;
         final skidNode = NodeObject(
           id: _nextId('skid_0'),
-          position: Offset(skidX, skidY),
+          position: Offset(skidX, provisionalSkidY),
           type: NodeType.multiInjector,
           size: const Size(196, 112),
           label: 'Multi-Injector Skid',
@@ -733,36 +857,38 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         );
         skidNode.size = skidNode.defaultSize;
         _nodes.add(skidNode);
+        skidNodes.add(skidNode);
 
         final valves = fertTankValveNodeMap.values.toSet().toList();
         final int channelCount = math.max(4, channelConfigs.length);
 
         for (int c = 0; c < channelCount; c++) {
           final String targetPort = 'channel_$c';
-          if (valves.isNotEmpty) {
+          final cConfig = c < channelConfigs.length ? channelConfigs[c] : null;
+
+          bool linkAdded = false;
+          if (cConfig != null && cConfig.outletTankValve.isNotEmpty) {
+            for (final double vSNo in cConfig.outletTankValve) {
+              if (fertTankValveNodeMap.containsKey(vSNo)) {
+                final targetValveNode = fertTankValveNodeMap[vSNo]!;
+                final sourcePort = fertTankValvePortMap[vSNo] ?? 'outlet';
+                fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
+                linkAdded = true;
+              }
+            }
+          }
+
+          if (!linkAdded && valves.isNotEmpty) {
             final targetValveNode = valves[c % valves.length];
             final String sourcePort = targetValveNode.type == NodeType.multiOutletTankValve
-                ? 'channel_${c % targetValveNode.outletPortCount}'
+                ? 'channel_${c % math.max(1, targetValveNode.outletPortCount)}'
                 : 'outlet';
-
-            final Offset vPort = targetValveNode.getPort(sourcePort, isInput: false);
-            final Offset cPort = skidNode.getPort(targetPort, isInput: true);
-            final double midY = (vPort.dy + cPort.dy) / 2.0;
-
-            _pipes.add(PipeConnection(
-              id: _nextId('pipe'),
-              fromNodeId: targetValveNode.id,
-              toNodeId: skidNode.id,
-              fromPortId: sourcePort,
-              toPortId: targetPort,
-              waypoints: [
-                Offset(vPort.dx, midY),
-                Offset(cPort.dx, midY),
-              ],
-            ));
+            fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
           }
         }
       }
+
+      _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);
     }
 
     setState(() {
@@ -780,6 +906,207 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           backgroundColor: const Color(0xFF059669),
         ),
       );
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Fertilizer pipe routing (tank valve outlets -> injector skid channels)
+  // ---------------------------------------------------------------------
+
+  /// Draws every valve outlet (facing down) to its skid channel (entering
+  /// from the top) as a tidy "bus":
+  ///
+  ///   valve outlet -> straight down -> own horizontal lane -> down -> channel
+  ///
+  ///  * a single skid is first centred under the valves (shortest jogs);
+  ///  * lanes are evenly spaced and ordered so that pipes do not cross;
+  ///  * when several valve outlets feed ONE channel they merge in a joint
+  ///    just above that channel instead of being drawn on top of each other;
+  ///  * the skid is pushed down so there is always room for the lanes.
+  void _routeFertilizerLinks(
+    List<_FertLink> links,
+    List<NodeObject> skids,
+    double valveBottom,
+  ) {
+    if (skids.isEmpty || links.isEmpty) return;
+
+    // 1. Centre a lone skid under the valves it is fed from.
+    if (skids.length == 1) {
+      final skid = skids.first;
+      final diffs = [
+        for (final l in links)
+          l.valve.getPort(l.valvePort, isInput: false).dx -
+              l.skid.getPort(l.skidPort, isInput: true).dx,
+      ]..sort();
+      final double shift = diffs[diffs.length ~/ 2];
+      skid.position = Offset(math.max(0.0, skid.position.dx + shift), skid.position.dy);
+    }
+
+    // Update coordinates
+    double portBottom = valveBottom;
+    for (final l in links) {
+      l.x1 = l.valve.getPort(l.valvePort, isInput: false).dx;
+      l.x2 = l.skid.getPort(l.skidPort, isInput: true).dx;
+      portBottom = math.max(portBottom, l.valve.getPort(l.valvePort, isInput: false).dy);
+    }
+
+    // 2. Group links by valve source (valve.id + valvePort)
+    final Map<String, List<_FertLink>> sourceGroups = {};
+    for (final l in links) {
+      final key = '${l.valve.id}|${l.valvePort}';
+      sourceGroups.putIfAbsent(key, () => []).add(l);
+    }
+
+    // 3. Group links by target skid channel (skid.id + skidPort)
+    final Map<String, List<_FertLink>> targetGroups = {};
+    for (final l in links) {
+      final key = '${l.skid.id}|${l.skidPort}';
+      targetGroups.putIfAbsent(key, () => []).add(l);
+    }
+
+    const double firstLaneGap = 30.0;
+    const double laneStep = 16.0;
+    const double mergeGap = 24.0;
+    const double skidGap = 60.0;
+
+    int multiSourceCount = 0;
+    int offsetSingleCount = 0;
+    for (final entry in sourceGroups.entries) {
+      if (entry.value.length > 1) {
+        multiSourceCount++;
+      } else {
+        final l = entry.value.first;
+        if ((l.x1 - l.x2).abs() >= 1.0) {
+          offsetSingleCount++;
+        }
+      }
+    }
+
+    final int totalLanes = multiSourceCount + offsetSingleCount;
+    final double lane0 = portBottom + firstLaneGap;
+    final double lastLane = lane0 + laneStep * math.max(totalLanes - 1, 0);
+    final double mergeY = (totalLanes > 0 ? lastLane : portBottom + firstLaneGap) + mergeGap;
+    final double skidY = mergeY + skidGap;
+
+    for (final s in skids) {
+      s.position = Offset(s.position.dx, skidY);
+    }
+
+    // 4. Create merge junctions above each skid channel that has incoming links
+    final Map<String, NodeObject> mergeJunctions = {};
+    for (final entry in targetGroups.entries) {
+      final firstLink = entry.value.first;
+      final Offset channelPt = firstLink.skid.getPort(firstLink.skidPort, isInput: true);
+      final Offset jp = Offset(channelPt.dx, mergeY);
+
+      final jn = _newJunction(jp);
+      mergeJunctions[entry.key] = jn;
+
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: jn.id,
+        toNodeId: firstLink.skid.id,
+        toPortId: firstLink.skidPort,
+        waypoints: _cleanWaypoints(jp, [], channelPt),
+      ));
+    }
+
+    // 5. Assign lanes and create pipes for each source group
+    int laneIdx = 0;
+    for (final entry in sourceGroups.entries) {
+      final gLinks = entry.value;
+      final firstLink = gLinks.first;
+      final Offset startPt = firstLink.valve.getPort(firstLink.valvePort, isInput: false);
+
+      if (gLinks.length > 1) {
+        // --- Multi-Target / Common Valve Port ---
+        // Uses ONE distributor header lane
+        final double distLane = lane0 + laneStep * laneIdx;
+        laneIdx++;
+
+        final Offset trunkEnd = Offset(startPt.dx, distLane);
+        final NodeObject jnTrunk = _newJunction(trunkEnd);
+
+        // Pipe 1: Valve port -> Trunk junction on distributor lane
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: firstLink.valve.id,
+          fromPortId: firstLink.valvePort,
+          toNodeId: jnTrunk.id,
+          waypoints: _cleanWaypoints(startPt, [], trunkEnd),
+        ));
+
+        // Horizontal bus line and vertical drop tees for each target channel
+        for (final l in gLinks) {
+          final targetKey = '${l.skid.id}|${l.skidPort}';
+          final targetJn = mergeJunctions[targetKey]!;
+          final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
+
+          if ((targetPos.dx - startPt.dx).abs() < 1.0) {
+            // Straight vertical drop from trunk junction down to merge junction
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTrunk.id,
+              toNodeId: targetJn.id,
+              waypoints: _cleanWaypoints(trunkEnd, [], targetPos),
+            ));
+          } else {
+            // Tee junction on distributor lane
+            final Offset teePt = Offset(targetPos.dx, distLane);
+            final NodeObject jnTee = _newJunction(teePt);
+
+            // Horizontal segment from trunk junction to tee junction
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTrunk.id,
+              toNodeId: jnTee.id,
+              waypoints: _cleanWaypoints(trunkEnd, [], teePt),
+            ));
+
+            // Vertical drop from tee junction down to merge junction
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTee.id,
+              toNodeId: targetJn.id,
+              waypoints: _cleanWaypoints(teePt, [], targetPos),
+            ));
+          }
+        }
+      } else {
+        // --- Single-Target Valve Port ---
+        final l = gLinks.first;
+        final targetKey = '${l.skid.id}|${l.skidPort}';
+        final targetJn = mergeJunctions[targetKey]!;
+        final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
+
+        if ((startPt.dx - targetPos.dx).abs() < 1.0) {
+          // Perfectly straight vertical run!
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: l.valve.id,
+            fromPortId: l.valvePort,
+            toNodeId: targetJn.id,
+            waypoints: _cleanWaypoints(startPt, [], targetPos),
+          ));
+        } else {
+          // Off-axis: drop to assigned lane, horizontal run, drop to target junction
+          final double lY = lane0 + laneStep * laneIdx;
+          laneIdx++;
+
+          final List<Offset> wps = [
+            Offset(startPt.dx, lY),
+            Offset(targetPos.dx, lY),
+          ];
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: l.valve.id,
+            fromPortId: l.valvePort,
+            toNodeId: targetJn.id,
+            waypoints: _cleanWaypoints(startPt, wps, targetPos),
+          ));
+        }
+      }
     }
   }
 
@@ -3034,6 +3361,21 @@ class _Route {
   double? lane;
   List<Offset> stem = [];
   _Route(this.edge);
+}
+
+/// One fertilizer pipe: tank-valve outlet (facing down) -> skid channel.
+class _FertLink {
+  final NodeObject valve;
+  final String valvePort;
+  final NodeObject skid;
+  final String skidPort;
+
+  /// X of the valve outlet / skid channel, and Y of the horizontal lane.
+  double x1 = 0;
+  double x2 = 0;
+  double lane = 0;
+
+  _FertLink(this.valve, this.valvePort, this.skid, this.skidPort);
 }
 
 /// Result of a nearest-pipe-segment lookup: which pipe, which segment

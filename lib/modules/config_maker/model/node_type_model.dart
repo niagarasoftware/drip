@@ -46,6 +46,7 @@ class NodeObject {
   double outletPipeLength; // Vertical outlet pipe extension
   double outletSpacing; // Horizontal spacing factor between outlets (1.0 = default)
   int outletPortCount; // Number of outlet ports for multi-outlet nodes (e.g. multiOutletTankValve)
+  List<String>? portLabels; // Specific labels for individual ports (e.g. tank valves on multiOutletTankValve)
 
   NodeObject({
     required this.id,
@@ -60,6 +61,7 @@ class NodeObject {
     this.outletPipeLength = 0.0,
     this.outletSpacing = 1.0,
     this.outletPortCount = 4,
+    this.portLabels,
   });
 
   /// Connection point where pipes coming INTO this node should attach.

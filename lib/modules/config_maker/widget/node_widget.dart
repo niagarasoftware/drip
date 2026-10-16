@@ -178,7 +178,77 @@ class NodeWidget extends StatelessWidget {
                 child: child,
               ),
             ),
-            if (showNameBadge)
+            if (node.type == NodeType.multiOutletTankValve &&
+                node.portLabels != null &&
+                node.portLabels!.isNotEmpty) ...[
+              for (int i = 0; i < node.portLabels!.length; i++)
+                Positioned(
+                  bottom: -12,
+                  left: (node.size.width / (node.outletPortCount <= 0 ? 1 : node.outletPortCount)) * i +
+                      (node.size.width / (node.outletPortCount <= 0 ? 1 : node.outletPortCount)) / 2 -
+                      40,
+                  width: 80,
+                  child: Center(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onTap,
+                      onLongPress: onLongPress,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xEE0F172A),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.blue.shade400
+                                : (isConnectSource
+                                    ? Colors.orangeAccent
+                                    : const Color(0x33FFFFFF)),
+                            width: isSelected || isConnectSource ? 1.2 : 0.8,
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 3.5,
+                              height: 3.5,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: node.isOn
+                                    ? const Color(0xFF10B981)
+                                    : Colors.grey.shade400,
+                              ),
+                            ),
+                            const SizedBox(width: 3.5),
+                            Flexible(
+                              child: Text(
+                                node.portLabels![i],
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.1,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ] else if (showNameBadge)
               Positioned(
                 bottom: -10,
                 left: -20,
