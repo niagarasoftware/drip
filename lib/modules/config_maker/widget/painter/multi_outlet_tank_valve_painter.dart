@@ -7,35 +7,51 @@ import 'main_valve_parts.dart';
 
 /// Multi Outlet Tank Valve manifold painter (realistic, dynamic channel count).
 ///
-/// One centre inlet pipe at the top that feeds into a horizontal stainless
+/// One centre inlet pipe at the top (or left if horizontal) that feeds into a horizontal stainless
 /// collector header with flanged end plates, and [states.length] vertical blue outlet lines
-/// at the bottom, each with a flanged cast-iron gate valve (orange handwheel,
+/// at the bottom (or right if horizontal), each with a flanged cast-iron gate valve (orange handwheel,
 /// green status ring + halo when open; see [TankValveArt]) dropping to bolted
-/// blue end flanges at the bottom ports.
+/// blue end flanges at the outlet ports.
 class DetailedMultiOutletTankValvePainter extends CustomPainter {
   final List<bool> states; // status of each outlet valve channel
   final bool showJoints;
+  final bool isHorizontal;
 
   DetailedMultiOutletTankValvePainter({
     required this.states,
     this.showJoints = true,
+    this.isHorizontal = false,
   });
 
-  /// Single common inlet port at the top center
-  static Offset inletPort(Size s) => Offset(s.width * 0.5, 0);
+  /// Single common inlet port
+  static Offset inletPort(Size s, {bool isHorizontal = false}) =>
+      isHorizontal ? Offset(0, s.height * 0.5) : Offset(s.width * 0.5, 0);
 
-  /// Outlets at the bottom of each vertical pipe channel (0..count-1)
-  static Offset outletPort(Size s, int index, {int totalChannels = 4}) {
+  /// Outlets at the bottom (or right if horizontal) of each channel (0..count-1)
+  static Offset outletPort(Size s, int index, {int totalChannels = 4, bool isHorizontal = false}) {
     final int count = math.max(1, totalChannels);
-    final double step = s.width / count;
-    final double cx = step * index + step / 2;
-    return Offset(cx, s.height);
+    if (isHorizontal) {
+      final double step = s.height / count;
+      final double cy = step * index + step / 2;
+      return Offset(s.width, cy);
+    } else {
+      final double step = s.width / count;
+      final double cx = step * index + step / 2;
+      return Offset(cx, s.height);
+    }
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
+    if (isHorizontal) {
+      canvas.save();
+      canvas.translate(size.width * 0.5, size.height * 0.5);
+      canvas.rotate(-math.pi / 2);
+      canvas.translate(-size.height * 0.5, -size.width * 0.5);
+    }
+
+    final double w = isHorizontal ? size.height : size.width;
+    final double h = isHorizontal ? size.width : size.height;
 
     final int count = math.max(1, states.length);
     final double step = w / count;
@@ -132,29 +148,37 @@ class DetailedMultiOutletTankValvePainter extends CustomPainter {
       TankValveArt.valve(canvas, Offset(channelX[i], valveCy), p, active: active, joints: showJoints);
     }
 
-    // 6. Bolted end flanges: 1 inlet port (top) + [count] outlet ports (bottom)
+    // 6. Bolted end flanges: 1 inlet port (top/left) + [count] outlet ports (bottom/right)
     MainValveArt.endFlange(canvas, Offset(cxC, 0), p, top: true, joints: showJoints);
     for (int i = 0; i < count; i++) {
       MainValveArt.endFlange(canvas, Offset(channelX[i], h), p, top: false, joints: showJoints);
+    }
+
+    if (isHorizontal) {
+      canvas.restore();
     }
   }
 
   @override
   bool shouldRepaint(covariant DetailedMultiOutletTankValvePainter old) =>
-      !listEquals(old.states, states) || old.showJoints != showJoints;
+      !listEquals(old.states, states) ||
+      old.showJoints != showJoints ||
+      old.isHorizontal != isHorizontal;
 }
 
 class MultiOutletTankValveView extends StatelessWidget {
   final bool isOn;
   final bool showJoints;
+  final bool isHorizontal;
   final Size size;
   final int outletCount;
 
   const MultiOutletTankValveView({
     super.key,
     required this.isOn,
-    this.size = const Size(280, 120),
+    this.size = const Size(180, 56),
     this.showJoints = true,
+    this.isHorizontal = false,
     this.outletCount = 4,
   });
 
@@ -165,6 +189,7 @@ class MultiOutletTankValveView extends StatelessWidget {
       painter: DetailedMultiOutletTankValvePainter(
         states: List.filled(outletCount, isOn),
         showJoints: showJoints,
+        isHorizontal: isHorizontal,
       ),
     );
   }

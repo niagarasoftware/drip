@@ -23,7 +23,7 @@ class TankValveArt {
   );
 
   /// Distance from the valve centre to the outer end of its tail collars.
-  static double halfHeight(double p) => p * 2.3 / 2 + p * 0.5 + p * 0.25;
+  static double halfHeight(double p) => p * 1.8 / 2 + p * 0.38 + p * 0.2;
 
   // ---------------------------------------------------------------- valve
 
@@ -41,21 +41,21 @@ class TankValveArt {
     final double u = p / 40;
     final double ew = math.max(0.9, u);
 
-    final double bodyW = p * 1.9;
-    final double bodyH = p * 2.3;
-    final double nutW = p * 1.55;
-    final double nutH = p * 0.5;
-    final double collarW = p * 1.2;
-    final double collarH = p * 0.25;
+    final double bodyW = p * 1.5;
+    final double bodyH = p * 1.8;
+    final double nutW = p * 1.3;
+    final double nutH = p * 0.38;
+    final double collarW = p * 1.05;
+    final double collarH = p * 0.2;
 
     // Status halo
     if (active || inactiveHalo != null) {
       canvas.drawCircle(
         c,
-        p * 1.7,
+        p * 1.35,
         Paint()
           ..color = (active ? MainValveArt.green.withValues(alpha: 0.30) : inactiveHalo!.withValues(alpha: 0.22))
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, p * 0.55),
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, p * 0.45),
       );
     }
 

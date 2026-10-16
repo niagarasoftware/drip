@@ -355,6 +355,7 @@ class NodeWidget extends StatelessWidget {
         child: SingleTankValveView(
           isOn: node.isOn,
           showJoints: node.showJoints,
+          isHorizontal: node.isHorizontal,
           size: node.size,
         ),
       );
@@ -366,6 +367,7 @@ class NodeWidget extends StatelessWidget {
         child: MultiOutletTankValveView(
           isOn: node.isOn,
           showJoints: node.showJoints,
+          isHorizontal: node.isHorizontal,
           size: node.size,
           outletCount: node.outletPortCount,
         ),

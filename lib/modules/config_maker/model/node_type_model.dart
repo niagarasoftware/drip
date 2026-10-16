@@ -106,7 +106,12 @@ class NodeObject {
           ? Offset(position.dx, position.dy + size.height * 0.5)
           : Offset(position.dx + size.width * 0.5, position.dy);
     }
-    if (type == NodeType.mainValve || type == NodeType.multiMainValve || type == NodeType.singleMainValve || type == NodeType.singleTankValve || type == NodeType.multiOutletTankValve || type == NodeType.singleAgitator || type == NodeType.pressureSensor || type == NodeType.moistureSensor) {
+    if (type == NodeType.mainValve || type == NodeType.multiMainValve || type == NodeType.singleMainValve || type == NodeType.singleTankValve || type == NodeType.multiOutletTankValve) {
+      return isHorizontal
+          ? Offset(position.dx, position.dy + size.height * 0.5)
+          : Offset(position.dx + size.width * 0.5, position.dy);
+    }
+    if (type == NodeType.singleAgitator || type == NodeType.pressureSensor || type == NodeType.moistureSensor) {
       return Offset(position.dx + size.width * 0.5, position.dy);
     }
     return Offset(position.dx, position.dy + size.height / 2);
@@ -162,7 +167,12 @@ class NodeObject {
           ? Offset(position.dx + size.width, position.dy + size.height * 0.5)
           : Offset(position.dx + size.width * 0.5, position.dy + size.height);
     }
-    if (type == NodeType.mainValve || type == NodeType.multiMainValve || type == NodeType.singleMainValve || type == NodeType.singleTankValve || type == NodeType.multiOutletTankValve || type == NodeType.singleAgitator || type == NodeType.pressureSensor || type == NodeType.moistureSensor) {
+    if (type == NodeType.mainValve || type == NodeType.multiMainValve || type == NodeType.singleMainValve || type == NodeType.singleTankValve || type == NodeType.multiOutletTankValve) {
+      return isHorizontal
+          ? Offset(position.dx + size.width, position.dy + size.height * 0.5)
+          : Offset(position.dx + size.width * 0.5, position.dy + size.height);
+    }
+    if (type == NodeType.singleAgitator || type == NodeType.pressureSensor || type == NodeType.moistureSensor) {
       return Offset(position.dx + size.width * 0.5, position.dy + size.height);
     }
     return Offset(position.dx + size.width, position.dy + size.height / 2);
@@ -230,8 +240,14 @@ class NodeObject {
     if (type == NodeType.multiOutletTankValve) {
       if (portId != null && (portId.startsWith('channel_') || portId.startsWith('outlet_'))) {
         final int index = int.tryParse(portId.split('_').last) ?? 0;
-        final double step = size.width / math.max(1, outletPortCount);
-        return Offset(position.dx + step * index + step / 2, position.dy + size.height);
+        final int count = math.max(1, outletPortCount);
+        if (isHorizontal) {
+          final double step = size.height / count;
+          return Offset(position.dx + size.width, position.dy + step * index + step / 2);
+        } else {
+          final double step = size.width / count;
+          return Offset(position.dx + step * index + step / 2, position.dy + size.height);
+        }
       }
       if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
       if (portId == 'outlet' || (portId == null && !isInput)) return outputPort;
@@ -312,9 +328,9 @@ class NodeObject {
       case NodeType.singleMainValve:
         return const Size(112, 84);
       case NodeType.singleTankValve:
-        return const Size(84, 84);
+        return const Size(56, 56);
       case NodeType.multiOutletTankValve:
-        return Size(math.max(140.0, 49.0 * outletPortCount), 84);
+        return Size(math.max(105.0, 35.0 * outletPortCount), 56);
       case NodeType.multiAgitator:
         return const Size(224, 126);
       case NodeType.singleAgitator:

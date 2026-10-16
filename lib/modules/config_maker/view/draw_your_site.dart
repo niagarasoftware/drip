@@ -154,6 +154,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
     }
 
+    final Map<double, NodeObject> tankValveMap = {};
+
     for (final src in sources) {
       final double sNo = src.commonDetails.sNo ?? 0.0;
       final sn = sourceMap[sNo];
@@ -162,40 +164,54 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Create Tank Valve nodes if assigned
       NodeObject? inletValveNode;
       if (src.inletTankValve.isNotEmpty) {
-        final bool isMulti = src.isMultiInletTankValve;
-        inletValveNode = NodeObject(
-          id: _nextId('inlet_valve_${sNo.toInt()}'),
-          position: Offset.zero,
-          type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
-          label: '${src.commonDetails.name ?? 'Source'} Inlet Valve',
-          outletPortCount: src.inletTankValvePortCount,
-          showJoints: !_globalHideJoints,
-        );
-        inletValveNode.size = inletValveNode.defaultSize;
-        _nodes.add(inletValveNode);
+        final double vSNo = src.inletTankValve.first;
+        if (tankValveMap.containsKey(vSNo)) {
+          inletValveNode = tankValveMap[vSNo]!;
+        } else {
+          final bool isMulti = src.isMultiInletTankValve;
+          inletValveNode = NodeObject(
+            id: _nextId('inlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
+            position: Offset.zero,
+            type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+            label: '${src.commonDetails.name ?? 'Source'} Inlet Valve',
+            outletPortCount: src.inletTankValvePortCount,
+            isHorizontal: true,
+            showJoints: !_globalHideJoints,
+          );
+          inletValveNode.size = inletValveNode.defaultSize;
+          _nodes.add(inletValveNode);
+          tankValveMap[vSNo] = inletValveNode;
+        }
 
         // Pipe from inlet valve to source
         addEdge(
           inletValveNode,
           sn,
-          isMulti ? 'channel_0' : 'outlet',
+          inletValveNode.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet',
           sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
         );
       }
 
       NodeObject? outletValveNode;
       if (src.outletTankValve.isNotEmpty) {
-        final bool isMulti = src.isMultiOutletTankValve;
-        outletValveNode = NodeObject(
-          id: _nextId('outlet_valve_${sNo.toInt()}'),
-          position: Offset.zero,
-          type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
-          label: '${src.commonDetails.name ?? 'Source'} Outlet Valve',
-          outletPortCount: src.outletTankValvePortCount,
-          showJoints: !_globalHideJoints,
-        );
-        outletValveNode.size = outletValveNode.defaultSize;
-        _nodes.add(outletValveNode);
+        final double vSNo = src.outletTankValve.first;
+        if (tankValveMap.containsKey(vSNo)) {
+          outletValveNode = tankValveMap[vSNo]!;
+        } else {
+          final bool isMulti = src.isMultiOutletTankValve;
+          outletValveNode = NodeObject(
+            id: _nextId('outlet_valve_${vSNo.toString().replaceAll('.', '_')}'),
+            position: Offset.zero,
+            type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+            label: '${src.commonDetails.name ?? 'Source'} Outlet Valve',
+            outletPortCount: src.outletTankValvePortCount,
+            isHorizontal: true,
+            showJoints: !_globalHideJoints,
+          );
+          outletValveNode.size = outletValveNode.defaultSize;
+          _nodes.add(outletValveNode);
+          tankValveMap[vSNo] = outletValveNode;
+        }
 
         // Pipe from source to outlet valve
         addEdge(
@@ -1125,7 +1141,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           setState(() {});
                         },
                       ),
-                      if (node.type == NodeType.waterMeter)
+                      if (node.type == NodeType.waterMeter ||
+                          node.type == NodeType.singleTankValve ||
+                          node.type == NodeType.multiOutletTankValve ||
+                          node.type == NodeType.singleMainValve ||
+                          node.type == NodeType.mainValve ||
+                          node.type == NodeType.multiMainValve)
                         SwitchListTile(
                           title: const Text('Horizontal orientation'),
                           subtitle: Text(node.isHorizontal
