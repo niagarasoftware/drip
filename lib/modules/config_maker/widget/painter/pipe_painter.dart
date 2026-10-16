@@ -47,6 +47,21 @@ class PipePainter extends CustomPainter {
   static const Color _airShade = Color(0xFF0D5C8F); // shaded underside
   static const Color _airLight = Color(0xFF8BDCFF); // lit top side
 
+  // ---------------------------------------------------------------------------
+  // Fertilizer / Chemical dosing pipe settings (sleek, thin micro-tubing)
+  // ---------------------------------------------------------------------------
+  static const double _fertDiameter = 3.2;
+
+  static const Color _fertEdge = Color(0xFF092915); // Dark forest green outline
+  static const Color _fertBody = Color(0xFF1B5E20); // Rich green tube body
+  static const Color _fertFlow = Color(0xFF388E3C); // Vibrant green active chemical solution
+  static const Color _fertFlowIdle = Color(0xFF66BB6A); // Translucent green solution
+  static const Color _fertLight = Color(0xFFC8E6C9); // Specular highlight streak
+
+  static const Color _fertMetalEdge = Color(0xFF1B2E21); // Dark fitting edge
+  static const Color _fertMetalBody = Color(0xFF2E7D32); // Emerald metallic body for fittings
+  static const Color _fertMetalLight = Color(0xFFA5D6A7); // Lit side of fitting
+
   static const Color _metalEdge = Color(0xFF3B474F);
   static const Color _metalSteel = Color(0xFF78909C);
   static const Color _metalBody = Color(0xFFCFD8DC);
@@ -182,12 +197,15 @@ class PipePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Points of ordinary water pipes & air pipes, used afterwards to draw junctions.
+    // Points of ordinary water pipes, air pipes & fertilizer pipes.
     final List<List<Offset>> waterPipePoints = [];
     final List<List<Offset>> airPipePoints = [];
+    final List<List<Offset>> fertilizerPipePoints = [];
     final Set<String> airNodeIds = _getAirNodeIds();
     final Set<String> fertilizerPipeIds = _getFertilizerPipeIds(airNodeIds);
     final List<List<Offset>> allPipePoints = [];
+
+    final List<Map<String, dynamic>> pipesToDraw = [];
 
     for (final pipe in pipes) {
       final from = _findNode(pipe.fromNodeId);
@@ -203,61 +221,49 @@ class PipePainter extends CustomPainter {
       final bool isAir = _isAirPipe(pipe, from, to, airNodeIds);
       final bool isFertilizer = fertilizerPipeIds.contains(pipe.id);
 
+      if (isAir) {
+        airPipePoints.add(points);
+      } else if (isFertilizer) {
+        fertilizerPipePoints.add(points);
+      } else {
+        waterPipePoints.add(points);
+      }
+
+      pipesToDraw.add({
+        'pipe': pipe,
+        'points': points,
+        'isSelected': isSelected,
+        'isAir': isAir,
+        'isFertilizer': isFertilizer,
+      });
+    }
+
+    for (final pInfo in pipesToDraw) {
+      final PipeConnection pipe = pInfo['pipe'];
+      final List<Offset> points = pInfo['points'];
+      final bool isSelected = pInfo['isSelected'];
+      final bool isAir = pInfo['isAir'];
+      final bool isFertilizer = pInfo['isFertilizer'];
+
       try {
         if (isAir) {
-          // --- Air Pipe (glossy ribbed hose, static) ---
           final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
           _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
-          airPipePoints.add(points);
         } else if (isFertilizer) {
-          // --- Fertilizer / Chemical Dosing Pipe (Realistic thin flexible tubing) ---
-          final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
-          canvas.drawPath(
-            curvedPath,
-            Paint()
-              ..color = isSelected ? const Color(0xFFFF9800) : const Color(0xFF1B5E20)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = isSelected ? 5.5 : 4.0
-              ..strokeCap = StrokeCap.round
-              ..strokeJoin = StrokeJoin.round,
-          );
-
-          // Inner chemical solution stream
-          canvas.drawPath(
-            curvedPath,
-            Paint()
-              ..color = pipe.flowActive
-                  ? const Color(0xFF4CAF50) // Vibrant green fertilizer solution
-                  : const Color(0xFFA5D6A7) // Muted translucent green
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = isSelected ? 2.8 : 2.0
-              ..strokeCap = StrokeCap.round
-              ..strokeJoin = StrokeJoin.round,
-          );
-
-          // Sheen / gloss highlight streak
-          canvas.drawPath(
-            curvedPath,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.40)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8
-              ..strokeCap = StrokeCap.round
-              ..strokeJoin = StrokeJoin.round,
-          );
+          final Path fertPath = _buildFertilizerPath(points, fertilizerPipePoints);
+          _drawFertilizerPipe(canvas, points, fertPath, isSelected, pipe.flowActive);
         } else {
-          // --- Standard Main Water Pipe: realistic grey PVC ---
           _drawWaterPipe(canvas, points, isSelected);
-          waterPipePoints.add(points);
         }
       } catch (e, st) {
         debugPrint('PipePainter: failed to draw pipe ${pipe.id}: $e\n$st');
       }
     }
 
-    // Elbows, tees and crosses where water pipes & air pipes meet.
+    // Elbows, tees and crosses for water, air and fertilizer pipes.
     _drawJunctions(canvas, waterPipePoints);
     _drawAirJunctions(canvas, airPipePoints);
+    _drawFertilizerJunctions(canvas, fertilizerPipePoints);
 
     // Rubber-band preview line while user is dragging a port in connect mode.
     if (pendingConnectFromId != null) {
@@ -1136,6 +1142,353 @@ class PipePainter extends CustomPainter {
 
     for (final u in dirs) {
       _socketBand(canvas, pos + u * sDist, u, d);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fertilizer Pipe Path & Chemical Dosing Fittings
+  // ---------------------------------------------------------------------------
+
+  Offset? _lineIntersection(Offset a1, Offset a2, Offset b1, Offset b2) {
+    final double denom = (a2.dx - a1.dx) * (b2.dy - b1.dy) - (a2.dy - a1.dy) * (b2.dx - b1.dx);
+    if (denom.abs() < 1e-5) return null;
+
+    final double t = ((b1.dx - a1.dx) * (b2.dy - b1.dy) - (b1.dy - a1.dy) * (b2.dx - b1.dx)) / denom;
+    final double u = ((b1.dx - a1.dx) * (a2.dy - a1.dy) - (b1.dy - a1.dy) * (a2.dx - a1.dx)) / denom;
+
+    if (t > 0.08 && t < 0.92 && u > 0.08 && u < 0.92) {
+      return Offset(a1.dx + t * (a2.dx - a1.dx), a1.dy + t * (a2.dy - a1.dy));
+    }
+    return null;
+  }
+
+  Path _buildFertilizerPath(List<Offset> points, List<List<Offset>> otherPipePoints) {
+    final Path path = Path();
+    if (points.isEmpty) return path;
+    if (points.length < 2) {
+      path.moveTo(points.first.dx, points.first.dy);
+      return path;
+    }
+
+    path.moveTo(points.first.dx, points.first.dy);
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+      final v = pNext - pCurr;
+      final len = v.distance;
+
+      if (len < 0.1) continue;
+      final u = v / len;
+      final n = Offset(-u.dy, u.dx); // perpendicular normal vector
+
+      final bool isVertical = (v.dx.abs() < 1.0);
+
+      // Find interior crossings on this segment
+      final List<Offset> crossings = [];
+      for (final otherPts in otherPipePoints) {
+        if (identical(otherPts, points)) continue;
+        for (int j = 0; j < otherPts.length - 1; j++) {
+          final qCurr = otherPts[j];
+          final qNext = otherPts[j + 1];
+          final bool otherIsVertical = ((qNext.dx - qCurr.dx).abs() < 1.0);
+
+          // Vertical pipes get a clean bridge jump over horizontal pipes
+          if (isVertical && !otherIsVertical) {
+            final pt = _lineIntersection(pCurr, pNext, qCurr, qNext);
+            if (pt != null) {
+              if ((pt - pCurr).distance > 10.0 &&
+                  (pt - pNext).distance > 10.0 &&
+                  (pt - qCurr).distance > 10.0 &&
+                  (pt - qNext).distance > 10.0) {
+                crossings.add(pt);
+              }
+            }
+          }
+        }
+      }
+
+      if (crossings.isEmpty) {
+        path.lineTo(pNext.dx, pNext.dy);
+      } else {
+        crossings.sort((a, b) => (a - pCurr).distance.compareTo((b - pCurr).distance));
+
+        for (final c in crossings) {
+          final Offset cStart = c - u * 6.0;
+          final Offset cEnd = c + u * 6.0;
+          final Offset cMid = c + n * 5.0;
+
+          path.lineTo(cStart.dx, cStart.dy);
+          path.quadraticBezierTo(cMid.dx, cMid.dy, cEnd.dx, cEnd.dy);
+        }
+        path.lineTo(pNext.dx, pNext.dy);
+      }
+    }
+
+    return path;
+  }
+
+  void _drawFertilizerPipe(
+    Canvas canvas,
+    List<Offset> points,
+    Path path,
+    bool isSelected,
+    bool flowActive,
+  ) {
+    const double d = _fertDiameter;
+
+    // 1. Selection halo
+    if (isSelected) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = const Color(0xFFFF9800)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = d + 3.0
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+
+    // 2. Drop shadow for depth & jump bridge separation
+    canvas.drawPath(
+      path.shift(const Offset(0, 1.0)),
+      Paint()
+        ..color = const Color(0x3B000000)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = d + 0.8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0),
+    );
+
+    // 3. Outer casing
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = _fertEdge
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = d
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // 4. Tube body
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = _fertBody
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = d - 1.0
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // 5. Chemical flow stream
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = flowActive ? _fertFlow : _fertFlowIdle
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = d - 2.0
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // 6. Glossy sheen highlight
+    canvas.drawPath(
+      path.shift(const Offset(-0.4, -0.4)),
+      Paint()
+        ..color = _fertLight.withValues(alpha: 0.60)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.6
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // 7. Mini socket collars at start/end ports & bend elbows
+    _fertilizerCollar(canvas, points.first, points[1]);
+    _fertilizerCollar(canvas, points.last, points[points.length - 2]);
+    _drawFertilizerElbowBendCollars(canvas, points);
+  }
+
+  void _drawFertilizerJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
+    if (pipePoints.isEmpty) return;
+    final junctions = _buildJunctions(pipePoints);
+    const double d = _fertDiameter;
+
+    junctions.forEach((pos, dirs) {
+      if (dirs.length < 2) return;
+
+      if (dirs.length == 2) {
+        final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
+        if (dot < -0.97) return;
+
+        _drawFertilizerElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        return;
+      }
+
+      if (dirs.length == 3) {
+        _drawFertilizerTeeFitting(canvas, pos, dirs, d);
+      } else if (dirs.length >= 4) {
+        _drawFertilizerCrossFitting(canvas, pos, dirs, d);
+      }
+    });
+  }
+
+  void _drawFertilizerElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {
+    final double sLen = d * 1.2;
+    final Offset p1 = pos + u1 * sLen;
+    final Offset p2 = pos + u2 * sLen;
+
+    final Path elbowPath = Path()
+      ..moveTo(p1.dx, p1.dy)
+      ..quadraticBezierTo(pos.dx, pos.dy, p2.dx, p2.dy);
+
+    canvas.drawPath(elbowPath, _tube(_fertEdge, d + 0.8, cap: StrokeCap.round));
+    canvas.drawPath(elbowPath, _tube(_fertBody, d - 0.2, cap: StrokeCap.round));
+
+    _fertilizerSocketBand(canvas, p1, u1, d);
+    _fertilizerSocketBand(canvas, p2, u2, d);
+  }
+
+  void _drawFertilizerTeeFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    if (dirs.length < 3) return;
+
+    int m1 = 0, m2 = 1;
+    double minDot = 1.0;
+    for (int i = 0; i < dirs.length; i++) {
+      for (int j = i + 1; j < dirs.length; j++) {
+        final dot = dirs[i].dx * dirs[j].dx + dirs[i].dy * dirs[j].dy;
+        if (dot < minDot) {
+          minDot = dot;
+          m1 = i;
+          m2 = j;
+        }
+      }
+    }
+
+    final Offset uMain1 = dirs[m1];
+    final Offset uMain2 = dirs[m2];
+    final Offset uBranch = dirs.firstWhere((e) => e != uMain1 && e != uMain2, orElse: () => dirs[2]);
+
+    final double sDist = d * 1.4;
+    final Offset p1 = pos + uMain1 * sDist;
+    final Offset p2 = pos + uMain2 * sDist;
+    final Offset pB = pos + uBranch * sDist;
+
+    // Main run
+    canvas.drawLine(p1, p2, _tube(_fertEdge, d + 0.8, cap: StrokeCap.butt));
+    canvas.drawLine(p1, p2, _tube(_fertBody, d - 0.2, cap: StrokeCap.butt));
+
+    // Branch run
+    canvas.drawLine(pos, pB, _tube(_fertEdge, d + 0.8, cap: StrokeCap.butt));
+    canvas.drawLine(pos, pB, _tube(_fertBody, d - 0.2, cap: StrokeCap.butt));
+
+    // Compact junction center dot
+    canvas.drawCircle(pos, d * 0.5, Paint()..color = _fertEdge);
+    canvas.drawCircle(pos, d * 0.35, Paint()..color = _fertMetalBody);
+
+    _fertilizerSocketBand(canvas, p1, uMain1, d);
+    _fertilizerSocketBand(canvas, p2, uMain2, d);
+    _fertilizerSocketBand(canvas, pB, uBranch, d);
+  }
+
+  void _drawFertilizerCrossFitting(Canvas canvas, Offset pos, List<Offset> dirs, double d) {
+    final double sDist = d * 1.4;
+
+    for (final u in dirs) {
+      final Offset pArm = pos + u * sDist;
+      canvas.drawLine(pos, pArm, _tube(_fertEdge, d + 0.8, cap: StrokeCap.butt));
+      canvas.drawLine(pos, pArm, _tube(_fertBody, d - 0.2, cap: StrokeCap.butt));
+    }
+
+    // Compact junction center dot
+    canvas.drawCircle(pos, d * 0.55, Paint()..color = _fertEdge);
+    canvas.drawCircle(pos, d * 0.4, Paint()..color = _fertMetalBody);
+
+    for (final u in dirs) {
+      _fertilizerSocketBand(canvas, pos + u * sDist, u, d);
+    }
+  }
+
+  void _fertilizerSocketBand(Canvas canvas, Offset pos, Offset dir, double d) {
+    final double w = d + 1.2;
+    final Offset n = Offset(-dir.dy, dir.dx);
+    final Offset a = pos - n * (w / 2);
+    final Offset b = pos + n * (w / 2);
+
+    final Offset bandOffset = dir * 1.5;
+    final Offset a2 = a + bandOffset;
+    final Offset b2 = b + bandOffset;
+
+    final Path bandPath = Path()
+      ..moveTo(a.dx, a.dy)
+      ..lineTo(b.dx, b.dy)
+      ..lineTo(b2.dx, b2.dy)
+      ..lineTo(a2.dx, a2.dy)
+      ..close();
+
+    canvas.drawPath(bandPath, Paint()..color = _fertMetalEdge..style = PaintingStyle.fill);
+
+    final Path innerPath = Path()
+      ..moveTo(a.dx + dir.dx * 0.2, a.dy + dir.dy * 0.2)
+      ..lineTo(b.dx + dir.dx * 0.2, b.dy + dir.dy * 0.2)
+      ..lineTo(b2.dx - dir.dx * 0.2, b2.dy - dir.dy * 0.2)
+      ..lineTo(a2.dx - dir.dx * 0.2, a2.dy - dir.dy * 0.2)
+      ..close();
+    canvas.drawPath(innerPath, Paint()..color = _fertMetalBody..style = PaintingStyle.fill);
+
+    canvas.drawLine(
+      a + const Offset(-0.3, -0.3),
+      b + const Offset(-0.3, -0.3),
+      Paint()..color = _fertMetalLight..strokeWidth = 0.5..style = PaintingStyle.stroke,
+    );
+  }
+
+  void _fertilizerCollar(Canvas canvas, Offset from, Offset toward) {
+    final Offset v = toward - from;
+    final double len = v.distance;
+    if (len < 12) return;
+    final Offset u = v / len;
+    final Offset a = from + u * 2.0;
+    final Offset b = from + u * 5.0;
+    const double w = _fertDiameter + 1.2;
+
+    canvas.drawLine(a, b, _tube(_fertEdge, w));
+    canvas.drawLine(a, b, _tube(_fertBody, w - 0.8));
+  }
+
+  void _drawFertilizerElbowBendCollars(Canvas canvas, List<Offset> points) {
+    if (points.length < 3) return;
+    const double d = _fertDiameter;
+
+    for (int i = 1; i < points.length - 1; i++) {
+      final pPrev = points[i - 1];
+      final pCurr = points[i];
+      final pNext = points[i + 1];
+
+      final vIn = pCurr - pPrev;
+      final lenIn = vIn.distance;
+      final vOut = pNext - pCurr;
+      final lenOut = vOut.distance;
+
+      if (lenIn < 0.1 || lenOut < 0.1) continue;
+
+      final uIn = vIn / lenIn;
+      final uOut = vOut / lenOut;
+
+      final dot = uIn.dx * uOut.dx + uIn.dy * uOut.dy;
+      if (dot.abs() > 0.98) continue;
+
+      final double r = math.min(6.0, math.min(lenIn / 2, lenOut / 2));
+      if (r < 1.0) continue;
+
+      final Offset pStart = pCurr - uIn * r;
+      final Offset pEnd = pCurr + uOut * r;
+
+      _fertilizerSocketBand(canvas, pStart, uIn, d);
+      _fertilizerSocketBand(canvas, pEnd, uOut, d);
     }
   }
 

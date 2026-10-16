@@ -964,10 +964,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       targetGroups.putIfAbsent(key, () => []).add(l);
     }
 
-    const double firstLaneGap = 30.0;
+    const double firstLaneGap = 28.0;
     const double laneStep = 16.0;
     const double mergeGap = 24.0;
-    const double skidGap = 60.0;
+    const double skidGap = 50.0;
 
     int multiSourceCount = 0;
     int offsetSingleCount = 0;
@@ -992,6 +992,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       s.position = Offset(s.position.dx, skidY);
     }
 
+    // Calculate center X of skids
+    double skidSumX = 0;
+    for (final s in skids) {
+      skidSumX += s.position.dx + s.size.width / 2;
+    }
+    final double skidCenterX = skids.isNotEmpty ? skidSumX / skids.length : 300.0;
+
     // 4. Create merge junctions above each skid channel that has incoming links
     final Map<String, NodeObject> mergeJunctions = {};
     for (final entry in targetGroups.entries) {
@@ -1012,8 +1019,20 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     // 5. Assign lanes and create pipes for each source group
+    // Sort source entries by distance to skid center ascending so valves closer to skid get upper lanes first.
+    // This mathematically guarantees that vertical drops from valves never cross upper horizontal lanes!
+    final sortedSourceEntries = sourceGroups.entries.toList()
+      ..sort((a, b) {
+        final startXA = a.value.first.valve.getPort(a.value.first.valvePort, isInput: false).dx;
+        final startXB = b.value.first.valve.getPort(b.value.first.valvePort, isInput: false).dx;
+        final distA = (startXA - skidCenterX).abs();
+        final distB = (startXB - skidCenterX).abs();
+        final c = distA.compareTo(distB);
+        return c != 0 ? c : startXA.compareTo(startXB);
+      });
+
     int laneIdx = 0;
-    for (final entry in sourceGroups.entries) {
+    for (final entry in sortedSourceEntries) {
       final gLinks = entry.value;
       final firstLink = gLinks.first;
       final Offset startPt = firstLink.valve.getPort(firstLink.valvePort, isInput: false);
