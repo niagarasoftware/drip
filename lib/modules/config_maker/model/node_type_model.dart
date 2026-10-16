@@ -342,7 +342,7 @@ class NodeObject {
       case NodeType.moistureSensor:
         return const Size(42, 56);
       case NodeType.blower:
-        return const Size(112, 105);
+        return const Size(80, 75);
       case NodeType.waterMeter:
         return isHorizontal ? const Size(126, 84) : const Size(84, 126);
       case NodeType.overheadTank:

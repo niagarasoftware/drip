@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../../utils/constants.dart';
 import '../model/channel_config_model.dart';
 import '../model/device_object_model.dart';
 import '../model/node_type_model.dart';
@@ -581,21 +582,65 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       final double tankSpacing =
       anyMultiFertValve ? math.max(170.0, 40.0 * maxFertValvePorts + 50.0) : 170.0;
 
-      // Air Blower node
-      NodeObject? blowerNode;
-      if (fertTanks.isNotEmpty || fertSites.any((s) => s.agitator.isNotEmpty)) {
+      // Air Blower / Agitator nodes generated dynamically from data
+      final Map<double, NodeObject> agitatorNodeMap = {};
+
+      final Set<double> allAgitatorSNos = {};
+      for (final tank in fertTanks) {
+        allAgitatorSNos.addAll(tank.agitator);
+      }
+      for (final site in fertSites) {
+        allAgitatorSNos.addAll(site.agitator);
+      }
+
+      if (allAgitatorSNos.isEmpty && fertTanks.isNotEmpty) {
+        for (final obj in configPvd.listOfGeneratedObject) {
+          if (obj.objectId == AppConstants.agitatorObjectId) {
+            if (obj.sNo != null) allAgitatorSNos.add(obj.sNo!);
+          }
+        }
+      }
+
+      final List<double> sortedAgitatorSNos = allAgitatorSNos.toList()..sort();
+
+      if (sortedAgitatorSNos.isNotEmpty) {
         final double totalTanksW = fertTanks.isEmpty ? 170.0 : fertTanks.length * tankSpacing;
+        final double startBlowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
+
+        for (int a = 0; a < sortedAgitatorSNos.length; a++) {
+          final double agSNo = sortedAgitatorSNos[a];
+          final deviceObj = _getObjectName(agSNo, configPvd);
+          final String label = (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
+              ? deviceObj.name!
+              : 'Air Blower ${a + 1}';
+
+          final double blowerX = startBlowerX + a * 130.0;
+          final blowerNode = NodeObject(
+            id: _nextId('blower_${agSNo.toInt()}'),
+            position: Offset(blowerX, row1Y),
+            type: NodeType.blower,
+            size: const Size(80, 75),
+            label: label,
+            showJoints: !_globalHideJoints,
+          );
+          blowerNode.size = blowerNode.defaultSize;
+          _nodes.add(blowerNode);
+          agitatorNodeMap[agSNo] = blowerNode;
+        }
+      } else if (fertTanks.isNotEmpty) {
+        final double totalTanksW = fertTanks.length * tankSpacing;
         final double blowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
-        blowerNode = NodeObject(
-          id: _nextId('blower'),
+        final blowerNode = NodeObject(
+          id: _nextId('blower_default'),
           position: Offset(blowerX, row1Y),
           type: NodeType.blower,
-          size: const Size(112, 105),
+          size: const Size(80, 75),
           label: 'Air Blower',
           showJoints: !_globalHideJoints,
         );
         blowerNode.size = blowerNode.defaultSize;
         _nodes.add(blowerNode);
+        agitatorNodeMap[0.0] = blowerNode;
       }
 
       // Row 2: Fertilizer Tanks
@@ -672,27 +717,57 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         }
       }
 
-      // Connect Air Blower Line (Blue) to Fertilizer Tanks
-      if (blowerNode != null && fertTanks.isNotEmpty) {
-        final double airY = tanksY - 35.0;
-        final Offset blowerPt = blowerNode.outputPort;
+      // Connect Air Blower Lines (Blue) dynamically based on assigned agitator data
+      if (agitatorNodeMap.isNotEmpty && fertTanks.isNotEmpty) {
+        final List<double> sortedAgKeys = agitatorNodeMap.keys.toList()..sort();
 
         for (int t = 0; t < fertTanks.length; t++) {
-          final tankNode = fertTankNodeMap[fertTanks[t].commonDetails.sNo ?? 0.0]!;
+          final tankSpec = fertTanks[t];
+          final double tankSNo = tankSpec.commonDetails.sNo ?? 0.0;
+          final tankNode = fertTankNodeMap[tankSNo]!;
           final Offset topInletPt = tankNode.getPort('top_inlet', isInput: true);
 
-          _pipes.add(PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: blowerNode.id,
-            toNodeId: tankNode.id,
-            fromPortId: 'outlet',
-            toPortId: 'top_inlet',
-            waypoints: [
-              Offset(blowerPt.dx - 20.0, blowerPt.dy),
-              Offset(blowerPt.dx - 20.0, airY),
-              Offset(topInletPt.dx, airY),
-            ],
-          ));
+          List<double> assignedAgitators = tankSpec.agitator;
+          if (assignedAgitators.isEmpty) {
+            if (fertSites.isNotEmpty) {
+              for (final site in fertSites) {
+                if (site.agitator.isNotEmpty) {
+                  assignedAgitators = site.agitator;
+                  break;
+                }
+              }
+            }
+            if (assignedAgitators.isEmpty && agitatorNodeMap.length == 1) {
+              assignedAgitators = [agitatorNodeMap.keys.first];
+            }
+          }
+
+          for (final agSNo in assignedAgitators) {
+            final blowerNode = agitatorNodeMap[agSNo] ?? agitatorNodeMap[0.0];
+            if (blowerNode == null) continue;
+
+            final int agIdx = math.max(0, sortedAgKeys.indexOf(agSNo));
+            final double airY = tanksY - 35.0 - (agIdx * 15.0);
+            final Offset blowerPt = blowerNode.outputPort;
+            final double dropX = blowerPt.dx - 10.0;
+
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: blowerNode.id,
+              toNodeId: tankNode.id,
+              fromPortId: 'outlet',
+              toPortId: 'top_inlet',
+              waypoints: _cleanWaypoints(
+                blowerPt,
+                [
+                  Offset(dropX, blowerPt.dy),
+                  Offset(dropX, airY),
+                  Offset(topInletPt.dx, airY),
+                ],
+                topInletPt,
+              ),
+            ));
+          }
         }
       }
 
