@@ -1019,8 +1019,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     // 5. Assign lanes and create pipes for each source group
-    // Sort source entries by distance to skid center ascending so valves closer to skid get upper lanes first.
-    // This mathematically guarantees that vertical drops from valves never cross upper horizontal lanes!
+    // Separate single-target and multi-target source groups
+    // Single-target valves get upper lanes; multi-target valve ports get bottom distributor lanes at the bottom
     final sortedSourceEntries = sourceGroups.entries.toList()
       ..sort((a, b) {
         final startXA = a.value.first.valve.getPort(a.value.first.valvePort, isInput: false).dx;
@@ -1031,98 +1031,102 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         return c != 0 ? c : startXA.compareTo(startXB);
       });
 
+    final singleTargetEntries = sortedSourceEntries.where((e) => e.value.length == 1).toList();
+    final multiTargetEntries = sortedSourceEntries.where((e) => e.value.length > 1).toList();
+
     int laneIdx = 0;
-    for (final entry in sortedSourceEntries) {
+
+    // Single-target valve ports get upper lanes
+    for (final entry in singleTargetEntries) {
+      final l = entry.value.first;
+      final Offset startPt = l.valve.getPort(l.valvePort, isInput: false);
+      final targetKey = '${l.skid.id}|${l.skidPort}';
+      final targetJn = mergeJunctions[targetKey]!;
+      final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
+
+      if ((startPt.dx - targetPos.dx).abs() < 1.0) {
+        // Perfectly straight vertical run!
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: l.valve.id,
+          fromPortId: l.valvePort,
+          toNodeId: targetJn.id,
+          waypoints: _cleanWaypoints(startPt, [], targetPos),
+        ));
+      } else {
+        // Off-axis: drop to assigned upper lane, horizontal run, drop to target junction
+        final double lY = lane0 + laneStep * laneIdx;
+        laneIdx++;
+
+        final List<Offset> wps = [
+          Offset(startPt.dx, lY),
+          Offset(targetPos.dx, lY),
+        ];
+
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: l.valve.id,
+          fromPortId: l.valvePort,
+          toNodeId: targetJn.id,
+          waypoints: _cleanWaypoints(startPt, wps, targetPos),
+        ));
+      }
+    }
+
+    // Multi-target / common valve ports get bottom distributor lanes (placed near the bottom right above the channels)
+    for (final entry in multiTargetEntries) {
       final gLinks = entry.value;
       final firstLink = gLinks.first;
       final Offset startPt = firstLink.valve.getPort(firstLink.valvePort, isInput: false);
 
-      if (gLinks.length > 1) {
-        // --- Multi-Target / Common Valve Port ---
-        // Uses ONE distributor header lane
-        final double distLane = lane0 + laneStep * laneIdx;
-        laneIdx++;
+      final double distLane = lane0 + laneStep * laneIdx;
+      laneIdx++;
 
-        final Offset trunkEnd = Offset(startPt.dx, distLane);
-        final NodeObject jnTrunk = _newJunction(trunkEnd);
+      final Offset trunkEnd = Offset(startPt.dx, distLane);
+      final NodeObject jnTrunk = _newJunction(trunkEnd);
 
-        // Pipe 1: Valve port -> Trunk junction on distributor lane
-        _pipes.add(PipeConnection(
-          id: _nextId('pipe'),
-          fromNodeId: firstLink.valve.id,
-          fromPortId: firstLink.valvePort,
-          toNodeId: jnTrunk.id,
-          waypoints: _cleanWaypoints(startPt, [], trunkEnd),
-        ));
+      // Pipe 1: Valve port -> Trunk junction dropping down to bottom distributor lane
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: firstLink.valve.id,
+        fromPortId: firstLink.valvePort,
+        toNodeId: jnTrunk.id,
+        waypoints: _cleanWaypoints(startPt, [], trunkEnd),
+      ));
 
-        // Horizontal bus line and vertical drop tees for each target channel
-        for (final l in gLinks) {
-          final targetKey = '${l.skid.id}|${l.skidPort}';
-          final targetJn = mergeJunctions[targetKey]!;
-          final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
-
-          if ((targetPos.dx - startPt.dx).abs() < 1.0) {
-            // Straight vertical drop from trunk junction down to merge junction
-            _pipes.add(PipeConnection(
-              id: _nextId('pipe'),
-              fromNodeId: jnTrunk.id,
-              toNodeId: targetJn.id,
-              waypoints: _cleanWaypoints(trunkEnd, [], targetPos),
-            ));
-          } else {
-            // Tee junction on distributor lane
-            final Offset teePt = Offset(targetPos.dx, distLane);
-            final NodeObject jnTee = _newJunction(teePt);
-
-            // Horizontal segment from trunk junction to tee junction
-            _pipes.add(PipeConnection(
-              id: _nextId('pipe'),
-              fromNodeId: jnTrunk.id,
-              toNodeId: jnTee.id,
-              waypoints: _cleanWaypoints(trunkEnd, [], teePt),
-            ));
-
-            // Vertical drop from tee junction down to merge junction
-            _pipes.add(PipeConnection(
-              id: _nextId('pipe'),
-              fromNodeId: jnTee.id,
-              toNodeId: targetJn.id,
-              waypoints: _cleanWaypoints(teePt, [], targetPos),
-            ));
-          }
-        }
-      } else {
-        // --- Single-Target Valve Port ---
-        final l = gLinks.first;
+      // Horizontal bus line at the bottom and short vertical drop tees for each target channel
+      for (final l in gLinks) {
         final targetKey = '${l.skid.id}|${l.skidPort}';
         final targetJn = mergeJunctions[targetKey]!;
         final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
 
-        if ((startPt.dx - targetPos.dx).abs() < 1.0) {
-          // Perfectly straight vertical run!
+        if ((targetPos.dx - startPt.dx).abs() < 1.0) {
+          // Straight vertical drop from bottom trunk junction down to merge junction
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: l.valve.id,
-            fromPortId: l.valvePort,
+            fromNodeId: jnTrunk.id,
             toNodeId: targetJn.id,
-            waypoints: _cleanWaypoints(startPt, [], targetPos),
+            waypoints: _cleanWaypoints(trunkEnd, [], targetPos),
           ));
         } else {
-          // Off-axis: drop to assigned lane, horizontal run, drop to target junction
-          final double lY = lane0 + laneStep * laneIdx;
-          laneIdx++;
+          // Tee junction on bottom distributor lane
+          final Offset teePt = Offset(targetPos.dx, distLane);
+          final NodeObject jnTee = _newJunction(teePt);
 
-          final List<Offset> wps = [
-            Offset(startPt.dx, lY),
-            Offset(targetPos.dx, lY),
-          ];
-
+          // Horizontal bus segment on bottom distributor lane
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: l.valve.id,
-            fromPortId: l.valvePort,
+            fromNodeId: jnTrunk.id,
+            toNodeId: jnTee.id,
+            waypoints: _cleanWaypoints(trunkEnd, [], teePt),
+          ));
+
+          // Short vertical drop from bottom tee junction into merge junction
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnTee.id,
             toNodeId: targetJn.id,
-            waypoints: _cleanWaypoints(startPt, wps, targetPos),
+            waypoints: _cleanWaypoints(teePt, [], targetPos),
           ));
         }
       }
