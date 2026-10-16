@@ -241,51 +241,55 @@ class PipePainter extends CustomPainter {
       final bool isAir = _isAirPipe(pipe, from, to, airNodeIds);
       final bool isFertilizer = fertilizerPipeIds.contains(pipe.id);
 
-      if (isAir) {
-        // --- Air Pipe (glossy ribbed hose, static) ---
-        final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
-        _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
-        airPipePoints.add(points);
-      } else if (isFertilizer) {
-        // --- Fertilizer / Chemical Dosing Pipe (Realistic thin flexible tubing) ---
-        final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
-        canvas.drawPath(
-          curvedPath,
-          Paint()
-            ..color = isSelected ? const Color(0xFFFF9800) : const Color(0xFF1B5E20)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = isSelected ? 5.5 : 4.0
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
+      try {
+        if (isAir) {
+          // --- Air Pipe (glossy ribbed hose, static) ---
+          final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
+          _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
+          airPipePoints.add(points);
+        } else if (isFertilizer) {
+          // --- Fertilizer / Chemical Dosing Pipe (Realistic thin flexible tubing) ---
+          final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
+          canvas.drawPath(
+            curvedPath,
+            Paint()
+              ..color = isSelected ? const Color(0xFFFF9800) : const Color(0xFF1B5E20)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = isSelected ? 5.5 : 4.0
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round,
+          );
 
-        // Inner chemical solution stream
-        canvas.drawPath(
-          curvedPath,
-          Paint()
-            ..color = pipe.flowActive
-                ? const Color(0xFF4CAF50) // Vibrant green fertilizer solution
-                : const Color(0xFFA5D6A7) // Muted translucent green
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = isSelected ? 2.8 : 2.0
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
+          // Inner chemical solution stream
+          canvas.drawPath(
+            curvedPath,
+            Paint()
+              ..color = pipe.flowActive
+                  ? const Color(0xFF4CAF50) // Vibrant green fertilizer solution
+                  : const Color(0xFFA5D6A7) // Muted translucent green
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = isSelected ? 2.8 : 2.0
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round,
+          );
 
-        // Sheen / gloss highlight streak
-        canvas.drawPath(
-          curvedPath,
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.40)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.8
-            ..strokeCap = StrokeCap.round
-            ..strokeJoin = StrokeJoin.round,
-        );
-      } else {
-        // --- Standard Main Water Pipe: realistic grey PVC ---
-        _drawWaterPipe(canvas, points, isSelected);
-        waterPipePoints.add(points);
+          // Sheen / gloss highlight streak
+          canvas.drawPath(
+            curvedPath,
+            Paint()
+              ..color = Colors.white.withValues(alpha: 0.40)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.8
+              ..strokeCap = StrokeCap.round
+              ..strokeJoin = StrokeJoin.round,
+          );
+        } else {
+          // --- Standard Main Water Pipe: realistic grey PVC ---
+          _drawWaterPipe(canvas, points, isSelected);
+          waterPipePoints.add(points);
+        }
+      } catch (e, st) {
+        debugPrint('PipePainter: failed to draw pipe ${pipe.id}: $e\n$st');
       }
     }
 
@@ -316,7 +320,7 @@ class PipePainter extends CustomPainter {
           isFertilizerDrag = (pendingFromPortId != null && pendingFromPortId!.startsWith('channel_'));
         } else if (from.type == NodeType.singleTankValve || from.type == NodeType.multiOutletTankValve) {
           isFertilizerDrag = pipes.any((p) =>
-              fertilizerPipeIds.contains(p.id) &&
+          fertilizerPipeIds.contains(p.id) &&
               (p.fromNodeId == from.id || p.toNodeId == from.id));
         }
 
@@ -358,7 +362,7 @@ class PipePainter extends CustomPainter {
               }
             } else if (n.type == NodeType.singleTankValve || n.type == NodeType.multiOutletTankValve) {
               if (pipes.any((p) =>
-                  fertilizerPipeIds.contains(p.id) &&
+              fertilizerPipeIds.contains(p.id) &&
                   (p.fromNodeId == n.id || p.toNodeId == n.id))) {
                 isFertilizerDrag = true;
                 break;
@@ -501,7 +505,14 @@ class PipePainter extends CustomPainter {
       }
 
       // Determine radius based on available segment lengths
-      final double r = cornerRadius.clamp(2.0, math.min(lenIn / 2, lenOut / 2)).toDouble();
+      // Never use num.clamp here: it throws when the range is inverted
+      // (segment shorter than 4px), which aborted the whole paint() and made
+      // every later pipe disappear.
+      final double r = math.min(cornerRadius, math.min(lenIn / 2, lenOut / 2));
+      if (r < 1.0) {
+        path.lineTo(pCurr.dx, pCurr.dy);
+        continue;
+      }
 
       final pStart = pCurr - uIn * r;
       final pEnd = pCurr + uOut * r;
@@ -872,7 +883,8 @@ class PipePainter extends CustomPainter {
       final dot = uIn.dx * uOut.dx + uIn.dy * uOut.dy;
       if (dot.abs() > 0.98) continue; // skip straight runs
 
-      final double r = (10.0).clamp(2.0, math.min(lenIn / 2, lenOut / 2)).toDouble();
+      final double r = math.min(10.0, math.min(lenIn / 2, lenOut / 2));
+      if (r < 1.0) continue; // segment too short for a collar
 
       final Offset pStart = pCurr - uIn * r;
       final Offset pEnd = pCurr + uOut * r;

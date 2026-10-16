@@ -147,10 +147,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
     // ---------------------------------------------------------------- edges
     final List<_LayoutEdge> edges = [];
-    final Set<String> edgeKeys = {};
+    final Set<String> edgeKeys = {}; // from.port > to.port (unique pipe)
+    final Set<String> pairKeys = {}; // from > to (used for loop detection)
     void addEdge(NodeObject from, NodeObject to, String fp, String tp) {
-      if (edgeKeys.add('${from.id}>${to.id}')) {
+      if (edgeKeys.add('${from.id}.$fp>${to.id}.$tp')) {
         edges.add(_LayoutEdge(from, to, fp, tp));
+        pairKeys.add('${from.id}>${to.id}');
       }
     }
 
@@ -183,13 +185,19 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           tankValveMap[vSNo] = inletValveNode;
         }
 
-        // Pipe from inlet valve to source
-        addEdge(
-          inletValveNode,
-          sn,
-          inletValveNode.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet',
-          sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
-        );
+        // Pipe(s) from inlet valve to source. A multi-outlet valve has one
+        // outlet port per channel: join ALL of them to the source inlet (the
+        // router merges them into a single trunk with tee fittings).
+        final bool multiValve = inletValveNode.type == NodeType.multiOutletTankValve;
+        final int channels = multiValve ? math.max(1, inletValveNode.outletPortCount) : 1;
+        for (int c = 0; c < channels; c++) {
+          addEdge(
+            inletValveNode,
+            sn,
+            multiValve ? 'channel_$c' : 'outlet',
+            sn.type == NodeType.fertilizerTank ? 'top_inlet' : 'inlet',
+          );
+        }
       }
 
       NodeObject? outletValveNode;
@@ -253,7 +261,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     // ------------------------------------------- 1. layering (flow depth)
     // Ignore the reverse edge of a 2-node loop so layering always terminates.
     final layeringEdges =
-    edges.where((e) => !edgeKeys.contains('${e.to.id}>${e.from.id}')).toList();
+    edges.where((e) => !pairKeys.contains('${e.to.id}>${e.from.id}')).toList();
     final Map<String, int> rawLayer = {for (final n in _nodes) n.id: 0};
     for (int it = 0; it < _nodes.length; it++) {
       bool changed = false;
@@ -397,6 +405,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     // ------------------------------------------- 5. clean pipe routing
+    _snapNearStraightEdges(edges);
     _buildCleanPipes(edges, layerOf, colX, colW);
 
     setState(() {
@@ -420,6 +429,36 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   // ---------------------------------------------------------------------
   // Clean pipe routing
   // ---------------------------------------------------------------------
+
+  /// A port that is only a few px off its partner (e.g. valve outlet vs tank
+  /// inlet) would otherwise get a tiny 2px jog. Nudge the target node so the
+  /// run is perfectly straight, unless that would un-straighten one of the
+  /// node's other pipes.
+  void _snapNearStraightEdges(List<_LayoutEdge> edges) {
+    const double tol = 8.0;
+    final moved = <String>{};
+
+    double dyOf(_LayoutEdge e) =>
+        portPosition(e.from, e.fromPort, isInput: false).dy -
+            portPosition(e.to, e.toPort, isInput: true).dy;
+
+    for (final e in edges) {
+      if (_isTankNode(e.from)) continue; // tank outlets use a drop stem
+      if (moved.contains(e.to.id) || moved.contains(e.from.id)) continue;
+      final dy = dyOf(e);
+      if (dy.abs() < 0.5 || dy.abs() > tol) continue;
+
+      final alreadyStraight = edges.any((o) =>
+      !identical(o, e) &&
+          (o.to.id == e.to.id || o.from.id == e.to.id) &&
+          dyOf(o).abs() < 0.5);
+      if (alreadyStraight) continue;
+
+      e.to.position = e.to.position + Offset(0, dy);
+      moved.add(e.to.id);
+    }
+  }
+
   bool _isTankNode(NodeObject n) =>
       n.type == NodeType.overheadTank || n.type == NodeType.fertilizerTank;
 
@@ -2434,17 +2473,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                             // waypoint drag handles
                                             if (!_globalHideJoints)
                                               for (final pipe in _pipes)
-                                                for (int i = 0; i < pipe.waypoints.length; i++)
-                                                  WaypointHandle(
-                                                    key: ValueKey('wp_${pipe.id}_$i'),
-                                                    position: pipe.waypoints[i],
-                                                    onPanStart: (d) => _saveToHistory(),
-                                                    onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
-                                                    onLongPress: () => _removeWaypoint(pipe, i),
-                                                    color: pipe.id == _selectedPipeId
-                                                        ? Colors.deepOrange
-                                                        : const Color(0xFFFFA726),
-                                                  ),
+                                                if (pipe.id == _selectedPipeId)
+                                                  for (int i = 0; i < pipe.waypoints.length; i++)
+                                                    WaypointHandle(
+                                                      key: ValueKey('wp_${pipe.id}_$i'),
+                                                      position: pipe.waypoints[i],
+                                                      onPanStart: (d) => _saveToHistory(),
+                                                      onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
+                                                      onLongPress: () => _removeWaypoint(pipe, i),
+                                                      color: pipe.id == _selectedPipeId
+                                                          ? Colors.deepOrange
+                                                          : const Color(0xFFFFA726),
+                                                    ),
                                             // port handles
                                             ..._buildPortHandles(),
                                           ],

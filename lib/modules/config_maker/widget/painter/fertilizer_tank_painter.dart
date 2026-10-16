@@ -7,10 +7,10 @@ import 'package:flutter/material.dart';
 /// flanged top nozzle, a large rounded viewing window showing green solution,
 /// a centre agitator shaft with a 2-blade propeller, graduation ticks, a
 /// side sight-glass gauge with metal end caps, a bottom collar and conical
-/// hopper, a blue globe valve + flanged fertilizer inlet pipe on the left, a
-/// blue globe valve + flanged agitator inlet pipe on top, a blue flanged
-/// outlet pipe with stainless ball valve (blue lever) at the bottom, and a
-/// rusty steel A-frame stand.
+/// hopper, a green globe valve + flanged fertigation inlet pipe on the left, a
+/// blue globe valve + flanged air flow inlet pipe on top, a green flanged
+/// fertigation outlet pipe with stainless ball valve (green lever) at the bottom,
+/// and a rusty steel A-frame stand.
 ///
 /// Geometry is authored on a 944 x 1132 reference grid (the photo's size).
 /// Use a size with that aspect ratio (about 0.834), e.g. Size(300, 360).
@@ -32,17 +32,20 @@ class DetailedFertilizerTankPainter extends CustomPainter {
   });
 
   // ---------------------------------------------------------------- palette
-  static const Color _edge = Color(0xFF1E272C);
-
   // Brushed stainless
   static const Color _ssDark = Color(0xFF80878A);
   static const Color _ssMid = Color(0xFFB9BEC0);
   static const Color _ssLight = Color(0xFFE2E5E6);
 
-  // Blue painted pipework
+  // Blue painted pipework (air flow pipe on top)
   static const Color _blueLight = Color(0xFF6482C8);
   static const Color _blueMid = Color(0xFF3A57A0);
   static const Color _blueDark = Color(0xFF243B7C);
+
+  // Green fertigation pipework (left inlet & bottom outlet)
+  static const Color _greenLight = Color(0xFF66BB6A);
+  static const Color _greenMid = Color(0xFF388E3C);
+  static const Color _greenDark = Color(0xFF1B5E20);
 
   // Solution
   static const Color _liqSurface = Color(0xFF80C878);
@@ -59,17 +62,17 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     final _Sc s = _Sc(size.width / 944, size.height / 1132);
 
     _drawGroundShadow(canvas, s);
-    _drawInletAssembly(canvas, s); // left: fertilizer inlet
+    _drawInletAssembly(canvas, s); // left: fertigation inlet (green pipe)
     if (isOn) _drawActiveGlow(canvas, s);
     _drawCone(canvas, s);
     _drawStand(canvas, s);
-    _drawOutletAssembly(canvas, s); // bottom
+    _drawOutletAssembly(canvas, s); // bottom: fertigation outlet (green pipe)
     _drawBody(canvas, s);
     _drawCollar(canvas, s);
     _drawWindow(canvas, s);
     _drawSightGlass(canvas, s);
     _drawDomeAndNozzle(canvas, s);
-    _drawAgitatorInletAssembly(canvas, s); // top: agitator inlet
+    _drawAgitatorInletAssembly(canvas, s); // top: air flow inlet (blue pipe)
   }
 
   // -------------------------------------------------------------- helpers
@@ -94,6 +97,8 @@ class DetailedFertilizerTankPainter extends CustomPainter {
   Paint _steelV(Rect r) => _fillV(r, const [_ssLight, _ssMid, _ssDark], stops: const [0, 0.5, 1]);
   Paint _blueH(Rect r) => _fillH(r, const [_blueDark, _blueLight, _blueMid, _blueDark], stops: const [0, 0.3, 0.65, 1]);
   Paint _blueV(Rect r) => _fillV(r, const [_blueLight, _blueMid, _blueDark], stops: const [0, 0.45, 1]);
+  Paint _greenH(Rect r) => _fillH(r, const [_greenDark, _greenLight, _greenMid, _greenDark], stops: const [0, 0.3, 0.65, 1]);
+  Paint _greenV(Rect r) => _fillV(r, const [_greenLight, _greenMid, _greenDark], stops: const [0, 0.45, 1]);
 
   void _speckle(Canvas canvas, Rect area, int seed, int n, Color c, double u) {
     final math.Random rnd = math.Random(seed);
@@ -115,12 +120,13 @@ class DetailedFertilizerTankPainter extends CustomPainter {
   }
 
   void _flange(Canvas canvas, _Sc s, double l, double t, double r, double b,
-      {bool blue = true, bool horizontal = false}) {
+      {bool blue = false, bool green = true, bool horizontal = false}) {
     final Rect rect = s.rect(l, t, r, b);
     final double rad = math.min(s.u * 10, math.min(rect.width, rect.height) / 2);
     final RRect rr = RRect.fromRectAndRadius(rect, Radius.circular(rad));
     canvas.drawRRect(rr.shift(Offset(s.x(2), s.y(3))), Paint()..color = Colors.black.withValues(alpha: 0.18));
-    canvas.drawRRect(rr, blue ? _blueH(rect) : _steelH(rect));
+    final Paint fill = green ? _greenH(rect) : (blue ? _blueH(rect) : _steelH(rect));
+    canvas.drawRRect(rr, fill);
     canvas.drawRRect(rr, _stroke(Colors.black.withValues(alpha: 0.55), 1.1));
     if (showJoints) {
       for (final double f in [0.10, 0.28, 0.72, 0.90]) {
@@ -162,19 +168,19 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     );
   }
 
-  // ----------------------------------------- left: globe valve + fertilizer inlet
+  // ----------------------------------------- left: globe valve + fertigation inlet (green pipe)
 
   void _drawInletAssembly(Canvas canvas, _Sc s) {
-    // Blue pipe stub (ends hidden behind tank wall)
+    // Green pipe stub (ends hidden behind tank wall)
     final Rect pipe = s.rect(175, 407, 324, 467);
-    canvas.drawRect(pipe, _blueV(pipe));
-    _speckle(canvas, pipe, 5, 26, const Color(0xFFB7C3E6), s.u);
+    canvas.drawRect(pipe, _greenV(pipe));
+    _speckle(canvas, pipe, 5, 26, const Color(0xFFA5D6A7), s.u);
     _speckle(canvas, pipe, 9, 8, _rust, s.u);
     canvas.drawRect(pipe, _stroke(Colors.black.withValues(alpha: 0.45), 1.0));
 
     // Flange pair
-    _flange(canvas, s, 236, 374, 262, 498);
-    _flange(canvas, s, 258, 376, 285, 496);
+    _flange(canvas, s, 236, 374, 262, 498, green: true);
+    _flange(canvas, s, 258, 376, 285, 496, green: true);
 
     // Grey coupling
     final Rect coupling = s.rect(146, 402, 182, 474);
@@ -201,39 +207,48 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     final double rx = s.x(19), ry = s.y(57);
     final Rect wheel = Rect.fromCenter(center: c, width: rx * 2, height: ry * 2);
     canvas.drawOval(wheel.shift(Offset(s.x(2), s.y(3))), _stroke(Colors.black.withValues(alpha: 0.18), 8 * s.u));
-    canvas.drawOval(wheel, _stroke(_blueMid, 8 * s.u));
+    canvas.drawOval(wheel, _stroke(_greenMid, 8 * s.u));
     canvas.drawOval(wheel, _stroke(Colors.white.withValues(alpha: 0.25), 2 * s.u));
     canvas.drawOval(wheel.deflate(4 * s.u), _stroke(Colors.black.withValues(alpha: 0.25), 1.2));
     for (final double a in [0.0, math.pi / 4, math.pi / 2, 3 * math.pi / 4]) {
       canvas.drawLine(
         Offset(c.dx - rx * 0.9 * math.cos(a), c.dy - ry * 0.9 * math.sin(a)),
         Offset(c.dx + rx * 0.9 * math.cos(a), c.dy + ry * 0.9 * math.sin(a)),
-        _stroke(_blueMid, 4.5 * s.u),
+        _stroke(_greenMid, 4.5 * s.u),
       );
     }
     canvas.drawCircle(c, s.u * 7, Paint()..color = _ssMid);
     canvas.drawCircle(c, s.u * 7, _stroke(Colors.black.withValues(alpha: 0.5), 1));
   }
 
-  // ------------------------------- top: globe valve + agitator inlet pipe
+  // ------------------------------- top: globe valve + air flow inlet pipe (blue pipe)
 
   void _drawAgitatorInletAssembly(Canvas canvas, _Sc s) {
-    // Vertical blue pipe
+    // Vertical blue pipe (air flow pipe)
     final Rect pipe = s.rect(474, 32, 526, 202);
     canvas.drawRect(pipe, _blueH(pipe));
     _speckle(canvas, pipe, 5, 26, const Color(0xFFB7C3E6), s.u);
     _speckle(canvas, pipe, 9, 8, _rust, s.u);
     canvas.drawRect(pipe, _stroke(Colors.black.withValues(alpha: 0.45), 1.0));
 
+    // Ribbed air hose rings on the pipe to distinctly represent air flow pipe
+    for (double y = 42; y < 110; y += 12) {
+      final Rect ring = s.rect(472, y, 528, y + 5);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(ring, Radius.circular(s.u * 2)),
+        _stroke(Colors.white.withValues(alpha: 0.25), 1.0),
+      );
+    }
+
     // Grey stub + end flange at the top (inlet mouth facing top)
     final Rect stub = s.rect(484, 12, 516, 32);
     canvas.drawRRect(RRect.fromRectAndRadius(stub, Radius.circular(s.u * 5)), _steelH(stub));
     canvas.drawRRect(RRect.fromRectAndRadius(stub, Radius.circular(s.u * 5)), _stroke(Colors.black.withValues(alpha: 0.5), 1));
-    _flange(canvas, s, 452, 24, 548, 40, horizontal: true);
+    _flange(canvas, s, 452, 24, 548, 40, blue: true, green: false, horizontal: true);
 
     // Flange pair just above the lid nozzle
-    _flange(canvas, s, 454, 172, 546, 186, horizontal: true);
-    _flange(canvas, s, 454, 188, 546, 202, horizontal: true);
+    _flange(canvas, s, 454, 172, 546, 186, blue: true, green: false, horizontal: true);
+    _flange(canvas, s, 454, 188, 546, 202, blue: true, green: false, horizontal: true);
 
     // Globe valve body
     final Rect body = s.rect(458, 118, 542, 162);
@@ -274,13 +289,13 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     canvas.drawCircle(c, s.u * 7, _stroke(Colors.black.withValues(alpha: 0.5), 1));
   }
 
-  // ------------------------------------- bottom: outlet pipe + ball valve
+  // ------------------------------------- bottom: fertigation outlet pipe + ball valve (green pipe)
 
   void _drawOutletAssembly(Canvas canvas, _Sc s) {
-    // Vertical blue pipe
+    // Vertical green pipe
     final Rect pipe = s.rect(478, 866, 522, 964);
-    canvas.drawRect(pipe, _blueH(pipe));
-    _speckle(canvas, pipe, 21, 22, const Color(0xFFB7C3E6), s.u);
+    canvas.drawRect(pipe, _greenH(pipe));
+    _speckle(canvas, pipe, 21, 22, const Color(0xFFA5D6A7), s.u);
     _speckle(canvas, pipe, 23, 6, _rust, s.u);
     canvas.drawRect(pipe, _stroke(Colors.black.withValues(alpha: 0.45), 1.0));
 
@@ -290,8 +305,8 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     canvas.drawRRect(RRect.fromRectAndRadius(collar, Radius.circular(s.u * 8)), _stroke(Colors.black.withValues(alpha: 0.5), 1.1));
 
     // Flange pair
-    _flange(canvas, s, 458, 876, 542, 888, horizontal: true);
-    _flange(canvas, s, 458, 890, 542, 902, horizontal: true);
+    _flange(canvas, s, 458, 876, 542, 888, green: true, horizontal: true);
+    _flange(canvas, s, 458, 890, 542, 902, green: true, horizontal: true);
 
     // Ball valve body
     final Rect body = s.rect(466, 906, 534, 938);
@@ -306,18 +321,18 @@ class DetailedFertilizerTankPainter extends CustomPainter {
     final Rect stem = s.rect(549, 917, 561, 923);
     canvas.drawRect(stem, _steelV(stem));
 
-    // Blue lever
+    // Green lever
     canvas.drawLine(s.o(556, 921), s.o(640, 893), _stroke(Colors.black.withValues(alpha: 0.25), 6 * s.u));
-    canvas.drawLine(s.o(556, 920), s.o(640, 892), _stroke(_blueMid, 4.5 * s.u)..strokeCap = StrokeCap.round);
+    canvas.drawLine(s.o(556, 920), s.o(640, 892), _stroke(_greenMid, 4.5 * s.u)..strokeCap = StrokeCap.round);
     canvas.drawLine(s.o(560, 917), s.o(634, 892), _stroke(Colors.white.withValues(alpha: 0.35), 1.2 * s.u));
     canvas.drawCircle(s.o(556, 920), s.u * 6, Paint()..color = _ssMid);
     canvas.drawCircle(s.o(556, 920), s.u * 6, _stroke(Colors.black.withValues(alpha: 0.5), 1));
 
-    // End flange: grey inner first, blue outer on top
+    // End flange: grey inner first, green outer on top
     final Rect inner = s.rect(468, 966, 532, 980);
     canvas.drawRRect(RRect.fromRectAndRadius(inner, Radius.circular(s.u * 6)), _steelH(inner));
     canvas.drawRRect(RRect.fromRectAndRadius(inner, Radius.circular(s.u * 6)), _stroke(Colors.black.withValues(alpha: 0.5), 1));
-    _flange(canvas, s, 456, 954, 544, 968, horizontal: true);
+    _flange(canvas, s, 456, 954, 544, 968, green: true, horizontal: true);
   }
 
   // ------------------------------------------------------------- active glow
