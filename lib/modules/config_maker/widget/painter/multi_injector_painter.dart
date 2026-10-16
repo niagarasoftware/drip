@@ -38,23 +38,23 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
   // ------------------------------------------------------------ geometry API
   /// Width of the drawing in design units (original photo width = 1.0).
-  static const double _designW = 1.19;
+  static const double _designW = 1.75;
 
   static const double aspectRatio = 1448 / 1085 * _designW;
   static const int channelCount = 4;
-  static const double firstChannelX = 0.56; // was 0.47
-  static const double channelSpacing = 0.14; // was 0.125
+  static const double firstChannelX = 0.52;
+  static const double channelSpacing = 0.32; // 2x expanded channel gap
 
   // Frame / pipe x-positions (design units).
-  static const double _postL = 0.385; // front-left post (was 0.24)
-  static const double _postR = 1.124; // front-right post (was 0.934)
-  static const double _returnX = 1.062; // right return pipe (was 0.872)
+  static const double _postL = 0.385; // front-left post
+  static const double _returnX = 1.610; // right return pipe
+  static const double _postR = 1.680; // front-right post
 
   /// Design-unit x -> pixel x on a canvas of [s].
   static double _fx(Size s, double ux) => s.width * ux / _designW;
 
   static Offset inletPort(Size s) => Offset(_fx(s, 0.04), s.height * 0.54);
-  static Offset outletPort(Size s) => Offset(_fx(s, 1.14), s.height * 0.72);
+  static Offset outletPort(Size s) => Offset(_fx(s, _returnX + 0.08), s.height * 0.72);
   static Offset channelPort(Size s, int i) =>
       Offset(_fx(s, firstChannelX + channelSpacing * i), s.height * 0.820);
   static Offset channelTopPort(Size s, int i) =>
@@ -915,7 +915,7 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     }
 
     // rubber feet
-    for (final double fx in [0.045, 0.207, 0.405, 0.77, _postR + 0.019]) {
+    for (final double fx in [0.045, 0.207, 0.50, 0.85, 1.25, _postR + 0.019]) {
       c.drawRect(_r(fx - 0.004, 0.855, 0.008, 0.025), Paint()..color = _steelMid);
       final Rect foot = Rect.fromCenter(center: Offset(_w * fx, _h * 0.895), width: _w * 0.045, height: _h * 0.04);
       c.drawRRect(RRect.fromRectAndRadius(foot, const Radius.circular(8)),

@@ -13,7 +13,7 @@ import '../state_management/config_maker_provider.dart';
 import '../widget/node_widget.dart';
 import '../widget/painter/pipe_painter.dart';
 
-const double kCanvasWidth = 1900;
+const double kCanvasWidth = 3000;
 const double kCanvasHeight = 1150;
 const double kPipeHitTolerance = 14;
 
@@ -205,7 +205,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           id: _nextId('source_${sNo.toInt()}'),
           position: Offset.zero,
           type: type,
-          size: const Size(91, 63),
+          size: const Size(68, 47),
           label: label,
           showJoints: !_globalHideJoints,
         );
@@ -487,7 +487,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     // -------------------------------------------------------------------------
-    // FERTILIZATION FORMATION (Placed under Water & Pump formation)
+    // FERTILIZATION FORMATION (Placed to the RIGHT side of Water & Pump setup)
     // -------------------------------------------------------------------------
     final bool hasFertData = mainFertSources.isNotEmpty ||
         fertTanks.isNotEmpty ||
@@ -496,19 +496,21 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         fertPumps.isNotEmpty;
 
     if (hasFertData) {
-      final double fertStartY = _nodes.isNotEmpty
-          ? math.max(380.0, _nodes.map((n) => n.position.dy + n.size.height).reduce(math.max) + 100.0)
-          : 40.0;
+      final double maxWaterX = _nodes.isNotEmpty
+          ? _nodes.map((n) => n.position.dx + n.size.width).reduce(math.max)
+          : 0.0;
+      final double fertStartX = _nodes.isNotEmpty ? math.max(500.0, maxWaterX + 100.0) : 40.0;
+      const double fertStartY = 40.0;
 
       // Row 1: Main Fert Source + Pump (Left) & Air Blower (Right)
-      final double row1Y = fertStartY;
+      const double row1Y = fertStartY;
       NodeObject? supplyStartNode;
       String? supplyStartPort;
 
       final Map<double, NodeObject> mainFertNodeMap = {};
       final Map<double, NodeObject> fertPumpNodeMap = {};
 
-      double mfsX = 40.0;
+      double mfsX = fertStartX;
       for (final mfs in mainFertSources) {
         final double sNo = mfs.commonDetails.sNo ?? 0.0;
         final String label = (mfs.commonDetails.name?.isNotEmpty == true)
@@ -518,7 +520,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           id: _nextId('main_fert_${sNo.toInt()}'),
           position: Offset(mfsX, row1Y + 20.0),
           type: NodeType.mainFertilizerSource,
-          size: const Size(98, 70),
+          size: const Size(74, 52),
           label: label,
           showJoints: !_globalHideJoints,
         );
@@ -541,9 +543,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
               : 'New Pump';
           final pumpNode = NodeObject(
             id: _nextId('fert_pump_${pNo.toInt()}'),
-            position: Offset(mfsX + 98.0 + 35.0, row1Y + 47.89),
+            position: Offset(mfsX + 74.0 + 30.0, row1Y + 35.0),
             type: NodeType.pump,
-            size: const Size(91, 63),
+            size: const Size(68, 47),
             label: pumpLabel,
             isOn: true,
             showJoints: !_globalHideJoints,
@@ -570,17 +572,46 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           supplyStartNode = pumpNode;
           supplyStartPort = 'output';
         }
-        mfsX += 260.0;
+        mfsX += 240.0;
       }
 
-      // Horizontal distance between fertilizer tanks. Wide multi-outlet
-      // valves (now vertical, outlets facing down) need more room.
-      final bool anyMultiFertValve =
-      fertTanks.any((t) => t.isMultiOutletTankValve || t.outletTankValve.length > 1);
-      final int maxFertValvePorts =
-      fertTanks.fold<int>(1, (m, t) => math.max(m, t.outletTankValvePortCount));
-      final double tankSpacing =
-      anyMultiFertValve ? math.max(170.0, 40.0 * maxFertValvePorts + 50.0) : 170.0;
+      // Calculate dynamic width allocation and X offsets for each fertilizer tank
+      // based on its actual outlet valve size / port count.
+      final List<double> tankAllocW = [];
+      for (int t = 0; t < fertTanks.length; t++) {
+        final tankSpec = fertTanks[t];
+        double valveW = 42.0;
+        if (tankSpec.outletTankValve.isNotEmpty) {
+          final bool isMulti = tankSpec.isMultiOutletTankValve || tankSpec.outletTankValve.length > 1;
+          if (isMulti) {
+            final int portCount = math.max(1, tankSpec.outletTankValvePortCount);
+            valveW = math.max(80.0, 26.0 * portCount);
+          } else {
+            valveW = 42.0;
+          }
+        }
+        tankAllocW.add(math.max(52.0, valveW));
+      }
+
+      final List<double> tankOffsetsX = [];
+      double currentTankOffset = 0.0;
+      for (int t = 0; t < fertTanks.length; t++) {
+        if (t == 0) {
+          tankOffsetsX.add(0.0);
+        } else {
+          final double prevAlloc = tankAllocW[t - 1];
+          final double currAlloc = tankAllocW[t];
+          final double step = (prevAlloc / 2.0) + (currAlloc / 2.0) + 16.0;
+          currentTankOffset += step;
+          tankOffsetsX.add(currentTankOffset);
+        }
+      }
+
+      final double totalTanksSpan = fertTanks.isEmpty
+          ? 100.0
+          : (tankOffsetsX.last + tankAllocW.last);
+
+      final double tankStartX = mainFertSources.isNotEmpty ? mfsX + 20.0 : fertStartX;
 
       // Air Blower / Agitator nodes generated dynamically from data
       final Map<double, NodeObject> agitatorNodeMap = {};
@@ -604,8 +635,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       final List<double> sortedAgitatorSNos = allAgitatorSNos.toList()..sort();
 
       if (sortedAgitatorSNos.isNotEmpty) {
-        final double totalTanksW = fertTanks.isEmpty ? 170.0 : fertTanks.length * tankSpacing;
-        final double startBlowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
+        final double startBlowerX = tankStartX + totalTanksSpan + 35.0;
 
         for (int a = 0; a < sortedAgitatorSNos.length; a++) {
           final double agSNo = sortedAgitatorSNos[a];
@@ -619,7 +649,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             id: _nextId('blower_${agSNo.toInt()}'),
             position: Offset(blowerX, row1Y),
             type: NodeType.blower,
-            size: const Size(80, 75),
+            size: const Size(60, 56),
             label: label,
             showJoints: !_globalHideJoints,
           );
@@ -628,13 +658,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           agitatorNodeMap[agSNo] = blowerNode;
         }
       } else if (fertTanks.isNotEmpty) {
-        final double totalTanksW = fertTanks.length * tankSpacing;
-        final double blowerX = math.max(680.0, 260.0 + totalTanksW + 60.0);
+        final double blowerX = tankStartX + totalTanksSpan + 35.0;
         final blowerNode = NodeObject(
           id: _nextId('blower_default'),
           position: Offset(blowerX, row1Y),
           type: NodeType.blower,
-          size: const Size(80, 75),
+          size: const Size(60, 56),
           label: 'Air Blower',
           showJoints: !_globalHideJoints,
         );
@@ -644,8 +673,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       // Row 2: Fertilizer Tanks
-      final double tanksY = row1Y + 140.0;
-      const double tankStartX = 260.0;
+      const double tanksY = row1Y + 140.0;
       final Map<double, NodeObject> fertTankNodeMap = {};
 
       for (int t = 0; t < fertTanks.length; t++) {
@@ -656,9 +684,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             : 'Fertilizer Tank';
         final tankNode = NodeObject(
           id: _nextId('fert_tank_${sNo.toInt()}'),
-          position: Offset(tankStartX + t * tankSpacing, tanksY),
+          position: Offset(tankStartX + tankOffsetsX[t], tanksY),
           type: NodeType.fertilizerTank,
-          size: const Size(70, 84),
+          size: const Size(52, 63),
           label: label,
           showJoints: !_globalHideJoints,
         );
@@ -670,7 +698,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Main fertilizer supply line (green): ONE trunk from the pump with a
       // tee above every tank, instead of several pipes drawn on top of each other.
       if (supplyStartNode != null && fertTanks.isNotEmpty) {
-        final double supplyY = tanksY - 65.0;
+        const double supplyY = tanksY - 65.0;
         final Offset startPt = portPosition(supplyStartNode, supplyStartPort, isInput: false);
         final double trunkX = startPt.dx + 20.0;
 
@@ -774,7 +802,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Row 3: Outlet Tank Valves.
       // Fertilizer tank valves are VERTICAL: inlet on top (straight under the
       // tank outlet) and the outlet port(s) facing DOWNWARDS.
-      final double valvesY = tanksY + 84.0 + 60.0;
+      const double valvesY = tanksY + 84.0 + 60.0;
       final Map<double, NodeObject> fertTankValveNodeMap = {};
       final Map<double, String> fertTankValvePortMap = {};
       double maxValveBottom = valvesY + 60.0;
@@ -862,7 +890,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // (final Y is set after the fertilizer pipes are laid out so there is
       // always enough room for the horizontal pipe lanes)
       final double provisionalSkidY = maxValveBottom + 150.0;
-      final double totalAreaW = fertTanks.isEmpty ? 300.0 : fertTanks.length * tankSpacing;
+      final double totalAreaW = totalTanksSpan;
 
       final List<NodeObject> skidNodes = [];
       final List<_FertLink> fertLinks = [];
@@ -874,12 +902,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
               ? site.commonDetails.name!
               : 'Multi-Injector Skid';
 
-          final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0 + s * 230.0;
+          final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0 + s * 340.0;
           final skidNode = NodeObject(
             id: _nextId('skid_${site.commonDetails.sNo?.toInt() ?? s}'),
             position: Offset(skidX, provisionalSkidY),
             type: NodeType.multiInjector,
-            size: const Size(196, 112),
+            size: const Size(308, 132),
             label: label,
             showJoints: !_globalHideJoints,
           );
@@ -921,12 +949,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         }
       } else if (fertTanks.isNotEmpty || channelConfigs.isNotEmpty) {
         // Create 1 default Multi-Injector Skid if channels exist but no site object
-        final double skidX = tankStartX + (totalAreaW - 196.0) / 2.0;
+        final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0;
         final skidNode = NodeObject(
           id: _nextId('skid_0'),
           position: Offset(skidX, provisionalSkidY),
           type: NodeType.multiInjector,
-          size: const Size(196, 112),
+          size: const Size(308, 132),
           label: 'Multi-Injector Skid',
           showJoints: !_globalHideJoints,
         );
@@ -1039,40 +1067,81 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       targetGroups.putIfAbsent(key, () => []).add(l);
     }
 
-    const double firstLaneGap = 28.0;
-    const double laneStep = 16.0;
-    const double mergeGap = 24.0;
-    const double skidGap = 50.0;
-
-    int multiSourceCount = 0;
-    int offsetSingleCount = 0;
-    for (final entry in sourceGroups.entries) {
-      if (entry.value.length > 1) {
-        multiSourceCount++;
-      } else {
-        final l = entry.value.first;
-        if ((l.x1 - l.x2).abs() >= 1.0) {
-          offsetSingleCount++;
-        }
-      }
-    }
-
-    final int totalLanes = multiSourceCount + offsetSingleCount;
-    final double lane0 = portBottom + firstLaneGap;
-    final double lastLane = lane0 + laneStep * math.max(totalLanes - 1, 0);
-    final double mergeY = (totalLanes > 0 ? lastLane : portBottom + firstLaneGap) + mergeGap;
-    final double skidY = mergeY + skidGap;
-
-    for (final s in skids) {
-      s.position = Offset(s.position.dx, skidY);
-    }
-
     // Calculate center X of skids
     double skidSumX = 0;
     for (final s in skids) {
       skidSumX += s.position.dx + s.size.width / 2;
     }
     final double skidCenterX = skids.isNotEmpty ? skidSumX / skids.length : 300.0;
+
+    // Sort source entries by distance to skid center ascending
+    final sortedSourceEntries = sourceGroups.entries.toList()
+      ..sort((a, b) {
+        final startXA = a.value.first.valve.getPort(a.value.first.valvePort, isInput: false).dx;
+        final startXB = b.value.first.valve.getPort(b.value.first.valvePort, isInput: false).dx;
+        final distA = (startXA - skidCenterX).abs();
+        final distB = (startXB - skidCenterX).abs();
+        final c = distA.compareTo(distB);
+        return c != 0 ? c : startXA.compareTo(startXB);
+      });
+
+    const double firstLaneGap = 16.0;
+    const double laneStep = 10.0;
+    const double mergeGap = 16.0;
+    const double skidGap = 25.0;
+
+    // Assign horizontal lanes with Greedy Interval Coloring so non-overlapping routes share Y-levels
+    final List<List<_Segment>> laneOccupancy = [];
+    final Map<String, int> entryLaneMap = {};
+
+    int assignLane(double xA, double xB) {
+      const double margin = 10.0;
+      final segStart = math.min(xA, xB) - margin;
+      final segEnd = math.max(xA, xB) + margin;
+
+      for (int l = 0; l < laneOccupancy.length; l++) {
+        final lane = laneOccupancy[l];
+        final bool overlaps = lane.any((s) => !(segEnd < s.start || segStart > s.end));
+        if (!overlaps) {
+          lane.add(_Segment(segStart, segEnd));
+          return l;
+        }
+      }
+      laneOccupancy.add([_Segment(segStart, segEnd)]);
+      return laneOccupancy.length - 1;
+    }
+
+    for (final entry in sortedSourceEntries) {
+      final gLinks = entry.value;
+      final firstLink = gLinks.first;
+      final Offset startPt = firstLink.valve.getPort(firstLink.valvePort, isInput: false);
+
+      if (gLinks.length == 1) {
+        final l = gLinks.first;
+        final Offset channelPt = l.skid.getPort(l.skidPort, isInput: true);
+        if ((startPt.dx - channelPt.dx).abs() >= 1.0) {
+          entryLaneMap[entry.key] = assignLane(startPt.dx, channelPt.dx);
+        }
+      } else {
+        double minX = startPt.dx;
+        double maxX = startPt.dx;
+        for (final l in gLinks) {
+          final Offset channelPt = l.skid.getPort(l.skidPort, isInput: true);
+          minX = math.min(minX, channelPt.dx);
+          maxX = math.max(maxX, channelPt.dx);
+        }
+        entryLaneMap[entry.key] = assignLane(minX, maxX);
+      }
+    }
+
+    final int totalLanes = math.max(1, laneOccupancy.length);
+    final double lane0 = portBottom + firstLaneGap;
+    final double mergeY = lane0 + (totalLanes * laneStep) + mergeGap;
+    final double skidY = mergeY + skidGap;
+
+    for (final s in skids) {
+      s.position = Offset(s.position.dx, skidY);
+    }
 
     // 4. Create merge junctions above each skid channel that has incoming links
     final Map<String, NodeObject> mergeJunctions = {};
@@ -1093,116 +1162,87 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       ));
     }
 
-    // 5. Assign lanes and create pipes for each source group
-    // Separate single-target and multi-target source groups
-    // Single-target valves get upper lanes; multi-target valve ports get bottom distributor lanes at the bottom
-    final sortedSourceEntries = sourceGroups.entries.toList()
-      ..sort((a, b) {
-        final startXA = a.value.first.valve.getPort(a.value.first.valvePort, isInput: false).dx;
-        final startXB = b.value.first.valve.getPort(b.value.first.valvePort, isInput: false).dx;
-        final distA = (startXA - skidCenterX).abs();
-        final distB = (startXB - skidCenterX).abs();
-        final c = distA.compareTo(distB);
-        return c != 0 ? c : startXA.compareTo(startXB);
-      });
-
-    final singleTargetEntries = sortedSourceEntries.where((e) => e.value.length == 1).toList();
-    final multiTargetEntries = sortedSourceEntries.where((e) => e.value.length > 1).toList();
-
-    int laneIdx = 0;
-
-    // Single-target valve ports get upper lanes
-    for (final entry in singleTargetEntries) {
-      final l = entry.value.first;
-      final Offset startPt = l.valve.getPort(l.valvePort, isInput: false);
-      final targetKey = '${l.skid.id}|${l.skidPort}';
-      final targetJn = mergeJunctions[targetKey]!;
-      final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
-
-      if ((startPt.dx - targetPos.dx).abs() < 1.0) {
-        // Perfectly straight vertical run!
-        _pipes.add(PipeConnection(
-          id: _nextId('pipe'),
-          fromNodeId: l.valve.id,
-          fromPortId: l.valvePort,
-          toNodeId: targetJn.id,
-          waypoints: _cleanWaypoints(startPt, [], targetPos),
-        ));
-      } else {
-        // Off-axis: drop to assigned upper lane, horizontal run, drop to target junction
-        final double lY = lane0 + laneStep * laneIdx;
-        laneIdx++;
-
-        final List<Offset> wps = [
-          Offset(startPt.dx, lY),
-          Offset(targetPos.dx, lY),
-        ];
-
-        _pipes.add(PipeConnection(
-          id: _nextId('pipe'),
-          fromNodeId: l.valve.id,
-          fromPortId: l.valvePort,
-          toNodeId: targetJn.id,
-          waypoints: _cleanWaypoints(startPt, wps, targetPos),
-        ));
-      }
-    }
-
-    // Multi-target / common valve ports get bottom distributor lanes (placed near the bottom right above the channels)
-    for (final entry in multiTargetEntries) {
+    // 5. Create pipes for each source group
+    for (final entry in sortedSourceEntries) {
       final gLinks = entry.value;
       final firstLink = gLinks.first;
       final Offset startPt = firstLink.valve.getPort(firstLink.valvePort, isInput: false);
 
-      final double distLane = lane0 + laneStep * laneIdx;
-      laneIdx++;
-
-      final Offset trunkEnd = Offset(startPt.dx, distLane);
-      final NodeObject jnTrunk = _newJunction(trunkEnd);
-
-      // Pipe 1: Valve port -> Trunk junction dropping down to bottom distributor lane
-      _pipes.add(PipeConnection(
-        id: _nextId('pipe'),
-        fromNodeId: firstLink.valve.id,
-        fromPortId: firstLink.valvePort,
-        toNodeId: jnTrunk.id,
-        waypoints: _cleanWaypoints(startPt, [], trunkEnd),
-      ));
-
-      // Horizontal bus line at the bottom and short vertical drop tees for each target channel
-      for (final l in gLinks) {
+      if (gLinks.length == 1) {
+        final l = gLinks.first;
         final targetKey = '${l.skid.id}|${l.skidPort}';
         final targetJn = mergeJunctions[targetKey]!;
-        final Offset targetPos = Offset(targetJn.position.dx + 7, targetJn.position.dy + 7);
+        final Offset targetPos = Offset(targetJn.position.dx + 5, targetJn.position.dy + 5);
 
-        if ((targetPos.dx - startPt.dx).abs() < 1.0) {
-          // Straight vertical drop from bottom trunk junction down to merge junction
+        if ((startPt.dx - targetPos.dx).abs() < 1.0) {
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: jnTrunk.id,
+            fromNodeId: l.valve.id,
+            fromPortId: l.valvePort,
             toNodeId: targetJn.id,
-            waypoints: _cleanWaypoints(trunkEnd, [], targetPos),
+            waypoints: _cleanWaypoints(startPt, [], targetPos),
           ));
         } else {
-          // Tee junction on bottom distributor lane
-          final Offset teePt = Offset(targetPos.dx, distLane);
-          final NodeObject jnTee = _newJunction(teePt);
+          final int lIdx = entryLaneMap[entry.key] ?? 0;
+          final double lY = lane0 + laneStep * lIdx;
+          final List<Offset> wps = [
+            Offset(startPt.dx, lY),
+            Offset(targetPos.dx, lY),
+          ];
 
-          // Horizontal bus segment on bottom distributor lane
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: jnTrunk.id,
-            toNodeId: jnTee.id,
-            waypoints: _cleanWaypoints(trunkEnd, [], teePt),
-          ));
-
-          // Short vertical drop from bottom tee junction into merge junction
-          _pipes.add(PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: jnTee.id,
+            fromNodeId: l.valve.id,
+            fromPortId: l.valvePort,
             toNodeId: targetJn.id,
-            waypoints: _cleanWaypoints(teePt, [], targetPos),
+            waypoints: _cleanWaypoints(startPt, wps, targetPos),
           ));
+        }
+      } else {
+        final int lIdx = entryLaneMap[entry.key] ?? 0;
+        final double distLane = lane0 + laneStep * lIdx;
+
+        final Offset trunkEnd = Offset(startPt.dx, distLane);
+        final NodeObject jnTrunk = _newJunction(trunkEnd);
+
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: firstLink.valve.id,
+          fromPortId: firstLink.valvePort,
+          toNodeId: jnTrunk.id,
+          waypoints: _cleanWaypoints(startPt, [], trunkEnd),
+        ));
+
+        for (final l in gLinks) {
+          final targetKey = '${l.skid.id}|${l.skidPort}';
+          final targetJn = mergeJunctions[targetKey]!;
+          final Offset targetPos = Offset(targetJn.position.dx + 5, targetJn.position.dy + 5);
+
+          if ((targetPos.dx - startPt.dx).abs() < 1.0) {
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTrunk.id,
+              toNodeId: targetJn.id,
+              waypoints: _cleanWaypoints(trunkEnd, [], targetPos),
+            ));
+          } else {
+            final Offset teePt = Offset(targetPos.dx, distLane);
+            final NodeObject jnTee = _newJunction(teePt);
+
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTrunk.id,
+              toNodeId: jnTee.id,
+              waypoints: _cleanWaypoints(trunkEnd, [], teePt),
+            ));
+
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: jnTee.id,
+              toNodeId: targetJn.id,
+              waypoints: _cleanWaypoints(teePt, [], targetPos),
+            ));
+          }
         }
       }
     }
@@ -3459,6 +3499,12 @@ class _Route {
   double? lane;
   List<Offset> stem = [];
   _Route(this.edge);
+}
+
+class _Segment {
+  final double start;
+  final double end;
+  _Segment(this.start, this.end);
 }
 
 /// One fertilizer pipe: tank-valve outlet (facing down) -> skid channel.
