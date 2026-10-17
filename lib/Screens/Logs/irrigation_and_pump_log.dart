@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 import 'package:provider/provider.dart';
 
 import 'package:oro_drip_irrigation/utils/constants.dart';
@@ -9,7 +10,7 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../StateManagement/customer_provider.dart';
 import '../../models/customer/site_model.dart';
 import '../../modules/Logs/repository/log_repos.dart';
-import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
+import '../../modules/Logs/view/pump_list.dart';
 
 import '../../modules/irrigation_report/view/channel_log_page.dart';
 import '../../modules/irrigation_report/view/list_of_log_config.dart';
@@ -32,36 +33,29 @@ class IrrigationAndPumpLog extends StatefulWidget {
   });
 
   @override
-  State<IrrigationAndPumpLog> createState() =>
-      _IrrigationAndPumpLogState();
+  State<IrrigationAndPumpLog> createState() => _IrrigationAndPumpLogState();
 }
 
-class _IrrigationAndPumpLogState
-    extends State<IrrigationAndPumpLog>
+class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     with SingleTickerProviderStateMixin {
-
   late TabController tabController;
 
   List pumpList = [];
 
   String message = '';
 
-  final LogRepository repository =
-  LogRepository(HttpService());
+  final LogRepository repository = LogRepository(HttpService());
 
   // Channel Log data
   List<ChannelLogRecord> channelLogData = [];
 
   bool get isEcoGem =>
-      AppConstants.ecoGemAndPlusModelList
-          .contains(widget.masterData.modelId);
+      AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
 
   bool get isOmsGem =>
-      AppConstants.omsGemList
-          .contains(widget.masterData.modelId);
+      AppConstants.omsGemList.contains(widget.masterData.modelId);
 
-  bool get showPumpLog =>
-      isEcoGem || pumpList.isNotEmpty;
+  bool get showPumpLog => isEcoGem || pumpList.isNotEmpty;
 
   int _calculateTabLength() {
     if (isOmsGem) {
@@ -97,15 +91,12 @@ class _IrrigationAndPumpLogState
     }
 
     final oldController = tabController;
-
     final oldIndex = oldController.index;
 
     tabController = TabController(
       length: newLength,
       vsync: this,
-      initialIndex: oldIndex < newLength
-          ? oldIndex
-          : newLength - 1,
+      initialIndex: oldIndex < newLength ? oldIndex : newLength - 1,
     );
 
     oldController.dispose();
@@ -115,28 +106,22 @@ class _IrrigationAndPumpLogState
     try {
       final userData = {
         'userId': widget.userData['customerId'],
-        'controllerId':
-        widget.userData['controllerId'],
+        'controllerId': widget.userData['controllerId'],
       };
 
-      final result =
-      await repository.getUserNodePumpList(
-        userData,
-      );
+      final result = await repository.getUserNodePumpList(userData);
 
       if (!mounted) return;
 
       final response = jsonDecode(result.body);
 
       setState(() {
-        if (result.statusCode == 200 &&
-            response['data'] is List) {
+        if (result.statusCode == 200 && response['data'] is List) {
           pumpList = response['data'];
           message = '';
         } else {
           pumpList = [];
-          message =
-              response['message']?.toString() ?? '';
+          message = response['message']?.toString() ?? '';
         }
 
         _updateTabController();
@@ -177,76 +162,214 @@ class _IrrigationAndPumpLogState
 
   @override
   Widget build(BuildContext context) {
-    final List<Tab> tabs = [];
-    final List<Widget> pages = [];
+    CustomerScreenControllerViewModel? customerVM;
+    try {
+      customerVM =
+          Provider.of<CustomerScreenControllerViewModel>(context, listen: true);
+    } catch (_) {}
+
+    final bool isOffline = customerVM?.isNotCommunicate ?? false;
+
+    final List<_LogCardItem> cards = _buildCardItems();
+
+    return Scaffold(
+      key: ValueKey(
+        Provider.of<CustomerProvider>(context).controllerId,
+      ),
+      backgroundColor: const Color(0xFFF7FAFD),
+      body: SafeArea(
+        child: _buildOverviewDashboard(context, cards, isOffline, customerVM),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Card builders
+  // ---------------------------------------------------------------------------
+
+  _LogCardItem _irrigationCard() {
+    return _LogCardItem(
+      title: 'Irrigation Log',
+      subtitle:
+      'View detailed records of irrigation cycles, water usage and duration for each zone.',
+      iconWidget: const Icon(
+        Icons.water_drop_outlined,
+        color: Color(0xFF0284C7),
+        size: 28,
+      ),
+      accentColor: const Color(0xFF0284C7),
+      iconBgColor: const Color(0xFFE0F2FE),
+      buttonColor: const Color(0xFF278EA5),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.access_time_rounded,
+          text: 'Irrigation start & stop times',
+          iconColor: Color(0xFF0284C7),
+        ),
+        _FeatureBullet(
+          icon: Icons.water_drop_outlined,
+          text: 'Water usage data',
+          iconColor: Color(0xFF0284C7),
+        ),
+        _FeatureBullet(
+          icon: Icons.schedule_rounded,
+          text: 'Duration & frequency',
+          iconColor: Color(0xFF0284C7),
+        ),
+        _FeatureBullet(
+          icon: Icons.bar_chart_rounded,
+          text: 'Zone-wise details',
+          iconColor: Color(0xFF0284C7),
+        ),
+      ],
+      page: ListOfLogConfig(
+        userData: widget.userData,
+        masterData: widget.masterData,
+      ),
+    );
+  }
+
+  _LogCardItem _zoneLogCard() {
+    return _LogCardItem(
+      title: 'Zone Log',
+      subtitle:
+      'Review zone-wise irrigation history, valve activity and runtime details.',
+      iconWidget: const Icon(
+        Icons.grid_view_rounded,
+        color: Color(0xFF7C3AED),
+        size: 28,
+      ),
+      accentColor: const Color(0xFF7C3AED),
+      iconBgColor: const Color(0xFFEDE9FE),
+      buttonColor: const Color(0xFF7C3AED),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.grid_view_rounded,
+          text: 'Zone-wise irrigation records',
+          iconColor: Color(0xFF7C3AED),
+        ),
+        _FeatureBullet(
+          icon: Icons.device_hub_rounded,
+          text: 'Valve activity',
+          iconColor: Color(0xFF7C3AED),
+        ),
+        _FeatureBullet(
+          icon: Icons.access_time_rounded,
+          text: 'Runtime per zone',
+          iconColor: Color(0xFF7C3AED),
+        ),
+        _FeatureBullet(
+          icon: Icons.bar_chart_rounded,
+          text: 'Usage summary',
+          iconColor: Color(0xFF7C3AED),
+        ),
+      ],
+      page: ZoneLog(
+        userData: widget.userData,
+        masterData: widget.masterData,
+      ),
+    );
+  }
+
+  _LogCardItem _standaloneLogCard() {
+    return _LogCardItem(
+      title: 'Standalone Log',
+      subtitle:
+      'Track standalone (manual) operations with their start and stop history.',
+      iconWidget: const Icon(
+        Icons.touch_app_outlined,
+        color: Color(0xFFDB2777),
+        size: 28,
+      ),
+      accentColor: const Color(0xFFDB2777),
+      iconBgColor: const Color(0xFFFCE7F3),
+      buttonColor: const Color(0xFFDB2777),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.play_arrow_outlined,
+          text: 'Manual start & stop events',
+          iconColor: Color(0xFFDB2777),
+        ),
+        _FeatureBullet(
+          icon: Icons.access_time_rounded,
+          text: 'Duration of each run',
+          iconColor: Color(0xFFDB2777),
+        ),
+        _FeatureBullet(
+          icon: Icons.water_drop_outlined,
+          text: 'Water usage data',
+          iconColor: Color(0xFFDB2777),
+        ),
+        _FeatureBullet(
+          icon: Icons.bar_chart_rounded,
+          text: 'Run-wise details',
+          iconColor: Color(0xFFDB2777),
+        ),
+      ],
+      page: StandaloneLog(
+        userData: widget.userData,
+      ),
+    );
+  }
+
+  _LogCardItem _pumpLogCard() {
+    return _LogCardItem(
+      title: 'Pump Log',
+      subtitle:
+      'Track pump operations, start/stop events, runtime and fault history.',
+      iconWidget: SvgPicture.asset(
+        'assets/svg_images/pump.svg',
+        width: 26,
+        height: 26,
+        colorFilter:
+        const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
+      ),
+      accentColor: const Color(0xFFEA580C),
+      iconBgColor: const Color(0xFFFFEDD5),
+      buttonColor: const Color(0xFFF38220),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.play_arrow_outlined,
+          text: 'Start / Stop events',
+          iconColor: Color(0xFFEA580C),
+        ),
+        _FeatureBullet(
+          icon: Icons.access_time_rounded,
+          text: 'Runtime & total hours',
+          iconColor: Color(0xFFEA580C),
+        ),
+        _FeatureBullet(
+          icon: Icons.warning_amber_rounded,
+          text: 'Fault / alarm history',
+          iconColor: Color(0xFFEA580C),
+        ),
+        _FeatureBullet(
+          icon: Icons.trending_up_rounded,
+          text: 'Performance trends',
+          iconColor: Color(0xFFEA580C),
+        ),
+      ],
+      page: PumpLogDashboardScreen(
+        pumpList: pumpList,
+        userId: widget.userData['customerId'],
+        controllerId: widget.masterData.controllerId,
+        masterData: widget.masterData,
+        userData: widget.userData, showMobileCalendar: true,
+      ),
+    );
+  }
+
+  List<_LogCardItem> _buildCardItems() {
+    final List<_LogCardItem> cards = [];
 
     if (isOmsGem) {
-      cards.add(
-        _LogCardItem(
-          title: 'Irrigation Log',
-          subtitle:
-              'View detailed records of irrigation cycles, water usage and duration for each zone.',
-          iconWidget: const Icon(
-            Icons.water_drop_outlined,
-            color: Color(0xFF0284C7),
-            size: 28,
-          ),
-          accentColor: const Color(0xFF0284C7),
-          iconBgColor: const Color(0xFFE0F2FE),
-          buttonColor: const Color(0xFF278EA5),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Irrigation start & stop times',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.water_drop_outlined,
-              text: 'Water usage data',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.schedule_rounded,
-              text: 'Duration & frequency',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.bar_chart_rounded,
-              text: 'Zone-wise details',
-              iconColor: Color(0xFF0284C7),
-            ),
-          ],
-          page: ListOfLogConfig(
-            userData: widget.userData,
-            masterData: widget.masterData,
-          ),
-        ),
-      );
+      cards.add(_irrigationCard());
     } else if (isEcoGem) {
-      tabs.addAll([
-        const Tab(text: 'Motor Cyclic Log'),
-        const Tab(text: 'Zone Cyclic Log'),
-        const Tab(text: 'Pump Log'),
-      ]);
-
-      pages.addAll([
-        MotorCyclicLog(
-          userData: widget.userData,
-        ),
-        ZoneCyclicLog(
-          userData: widget.userData,
-        ),
-        PumpLogDashboardScreen(
-          pumpList: pumpList,
-          userId: widget.userData['customerId'],
-          controllerId: widget.masterData.controllerId,
-          masterData: widget.masterData,
-          userData: widget.userData,
       cards.addAll([
         _LogCardItem(
           title: 'Motor Cyclic Log',
           subtitle:
-              'Track cyclic motor operations, runtime intervals and status logs.',
+          'Track cyclic motor operations, runtime intervals and status logs.',
           iconWidget: const Icon(
             Icons.sync_rounded,
             color: Color(0xFF0284C7),
@@ -282,7 +405,7 @@ class _IrrigationAndPumpLogState
         _LogCardItem(
           title: 'Zone Cyclic Log',
           subtitle:
-              'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
+          'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
           iconWidget: const Icon(
             Icons.pin_drop_outlined,
             color: Color(0xFF16A34A),
@@ -315,224 +438,31 @@ class _IrrigationAndPumpLogState
           ],
           page: ZoneCyclicLog(userData: widget.userData),
         ),
-        _LogCardItem(
-          title: 'Pump Log',
-          subtitle:
-              'Track pump operations, start/stop events, runtime and fault history.',
-          iconWidget: SvgPicture.asset(
-            'assets/svg_images/pump.svg',
-            width: 26,
-            height: 26,
-            colorFilter:
-                const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
-          ),
-          accentColor: const Color(0xFFEA580C),
-          iconBgColor: const Color(0xFFFFEDD5),
-          buttonColor: const Color(0xFFF38220),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.play_arrow_outlined,
-              text: 'Start / Stop events',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Runtime & total hours',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.warning_amber_rounded,
-              text: 'Fault / alarm history',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.trending_up_rounded,
-              text: 'Performance trends',
-              iconColor: Color(0xFFEA580C),
-            ),
-          ],
-          page: PumpList(
-            pumpList: pumpList,
-            userId: widget.userData['customerId'],
-            masterData: widget.masterData,
-            userData: widget.userData,
-          ),
-        ),
+        _pumpLogCard(),
       ]);
     } else {
       cards.addAll([
-        _LogCardItem(
-          title: 'Irrigation Log',
-          subtitle:
-              'View detailed records of irrigation cycles, water usage and duration for each zone.',
-          iconWidget: const Icon(
-            Icons.water_drop_outlined,
-            color: Color(0xFF0284C7),
-            size: 28,
-          ),
-          accentColor: const Color(0xFF0284C7),
-          iconBgColor: const Color(0xFFE0F2FE),
-          buttonColor: const Color(0xFF278EA5),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Irrigation start & stop times',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.water_drop_outlined,
-              text: 'Water usage data',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.schedule_rounded,
-              text: 'Duration & frequency',
-              iconColor: Color(0xFF0284C7),
-            ),
-            _FeatureBullet(
-              icon: Icons.bar_chart_rounded,
-              text: 'Zone-wise details',
-              iconColor: Color(0xFF0284C7),
-            ),
-          ],
-          page: ListOfLogConfig(
-            userData: widget.userData,
-            masterData: widget.masterData,
-          ),
-        ),
-        _LogCardItem(
-          title: 'Cumulative Log',
-          subtitle:
-              'Monitor zone-wise cumulative activities, including valve status, flow and runtime information.',
-          iconWidget: const Icon(
-            Icons.pin_drop_outlined,
-            color: Color(0xFF16A34A),
-            size: 28,
-          ),
-          accentColor: const Color(0xFF16A34A),
-          iconBgColor: const Color(0xFFDCFCE7),
-          buttonColor: const Color(0xFF2E8B57),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.grid_view_rounded,
-              text: 'Zone status & activity',
-              iconColor: Color(0xFF16A34A),
-            ),
-            _FeatureBullet(
-              icon: Icons.device_hub_rounded,
-              text: 'Valve open/close events',
-              iconColor: Color(0xFF16A34A),
-            ),
-            _FeatureBullet(
-              icon: Icons.waves_rounded,
-              text: 'Flow rate & volume',
-              iconColor: Color(0xFF16A34A),
-            ),
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Runtime per zone',
-              iconColor: Color(0xFF16A34A),
-            ),
-          ],
-          page: ZoneLog(
-            userData: widget.userData,
-            masterData: widget.masterData,
-          ),
-        ),
-        _LogCardItem(
-          title: 'Standalone Log',
-          subtitle:
-              'Access logs for standalone devices such as pumps, filters and other independent units.',
-          iconWidget: const Icon(
-            Icons.developer_board_rounded,
-            color: Color(0xFF6D28D9),
-            size: 28,
-          ),
-          accentColor: const Color(0xFF6D28D9),
-          iconBgColor: const Color(0xFFEDE9FE),
-          buttonColor: const Color(0xFF5E50D6),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.precision_manufacturing_outlined,
-              text: 'Pump operation logs',
-              iconColor: Color(0xFF6D28D9),
-            ),
-            _FeatureBullet(
-              icon: Icons.filter_alt_outlined,
-              text: 'Filter status & backwash',
-              iconColor: Color(0xFF6D28D9),
-            ),
-            _FeatureBullet(
-              icon: Icons.show_chart_rounded,
-              text: 'Device performance',
-              iconColor: Color(0xFF6D28D9),
-            ),
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Runtime & events',
-              iconColor: Color(0xFF6D28D9),
-            ),
-          ],
-          page: StandaloneLog(
-            userData: widget.userData,
-          ),
-        ),
-        _LogCardItem(
-          title: 'Pump Log',
-          subtitle:
-              'Track pump operations, start/stop events, runtime and fault history.',
-          iconWidget: SvgPicture.asset(
-            'assets/svg_images/pump.svg',
-            width: 26,
-            height: 26,
-            colorFilter:
-                const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
-          ),
-          accentColor: const Color(0xFFEA580C),
-          iconBgColor: const Color(0xFFFFEDD5),
-          buttonColor: const Color(0xFFF38220),
-          features: const [
-            _FeatureBullet(
-              icon: Icons.play_arrow_outlined,
-              text: 'Start / Stop events',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.access_time_rounded,
-              text: 'Runtime & total hours',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.warning_amber_rounded,
-              text: 'Fault / alarm history',
-              iconColor: Color(0xFFEA580C),
-            ),
-            _FeatureBullet(
-              icon: Icons.trending_up_rounded,
-              text: 'Performance trends',
-              iconColor: Color(0xFFEA580C),
-            ),
-          ],
-          page: PumpList(
-            pumpList: pumpList,
-            userId: widget.userData['customerId'],
-            controllerId: widget.masterData.controllerId,
-            masterData: widget.masterData,
-            userData: widget.userData,
-          ),
-        ),
+        _irrigationCard(),
+        _zoneLogCard(),
+        _standaloneLogCard(),
+        // Matches _calculateTabLength(): pump log only when it applies
+        if (showPumpLog) _pumpLogCard(),
       ]);
     }
 
     return cards;
   }
 
+  // ---------------------------------------------------------------------------
+  // Layout
+  // ---------------------------------------------------------------------------
+
   Widget _buildOverviewDashboard(
-    BuildContext context,
-    List<_LogCardItem> cards,
-    bool isOffline,
-    CustomerScreenControllerViewModel? customerVM,
-  ) {
+      BuildContext context,
+      List<_LogCardItem> cards,
+      bool isOffline,
+      CustomerScreenControllerViewModel? customerVM,
+      ) {
     return LayoutBuilder(
       builder: (context, screenConstraints) {
         final bool isCompact = screenConstraints.maxWidth < 620;
@@ -588,7 +518,6 @@ class _IrrigationAndPumpLogState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Header
                   _buildHeader(),
                   const SizedBox(height: 24),
 
@@ -598,7 +527,7 @@ class _IrrigationAndPumpLogState
                       final double width = constraints.maxWidth;
 
                       if (width >= 1050) {
-                        // 4 cards in a row
+                        // All cards in a single row
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -625,7 +554,7 @@ class _IrrigationAndPumpLogState
                                 if (hasNext)
                                   Expanded(
                                       child:
-                                          _buildLogCard(context, cards[i + 1]))
+                                      _buildLogCard(context, cards[i + 1]))
                                 else
                                   const Spacer(),
                               ],
@@ -659,36 +588,234 @@ class _IrrigationAndPumpLogState
     );
   }
 
-    return Scaffold(
-      key: ValueKey(
-        Provider.of<CustomerProvider>(context)
-            .controllerId,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            TabBar(
-              controller: tabController,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              labelColor:
-              const Color(0xFF006775),
-              unselectedLabelColor:
-              Colors.grey,
-              indicatorColor:
-              const Color(0xFF006775),
-              tabs: tabs,
-            ),
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF006775).withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.eco_outlined,
+            size: 30,
+            color: Color(0xFF006775),
+          ),
+        ),
+        const SizedBox(width: 14),
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Logs',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'View and manage your system logs',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-            Expanded(
-              child: TabBarView(
-                controller: tabController,
-                children: pages,
+  Widget _buildLogCard(BuildContext context, _LogCardItem card) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.04),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Subtle top-right ambient colored corner glow
+          Positioned(
+            top: -30,
+            right: -30,
+            child: IgnorePointer(
+              child: Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      card.accentColor.withOpacity(0.12),
+                      card.accentColor.withOpacity(0.0),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+
+          // Card content
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _openLogDetail(context, card),
+              child: Padding(
+                padding: const EdgeInsets.all(22.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Icon Avatar
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: card.iconBgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(child: card.iconWidget),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Title
+                    Text(
+                      card.title,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Subtitle
+                    Text(
+                      card.subtitle,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.45,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Feature bullet list
+                    for (final item in card.features) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Icon(item.icon, size: 18, color: item.iconColor),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                item.text,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: Color(0xFF475569),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 20),
+
+                    // View Log button
+                    InkWell(
+                      onTap: () => _openLogDetail(context, card),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: double.infinity,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: card.buttonColor,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'View Log',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Icon(
+                              Icons.arrow_forward_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _LogCardItem {
+  final String title;
+  final String subtitle;
+  final Widget iconWidget;
+  final Color accentColor;
+  final Color iconBgColor;
+  final Color buttonColor;
+  final List<_FeatureBullet> features;
+  final Widget page;
+
+  const _LogCardItem({
+    required this.title,
+    required this.subtitle,
+    required this.iconWidget,
+    required this.accentColor,
+    required this.iconBgColor,
+    required this.buttonColor,
+    required this.features,
+    required this.page,
+  });
+}
+
+class _FeatureBullet {
+  final IconData icon;
+  final String text;
+  final Color iconColor;
+
+  const _FeatureBullet({
+    required this.icon,
+    required this.text,
+    required this.iconColor,
+  });
 }
