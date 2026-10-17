@@ -191,7 +191,12 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                             ),
                                             onPressed: () {
                                               Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                return LogHome(serverData: serverData['staticLogConfig'][i], userData: widget.userData, nameData: names,);
+                                                return LogHome(
+                                                  serverData: serverData['staticLogConfig'][i],
+                                                  userData: widget.userData,
+                                                  nameData: names,
+                                                  masterData: widget.masterData,
+                                                );
                                               }));
                                             },
                                             icon: const Icon(Icons.visibility,color: Colors.green,)
@@ -321,7 +326,12 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                 ),
                                                 onPressed: () {
                                                   Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                    return LogHome(serverData: serverData['logConfig'][i], userData: widget.userData, nameData: names,);
+                                                    return LogHome(
+                                                      serverData: serverData['logConfig'][i],
+                                                      userData: widget.userData,
+                                                      nameData: names,
+                                                      masterData: widget.masterData,
+                                                    );
                                                   }));
                                                 },
                                                 icon: Icon(Icons.visibility,color: Colors.green,)
@@ -419,7 +429,12 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                               ),
                                               onPressed: () {
                                                 Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                  return LogHome(serverData: serverData['logConfig'][i], userData: widget.userData, nameData: names,);
+                                                  return LogHome(
+                                                    serverData: serverData['logConfig'][i],
+                                                    userData: widget.userData,
+                                                    nameData: names,
+                                                    masterData: widget.masterData,
+                                                  );
                                                 }));
                                               },
                                               icon: Icon(Icons.visibility,color: Colors.green,)
