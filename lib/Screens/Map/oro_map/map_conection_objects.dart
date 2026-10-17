@@ -60,6 +60,7 @@ class _MapConnectionObjectState extends State<MapConnectionObject> {
       if (response.statusCode == 200) {
         AppLog.log(response.body);
         final jsonData = jsonDecode(response.body);
+        print("jsonData: $jsonData");
         provider.updateMapData(jsonData);
       }
     } catch (e) {
@@ -75,6 +76,8 @@ class _MapConnectionObjectState extends State<MapConnectionObject> {
       final Repository repository = Repository(HttpService());
 
       final data = provider.mapModelInstance.data?.toJson();
+      print("send data : $data");
+      print("send data : ${data!['deviceList']}");
       if (data == null) return;
        Map<String, dynamic> body = {
         "userId": widget.customerId,
