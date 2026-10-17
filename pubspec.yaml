@@ -89,6 +89,7 @@ dependencies:
   better_download_saver: ^0.0.1
   fl_chart: ^1.2.0
   easy_pdf_viewer: ^1.0.8
+  pdfrx: ^2.4.5
 #  audioplayers: ^6.5.0
 #  record: ^6.0.0
 
@@ -98,9 +99,6 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   flutter_flavorizr: ^2.2.3
 
-dependency_overrides:
-  web: 1.0.0
-  mqtt_client: 10.5.1
 
 
 flutter:
@@ -184,3 +182,8 @@ flavorizr:
         name: "Agritel"
       android:
         applicationId: "com.niagaraautomations.Agritel"
+
+
+dependency_overrides:
+  mqtt_client: 10.5.1
+  web: 1.0.0

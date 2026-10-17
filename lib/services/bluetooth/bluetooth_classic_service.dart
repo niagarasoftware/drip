@@ -650,32 +650,26 @@ class BluetoothClassicService {
 
       final input = connection.input;
 
-      if (input != null) {
-        _inputSubscription = input.listen(
-          _onDataReceived,
-          onError: (Object error, StackTrace stackTrace) {
-            debugPrint(
-              '❌ Classic input stream error: $error',
-            );
+      _inputSubscription = input.listen(
+        _onDataReceived,
+        onError: (Object error, StackTrace stackTrace) {
+          debugPrint(
+            '❌ Classic input stream error: $error',
+          );
 
-            debugPrintStack(stackTrace: stackTrace);
+          debugPrintStack(stackTrace: stackTrace);
 
-            _handleConnectionClosed(connection, device);
-          },
-          onDone: () {
-            debugPrint(
-              '🔌 Classic input stream closed for $address.',
-            );
+          _handleConnectionClosed(connection, device);
+        },
+        onDone: () {
+          debugPrint(
+            '🔌 Classic input stream closed for $address.',
+          );
 
-            _handleConnectionClosed(connection, device);
-          },
-          cancelOnError: true,
-        );
-      } else {
-        debugPrint(
-          '⚠️ Classic connection has no input stream.',
-        );
-      }
+          _handleConnectionClosed(connection, device);
+        },
+        cancelOnError: true,
+      );
 
 // The socket is now connected; update the UI/provider.
       providerState?.updateClassicDeviceStatus(

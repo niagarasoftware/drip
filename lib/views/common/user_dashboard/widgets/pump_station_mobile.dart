@@ -11,6 +11,7 @@ import '../../../customer/widgets/booster_widget.dart';
 import '../../../customer/widgets/channel_widget.dart';
 import '../../../customer/widgets/filter_builder.dart';
 import '../../../customer/widgets/source_column_widget.dart';
+import 'fert_tank_system_widget.dart';
 import 'fertilizer_live_panel.dart';
 
 class PumpStationMobile extends StatelessWidget {
@@ -98,7 +99,7 @@ class PumpStationMobile extends StatelessWidget {
             if (cFertilizerSite.isNotEmpty)
               SizedBox(
                 width: double.infinity,
-                height: 125,
+                height: cFertilizerSite.any((s) => s.hasTankSystem) ? null : 125,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -136,7 +137,7 @@ class PumpStationMobile extends StatelessWidget {
             if (lFertilizerSite.isNotEmpty)
               SizedBox(
                 width: double.infinity,
-                height: 125,
+                height: lFertilizerSite.any((s) => s.hasTankSystem) ? null : 125,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -274,38 +275,6 @@ class PumpStationMobile extends StatelessWidget {
       }
     }
 
-
-    /*for (int index = 0; index < waterSources.length; index++) {
-      final source = waterSources[index];
-      gridItems.add(SourceColumnWidget(
-        source: source,
-        isInletSource: isInlet,
-        isAvailInlet: isAvailInlet,
-        index: index,
-        total: waterSources.length,
-        popoverUpdateNotifier: popoverUpdateNotifier,
-        deviceId: deviceId,
-        customerId: customerId,
-        controllerId: controllerId,
-        modelId: modelId,
-        isMobile: true,
-        isAvailFrtSite: (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
-      ));
-
-      gridItems.addAll(source.outletPump.map((pump) => PumpWidget(
-        pump: pump,
-        isSourcePump: isInlet,
-        deviceId: deviceId,
-        customerId: customerId,
-        controllerId: controllerId,
-        isMobile: true,
-        modelId: modelId,
-        pumpPosition: 'First',
-        isAvailFrtSite: (cFertilizerSite.isNotEmpty || lFertilizerSite.isNotEmpty),
-        isNova: isNova,
-      )));
-    }*/
-
     return gridItems;
   }
 
@@ -313,9 +282,81 @@ class PumpStationMobile extends StatelessWidget {
       List<FertilizerSiteModel> fertilizerSite, bool isNova) {
 
     return fertilizerSite.map((site) {
-      final widgets = <Widget>[];
 
+      final widgets = <Widget>[];
       final List<Widget> channelWidgets = [];
+
+      for (int channelIndex = 0; channelIndex < site.channel.length; channelIndex++) {
+        final channel = site.channel[channelIndex];
+
+        channelWidgets.add(ChannelWidget(
+          channel: channel,
+          cIndex: channelIndex,
+          channelLength: site.channel.length,
+          agitator: site.agitator,
+          siteSno: site.sNo.toString(),
+          isMobile: true,
+        ));
+
+        final isLast = channelIndex == site.channel.length - 1;
+        if (isLast && site.agitator.isNotEmpty) {
+          channelWidgets.add(AgitatorWidget(
+            fertilizerSite: site,
+            isMobile: true,
+          ));
+        }
+      }
+
+      widgets.add(BoosterWidget(
+        fertilizerSite: site,
+        isMobile: true,
+      ));
+
+      widgets.addAll(channelWidgets);
+
+      final boosterRow = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: widgets,
+          ),
+        ),
+      );
+
+      // old UI when there is no fertilizerChannel
+      if (!site.hasTankSystem) return boosterRow;
+
+      // NEW: tank system on top, booster + channels on the next line
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FertTankSystemWidget(
+            system: site.tankSystem!,
+            customerId: customerId,
+            controllerId: controllerId,
+            modelId: modelId,
+            deviceId: deviceId,
+            isWide: false,
+            maxWidth: MediaQuery.sizeOf(context).width - 24,
+            // used only on a phone browser
+          ),
+          boosterRow,
+        ],
+      );
+    }).toList();
+  }
+
+  /*List<Widget> _buildFertilizer(BuildContext context,
+      List<FertilizerSiteModel> fertilizerSite, bool isNova) {
+
+    return fertilizerSite.map((site) {
+
+      final widgets = <Widget>[];
+      final List<Widget> channelWidgets = [];
+
 
       for (int channelIndex = 0; channelIndex < site.channel.length; channelIndex++) {
         final channel = site.channel[channelIndex];
@@ -343,6 +384,7 @@ class PumpStationMobile extends StatelessWidget {
         fertilizerSite: site,
         isMobile: true,
       ));
+
       widgets.addAll(channelWidgets);
 
 
@@ -357,5 +399,5 @@ class PumpStationMobile extends StatelessWidget {
         ),
       );
     }).toList();
-  }
+  }*/
 }
