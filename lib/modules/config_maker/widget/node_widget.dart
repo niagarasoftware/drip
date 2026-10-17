@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/blower_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/fertilizer_tank_painter.dart';
@@ -22,6 +25,91 @@ import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/well_pai
 import '../model/node_type_model.dart';
 
 
+class NodeImageCache {
+  static final Map<String, ui.Image> _cache = {};
+
+  static ui.Image renderAndCache(
+    String key,
+    CustomPainter painter,
+    Size size, {
+    double devicePixelRatio = 4.0,
+  }) {
+    final existing = _cache[key];
+    if (existing != null) return existing;
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(devicePixelRatio, devicePixelRatio);
+    painter.paint(canvas, size);
+    final picture = recorder.endRecording();
+    final w = (size.width * devicePixelRatio).ceil().clamp(1, 4000);
+    final h = (size.height * devicePixelRatio).ceil().clamp(1, 4000);
+    final image = picture.toImageSync(w, h);
+    _cache[key] = image;
+    return image;
+  }
+
+  static void clear() {
+    for (final img in _cache.values) {
+      img.dispose();
+    }
+    _cache.clear();
+  }
+}
+
+class CachedNodePainterWidget extends StatelessWidget {
+  final String cacheKey;
+  final CustomPainter painter;
+  final Size size;
+  final ValueListenable<bool>? simplify;
+
+  const CachedNodePainterWidget({
+    super.key,
+    required this.cacheKey,
+    required this.painter,
+    required this.size,
+    this.simplify,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (simplify == null) {
+      return _buildImage(context);
+    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: simplify!,
+      builder: (context, isLite, _) {
+        if (!isLite) {
+          return CustomPaint(
+            size: size,
+            painter: painter,
+          );
+        }
+        return _buildImage(context);
+      },
+    );
+  }
+
+  Widget _buildImage(BuildContext context) {
+    final double dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 3.0;
+    final double ratio = math.max(4.0, dpr * 1.5);
+    final String fullKey = '${cacheKey}_r${ratio.toStringAsFixed(1)}';
+    final ui.Image cachedImage = NodeImageCache.renderAndCache(
+      fullKey,
+      painter,
+      size,
+      devicePixelRatio: ratio,
+    );
+    return RawImage(
+      image: cachedImage,
+      width: size.width,
+      height: size.height,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.high,
+    );
+  }
+}
+
 class NodeWidget extends StatelessWidget {
   final NodeObject node;
   final bool isSelected;
@@ -32,6 +120,8 @@ class NodeWidget extends StatelessWidget {
   final void Function(DragStartDetails)? onPanStart;
   final void Function(DragUpdateDetails)? onResizeUpdate;
   final void Function(DragStartDetails)? onResizeStart;
+  final void Function(int channelIndex)? onChannelToggle;
+  final ValueListenable<bool>? simplify;
 
   /// When false the parent positions this widget (so a pure move does not
   /// rebuild or repaint the node artwork).
@@ -46,8 +136,10 @@ class NodeWidget extends StatelessWidget {
     this.onPanStart,
     this.onResizeUpdate,
     this.onResizeStart,
+    this.onChannelToggle,
     this.isSelected = false,
     this.isConnectSource = false,
+    this.simplify,
     this.applyPosition = true,
   });
 
@@ -180,6 +272,36 @@ class NodeWidget extends StatelessWidget {
               child: child,
             ),
           ),
+          if (node.type == NodeType.multiInjector)
+            ...List.generate(4, (i) {
+              const double firstX = 0.52;
+              const double spacing = 0.32;
+              const double designW = 1.75;
+              final double xc = node.size.width * (firstX + spacing * i) / designW;
+              final double btnW = math.max(38.0, node.size.width * (0.24 / designW));
+              final double btnH = math.max(22.0, node.size.height * 0.14);
+              final double btnY = node.size.height * 0.955 - (btnH / 2);
+
+              return Positioned(
+                left: xc - (btnW / 2) - 4,
+                top: btnY - 4,
+                width: btnW + 8,
+                height: btnH + 8,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    NodeImageCache.clear();
+                    if (onChannelToggle != null) {
+                      onChannelToggle!(i);
+                    } else {
+                      node.toggleChannel(i);
+                      onTap();
+                    }
+                  },
+                  child: const SizedBox.expand(),
+                ),
+              );
+            }),
           if (showNameBadge &&
               node.type != NodeType.singleTankValve &&
               node.type != NodeType.multiOutletTankValve)
@@ -291,10 +413,15 @@ class NodeWidget extends StatelessWidget {
         ? Colors.orange
         : (isSelected ? Colors.blue : Colors.grey.shade400);
 
+    final String szKey = '${node.size.width.toInt()}x${node.size.height.toInt()}';
+
     if (node.type == NodeType.pump) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: CustomPaint(
+        child: CachedNodePainterWidget(
+          cacheKey: 'pump_${node.isOn}_${node.showJoints}_$szKey',
+          size: node.size,
+          simplify: simplify,
           painter: DetailedPumpPainter(
             isOn: node.isOn,
             showJoints: node.showJoints,
@@ -306,10 +433,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.sump) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: SumpView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'sump_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedSumpPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -317,10 +449,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.well) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: WellView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'well_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedWellPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -328,10 +465,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.overheadTank) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: OverheadTankView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'overhead_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedOverheadTankPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -339,10 +481,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.naturalSource) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: NaturalSourceView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'natural_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedNaturalSourcePainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -350,10 +497,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.mainFertilizerSource) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MainFertilizerSourceView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'main_fert_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMainFertilizerSourcePainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -361,21 +513,33 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.fertilizerTank) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: FertilizerTankView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'fert_tank_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedFertilizerTankPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
 
     if (node.type == NodeType.multiInjector) {
+      final String chKey = node.activeChannelStates.join('_');
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiInjectorView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_inj_v4_${node.isOn}_${node.showJoints}_${chKey}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMultiInjectorPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+            channelStates: node.activeChannelStates,
+          ),
         ),
       );
     }
@@ -383,12 +547,17 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.multiFilter) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiFilterView(
-          isOn: node.isOn,
-          filter1IsBackwash: false,
-          filter2IsBackwash: true,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_filter_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMultiFilterPainter(
+            isOn: node.isOn,
+            filter1IsBackwash: false,
+            filter2IsBackwash: true,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -396,10 +565,14 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.multiValve) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiValveView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_valve_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMultiValvePainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -407,10 +580,14 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.singleMainValve) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: SingleMainValveView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'single_main_valve_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedSingleMainValvePainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -418,10 +595,14 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.mainValve || node.type == NodeType.multiMainValve) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiMainValveView(
-          states: [node.isOn, node.isOn, node.isOn, node.isOn],
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_main_valve_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMultiMainValvePainter(
+            valves: [node.isOn, node.isOn, node.isOn, node.isOn],
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -429,11 +610,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.singleTankValve) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: SingleTankValveView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
-          isHorizontal: node.isHorizontal,
+        child: CachedNodePainterWidget(
+          cacheKey: 'single_tank_valve_${node.isOn}_${node.showJoints}_${node.isHorizontal}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedSingleTankValvePainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+            isHorizontal: node.isHorizontal,
+          ),
         ),
       );
     }
@@ -441,12 +626,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.multiOutletTankValve) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiOutletTankValveView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
-          isHorizontal: node.isHorizontal,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_outlet_tank_valve_${node.isOn}_${node.showJoints}_${node.isHorizontal}_${node.outletPortCount}_$szKey',
           size: node.size,
-          outletCount: node.outletPortCount,
+          simplify: simplify,
+          painter: DetailedMultiOutletTankValvePainter(
+            states: List.generate(node.outletPortCount, (_) => node.isOn),
+            showJoints: node.showJoints,
+            isHorizontal: node.isHorizontal,
+          ),
         ),
       );
     }
@@ -454,12 +642,17 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.multiAgitator) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MultiAgitatorView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_agitator_${node.isOn}_${node.showJoints}_${node.outletPipeLength}_${node.outletSpacing}_$szKey',
           size: node.size,
-          outletPipeLength: node.outletPipeLength,
-          outletSpacing: node.outletSpacing,
+          simplify: simplify,
+          painter: DetailedMultiAgitatorPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+            outletPipeLength: node.outletPipeLength,
+            outletSpacing: node.outletSpacing,
+          ),
         ),
       );
     }
@@ -467,10 +660,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.singleAgitator) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: SingleAgitatorView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'single_agitator_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedSingleAgitatorPainter(
+            isOn: node.isOn,
+            phase: 0.0,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -478,10 +676,14 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.pressureSensor) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: PressureSensorView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'pressure_sensor_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedPressureSensorPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -489,10 +691,14 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.moistureSensor) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: MoistureSensorView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'moisture_sensor_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedMoistureSensorPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
         ),
       );
     }
@@ -500,11 +706,15 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.waterMeter) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: WaterMeterView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
-          orientation: node.isHorizontal ? Axis.horizontal : Axis.vertical,
+        child: CachedNodePainterWidget(
+          cacheKey: 'water_meter_${node.isOn}_${node.showJoints}_${node.isHorizontal}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedWaterMeterPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+            orientation: node.isHorizontal ? Axis.horizontal : Axis.vertical,
+          ),
         ),
       );
     }
@@ -512,10 +722,16 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.blower) {
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: BlowerView(
-          isOn: node.isOn,
-          showJoints: node.showJoints,
+        child: CachedNodePainterWidget(
+          cacheKey: 'blower_${node.isOn}_${node.showJoints}_$szKey',
           size: node.size,
+          simplify: simplify,
+          painter: DetailedBlowerPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+            phase: 0.0,
+            speed: node.isOn ? 1.0 : 0.0,
+          ),
         ),
       );
     }

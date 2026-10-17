@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Multi-Injector Fertilizer Dosing Skid, redrawn to match the reference photo
@@ -29,12 +30,21 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   final bool isOn;
   final double phase;
   final bool showJoints;
+  final List<bool>? channelStates;
 
   DetailedMultiInjectorPainter({
     required this.isOn,
     this.phase = 0,
     this.showJoints = true,
+    this.channelStates,
   });
+
+  bool isChannelActive(int i) {
+    if (channelStates != null && i >= 0 && i < channelStates!.length) {
+      return channelStates![i];
+    }
+    return true; // Default active (ON)
+  }
 
   // ------------------------------------------------------------ geometry API
   /// Width of the drawing in design units (original photo width = 1.0).
@@ -198,6 +208,7 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     _drawChannelGauges(canvas);
     _drawRotameters(canvas);
     _drawPorts(canvas);
+    _drawChannelButtons(canvas);
   }
 
   // ------------------------------------------------------------- back frame
@@ -208,7 +219,7 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     _alumV(c, _r(rl, 0.02, 0.024, 0.74)); // rear-left post
     _alumV(c, _r(rr, 0.015, 0.026, 0.20)); // rear-right post
     _alumH(c, _r(rl + 0.025, 0.118, rr - rl - 0.025, 0.018)); // back top rail
-    _alumH(c, _r(rl + 0.015, 0.74, 0.595, 0.022)); // rear floor rail
+    _alumH(c, _r(rl + 0.015, 0.74, rr - rl - 0.015, 0.022)); // rear floor rail
 
     // perspective top rails
     _alumPoly(c, const [
@@ -1083,6 +1094,98 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   }
 
   // -------------------------------------------------------- inlet / outlet / channel ports
+  void _drawChannelButtons(Canvas c) {
+    for (int i = 0; i < channelCount; i++) {
+      final double xc = _cx(i);
+      final bool active = isChannelActive(i);
+
+      // Substantially larger button box located straight under channel i, outside/below the frame body
+      final Rect btn = Rect.fromCenter(
+        center: Offset(xc, _h * 0.955),
+        width: _w * 0.22,
+        height: _h * 0.088,
+      );
+
+      // Outer bezel enclosure box
+      c.drawRRect(
+        RRect.fromRectAndRadius(btn, const Radius.circular(7)),
+        _gh(btn, const [Color(0xFF1E293B), Color(0xFF0F172A)]),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(btn, const Radius.circular(7)),
+        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF64748B), active ? 2.0 : 1.2),
+      );
+
+      if (active) {
+        c.drawRRect(
+          RRect.fromRectAndRadius(btn.inflate(1.5), const Radius.circular(8)),
+          _stroke(const Color(0xFF10B981).withValues(alpha: 0.35), 1.5),
+        );
+      }
+
+      // LED dot on left
+      final Offset dotPos = Offset(btn.left + _w * 0.028, btn.center.dy);
+      final Color ledColor = active ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+      c.drawCircle(dotPos, _w * 0.016, Paint()..color = ledColor);
+      if (active) {
+        c.drawCircle(
+          dotPos,
+          _w * 0.026,
+          _stroke(const Color(0xFF10B981).withValues(alpha: 0.6), 1.5),
+        );
+      } else {
+        c.drawCircle(
+          dotPos,
+          _w * 0.020,
+          _stroke(const Color(0xFFEF4444).withValues(alpha: 0.4), 1.0),
+        );
+      }
+
+      // "CH 1", "CH 2", "CH 3", "CH 4" Text / Badge label in center
+      final TextPainter tp = TextPainter(
+        text: TextSpan(
+          text: 'CH ${i + 1}',
+          style: TextStyle(
+            color: active ? Colors.white : const Color(0xFF94A3B8),
+            fontSize: _w * 0.024,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(c, Offset(btn.left + _w * 0.052, btn.center.dy - tp.height / 2));
+
+      // Right side ON / OFF switch toggle track
+      final Rect pill = Rect.fromLTWH(
+        btn.right - _w * 0.082,
+        btn.top + _h * 0.016,
+        _w * 0.070,
+        _h * 0.056,
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(pill, const Radius.circular(10)),
+        Paint()..color = active ? const Color(0xFF065F46) : const Color(0xFF334155),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(pill, const Radius.circular(10)),
+        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF475569), 1.0),
+      );
+
+      // Smooth 3D slider knob inside pill
+      final Offset knob = Offset(
+        active ? pill.right - _w * 0.018 : pill.left + _w * 0.018,
+        pill.center.dy,
+      );
+      c.drawCircle(knob, _w * 0.016, Paint()..color = Colors.white);
+      c.drawCircle(
+        knob,
+        _w * 0.016,
+        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF64748B), 1.2),
+      );
+    }
+  }
+
   void _drawPorts(Canvas c) {
     final double pulse = isOn ? 0.5 + 0.5 * math.sin(phase * 2 * math.pi * 2) : 0.0;
 
@@ -1137,7 +1240,10 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DetailedMultiInjectorPainter old) =>
-      old.isOn != isOn || old.phase != phase || old.showJoints != showJoints;
+      old.isOn != isOn ||
+      old.phase != phase ||
+      old.showJoints != showJoints ||
+      !listEquals(old.channelStates, channelStates);
 }
 
 /// Stateful wrapper for DetailedMultiInjectorPainter.

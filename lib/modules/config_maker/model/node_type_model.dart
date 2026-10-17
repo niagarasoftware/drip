@@ -47,6 +47,7 @@ class NodeObject {
   double outletSpacing; // Horizontal spacing factor between outlets (1.0 = default)
   int outletPortCount; // Number of outlet ports for multi-outlet nodes (e.g. multiOutletTankValve)
   List<String>? portLabels; // Specific labels for individual ports (e.g. tank valves on multiOutletTankValve)
+  List<bool>? channelStates; // Active status for multi-channel nodes (e.g. multiInjector channels)
 
   NodeObject({
     required this.id,
@@ -62,7 +63,25 @@ class NodeObject {
     this.outletSpacing = 1.0,
     this.outletPortCount = 4,
     this.portLabels,
+    this.channelStates,
   });
+
+  List<bool> get activeChannelStates =>
+      channelStates ?? List.filled(math.max(4, outletPortCount), true);
+
+  bool isChannelActive(int index) {
+    if (channelStates != null && index >= 0 && index < channelStates!.length) {
+      return channelStates![index];
+    }
+    return true; // Default active (ON)
+  }
+
+  void toggleChannel(int index) {
+    channelStates ??= List.filled(math.max(4, outletPortCount), true);
+    if (index >= 0 && index < channelStates!.length) {
+      channelStates![index] = !channelStates![index];
+    }
+  }
 
   /// Connection point where pipes coming INTO this node should attach.
   Offset get inputPort {
@@ -317,7 +336,7 @@ class NodeObject {
       case NodeType.mainFertilizerSource:
         return const Size(74, 52);
       case NodeType.fertilizerTank:
-        return const Size(52, 63);
+        return const Size(70, 88);
       case NodeType.multiInjector:
         return const Size(308, 132);
       case NodeType.multiFilter:

@@ -148,8 +148,12 @@ class PipePainter extends CustomPainter {
     List<List<Offset>> water,
     List<List<Offset>> air,
     List<List<Offset>> fert,
+    Set<String> inactivePipes,
   ) {
-    int h = Object.hash(water.length, air.length, fert.length);
+    int h = Object.hash(water.length, air.length, fert.length, inactivePipes.length);
+    for (final id in inactivePipes) {
+      h = Object.hash(h, id);
+    }
     for (final pts in water) {
       if (pts.isNotEmpty) {
         h = Object.hash(h, pts.first.dx, pts.first.dy, pts.last.dx, pts.last.dy);
@@ -166,6 +170,25 @@ class PipePainter extends CustomPainter {
       }
     }
     return h;
+  }
+
+  bool _isPosInactive(Offset pos, Set<Offset> inactiveSet, Set<Offset> activeSet) {
+    if (inactiveSet.isEmpty) return false;
+    bool touchesInactive = false;
+    for (final pt in inactiveSet) {
+      if ((pt - pos).distance <= _junctionTol + 1.0) {
+        touchesInactive = true;
+        break;
+      }
+    }
+    if (!touchesInactive) return false;
+
+    for (final pt in activeSet) {
+      if ((pt - pos).distance <= _junctionTol + 1.0) {
+        return false; // Touches an active pipe as well -> keep 100% active
+      }
+    }
+    return true; // Touches ONLY inactive pipes -> 10% opacity!
   }
 
   Set<String> _getAirNodeIds() => _cacheAir;
@@ -286,6 +309,67 @@ class PipePainter extends CustomPainter {
     return fromFertTank || toFertTank || fromInj || toInj;
   }
 
+  Set<String> _getInactivePipeIds() {
+    final Set<String> result = {};
+
+    for (final node in nodes) {
+      if (node.type != NodeType.multiInjector) continue;
+
+      for (int i = 0; i < 4; i++) {
+        if (node.isChannelActive(i)) continue; // Channel is ON
+
+        final String channelPort = 'channel_$i';
+
+        // BFS traversal backwards through connected pipes, junctions, and valves
+        final Set<String> visitedNodes = {node.id};
+        final List<String> queueNodes = [node.id];
+        final List<String?> queuePorts = [channelPort];
+
+        while (queueNodes.isNotEmpty) {
+          final currNodeId = queueNodes.removeAt(0);
+          final currPortId = queuePorts.removeAt(0);
+
+          for (final pipe in pipes) {
+            if (result.contains(pipe.id)) continue;
+
+            bool connects = false;
+            String? nextNodeId;
+            String? nextPortId;
+
+            if (pipe.toNodeId == currNodeId && (currPortId == null || pipe.toPortId == currPortId)) {
+              connects = true;
+              nextNodeId = pipe.fromNodeId;
+              nextPortId = pipe.fromPortId;
+            } else if (pipe.fromNodeId == currNodeId && (currPortId == null || pipe.fromPortId == currPortId)) {
+              connects = true;
+              nextNodeId = pipe.toNodeId;
+              nextPortId = pipe.toPortId;
+            }
+
+            if (connects) {
+              result.add(pipe.id);
+
+              if (nextNodeId != null) {
+                final nextNode = _findNode(nextNodeId);
+                if (nextNode != null && !visitedNodes.contains(nextNode.id)) {
+                  if (nextNode.type == NodeType.junction ||
+                      nextNode.type == NodeType.singleTankValve ||
+                      nextNode.type == NodeType.multiOutletTankValve) {
+                    visitedNodes.add(nextNode.id);
+                    queueNodes.add(nextNode.id);
+                    queuePorts.add(nextPortId);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     // Points of ordinary water pipes, air pipes & fertilizer pipes.
@@ -295,6 +379,7 @@ class PipePainter extends CustomPainter {
     _ensureAnalysis();
     final Set<String> airNodeIds = _cacheAir;
     final Set<String> fertilizerPipeIds = _cacheFert;
+    final Set<String> inactivePipeIds = _getInactivePipeIds();
     final List<List<Offset>> allPipePoints = [];
 
     final List<Map<String, dynamic>> pipesToDraw = [];
@@ -354,6 +439,11 @@ class PipePainter extends CustomPainter {
         waterPipePoints.add(points);
       }
 
+      double pipeOpacity = 1.0;
+      if (inactivePipeIds.contains(pipe.id)) {
+        pipeOpacity = 0.10;
+      }
+
       pipesToDraw.add({
         'pipe': pipe,
         'points': points,
@@ -361,6 +451,7 @@ class PipePainter extends CustomPainter {
         'isSelected': isSelected,
         'isAir': isAir,
         'isFertilizer': isFertilizer,
+        'opacity': pipeOpacity,
       });
     }
 
@@ -371,14 +462,23 @@ class PipePainter extends CustomPainter {
       final bool isSelected = pInfo['isSelected'];
       final bool isAir = pInfo['isAir'];
       final bool isFertilizer = pInfo['isFertilizer'];
+      final double opacity = (pInfo['opacity'] as double?) ?? 1.0;
 
       try {
+        if (opacity < 1.0) {
+          canvas.saveLayer(null, Paint()..color = Color.fromRGBO(255, 255, 255, opacity));
+        }
+
         if (isAir) {
           _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
         } else if (isFertilizer) {
           _drawFertilizerPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
         } else {
           _drawWaterPipe(canvas, points, curvedPath, isSelected);
+        }
+
+        if (opacity < 1.0) {
+          canvas.restore();
         }
       } catch (e, st) {
         debugPrint('PipePainter: failed to draw pipe ${pipe.id}: $e\n$st');
@@ -387,16 +487,50 @@ class PipePainter extends CustomPainter {
 
     // Elbows, tees and crosses for water, air and fertilizer pipes.
     if (!_lite) {
-      final sig = _calcJunctionsSig(waterPipePoints, airPipePoints, fertilizerPipePoints);
+      final Set<Offset> inactiveJunctionPositions = {};
+      final Set<Offset> activeJunctionPositions = {};
+
+      for (final pInfo in pipesToDraw) {
+        final List<Offset> points = pInfo['points'];
+        final double opacity = (pInfo['opacity'] as double?) ?? 1.0;
+
+        for (final pt in points) {
+          if (opacity < 1.0) {
+            inactiveJunctionPositions.add(pt);
+          } else {
+            activeJunctionPositions.add(pt);
+          }
+        }
+      }
+
+      final sig = _calcJunctionsSig(waterPipePoints, airPipePoints, fertilizerPipePoints, inactivePipeIds);
       if (_cachedJunctionsSig != sig) {
         _cachedWaterJunctions = _buildJunctions(waterPipePoints);
         _cachedAirJunctions = _buildJunctions(airPipePoints);
         _cachedFertilizerJunctions = _buildJunctions(fertilizerPipePoints);
         _cachedJunctionsSig = sig;
       }
-      _drawJunctionsWithMap(canvas, _cachedWaterJunctions, _pipeDiameter);
-      _drawAirJunctionsWithMap(canvas, _cachedAirJunctions, _airDiameter);
-      _drawFertilizerJunctionsWithMap(canvas, _cachedFertilizerJunctions, _fertDiameter);
+      _drawJunctionsWithMap(
+        canvas,
+        _cachedWaterJunctions,
+        _pipeDiameter,
+        inactiveSet: inactiveJunctionPositions,
+        activeSet: activeJunctionPositions,
+      );
+      _drawAirJunctionsWithMap(
+        canvas,
+        _cachedAirJunctions,
+        _airDiameter,
+        inactiveSet: inactiveJunctionPositions,
+        activeSet: activeJunctionPositions,
+      );
+      _drawFertilizerJunctionsWithMap(
+        canvas,
+        _cachedFertilizerJunctions,
+        _fertDiameter,
+        inactiveSet: inactiveJunctionPositions,
+        activeSet: activeJunctionPositions,
+      );
     }
 
     // Rubber-band preview line while user is dragging a port in connect mode.
@@ -785,17 +919,32 @@ class PipePainter extends CustomPainter {
     );
   }
 
-  void _drawAirJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+  void _drawAirJunctionsWithMap(
+    Canvas canvas,
+    Map<Offset, List<Offset>> junctions,
+    double d, {
+    Set<Offset> inactiveSet = const {},
+    Set<Offset> activeSet = const {},
+  }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
-      // Straight pass-through: no fitting needed.
+      final bool isInactive = _isPosInactive(pos, inactiveSet, activeSet);
+
+      if (isInactive) {
+        canvas.saveLayer(null, Paint()..color = const Color.fromRGBO(255, 255, 255, 0.10));
+      }
+
       if (dirs.length == 2) {
         final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
-        if (dot < -0.97) return;
+        if (dot < -0.97) {
+          if (isInactive) canvas.restore();
+          return;
+        }
 
         _drawAirElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        if (isInactive) canvas.restore();
         return;
       }
 
@@ -803,6 +952,10 @@ class PipePainter extends CustomPainter {
         _drawAirTeeFitting(canvas, pos, dirs, d);
       } else if (dirs.length >= 4) {
         _drawAirCrossFitting(canvas, pos, dirs, d);
+      }
+
+      if (isInactive) {
+        canvas.restore();
       }
     });
   }
@@ -1132,18 +1285,33 @@ class PipePainter extends CustomPainter {
     return result;
   }
 
-  void _drawJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+  void _drawJunctionsWithMap(
+    Canvas canvas,
+    Map<Offset, List<Offset>> junctions,
+    double d, {
+    Set<Offset> inactiveSet = const {},
+    Set<Offset> activeSet = const {},
+  }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
-      // Straight pass-through: no fitting needed.
+      final bool isInactive = _isPosInactive(pos, inactiveSet, activeSet);
+
+      if (isInactive) {
+        canvas.saveLayer(null, Paint()..color = const Color.fromRGBO(255, 255, 255, 0.10));
+      }
+
       if (dirs.length == 2) {
         final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
-        if (dot < -0.97) return;
+        if (dot < -0.97) {
+          if (isInactive) canvas.restore();
+          return;
+        }
 
         // Draw sleek elbow fitting for 2-way meeting point
         _drawElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        if (isInactive) canvas.restore();
         return;
       }
 
@@ -1152,6 +1320,10 @@ class PipePainter extends CustomPainter {
         _drawTeeFitting(canvas, pos, dirs, d);
       } else if (dirs.length >= 4) {
         _drawCrossFitting(canvas, pos, dirs, d);
+      }
+
+      if (isInactive) {
+        canvas.restore();
       }
     });
   }
@@ -1518,16 +1690,32 @@ class PipePainter extends CustomPainter {
     _drawFertilizerElbowBendCollars(canvas, points);
   }
 
-  void _drawFertilizerJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+  void _drawFertilizerJunctionsWithMap(
+    Canvas canvas,
+    Map<Offset, List<Offset>> junctions,
+    double d, {
+    Set<Offset> inactiveSet = const {},
+    Set<Offset> activeSet = const {},
+  }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
+      final bool isInactive = _isPosInactive(pos, inactiveSet, activeSet);
+
+      if (isInactive) {
+        canvas.saveLayer(null, Paint()..color = const Color.fromRGBO(255, 255, 255, 0.10));
+      }
+
       if (dirs.length == 2) {
         final dot = dirs[0].dx * dirs[1].dx + dirs[0].dy * dirs[1].dy;
-        if (dot < -0.97) return;
+        if (dot < -0.97) {
+          if (isInactive) canvas.restore();
+          return;
+        }
 
         _drawFertilizerElbowFitting(canvas, pos, dirs[0], dirs[1], d);
+        if (isInactive) canvas.restore();
         return;
       }
 
@@ -1535,6 +1723,10 @@ class PipePainter extends CustomPainter {
         _drawFertilizerTeeFitting(canvas, pos, dirs, d);
       } else if (dirs.length >= 4) {
         _drawFertilizerCrossFitting(canvas, pos, dirs, d);
+      }
+
+      if (isInactive) {
+        canvas.restore();
       }
     });
   }

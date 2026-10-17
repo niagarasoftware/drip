@@ -123,6 +123,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         applyPosition: false,
         isSelected: node.id == _selectedNodeId,
         isConnectSource: node.id == _connectFromId,
+        simplify: _simplifyPaint,
+        onChannelToggle: (i) {
+          node.toggleChannel(i);
+          _nodeTick(node.id).value++;
+          _dragNotifier.notify();
+          _canvasNotifier.notify();
+        },
         onTap: () => _onNodeTap(node),
         onLongPress: () => _onNodeLongPress(node),
         onPanStart: (d) => _onNodePanStart(node),
@@ -701,7 +708,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             valveW = 42.0;
           }
         }
-        tankAllocW.add(math.max(52.0, valveW));
+        tankAllocW.add(math.max(70.0, valveW));
       }
 
       final List<double> tankOffsetsX = [];
@@ -712,7 +719,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         } else {
           final double prevAlloc = tankAllocW[t - 1];
           final double currAlloc = tankAllocW[t];
-          final double step = (prevAlloc / 2.0) + (currAlloc / 2.0) + 16.0;
+          final double step = (prevAlloc / 2.0) + (currAlloc / 2.0) + 12.0;
           currentTankOffset += step;
           tankOffsetsX.add(currentTankOffset);
         }
@@ -797,7 +804,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           id: _nextId('fert_tank_${sNo.toInt()}'),
           position: Offset(tankStartX + tankOffsetsX[t], tanksY),
           type: NodeType.fertilizerTank,
-          size: const Size(52, 63),
+          size: const Size(70, 88),
           label: label,
           showJoints: !_globalHideJoints,
         );
@@ -913,7 +920,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Row 3: Outlet Tank Valves.
       // Fertilizer tank valves are VERTICAL: inlet on top (straight under the
       // tank outlet) and the outlet port(s) facing DOWNWARDS.
-      const double valvesY = tanksY + 84.0 + 60.0;
+      const double valvesY = tanksY + 88.0 + 22.0;
       final Map<double, NodeObject> fertTankValveNodeMap = {};
       final Map<double, String> fertTankValvePortMap = {};
       double maxValveBottom = valvesY + 60.0;
