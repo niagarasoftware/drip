@@ -145,11 +145,11 @@ class PipePainter extends CustomPainter {
   }
 
   int _calcJunctionsSig(
-    List<List<Offset>> water,
-    List<List<Offset>> air,
-    List<List<Offset>> fert,
-    Set<String> inactivePipes,
-  ) {
+      List<List<Offset>> water,
+      List<List<Offset>> air,
+      List<List<Offset>> fert,
+      Set<String> inactivePipes,
+      ) {
     int h = Object.hash(water.length, air.length, fert.length, inactivePipes.length);
     for (final id in inactivePipes) {
       h = Object.hash(h, id);
@@ -309,64 +309,162 @@ class PipePainter extends CustomPainter {
     return fromFertTank || toFertTank || fromInj || toInj;
   }
 
+  /// A fertilizer pipe is faded ONLY when every injector channel it feeds is
+  /// OFF. Pipes shared by several channels (a common trunk coming from one
+  /// tank valve and splitting through junctions) stay solid while at least
+  /// one of those channels is still ON.
   Set<String> _getInactivePipeIds() {
-    final Set<String> result = {};
-
-    for (final node in nodes) {
-      if (node.type != NodeType.multiInjector) continue;
-
+    // Fast exit: nothing is switched off.
+    bool anyOff = false;
+    for (final n in nodes) {
+      if (n.type != NodeType.multiInjector) continue;
       for (int i = 0; i < 4; i++) {
-        if (node.isChannelActive(i)) continue; // Channel is ON
+        if (!n.isChannelActive(i)) anyOff = true;
+      }
+    }
+    if (!anyOff) return {};
 
-        final String channelPort = 'channel_$i';
+    bool isSource(NodeObject n, String? port) =>
+        n.type == NodeType.singleTankValve ||
+            n.type == NodeType.multiOutletTankValve ||
+            n.type == NodeType.mainFertilizerSource ||
+            (n.type == NodeType.fertilizerTank && port != 'top_inlet');
 
-        // BFS traversal backwards through connected pipes, junctions, and valves
-        final Set<String> visitedNodes = {node.id};
-        final List<String> queueNodes = [node.id];
-        final List<String?> queuePorts = [channelPort];
+    // "nodeId|channel_i" when the end is an injector channel port, else null.
+    String? sinkKey(NodeObject n, String? port) =>
+        (n.type == NodeType.multiInjector && (port?.startsWith('channel_') ?? false))
+            ? '${n.id}|$port'
+            : null;
 
-        while (queueNodes.isNotEmpty) {
-          final currNodeId = queueNodes.removeAt(0);
-          final currPortId = queuePorts.removeAt(0);
+    bool sinkIsActive(String key) {
+      final int sep = key.indexOf('|');
+      final node = _findNode(key.substring(0, sep));
+      final int? idx = int.tryParse(key.substring(sep + 1 + 'channel_'.length));
+      if (node == null || idx == null) return true;
+      return node.isChannelActive(idx);
+    }
 
-          for (final pipe in pipes) {
-            if (result.contains(pipe.id)) continue;
+    // Pipes attached to each junction (junctions merge every pipe touching them).
+    final Map<String, List<PipeConnection>> atJunction = {};
+    final List<PipeConnection> candidates = [];
+    final Set<String> sourceJunctions = {};
+    for (final pipe in pipes) {
+      final from = _findNode(pipe.fromNodeId);
+      final to = _findNode(pipe.toNodeId);
+      if (from == null || to == null) continue;
+      final bool fromJ = from.type == NodeType.junction;
+      final bool toJ = to.type == NodeType.junction;
+      if (fromJ) (atJunction[from.id] ??= []).add(pipe);
+      if (toJ) (atJunction[to.id] ??= []).add(pipe);
+      if (fromJ && isSource(to, pipe.toPortId)) sourceJunctions.add(from.id);
+      if (toJ && isSource(from, pipe.fromPortId)) sourceJunctions.add(to.id);
+      candidates.add(pipe);
+    }
 
-            bool connects = false;
-            String? nextNodeId;
-            String? nextPortId;
-
-            if (pipe.toNodeId == currNodeId && (currPortId == null || pipe.toPortId == currPortId)) {
-              connects = true;
-              nextNodeId = pipe.fromNodeId;
-              nextPortId = pipe.fromPortId;
-            } else if (pipe.fromNodeId == currNodeId && (currPortId == null || pipe.fromPortId == currPortId)) {
-              connects = true;
-              nextNodeId = pipe.toNodeId;
-              nextPortId = pipe.toPortId;
-            }
-
-            if (connects) {
-              result.add(pipe.id);
-
-              if (nextNodeId != null) {
-                final nextNode = _findNode(nextNodeId);
-                if (nextNode != null && !visitedNodes.contains(nextNode.id)) {
-                  if (nextNode.type == NodeType.junction ||
-                      nextNode.type == NodeType.singleTankValve ||
-                      nextNode.type == NodeType.multiOutletTankValve) {
-                    visitedNodes.add(nextNode.id);
-                    queueNodes.add(nextNode.id);
-                    queuePorts.add(nextPortId);
-                  }
-                }
-              }
-            }
-          }
+    // Hop distance of every junction from the nearest source (valve / tank).
+    // It gives each junction-to-junction pipe a flow direction.
+    final Map<String, int> dist = {for (final id in sourceJunctions) id: 0};
+    final List<String> bfs = sourceJunctions.toList();
+    for (int qi = 0; qi < bfs.length; qi++) {
+      final String cur = bfs[qi];
+      for (final pipe in atJunction[cur] ?? const <PipeConnection>[]) {
+        final String other = pipe.fromNodeId == cur ? pipe.toNodeId : pipe.fromNodeId;
+        if (atJunction.containsKey(other) && !dist.containsKey(other)) {
+          dist[other] = dist[cur]! + 1;
+          bfs.add(other);
         }
       }
     }
 
+    // Fallback data: every channel hanging off a connected cluster of
+    // junctions. Used for pipe pieces whose flow direction cannot be told
+    // (e.g. trunk pieces between junctions that are each fed by a source).
+    final Map<String, Set<String>> clusterSinks = {};
+    for (final String startId in atJunction.keys) {
+      if (clusterSinks.containsKey(startId)) continue;
+      final Set<String> members = {startId};
+      final Set<String> sinks = {};
+      final List<String> stack = [startId];
+      while (stack.isNotEmpty) {
+        final String cur = stack.removeLast();
+        for (final pipe in atJunction[cur] ?? const <PipeConnection>[]) {
+          final bool curIsFrom = pipe.fromNodeId == cur;
+          final String otherId = curIsFrom ? pipe.toNodeId : pipe.fromNodeId;
+          final String? otherPort = curIsFrom ? pipe.toPortId : pipe.fromPortId;
+          final other = _findNode(otherId);
+          if (other == null) continue;
+          final String? sk = sinkKey(other, otherPort);
+          if (sk != null) sinks.add(sk);
+          if (other.type == NodeType.junction && members.add(otherId)) {
+            stack.add(otherId);
+          }
+        }
+      }
+      for (final m in members) {
+        clusterSinks[m] = sinks;
+      }
+    }
+
+    // Channels reachable going FORWARD out of a junction (never back into a
+    // source, never sideways into another source's branch).
+    final Map<String, Set<String>> junctionMemo = {};
+    Set<String> sinksFromJunction(String jId, Set<String> visiting) {
+      final cached = junctionMemo[jId];
+      if (cached != null) return cached;
+      if (!visiting.add(jId)) return const {};
+      final Set<String> out = {};
+      final int myDist = dist[jId] ?? 1 << 20;
+      for (final pipe in atJunction[jId] ?? const <PipeConnection>[]) {
+        final bool junctionIsFrom = pipe.fromNodeId == jId;
+        final String otherId = junctionIsFrom ? pipe.toNodeId : pipe.fromNodeId;
+        final String? otherPort = junctionIsFrom ? pipe.toPortId : pipe.fromPortId;
+        final other = _findNode(otherId);
+        if (other == null) continue;
+        final String? sk = sinkKey(other, otherPort);
+        if (sk != null) {
+          out.add(sk);
+        } else if (other.type == NodeType.junction) {
+          if ((dist[otherId] ?? 1 << 20) > myDist) {
+            out.addAll(sinksFromJunction(otherId, visiting));
+          }
+        }
+      }
+      visiting.remove(jId);
+      if (visiting.isEmpty) junctionMemo[jId] = out;
+      return out;
+    }
+
+    final Set<String> result = {};
+    for (final pipe in candidates) {
+      final from = _findNode(pipe.fromNodeId)!;
+      final to = _findNode(pipe.toNodeId)!;
+      final String? fromSink = sinkKey(from, pipe.fromPortId);
+      final String? toSink = sinkKey(to, pipe.toPortId);
+
+      Set<String> served = {};
+      if (toSink != null) {
+        served = {toSink};
+      } else if (fromSink != null) {
+        served = {fromSink};
+      } else if (from.type == NodeType.junction && to.type == NodeType.junction) {
+        final int df = dist[from.id] ?? 1 << 20;
+        final int dt = dist[to.id] ?? 1 << 20;
+        if (df <= dt) served.addAll(sinksFromJunction(to.id, {}));
+        if (dt <= df) served.addAll(sinksFromJunction(from.id, {}));
+      } else if (to.type == NodeType.junction && isSource(from, pipe.fromPortId)) {
+        served = sinksFromJunction(to.id, {});
+      } else if (from.type == NodeType.junction && isSource(to, pipe.toPortId)) {
+        served = sinksFromJunction(from.id, {});
+      }
+
+      if (served.isEmpty) {
+        // Direction unknown -> judge by every channel the junction cluster feeds.
+        if (from.type == NodeType.junction) served = {...?clusterSinks[from.id]};
+        if (to.type == NodeType.junction) served = {...served, ...?clusterSinks[to.id]};
+      }
+      if (served.isEmpty) continue;
+      if (served.every((k) => !sinkIsActive(k))) result.add(pipe.id);
+    }
     return result;
   }
 
@@ -920,12 +1018,12 @@ class PipePainter extends CustomPainter {
   }
 
   void _drawAirJunctionsWithMap(
-    Canvas canvas,
-    Map<Offset, List<Offset>> junctions,
-    double d, {
-    Set<Offset> inactiveSet = const {},
-    Set<Offset> activeSet = const {},
-  }) {
+      Canvas canvas,
+      Map<Offset, List<Offset>> junctions,
+      double d, {
+        Set<Offset> inactiveSet = const {},
+        Set<Offset> activeSet = const {},
+      }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
@@ -1286,12 +1384,12 @@ class PipePainter extends CustomPainter {
   }
 
   void _drawJunctionsWithMap(
-    Canvas canvas,
-    Map<Offset, List<Offset>> junctions,
-    double d, {
-    Set<Offset> inactiveSet = const {},
-    Set<Offset> activeSet = const {},
-  }) {
+      Canvas canvas,
+      Map<Offset, List<Offset>> junctions,
+      double d, {
+        Set<Offset> inactiveSet = const {},
+        Set<Offset> activeSet = const {},
+      }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
@@ -1691,12 +1789,12 @@ class PipePainter extends CustomPainter {
   }
 
   void _drawFertilizerJunctionsWithMap(
-    Canvas canvas,
-    Map<Offset, List<Offset>> junctions,
-    double d, {
-    Set<Offset> inactiveSet = const {},
-    Set<Offset> activeSet = const {},
-  }) {
+      Canvas canvas,
+      Map<Offset, List<Offset>> junctions,
+      double d, {
+        Set<Offset> inactiveSet = const {},
+        Set<Offset> activeSet = const {},
+      }) {
     if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
