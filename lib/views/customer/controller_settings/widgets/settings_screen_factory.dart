@@ -97,6 +97,7 @@ class SettingsScreenFactory {
           controllerId: ctx.controllerId,
           menuId: 0,
           imeiNo: ctx.imeiNo,
+          modelId: ctx.modelId,
         );
 
       case 'Fertilizer Set':

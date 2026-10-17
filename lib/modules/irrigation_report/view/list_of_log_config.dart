@@ -8,6 +8,7 @@ import '../../../models/customer/site_model.dart';
 import '../../IrrigationProgram/view/water_and_fertilizer_screen.dart';
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
+import 'fertigation_card_list_page.dart';
 import 'log_home.dart';
 
 class ListOfLogConfig extends StatefulWidget {
@@ -185,16 +186,35 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                           ),
                                         ),
                                         title: Text('${serverData['staticLogConfig'][i]['logName']}'),
-                                        trailing: IconButton(
-                                            style: ButtonStyle(
-                                                backgroundColor: MaterialStateProperty.all(Color(0xffEFFFFB))
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if ('${serverData['staticLogConfig'][i]['logName']}' == 'Fertilizer') ...[
+                                              IconButton(
+                                                  style: ButtonStyle(
+                                                      backgroundColor: MaterialStateProperty.all(const Color(0xffEFFFFB))
+                                                  ),
+                                                  onPressed: () {
+                                                    Navigator.push(context, MaterialPageRoute(builder: (context){
+                                                      return FertigationCardListPage(serverData: serverData['staticLogConfig'][i], userData: widget.userData, nameData: names,);
+                                                    }));
+                                                  },
+                                                  icon: const Icon(Icons.view_agenda_outlined, color: Color(0xFF006573))
+                                              ),
+                                              const SizedBox(width: 4),
+                                            ],
+                                            IconButton(
+                                                style: ButtonStyle(
+                                                    backgroundColor: MaterialStateProperty.all(Color(0xffEFFFFB))
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.push(context, MaterialPageRoute(builder: (context){
+                                                    return LogHome(serverData: serverData['staticLogConfig'][i], userData: widget.userData, nameData: names,);
+                                                  }));
+                                                },
+                                                icon: const Icon(Icons.visibility,color: Colors.green,)
                                             ),
-                                            onPressed: () {
-                                              Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                return LogHome(serverData: serverData['staticLogConfig'][i], userData: widget.userData, nameData: names,);
-                                              }));
-                                            },
-                                            icon: const Icon(Icons.visibility,color: Colors.green,)
+                                          ],
                                         ),
                                       ),
                                     ],

@@ -53,6 +53,7 @@ class ScrollingTable extends StatefulWidget {
   final List<dynamic> localChannel8ColumnData;
   final List<dynamic> graphData;
   final void Function(String sequenceName)? onSequenceClicked;
+  final bool showSensorReport;
 
   /// Optional pill tabs shown above the table (Date / Program / Line / ...).
   /// The tab bar is only drawn when [onGroupChanged] is provided; the selected
@@ -110,6 +111,7 @@ class ScrollingTable extends StatefulWidget {
     required this.localChannel8ColumnData,
     required this.graphData,
     this.onSequenceClicked,
+    this.showSensorReport = true,
     this.groupOptions = const ['Date', 'Program', 'Line', 'Valve', 'Status'],
     this.onGroupChanged,
   });
@@ -297,8 +299,10 @@ class _ScrollingTableState extends State<ScrollingTable> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: _buildMainCard(groups, sections)),
-                  SizedBox(width: _compact ? 8 : 14),
-                  _buildSensorCard(groups),
+                  if (widget.showSensorReport && widget.onSequenceClicked != null) ...[
+                    SizedBox(width: _compact ? 8 : 14),
+                    _buildSensorCard(groups),
+                  ],
                 ],
               ),
             ),
