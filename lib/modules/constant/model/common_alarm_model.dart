@@ -37,7 +37,8 @@ class CommonAlarmModel {
         ? rawModelId
         : int.tryParse(rawModelId?.toString() ?? '');
 
-    bool isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(modelId);
+    bool isGem = AppConstants.gemModelList.contains(modelId);
+    bool isEcoGem = AppConstants.ecoGemModelList.contains(modelId);
     bool isOmsGem = AppConstants.omsGemList.contains(modelId);
 
     List<dynamic> savedAlarms = [];
@@ -64,12 +65,13 @@ class CommonAlarmModel {
           ? (objectData['location'] as num).toDouble()
           : (double.tryParse(objectData['location'].toString()) ?? 0.0),
       alarmList: globalAlarm
-          .where((setting) => (isEcoGem
-              ? ((setting['ecoGemDisplay'] ?? true) == true ||
-                  (setting['gemDisplay'] ?? false) == true)
-              : isOmsGem
-                  ? (setting['omsGemDisplay'] ?? true)
-                  : (setting['gemDisplay'] ?? true)))
+          .where((setting) => (isGem
+              ? (setting['gemDisplay'] ?? true)
+              : isEcoGem
+                  ? (setting['ecoGemDisplay'] ?? true)
+                  : isOmsGem
+                      ? (setting['omsGemDisplay'] ?? true)
+                      : (setting['gemDisplay'] ?? true)))
           .map((alarm) {
         List<dynamic> oldAlarmSetting = savedAlarms
             .where((item) => item['sNo'] == alarm['sNo'])

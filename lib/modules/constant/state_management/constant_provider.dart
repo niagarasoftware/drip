@@ -154,10 +154,9 @@ class ConstantProvider extends ChangeNotifier {
         );
       }
 
-      bool isEcoGemAndPlus =
-          AppConstants.ecoGemAndPlusModelList.contains(modelId);
+      bool isGemModel = AppConstants.gemModelList.contains(modelId);
 
-      if (isEcoGemAndPlus) {
+      if (isGemModel) {
         int normalCriticalMenuIndex = listOfConstantMenuModel.indexWhere(
           (m) => m.dealerDefinitionId == AppConstants.normalCriticalInConstant,
         );
@@ -196,12 +195,12 @@ class ConstantProvider extends ChangeNotifier {
                 defaultSetting: defaultMainValveSetting);
           } else if (menuModel.dealerDefinitionId ==
               AppConstants.commonAlarmInConstant) {
-            return isEcoGemAndPlus;
+            return isGemModel;
           } else {
             return true;
           }
         }).toList();
-      } else if (!isEcoGemAndPlus) {
+      } else if (!isGemModel) {
         listOfConstantMenuModel = listOfConstantMenuModel
             .where((m) =>
                 m.dealerDefinitionId != AppConstants.commonAlarmInConstant)

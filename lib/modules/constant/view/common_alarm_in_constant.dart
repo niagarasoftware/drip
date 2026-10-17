@@ -100,9 +100,8 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
 
     List<ConstantSettingModel> visibleSettings =
         widget.constPvd.defaultCommonAlarmSetting.where((defaultSetting) {
-      bool display = isGem
-          ? defaultSetting.gemDisplay
-          : (defaultSetting.ecoGemDisplay || defaultSetting.gemDisplay);
+      bool display =
+          isGem ? defaultSetting.gemDisplay : defaultSetting.ecoGemDisplay;
       if (isNova && display) {
         String titleLower = defaultSetting.title.toLowerCase();
         if (titleLower.contains('alarm on status') ||
