@@ -101,6 +101,7 @@ dev_dependencies:
 
 dependency_overrides:
   web: 1.0.0
+  mqtt_client: 10.5.1
 
 
 flutter:
@@ -184,7 +185,3 @@ flavorizr:
         name: "Agritel"
       android:
         applicationId: "com.niagaraautomations.Agritel"
-
-
-dependency_overrides:
-  mqtt_client: 10.5.1
