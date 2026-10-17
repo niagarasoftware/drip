@@ -1,6 +1,5 @@
-
 import 'package:flutter/material.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:easy_pdf_viewer/easy_pdf_viewer.dart';
 
 class UserManualScreen extends StatefulWidget {
   final String pdfUrl;
@@ -11,24 +10,68 @@ class UserManualScreen extends StatefulWidget {
   });
 
   @override
-  State<UserManualScreen> createState() =>
-      _UserManualScreenState();
+  State<UserManualScreen> createState() => _UserManualScreenState();
 }
 
-class _UserManualScreenState
-    extends State<UserManualScreen> {
+class _UserManualScreenState extends State<UserManualScreen> {
+  PDFDocument? document;
+  bool isLoading = true;
+  String? errorMessage;
   int retryCount = 0;
 
-  void retryPdf() {
+  @override
+  void initState() {
+    super.initState();
+    loadPdf();
+  }
+
+  Future<void> loadPdf() async {
+    final uri = Uri.tryParse(widget.pdfUrl.trim());
+
+    if (uri == null ||
+        !uri.hasScheme ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Invalid PDF URL';
+      });
+      return;
+    }
+
     setState(() {
-      retryCount++;
+      isLoading = true;
+      errorMessage = null;
+      document = null;
     });
+
+    try {
+      final pdf = await PDFDocument.fromURL(
+        widget.pdfUrl.trim(),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        document = pdf;
+        isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Unable to load user manual.\n$e';
+      });
+    }
+  }
+
+  void retryPdf() {
+    retryCount++;
+    loadPdf();
   }
 
   @override
   Widget build(BuildContext context) {
-    final uri = Uri.tryParse(widget.pdfUrl.trim());
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -43,68 +86,50 @@ class _UserManualScreenState
           ),
         ],
       ),
-      body: uri == null ||
-          !uri.hasScheme ||
-          (uri.scheme != 'http' &&
-              uri.scheme != 'https')
+      body: isLoading
           ? const Center(
-        child: Text('Invalid PDF URL'),
-      )
-          : PdfViewer.uri(
-        uri,
-        key: ValueKey(
-          '${widget.pdfUrl}_$retryCount',
-        ),
-        params: PdfViewerParams(
-          loadingBannerBuilder:
-              (context, downloaded, total) {
-            return Center(
-              child: CircularProgressIndicator(
-                value: total != null && total > 0
-                    ? downloaded / total
-                    : null,
-              ),
-            );
-          },
-          errorBannerBuilder:
-              (context, error, stackTrace,
-              documentRef) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
+              child: CircularProgressIndicator(),
+            )
+          : errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 48,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: retryPdf,
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Unable to load user manual',
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                  ),
+                )
+              : document != null
+                  ? PDFViewer(
+                      key: ValueKey(
+                        '${widget.pdfUrl}_$retryCount',
                       ),
+                      document: document!,
+                    )
+                  : const Center(
+                      child: Text('Unable to load user manual'),
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: retryPdf,
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
     );
   }
 }

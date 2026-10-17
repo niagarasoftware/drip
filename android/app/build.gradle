@@ -95,13 +95,12 @@ android {
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
+            } else {
+                // Fallback to debug signature so test APKs install without "App not installed"
+                signingConfig signingConfigs.debug
             }
             minifyEnabled false
             shrinkResources false
-        }
-
-        debug {
-            signingConfig signingConfigs.debug
         }
     }
 
