@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../model/node_type_model.dart';
@@ -13,6 +14,11 @@ class PipePainter extends CustomPainter {
   final Offset? pendingDragPos;
   final bool pendingIsInput;
 
+  /// While true (user is dragging) expensive effects (blur shadows, hose ribs)
+  /// are skipped; full detail returns when the drag stops.
+  final ValueListenable<bool>? simplify;
+  bool get _lite => simplify?.value ?? false;
+
   PipePainter({
     required this.nodes,
     required this.pipes,
@@ -21,6 +27,7 @@ class PipePainter extends CustomPainter {
     this.pendingFromPortId,
     this.pendingDragPos,
     this.pendingIsInput = false,
+    this.simplify,
     super.repaint,
   });
 
@@ -70,14 +77,34 @@ class PipePainter extends CustomPainter {
   /// Max distance (px) at which pipe ends / bends / sides count as touching.
   static const double _junctionTol = 3.0;
 
-  NodeObject? _findNode(String id) {
-    for (final n in nodes) {
-      if (n.id == id) return n;
+  Map<String, NodeObject> _byId = const {};
+
+  NodeObject? _findNode(String id) => _byId[id];
+
+  // Pipe classification (air / fertilizer) only depends on topology, never on
+  // positions, so it is cached and reused for every frame of a drag.
+  static int? _cacheSig;
+  static Set<String> _cacheAir = const {};
+  static Set<String> _cacheFert = const {};
+
+  int _topologySignature() {
+    int h = nodes.length;
+    for (final p in pipes) {
+      h = Object.hash(h, p.id, p.fromNodeId, p.toNodeId, p.fromPortId, p.toPortId);
     }
-    return null;
+    return h;
   }
 
-  Set<String> _getAirNodeIds() => computeAirNodeIds(nodes, pipes);
+  void _ensureAnalysis() {
+    _byId = {for (final n in nodes) n.id: n};
+    final sig = _topologySignature();
+    if (_cacheSig == sig) return;
+    _cacheAir = computeAirNodeIds(nodes, pipes);
+    _cacheFert = _getFertilizerPipeIds(_cacheAir);
+    _cacheSig = sig;
+  }
+
+  Set<String> _getAirNodeIds() => _cacheAir;
 
   /// Ids of pipes that carry fertilizer. A pipe is fertilizer if its own
   /// endpoints say so, or if it is the other half of a fertilizer run that
@@ -201,8 +228,9 @@ class PipePainter extends CustomPainter {
     final List<List<Offset>> waterPipePoints = [];
     final List<List<Offset>> airPipePoints = [];
     final List<List<Offset>> fertilizerPipePoints = [];
-    final Set<String> airNodeIds = _getAirNodeIds();
-    final Set<String> fertilizerPipeIds = _getFertilizerPipeIds(airNodeIds);
+    _ensureAnalysis();
+    final Set<String> airNodeIds = _cacheAir;
+    final Set<String> fertilizerPipeIds = _cacheFert;
     final List<List<Offset>> allPipePoints = [];
 
     final List<Map<String, dynamic>> pipesToDraw = [];
@@ -534,7 +562,7 @@ class PipePainter extends CustomPainter {
     );
 
     // 5. Hose ribs (corrugation) across the tube
-    _drawRibs(canvas, curvedPath, d);
+    if (!_lite) _drawRibs(canvas, curvedPath, d);
 
     // 6. Glossy glint on top of the ribs
     canvas.drawPath(
@@ -764,7 +792,7 @@ class PipePainter extends CustomPainter {
       ..strokeWidth = w
       ..strokeCap = cap
       ..strokeJoin = StrokeJoin.round
-      ..maskFilter = blur;
+      ..maskFilter = _lite ? null : blur;
   }
 
   void _drawWaterPipe(Canvas canvas, List<Offset> points, bool isSelected) {
@@ -1229,12 +1257,12 @@ class PipePainter extends CustomPainter {
   }
 
   void _drawFertilizerPipe(
-    Canvas canvas,
-    List<Offset> points,
-    Path path,
-    bool isSelected,
-    bool flowActive,
-  ) {
+      Canvas canvas,
+      List<Offset> points,
+      Path path,
+      bool isSelected,
+      bool flowActive,
+      ) {
     const double d = _fertDiameter;
 
     // 1. Selection halo
@@ -1259,7 +1287,7 @@ class PipePainter extends CustomPainter {
         ..strokeWidth = d + 0.8
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.0),
+        ..maskFilter = _lite ? null : const MaskFilter.blur(BlurStyle.normal, 1.0),
     );
 
     // 3. Outer casing

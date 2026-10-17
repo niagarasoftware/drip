@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -31,7 +33,34 @@ class DrawYourSiteScreen extends StatefulWidget {
 class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   final List<NodeObject> _nodes = [];
   final List<PipeConnection> _pipes = [];
+
+  // ---- Render / performance infrastructure ------------------------------
+  // _canvasNotifier : STRUCTURE changes (add/delete node, new pipe, select...)
+  // _dragNotifier   : PER-FRAME changes while dragging (pipes repaint + handles move)
+  // _nodeTicks      : one tiny notifier per node so only the moved node rebuilds
+  // _tc             : camera matrix (pan / zoom) handled by InteractiveViewer
   final CanvasNotifier _canvasNotifier = CanvasNotifier();
+  final CanvasNotifier _dragNotifier = CanvasNotifier();
+  final Map<String, ValueNotifier<int>> _nodeTicks = {};
+  final TransformationController _tc = TransformationController();
+  final FocusNode _focus = FocusNode();
+
+  // true while the user is dragging: pipes are painted without blur / ribs
+  final ValueNotifier<bool> _simplifyPaint = ValueNotifier<bool>(false);
+  Timer? _simplifyTimer;
+
+  void _markInteracting() {
+    if (!_simplifyPaint.value) _simplifyPaint.value = true;
+    _simplifyTimer?.cancel();
+    _simplifyTimer = Timer(const Duration(milliseconds: 180), () {
+      _simplifyPaint.value = false;
+    });
+  }
+
+  ValueNotifier<int> _nodeTick(String id) =>
+      _nodeTicks.putIfAbsent(id, () => ValueNotifier<int>(0));
+
+  double get _scale => _tc.value.getMaxScaleOnAxis();
 
   String? _selectedNodeId;
   String? _selectedPipeId;
@@ -40,7 +69,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   String? _connectFromPortId;
   Offset? _pendingDragConnectionPos;
   bool _pendingDragIsInput = false;
-  double _scale = 1.0;
   int _idCounter = 0;
   bool _globalHideJoints = false;
 
@@ -68,7 +96,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
   DeviceObjectModel _getObjectName(double sNo, ConfigMakerProvider configPvd) {
     return configPvd.listOfGeneratedObject.firstWhere(
-      (object) => object.sNo == sNo,
+          (object) => object.sNo == sNo,
       orElse: () => DeviceObjectModel(
         objectId: 0,
         sNo: sNo,
@@ -864,7 +892,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             final double vSNo = tankSpec.outletTankValve[ranked[rank]];
             fertTankValveNodeMap[vSNo] = valveNode;
             fertTankValvePortMap[vSNo] =
-                isMulti ? 'channel_${math.min(rank, portCount - 1)}' : 'outlet';
+            isMulti ? 'channel_${math.min(rank, portCount - 1)}' : 'outlet';
 
             final deviceObj = _getObjectName(vSNo, configPvd);
             final String name = (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
@@ -994,6 +1022,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);
     }
 
+    // Every node object is brand new: refresh all per-node notifiers lazily
+    // (they are created on demand) and rebuild the structure layer once.
     setState(() {
       _selectedNodeId = null;
       _selectedPipeId = null;
@@ -1027,10 +1057,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   ///    just above that channel instead of being drawn on top of each other;
   ///  * the skid is pushed down so there is always room for the lanes.
   void _routeFertilizerLinks(
-    List<_FertLink> links,
-    List<NodeObject> skids,
-    double valveBottom,
-  ) {
+      List<_FertLink> links,
+      List<NodeObject> skids,
+      double valveBottom,
+      ) {
     if (skids.isEmpty || links.isEmpty) return;
 
     // 1. Centre a lone skid under the valves it is fed from.
@@ -1630,10 +1660,43 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   @override
   void dispose() {
     _canvasNotifier.dispose();
+    _simplifyTimer?.cancel();
+    _simplifyPaint.dispose();
+    _dragNotifier.dispose();
+    _tc.dispose();
+    _focus.dispose();
+    for (final t in _nodeTicks.values) {
+      t.dispose();
+    }
     super.dispose();
   }
 
   String _nextId(String prefix) => '${prefix}_${_idCounter++}';
+
+  // ---------------------------------------------------------------------
+  // Zoom (camera matrix only - nothing is rebuilt or re-laid-out)
+  // ---------------------------------------------------------------------
+  /// Mouse wheel / trackpad scroll moves the canvas (Shift + wheel = sideways).
+  void _onCanvasPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    final Offset d = event.scrollDelta;
+    final double dx = _isShiftPressed ? d.dy : d.dx;
+    final double dy = _isShiftPressed ? 0.0 : d.dy;
+    final Matrix4 m = _tc.value.clone()..leftTranslate(-dx, -dy);
+    final double s = m.getMaxScaleOnAxis();
+    // keep the canvas from being scrolled completely out of view
+    final double tx = m.storage[12].clamp(-(kCanvasWidth * s) + 100.0, 300.0).toDouble();
+    final double ty = m.storage[13].clamp(-(kCanvasHeight * s) + 100.0, 300.0).toDouble();
+    m.storage[12] = tx;
+    m.storage[13] = ty;
+    _tc.value = m;
+  }
+
+  void _zoomBy(double factor) {
+    final double target = (_scale * factor).clamp(0.4, 2.0).toDouble();
+    final double k = target / _scale;
+    _tc.value = _tc.value.clone()..scale(k, k, 1.0);
+  }
 
   // ---------------------------------------------------------------------
   // Node operations
@@ -1708,6 +1771,17 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
   }
 
+  /// Drag start: save undo state and make the dragged node the selected one
+  /// (its port handles only exist while it is selected).
+  void _onNodePanStart(NodeObject node) {
+    _saveToHistory();
+    if (_selectedNodeId != node.id) {
+      _selectedNodeId = node.id;
+      _selectedPipeId = null;
+      _canvasNotifier.notify();
+    }
+  }
+
   void _onNodePanUpdate(NodeObject node, DragUpdateDetails details) {
     final double dx = (node.position.dx + details.delta.dx / _scale)
         .clamp(0.0, kCanvasWidth - node.size.width)
@@ -1716,7 +1790,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         .clamp(0.0, kCanvasHeight - node.size.height)
         .toDouble();
     node.position = Offset(dx, dy);
-    _canvasNotifier.notify();
+    _markInteracting();
+    _nodeTick(node.id).value++; // rebuild ONLY this node
+    _dragNotifier.notify(); // repaint pipes + move handles
   }
 
   void _onNodeResizeUpdate(NodeObject node, DragUpdateDetails details) {
@@ -1737,7 +1813,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       double newHeight = (node.size.height + deltaY).clamp(30.0, maxH);
       node.size = Size(newWidth, newHeight);
     }
-    _canvasNotifier.notify();
+    _markInteracting();
+    _nodeTick(node.id).value++;
+    _dragNotifier.notify();
   }
 
   void _scaleSelectedNode(double factor) {
@@ -1752,6 +1830,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       final newH = (node.size.height * factor).clamp(30.0, maxH);
       node.size = Size(newW, newH);
     });
+    _canvasNotifier.notify();
   }
 
   void _resetSelectedNodeSize() {
@@ -1762,6 +1841,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     setState(() {
       node.size = node.defaultSize;
     });
+    _canvasNotifier.notify();
   }
 
   void _onNodeTap(NodeObject node) {
@@ -1878,6 +1958,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                 );
               });
               setState(() {});
+              _canvasNotifier.notify();
             }
 
             void scaleBy(double factor) {
@@ -1936,6 +2017,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           _saveToHistory();
                           setSheetState(() => node.isOn = v);
                           setState(() {});
+                          _canvasNotifier.notify();
                         },
                       ),
                       if (node.type == NodeType.multiFilter)
@@ -1947,6 +2029,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                             _saveToHistory();
                             setSheetState(() => node.isBackwash = v);
                             setState(() {});
+                            _canvasNotifier.notify();
                           },
                         ),
                       SwitchListTile(
@@ -1957,6 +2040,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           _saveToHistory();
                           setSheetState(() => node.showJoints = v);
                           setState(() {});
+                          _canvasNotifier.notify();
                         },
                       ),
                       if (node.type == NodeType.waterMeter ||
@@ -1981,6 +2065,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                               }
                             });
                             setState(() {});
+                            _canvasNotifier.notify();
                           },
                         ),
                       if (node.type == NodeType.multiAgitator) ...[
@@ -2004,6 +2089,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                   _saveToHistory();
                                   setSheetState(() => node.outletSpacing = v);
                                   setState(() {});
+                                  _canvasNotifier.notify();
                                 },
                               ),
                             ),
@@ -2030,6 +2116,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                   _saveToHistory();
                                   setSheetState(() => node.outletPipeLength = v);
                                   setState(() {});
+                                  _canvasNotifier.notify();
                                 },
                               ),
                             ),
@@ -2186,6 +2273,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                             onPressed: () {
                               _saveToHistory();
                               setState(() => node.label = controller.text);
+                              _canvasNotifier.notify();
                               Navigator.pop(ctx);
                             },
                             child: const Text('Save'),
@@ -2435,7 +2523,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     pipe.waypoints[index] = Offset(nx, ny);
-    _canvasNotifier.notify();
+    _markInteracting();
+    _dragNotifier.notify();
   }
 
   void _removeWaypoint(PipeConnection pipe, int index) {
@@ -2468,7 +2557,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   void _onPortPanUpdate(DragUpdateDetails details) {
     if (_pendingDragConnectionPos != null) {
       _pendingDragConnectionPos = (_pendingDragConnectionPos! + details.delta / _scale);
-      _canvasNotifier.notify();
+      _markInteracting();
+      _dragNotifier.notify();
     }
   }
 
@@ -2768,6 +2858,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _selectedNodeId = null;
       _selectedPipeId = null;
     });
+    _canvasNotifier.notify();
   }
 
   // ---------------------------------------------------------------------
@@ -2843,6 +2934,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     if (_globalHideJoints) return const [];
     final List<Widget> handles = [];
     for (final node in _nodes) {
+      // Interaction layer: only the selected node (or the node a pipe is
+      // currently being dragged from) gets port handles.
+      if (node.id != _selectedNodeId && node.id != _connectFromId) continue;
+
       if (node.type == NodeType.pump) {
         handles.add(
           WaypointHandle(
@@ -3171,17 +3266,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
+        focusNode: _focus,
+        autofocus: true,
         onKeyEvent: (KeyEvent event) {
           if (event is KeyDownEvent) {
             if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
                 event.logicalKey == LogicalKeyboardKey.shiftRight) {
-              setState(() => _isShiftPressed = true);
+              _isShiftPressed = true;
             }
           } else if (event is KeyUpEvent) {
             if (event.logicalKey == LogicalKeyboardKey.shiftLeft ||
                 event.logicalKey == LogicalKeyboardKey.shiftRight) {
-              setState(() => _isShiftPressed = false);
+              _isShiftPressed = false;
             }
           }
         },
@@ -3194,69 +3290,96 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.vertical,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Transform.scale(
-                            scale: _scale,
-                            alignment: Alignment.topLeft,
-                            child: SizedBox(
-                              width: kCanvasWidth,
-                              height: kCanvasHeight,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTapUp: _onCanvasTapUp,
-                                onDoubleTapDown: _onCanvasDoubleTapDown,
-                                onDoubleTap: () {}, // required so onDoubleTapDown fires
-                                child: Stack(
-                                  children: [
-                                    // grid background
-                                    Positioned.fill(
-                                      child: RepaintBoundary(
-                                        child: CustomPaint(painter: _GridPainter()),
-                                      ),
+                      // Camera: pan / zoom is just a matrix change, no rebuilds.
+                      child: Listener(
+                        onPointerSignal: _onCanvasPointerSignal,
+                        child: InteractiveViewer(
+                          transformationController: _tc,
+                          constrained: false,
+                          scaleEnabled: false, // no wheel / pinch zoom (buttons only)
+                          minScale: 0.4,
+                          maxScale: 2.0,
+                          boundaryMargin: const EdgeInsets.all(300),
+                          child: SizedBox(
+                            width: kCanvasWidth,
+                            height: kCanvasHeight,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTapUp: _onCanvasTapUp,
+                              onDoubleTapDown: _onCanvasDoubleTapDown,
+                              onDoubleTap: () {}, // required so onDoubleTapDown fires
+                              child: Stack(
+                                children: [
+                                  // grid background (static, painted once)
+                                  Positioned.fill(
+                                    child: RepaintBoundary(
+                                      child: CustomPaint(painter: _GridPainter()),
                                     ),
-                                    ListenableBuilder(
-                                      listenable: _canvasNotifier,
-                                      builder: (context, _) {
-                                        return Stack(
-                                          children: [
-                                            // pipes
-                                            Positioned.fill(
-                                              child: RepaintBoundary(
-                                                child: CustomPaint(
-                                                  painter: PipePainter(
-                                                    nodes: _nodes,
-                                                    pipes: _pipes,
-                                                    selectedPipeId: _selectedPipeId,
-                                                    pendingConnectFromId: _connectFromId,
-                                                    pendingFromPortId: _connectFromPortId,
-                                                    pendingDragPos: _pendingDragConnectionPos,
-                                                    pendingIsInput: _pendingDragIsInput,
-                                                    repaint: _canvasNotifier,
-                                                  ),
+                                  ),
+
+                                  // LAYER 1: pipes + nodes.
+                                  // Rebuilds on structure changes only; while dragging,
+                                  // only the moved node's own host rebuilds.
+                                  ListenableBuilder(
+                                    listenable: _canvasNotifier,
+                                    builder: (context, _) {
+                                      return Stack(
+                                        children: [
+                                          // pipes
+                                          Positioned.fill(
+                                            child: RepaintBoundary(
+                                              child: CustomPaint(
+                                                painter: PipePainter(
+                                                  nodes: _nodes,
+                                                  pipes: _pipes,
+                                                  selectedPipeId: _selectedPipeId,
+                                                  pendingConnectFromId: _connectFromId,
+                                                  pendingFromPortId: _connectFromPortId,
+                                                  pendingDragPos: _pendingDragConnectionPos,
+                                                  pendingIsInput: _pendingDragIsInput,
+                                                  simplify: _simplifyPaint,
+                                                  repaint: Listenable.merge(
+                                                      [_canvasNotifier, _dragNotifier, _simplifyPaint]),
                                                 ),
                                               ),
                                             ),
-                                            // nodes
-                                            for (final node in _nodes)
-                                              if (node.type == NodeType.junction)
-                                                _buildJunctionDot(node)
-                                              else
-                                                NodeWidget(
+                                          ),
+                                          // nodes (each one rebuilds on its own tick)
+                                          for (final node in _nodes)
+                                            ListenableBuilder(
+                                              key: ValueKey('host_${node.id}'),
+                                              listenable: _nodeTick(node.id),
+                                              builder: (context, _) {
+                                                if (node.type == NodeType.junction) {
+                                                  return _buildJunctionDot(node);
+                                                }
+                                                return NodeWidget(
                                                   key: ValueKey(node.id),
                                                   node: node,
                                                   isSelected: node.id == _selectedNodeId,
                                                   isConnectSource: node.id == _connectFromId,
                                                   onTap: () => _onNodeTap(node),
                                                   onLongPress: () => _onNodeLongPress(node),
-                                                  onPanStart: (d) => _saveToHistory(),
+                                                  onPanStart: (d) => _onNodePanStart(node),
                                                   onPanUpdate: (d) => _onNodePanUpdate(node, d),
                                                   onResizeStart: (d) => _saveToHistory(),
                                                   onResizeUpdate: (d) => _onNodeResizeUpdate(node, d),
-                                                ),
-                                            // waypoint drag handles
+                                                );
+                                              },
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+
+                                  // LAYER 2: interaction handles (waypoints + ports of
+                                  // the selected node only). Follows drag updates.
+                                  ListenableBuilder(
+                                    listenable: Listenable.merge([_canvasNotifier, _dragNotifier]),
+                                    builder: (context, _) {
+                                      return Positioned.fill(
+                                        child: Stack(
+                                          children: [
                                             if (!_globalHideJoints)
                                               for (final pipe in _pipes)
                                                 if (pipe.id == _selectedPipeId)
@@ -3267,18 +3390,15 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                                       onPanStart: (d) => _saveToHistory(),
                                                       onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
                                                       onLongPress: () => _removeWaypoint(pipe, i),
-                                                      color: pipe.id == _selectedPipeId
-                                                          ? Colors.deepOrange
-                                                          : const Color(0xFFFFA726),
+                                                      color: Colors.deepOrange,
                                                     ),
-                                            // port handles
                                             ..._buildPortHandles(),
                                           ],
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -3321,6 +3441,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                       node.showJoints = !_globalHideJoints;
                                     }
                                   });
+                                  _canvasNotifier.notify();
                                 },
                               ),
                               const SizedBox(height: 4),
@@ -3329,19 +3450,22 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                               IconButton(
                                 tooltip: 'Zoom in',
                                 icon: const Icon(Icons.zoom_in),
-                                onPressed: () => setState(() => _scale = (_scale + 0.1).clamp(0.4, 2.0).toDouble()),
+                                onPressed: () => _zoomBy(1.1),
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 2),
-                                child: Text(
-                                  '${(_scale * 100).round()}%',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                child: ListenableBuilder(
+                                  listenable: _tc,
+                                  builder: (_, __) => Text(
+                                    '${(_scale * 100).round()}%',
+                                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                               ),
                               IconButton(
                                 tooltip: 'Zoom out',
                                 icon: const Icon(Icons.zoom_out),
-                                onPressed: () => setState(() => _scale = (_scale - 0.1).clamp(0.4, 2.0).toDouble()),
+                                onPressed: () => _zoomBy(0.9),
                               ),
                               const SizedBox(height: 4),
                               Container(width: 24, height: 1, color: Colors.black12),
