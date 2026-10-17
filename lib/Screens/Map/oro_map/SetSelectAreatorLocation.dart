@@ -93,6 +93,12 @@ class _MapScreenState extends State<MapScreen> {
 
     final objects = device?.connectedObject;
 
+    AppLog.log('Device index: ${widget.index}');
+    AppLog.log('Device geography: ${device?.geography}');
+    AppLog.log('Device geography lat: ${device?.geography?.lat}');
+    AppLog.log('Device geography long: ${device?.geography?.long}');
+    AppLog.log('Connected objects: ${objects?.length ?? 0}');
+
     if (objects == null || objects.isEmpty) return;
 
     Set<Marker> newMarkers = {};
