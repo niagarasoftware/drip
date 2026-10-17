@@ -422,34 +422,16 @@ class OverheadTankView extends StatefulWidget {
   State<OverheadTankView> createState() => _OverheadTankViewState();
 }
 
-class _OverheadTankViewState extends State<OverheadTankView> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(seconds: 3));
-
-  @override
-  void initState() {
-    super.initState();
-    _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _OverheadTankViewState extends State<OverheadTankView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => CustomPaint(
-        size: widget.size,
-        painter: DetailedOverheadTankPainter(
-          isOn: widget.isOn,
-          phase: _c.value,
-          showJoints: widget.showJoints,
-          fillLevel: widget.fillLevel,
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedOverheadTankPainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
+        fillLevel: widget.fillLevel,
       ),
     );
   }

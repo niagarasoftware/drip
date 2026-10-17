@@ -1058,75 +1058,18 @@ class BlowerView extends StatefulWidget {
   State<BlowerView> createState() => _BlowerViewState();
 }
 
-class _BlowerViewState extends State<BlowerView> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker;
-  Duration _last = Duration.zero;
-  double _angle = 0.0;
-  double _omega = 0.0; // current angular velocity (rad/s)
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker(_onTick);
-    _syncTicker();
-  }
-
-  @override
-  void didUpdateWidget(covariant BlowerView old) {
-    super.didUpdateWidget(old);
-    _syncTicker();
-  }
-
-  void _syncTicker() {
-    if (widget.phase != null) {
-      if (_ticker.isActive) _ticker.stop();
-      return;
-    }
-    if ((widget.isOn || _omega > 0.0) && !_ticker.isActive) {
-      _last = Duration.zero;
-      _ticker.start();
-    }
-  }
-
-  void _onTick(Duration elapsed) {
-    final double dt = ((elapsed - _last).inMicroseconds / 1e6).clamp(0.0, 0.05);
-    _last = elapsed;
-
-    final double target = widget.isOn ? widget.maxSpeed : 0.0;
-    final double tau = widget.isOn ? 0.7 : 1.6; // spin-up faster than coast-down
-    _omega += (target - _omega) * (1 - math.exp(-dt / tau));
-    _angle = (_angle + _omega * dt) % (2 * math.pi);
-
-    if (!widget.isOn && _omega < 0.02) {
-      _omega = 0.0;
-      _ticker.stop();
-    }
-    setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
+class _BlowerViewState extends State<BlowerView> {
   @override
   Widget build(BuildContext context) {
     final Size effectiveSize = widget.size ?? const Size(160, 150);
-    final bool external = widget.phase != null;
-    final double speed =
-    external ? (widget.isOn ? 0.6 : 0.0) : (_omega / widget.maxSpeed).clamp(0.0, 1.0);
-
-    return RepaintBoundary(
-      child: CustomPaint(
-        size: effectiveSize,
-        painter: DetailedBlowerPainter(
-          isOn: widget.isOn,
-          showJoints: widget.showJoints,
-          phase: external ? widget.phase! : _angle,
-          speed: speed,
-          palette: widget.palette,
-        ),
+    return CustomPaint(
+      size: effectiveSize,
+      painter: DetailedBlowerPainter(
+        isOn: widget.isOn,
+        showJoints: widget.showJoints,
+        phase: 0.0,
+        speed: widget.isOn ? 1.0 : 0.0,
+        palette: widget.palette,
       ),
     );
   }

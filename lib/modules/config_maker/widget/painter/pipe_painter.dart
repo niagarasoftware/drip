@@ -17,6 +17,10 @@ class PipePainter extends CustomPainter {
   /// While true (user is dragging) expensive effects (blur shadows, hose ribs)
   /// are skipped; full detail returns when the drag stops.
   final ValueListenable<bool>? simplify;
+
+  /// Pipes whose bounds do not touch this rect (scene coordinates) are not
+  /// drawn at all. null = draw everything.
+  final Rect? cullRect;
   bool get _lite => simplify?.value ?? false;
 
   PipePainter({
@@ -28,6 +32,7 @@ class PipePainter extends CustomPainter {
     this.pendingDragPos,
     this.pendingIsInput = false,
     this.simplify,
+    this.cullRect,
     super.repaint,
   });
 
@@ -86,6 +91,37 @@ class PipePainter extends CustomPainter {
   static int? _cacheSig;
   static Set<String> _cacheAir = const {};
   static Set<String> _cacheFert = const {};
+  static Map<String, NodeObject> _cacheById = const {};
+
+  static int? _cachedJunctionsSig;
+  static Map<Offset, List<Offset>> _cachedWaterJunctions = const {};
+  static Map<Offset, List<Offset>> _cachedAirJunctions = const {};
+  static Map<Offset, List<Offset>> _cachedFertilizerJunctions = const {};
+
+  static final Map<String, Path> _cachedPipePaths = {};
+  static final Map<String, List<Offset>> _cachedPipePoints = {};
+  static final Map<String, int> _cachedPipeStateHash = {};
+
+  int _pipeStateHash(PipeConnection pipe, NodeObject from, NodeObject to, bool lite) {
+    int h = Object.hash(
+      pipe.id,
+      pipe.fromPortId,
+      pipe.toPortId,
+      from.position.dx,
+      from.position.dy,
+      from.size.width,
+      from.size.height,
+      to.position.dx,
+      to.position.dy,
+      to.size.width,
+      to.size.height,
+      lite,
+    );
+    for (final wp in pipe.waypoints) {
+      h = Object.hash(h, wp.dx, wp.dy);
+    }
+    return h;
+  }
 
   int _topologySignature() {
     int h = nodes.length;
@@ -96,12 +132,40 @@ class PipePainter extends CustomPainter {
   }
 
   void _ensureAnalysis() {
-    _byId = {for (final n in nodes) n.id: n};
     final sig = _topologySignature();
-    if (_cacheSig == sig) return;
+    if (_cacheSig == sig) {
+      _byId = _cacheById;
+      return;
+    }
+    _byId = {for (final n in nodes) n.id: n};
+    _cacheById = _byId;
     _cacheAir = computeAirNodeIds(nodes, pipes);
     _cacheFert = _getFertilizerPipeIds(_cacheAir);
     _cacheSig = sig;
+  }
+
+  int _calcJunctionsSig(
+    List<List<Offset>> water,
+    List<List<Offset>> air,
+    List<List<Offset>> fert,
+  ) {
+    int h = Object.hash(water.length, air.length, fert.length);
+    for (final pts in water) {
+      if (pts.isNotEmpty) {
+        h = Object.hash(h, pts.first.dx, pts.first.dy, pts.last.dx, pts.last.dy);
+      }
+    }
+    for (final pts in air) {
+      if (pts.isNotEmpty) {
+        h = Object.hash(h, pts.first.dx, pts.first.dy, pts.last.dx, pts.last.dy);
+      }
+    }
+    for (final pts in fert) {
+      if (pts.isNotEmpty) {
+        h = Object.hash(h, pts.first.dx, pts.first.dy, pts.last.dx, pts.last.dy);
+      }
+    }
+    return h;
   }
 
   Set<String> _getAirNodeIds() => _cacheAir;
@@ -240,14 +304,47 @@ class PipePainter extends CustomPainter {
       final to = _findNode(pipe.toNodeId);
       if (from == null || to == null) continue;
 
-      final start = portPosition(from, pipe.fromPortId, isInput: false);
-      final end = portPosition(to, pipe.toPortId, isInput: true);
-      final points = <Offset>[start, ...pipe.waypoints, end];
-      allPipePoints.add(points);
-      final isSelected = pipe.id == selectedPipeId;
-
       final bool isAir = _isAirPipe(pipe, from, to, airNodeIds);
       final bool isFertilizer = fertilizerPipeIds.contains(pipe.id);
+      final isSelected = pipe.id == selectedPipeId;
+
+      final int hash = _pipeStateHash(pipe, from, to, _lite);
+      Path? curvedPath = _cachedPipePaths[pipe.id];
+      List<Offset>? points = _cachedPipePoints[pipe.id];
+
+      if (curvedPath == null || points == null || _cachedPipeStateHash[pipe.id] != hash) {
+        final start = portPosition(from, pipe.fromPortId, isInput: false);
+        final end = portPosition(to, pipe.toPortId, isInput: true);
+        points = <Offset>[start, ...pipe.waypoints, end];
+
+        if (isAir) {
+          curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
+        } else if (isFertilizer) {
+          curvedPath = _buildFertilizerPath(points, fertilizerPipePoints);
+        } else {
+          curvedPath = _buildCurvedPath(points, cornerRadius: 10.0);
+        }
+
+        _cachedPipePaths[pipe.id] = curvedPath;
+        _cachedPipePoints[pipe.id] = points;
+        _cachedPipeStateHash[pipe.id] = hash;
+      }
+
+      if (cullRect != null) {
+        double minX = points.first.dx, maxX = minX;
+        double minY = points.first.dy, maxY = minY;
+        for (final q in points) {
+          if (q.dx < minX) minX = q.dx;
+          if (q.dx > maxX) maxX = q.dx;
+          if (q.dy < minY) minY = q.dy;
+          if (q.dy > maxY) maxY = q.dy;
+        }
+        if (!cullRect!.overlaps(Rect.fromLTRB(minX, minY, maxX, maxY).inflate(12))) {
+          continue; // completely off-screen
+        }
+      }
+
+      allPipePoints.add(points);
 
       if (isAir) {
         airPipePoints.add(points);
@@ -260,6 +357,7 @@ class PipePainter extends CustomPainter {
       pipesToDraw.add({
         'pipe': pipe,
         'points': points,
+        'path': curvedPath,
         'isSelected': isSelected,
         'isAir': isAir,
         'isFertilizer': isFertilizer,
@@ -269,19 +367,18 @@ class PipePainter extends CustomPainter {
     for (final pInfo in pipesToDraw) {
       final PipeConnection pipe = pInfo['pipe'];
       final List<Offset> points = pInfo['points'];
+      final Path curvedPath = pInfo['path'];
       final bool isSelected = pInfo['isSelected'];
       final bool isAir = pInfo['isAir'];
       final bool isFertilizer = pInfo['isFertilizer'];
 
       try {
         if (isAir) {
-          final Path curvedPath = _buildCurvedPath(points, cornerRadius: 8.0);
           _drawAirPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
         } else if (isFertilizer) {
-          final Path fertPath = _buildFertilizerPath(points, fertilizerPipePoints);
-          _drawFertilizerPipe(canvas, points, fertPath, isSelected, pipe.flowActive);
+          _drawFertilizerPipe(canvas, points, curvedPath, isSelected, pipe.flowActive);
         } else {
-          _drawWaterPipe(canvas, points, isSelected);
+          _drawWaterPipe(canvas, points, curvedPath, isSelected);
         }
       } catch (e, st) {
         debugPrint('PipePainter: failed to draw pipe ${pipe.id}: $e\n$st');
@@ -289,9 +386,18 @@ class PipePainter extends CustomPainter {
     }
 
     // Elbows, tees and crosses for water, air and fertilizer pipes.
-    _drawJunctions(canvas, waterPipePoints);
-    _drawAirJunctions(canvas, airPipePoints);
-    _drawFertilizerJunctions(canvas, fertilizerPipePoints);
+    if (!_lite) {
+      final sig = _calcJunctionsSig(waterPipePoints, airPipePoints, fertilizerPipePoints);
+      if (_cachedJunctionsSig != sig) {
+        _cachedWaterJunctions = _buildJunctions(waterPipePoints);
+        _cachedAirJunctions = _buildJunctions(airPipePoints);
+        _cachedFertilizerJunctions = _buildJunctions(fertilizerPipePoints);
+        _cachedJunctionsSig = sig;
+      }
+      _drawJunctionsWithMap(canvas, _cachedWaterJunctions, _pipeDiameter);
+      _drawAirJunctionsWithMap(canvas, _cachedAirJunctions, _airDiameter);
+      _drawFertilizerJunctionsWithMap(canvas, _cachedFertilizerJunctions, _fertDiameter);
+    }
 
     // Rubber-band preview line while user is dragging a port in connect mode.
     if (pendingConnectFromId != null) {
@@ -528,6 +634,28 @@ class PipePainter extends CustomPainter {
   void _drawAirPipe(Canvas canvas, List<Offset> points, Path curvedPath, bool isSelected, bool flowActive) {
     const double d = _airDiameter;
 
+    if (_lite) {
+      if (isSelected) {
+        canvas.drawPath(
+          curvedPath,
+          Paint()
+            ..color = const Color(0xFFFF9800)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = d + 3.0
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+      canvas.drawPath(
+        curvedPath,
+        Paint()
+          ..color = flowActive ? _airBody : _airBodyIdle
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = d
+          ..strokeCap = StrokeCap.round,
+      );
+      return;
+    }
+
     // Selection halo
     if (isSelected) {
       canvas.drawPath(
@@ -657,11 +785,8 @@ class PipePainter extends CustomPainter {
     );
   }
 
-  void _drawAirJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
-    if (pipePoints.isEmpty) return;
-    final junctions = _buildJunctions(pipePoints);
-    const double d = _airDiameter;
-
+  void _drawAirJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+    if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
@@ -680,6 +805,11 @@ class PipePainter extends CustomPainter {
         _drawAirCrossFitting(canvas, pos, dirs, d);
       }
     });
+  }
+
+  void _drawAirJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
+    if (pipePoints.isEmpty) return;
+    _drawAirJunctionsWithMap(canvas, _buildJunctions(pipePoints), _airDiameter);
   }
 
   void _drawAirElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {
@@ -795,9 +925,30 @@ class PipePainter extends CustomPainter {
       ..maskFilter = _lite ? null : blur;
   }
 
-  void _drawWaterPipe(Canvas canvas, List<Offset> points, bool isSelected) {
+  void _drawWaterPipe(Canvas canvas, List<Offset> points, Path curvedPath, bool isSelected) {
     const double d = _pipeDiameter;
-    final Path curvedPath = _buildCurvedPath(points, cornerRadius: 10.0);
+
+    if (_lite) {
+      if (isSelected) {
+        canvas.drawPath(
+          curvedPath,
+          Paint()
+            ..color = const Color(0xFFFF9800)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = d + 3.0
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+      canvas.drawPath(
+        curvedPath,
+        Paint()
+          ..color = _pipeBody
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = d
+          ..strokeCap = StrokeCap.round,
+      );
+      return;
+    }
 
     // Selection halo (the pipe itself keeps its normal colours).
     if (isSelected) {
@@ -981,11 +1132,8 @@ class PipePainter extends CustomPainter {
     return result;
   }
 
-  void _drawJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
-    if (pipePoints.isEmpty) return;
-    final junctions = _buildJunctions(pipePoints);
-    const double d = _pipeDiameter;
-
+  void _drawJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+    if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
@@ -1006,6 +1154,11 @@ class PipePainter extends CustomPainter {
         _drawCrossFitting(canvas, pos, dirs, d);
       }
     });
+  }
+
+  void _drawJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
+    if (pipePoints.isEmpty) return;
+    _drawJunctionsWithMap(canvas, _buildJunctions(pipePoints), _pipeDiameter);
   }
 
   void _drawElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {
@@ -1191,6 +1344,9 @@ class PipePainter extends CustomPainter {
   }
 
   Path _buildFertilizerPath(List<Offset> points, List<List<Offset>> otherPipePoints) {
+    if (_lite) {
+      return _buildCurvedPath(points, cornerRadius: 6.0);
+    }
     final Path path = Path();
     if (points.isEmpty) return path;
     if (points.length < 2) {
@@ -1264,6 +1420,28 @@ class PipePainter extends CustomPainter {
       bool flowActive,
       ) {
     const double d = _fertDiameter;
+
+    if (_lite) {
+      if (isSelected) {
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = const Color(0xFFFF9800)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = d + 3.0
+            ..strokeCap = StrokeCap.round,
+        );
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = flowActive ? _fertFlow : _fertBody
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = d
+          ..strokeCap = StrokeCap.round,
+      );
+      return;
+    }
 
     // 1. Selection halo
     if (isSelected) {
@@ -1340,11 +1518,8 @@ class PipePainter extends CustomPainter {
     _drawFertilizerElbowBendCollars(canvas, points);
   }
 
-  void _drawFertilizerJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
-    if (pipePoints.isEmpty) return;
-    final junctions = _buildJunctions(pipePoints);
-    const double d = _fertDiameter;
-
+  void _drawFertilizerJunctionsWithMap(Canvas canvas, Map<Offset, List<Offset>> junctions, double d) {
+    if (junctions.isEmpty) return;
     junctions.forEach((pos, dirs) {
       if (dirs.length < 2) return;
 
@@ -1362,6 +1537,11 @@ class PipePainter extends CustomPainter {
         _drawFertilizerCrossFitting(canvas, pos, dirs, d);
       }
     });
+  }
+
+  void _drawFertilizerJunctions(Canvas canvas, List<List<Offset>> pipePoints) {
+    if (pipePoints.isEmpty) return;
+    _drawFertilizerJunctionsWithMap(canvas, _buildJunctions(pipePoints), _fertDiameter);
   }
 
   void _drawFertilizerElbowFitting(Canvas canvas, Offset pos, Offset u1, Offset u2, double d) {

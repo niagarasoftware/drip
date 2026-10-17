@@ -690,34 +690,15 @@ class MainFertilizerSourceView extends StatefulWidget {
   State<MainFertilizerSourceView> createState() => _MainFertilizerSourceViewState();
 }
 
-class _MainFertilizerSourceViewState extends State<MainFertilizerSourceView>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(seconds: 8));
-
-  @override
-  void initState() {
-    super.initState();
-    _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _MainFertilizerSourceViewState extends State<MainFertilizerSourceView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, child) => CustomPaint(
-        size: widget.size,
-        painter: DetailedMainFertilizerSourcePainter(
-          isOn: widget.isOn,
-          phase: _c.value,
-          showJoints: widget.showJoints,
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedMainFertilizerSourcePainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
       ),
     );
   }

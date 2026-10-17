@@ -49,6 +49,54 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   final ValueNotifier<bool> _simplifyPaint = ValueNotifier<bool>(false);
   Timer? _simplifyTimer;
 
+  // ---- viewport culling -------------------------------------------------
+  // Only nodes / pipes that touch (viewport + margin) are built and painted.
+  // The built area is rebuilt (debounced) only when the camera leaves it.
+  final GlobalKey _viewKey = GlobalKey();
+  Rect? _builtRect;
+  Timer? _cullTimer;
+
+  Rect? _sceneViewport() {
+    final ctx = _viewKey.currentContext;
+    final ro = ctx?.findRenderObject();
+    if (ro is! RenderBox || !ro.hasSize) return null;
+    final Matrix4 inv = Matrix4.inverted(_tc.value);
+    return MatrixUtils.transformRect(inv, Offset.zero & ro.size);
+  }
+
+  void _onCameraChanged() {
+    final vis = _sceneViewport();
+    if (vis == null) return;
+    final b = _builtRect;
+    final bool covered = b != null &&
+        b.left <= vis.left &&
+        b.top <= vis.top &&
+        b.right >= vis.right &&
+        b.bottom >= vis.bottom;
+    if (covered) return;
+    _cullTimer?.cancel();
+    _cullTimer = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      final v = _sceneViewport();
+      if (v == null) return;
+      _builtRect = v.inflate(700);
+      _canvasNotifier.notify();
+    });
+  }
+
+  bool _isBuilt(NodeObject n) {
+    final b = _builtRect;
+    if (b == null) return true;
+    if (n.id == _selectedNodeId || n.id == _connectFromId) return true;
+    return b.inflate(60).overlaps(n.position & n.size);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tc.addListener(_onCameraChanged);
+  }
+
   void _markInteracting() {
     if (!_simplifyPaint.value) _simplifyPaint.value = true;
     _simplifyTimer?.cancel();
@@ -59,6 +107,41 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
   ValueNotifier<int> _nodeTick(String id) =>
       _nodeTicks.putIfAbsent(id, () => ValueNotifier<int>(0));
+
+  // _posTicks: position-only changes (a drag). They move the node's Positioned
+  // but never rebuild / repaint the node artwork itself.
+  final Map<String, ValueNotifier<int>> _posTicks = {};
+  ValueNotifier<int> _posTick(String id) =>
+      _posTicks.putIfAbsent(id, () => ValueNotifier<int>(0));
+
+  Widget _buildNodeHost(NodeObject node) {
+    final Widget content = ListenableBuilder(
+      listenable: _nodeTick(node.id),
+      builder: (context, _) => NodeWidget(
+        key: ValueKey(node.id),
+        node: node,
+        applyPosition: false,
+        isSelected: node.id == _selectedNodeId,
+        isConnectSource: node.id == _connectFromId,
+        onTap: () => _onNodeTap(node),
+        onLongPress: () => _onNodeLongPress(node),
+        onPanStart: (d) => _onNodePanStart(node),
+        onPanUpdate: (d) => _onNodePanUpdate(node, d),
+        onResizeStart: (d) => _saveToHistory(),
+        onResizeUpdate: (d) => _onNodeResizeUpdate(node, d),
+      ),
+    );
+    return ListenableBuilder(
+      key: ValueKey('host_${node.id}'),
+      listenable: _posTick(node.id),
+      child: content, // same instance every frame -> not rebuilt on a move
+      builder: (context, child) => Positioned(
+        left: node.position.dx,
+        top: node.position.dy,
+        child: child!,
+      ),
+    );
+  }
 
   double get _scale => _tc.value.getMaxScaleOnAxis();
 
@@ -1024,6 +1107,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
     // Every node object is brand new: refresh all per-node notifiers lazily
     // (they are created on demand) and rebuild the structure layer once.
+    _builtRect = null; // new layout: build everything, re-cull on next scroll
     setState(() {
       _selectedNodeId = null;
       _selectedPipeId = null;
@@ -1618,6 +1702,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _selectedNodeId = null;
     _selectedPipeId = null;
     _connectFromId = null;
+    _builtRect = null;
     _canvasNotifier.notify();
   }
 
@@ -1660,12 +1745,17 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   @override
   void dispose() {
     _canvasNotifier.dispose();
+    _cullTimer?.cancel();
+    _tc.removeListener(_onCameraChanged);
     _simplifyTimer?.cancel();
     _simplifyPaint.dispose();
     _dragNotifier.dispose();
     _tc.dispose();
     _focus.dispose();
     for (final t in _nodeTicks.values) {
+      t.dispose();
+    }
+    for (final t in _posTicks.values) {
       t.dispose();
     }
     super.dispose();
@@ -1791,7 +1881,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         .toDouble();
     node.position = Offset(dx, dy);
     _markInteracting();
-    _nodeTick(node.id).value++; // rebuild ONLY this node
+    _posTick(node.id).value++; // move ONLY this node (no repaint of its artwork)
     _dragNotifier.notify(); // repaint pipes + move handles
   }
 
@@ -3292,6 +3382,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                     Positioned.fill(
                       // Camera: pan / zoom is just a matrix change, no rebuilds.
                       child: Listener(
+                        key: _viewKey,
                         onPointerSignal: _onCanvasPointerSignal,
                         child: InteractiveViewer(
                           transformationController: _tc,
@@ -3338,6 +3429,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                                   pendingDragPos: _pendingDragConnectionPos,
                                                   pendingIsInput: _pendingDragIsInput,
                                                   simplify: _simplifyPaint,
+                                                  cullRect: _builtRect,
                                                   repaint: Listenable.merge(
                                                       [_canvasNotifier, _dragNotifier, _simplifyPaint]),
                                                 ),
@@ -3346,27 +3438,15 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                           ),
                                           // nodes (each one rebuilds on its own tick)
                                           for (final node in _nodes)
-                                            ListenableBuilder(
-                                              key: ValueKey('host_${node.id}'),
-                                              listenable: _nodeTick(node.id),
-                                              builder: (context, _) {
-                                                if (node.type == NodeType.junction) {
-                                                  return _buildJunctionDot(node);
-                                                }
-                                                return NodeWidget(
-                                                  key: ValueKey(node.id),
-                                                  node: node,
-                                                  isSelected: node.id == _selectedNodeId,
-                                                  isConnectSource: node.id == _connectFromId,
-                                                  onTap: () => _onNodeTap(node),
-                                                  onLongPress: () => _onNodeLongPress(node),
-                                                  onPanStart: (d) => _onNodePanStart(node),
-                                                  onPanUpdate: (d) => _onNodePanUpdate(node, d),
-                                                  onResizeStart: (d) => _saveToHistory(),
-                                                  onResizeUpdate: (d) => _onNodeResizeUpdate(node, d),
-                                                );
-                                              },
-                                            ),
+                                            if (_isBuilt(node))
+                                              if (node.type == NodeType.junction)
+                                                ListenableBuilder(
+                                                  key: ValueKey('host_${node.id}'),
+                                                  listenable: _posTick(node.id),
+                                                  builder: (context, _) => _buildJunctionDot(node),
+                                                )
+                                              else
+                                                _buildNodeHost(node),
                                         ],
                                       );
                                     },

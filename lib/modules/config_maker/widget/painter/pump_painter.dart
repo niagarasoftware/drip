@@ -815,47 +815,15 @@ class PumpAssemblyView extends StatefulWidget {
   State<PumpAssemblyView> createState() => _PumpAssemblyViewState();
 }
 
-class _PumpAssemblyViewState extends State<PumpAssemblyView>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.isOn) _c.repeat();
-  }
-
-  @override
-  void didUpdateWidget(covariant PumpAssemblyView old) {
-    super.didUpdateWidget(old);
-    widget.isOn ? _c.repeat() : _c.stop();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _PumpAssemblyViewState extends State<PumpAssemblyView> {
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      key: ValueKey(widget.isOn),
-      tween: Tween(begin: widget.isOn ? 0.96 : 1.0, end: 1.0),
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutBack,
-      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (_, __) => CustomPaint(
-          size: widget.size,
-          painter: DetailedPumpPainter(
-            isOn: widget.isOn,
-            phase: _c.value * 2 * math.pi,
-            showJoints: widget.showJoints,
-          ),
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedPumpPainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
       ),
     );
   }

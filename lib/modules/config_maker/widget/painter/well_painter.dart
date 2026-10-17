@@ -452,33 +452,15 @@ class WellView extends StatefulWidget {
   State<WellView> createState() => _WellViewState();
 }
 
-class _WellViewState extends State<WellView> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(seconds: 3));
-
-  @override
-  void initState() {
-    super.initState();
-    _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _WellViewState extends State<WellView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => CustomPaint(
-        size: widget.size,
-        painter: DetailedWellPainter(
-          isOn: widget.isOn,
-          phase: _c.value,
-          showJoints: widget.showJoints,
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedWellPainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
       ),
     );
   }

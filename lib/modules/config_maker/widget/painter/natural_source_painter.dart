@@ -513,33 +513,15 @@ class NaturalSourceView extends StatefulWidget {
   State<NaturalSourceView> createState() => _NaturalSourceViewState();
 }
 
-class _NaturalSourceViewState extends State<NaturalSourceView> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(seconds: 4));
-
-  @override
-  void initState() {
-    super.initState();
-    _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _NaturalSourceViewState extends State<NaturalSourceView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => CustomPaint(
-        size: widget.size,
-        painter: DetailedNaturalSourcePainter(
-          isOn: widget.isOn,
-          phase: _c.value,
-          showJoints: widget.showJoints,
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedNaturalSourcePainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
       ),
     );
   }

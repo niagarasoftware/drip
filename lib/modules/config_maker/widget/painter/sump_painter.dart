@@ -576,33 +576,15 @@ class SumpView extends StatefulWidget {
   State<SumpView> createState() => _SumpViewState();
 }
 
-class _SumpViewState extends State<SumpView> with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(seconds: 3));
-
-  @override
-  void initState() {
-    super.initState();
-    _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
+class _SumpViewState extends State<SumpView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) => CustomPaint(
-        size: widget.size,
-        painter: DetailedSumpPainter(
-          isOn: widget.isOn,
-          phase: _c.value,
-          showJoints: widget.showJoints,
-        ),
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedSumpPainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
       ),
     );
   }

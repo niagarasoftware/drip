@@ -437,54 +437,16 @@ class SingleAgitatorView extends StatefulWidget {
   State<SingleAgitatorView> createState() => _SingleAgitatorViewState();
 }
 
-class _SingleAgitatorViewState extends State<SingleAgitatorView>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    if (widget.isOn) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant SingleAgitatorView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isOn != oldWidget.isOn) {
-      if (widget.isOn) {
-        _controller.repeat();
-      } else {
-        _controller.stop();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
+class _SingleAgitatorViewState extends State<SingleAgitatorView> {
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return CustomPaint(
-          size: widget.size,
-          painter: DetailedSingleAgitatorPainter(
-            isOn: widget.isOn,
-            phase: _controller.value,
-            showJoints: widget.showJoints,
-          ),
-        );
-      },
+    return CustomPaint(
+      size: widget.size,
+      painter: DetailedSingleAgitatorPainter(
+        isOn: widget.isOn,
+        phase: 0.0,
+        showJoints: widget.showJoints,
+      ),
     );
   }
 }

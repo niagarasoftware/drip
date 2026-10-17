@@ -33,6 +33,10 @@ class NodeWidget extends StatelessWidget {
   final void Function(DragUpdateDetails)? onResizeUpdate;
   final void Function(DragStartDetails)? onResizeStart;
 
+  /// When false the parent positions this widget (so a pure move does not
+  /// rebuild or repaint the node artwork).
+  final bool applyPosition;
+
   const NodeWidget({
     super.key,
     required this.node,
@@ -44,6 +48,7 @@ class NodeWidget extends StatelessWidget {
     this.onResizeStart,
     this.isSelected = false,
     this.isConnectSource = false,
+    this.applyPosition = true,
   });
 
   IconData get _icon {
@@ -147,134 +152,136 @@ class NodeWidget extends StatelessWidget {
     final bool showNameBadge =
         node.type != NodeType.junction && node.label.trim().isNotEmpty;
 
+    final Widget body = RepaintBoundary(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            onLongPress: onLongPress,
+            onPanStart: onPanStart,
+            onPanUpdate: onPanUpdate,
+            child: Container(
+              width: node.size.width,
+              height: node.size.height,
+              padding: padding ?? const EdgeInsets.all(4),
+              decoration: decoration ??
+                  BoxDecoration(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: isSelected || isConnectSource
+                        ? Border.all(
+                      color: isConnectSource ? Colors.orange : Colors.blue,
+                      width: 2,
+                    )
+                        : null,
+                  ),
+              child: child,
+            ),
+          ),
+          if (showNameBadge &&
+              node.type != NodeType.singleTankValve &&
+              node.type != NodeType.multiOutletTankValve)
+            Positioned(
+              bottom: -10,
+              left: -20,
+              right: -20,
+              child: Center(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  onLongPress: onLongPress,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xEE0F172A),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.blue.shade400
+                            : (isConnectSource
+                            ? Colors.orangeAccent
+                            : const Color(0x33FFFFFF)),
+                        width: isSelected || isConnectSource ? 1.2 : 0.8,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 3.5,
+                          height: 3.5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: node.isOn
+                                ? const Color(0xFF10B981)
+                                : Colors.grey.shade400,
+                          ),
+                        ),
+                        const SizedBox(width: 3.5),
+                        Flexible(
+                          child: Text(
+                            node.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.1,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (isSelected && onResizeUpdate != null)
+            Positioned(
+              right: -10,
+              bottom: -10,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanStart: onResizeStart,
+                onPanUpdate: onResizeUpdate,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.black38, blurRadius: 3),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.open_in_full,
+                    size: 11,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    if (!applyPosition) return body;
     return Positioned(
       left: node.position.dx,
       top: node.position.dy,
-      child: RepaintBoundary(
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              onLongPress: onLongPress,
-              onPanStart: onPanStart,
-              onPanUpdate: onPanUpdate,
-              child: Container(
-                width: node.size.width,
-                height: node.size.height,
-                padding: padding ?? const EdgeInsets.all(4),
-                decoration: decoration ??
-                    BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected || isConnectSource
-                          ? Border.all(
-                              color: isConnectSource ? Colors.orange : Colors.blue,
-                              width: 2,
-                            )
-                          : null,
-                    ),
-                child: child,
-              ),
-            ),
-            if (showNameBadge &&
-                node.type != NodeType.singleTankValve &&
-                node.type != NodeType.multiOutletTankValve)
-              Positioned(
-                bottom: -10,
-                left: -20,
-                right: -20,
-                child: Center(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onTap,
-                    onLongPress: onLongPress,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xEE0F172A),
-                        borderRadius: BorderRadius.circular(5),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.blue.shade400
-                              : (isConnectSource
-                                  ? Colors.orangeAccent
-                                  : const Color(0x33FFFFFF)),
-                          width: isSelected || isConnectSource ? 1.2 : 0.8,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 2,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 3.5,
-                            height: 3.5,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: node.isOn
-                                  ? const Color(0xFF10B981)
-                                  : Colors.grey.shade400,
-                            ),
-                          ),
-                          const SizedBox(width: 3.5),
-                          Flexible(
-                            child: Text(
-                              node.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.1,
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (isSelected && onResizeUpdate != null)
-              Positioned(
-                right: -10,
-                bottom: -10,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanStart: onResizeStart,
-                  onPanUpdate: onResizeUpdate,
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black38, blurRadius: 3),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.open_in_full,
-                      size: 11,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      child: body,
     );
   }
 
