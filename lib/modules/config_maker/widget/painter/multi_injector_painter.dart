@@ -1093,96 +1093,126 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     }
   }
 
-  // -------------------------------------------------------- inlet / outlet / channel ports
+  // ------------------------------------------------------------ channel buttons
+  /// Single source of truth for the channel button rectangle. The painter
+  /// draws it and NodeWidget uses the very same rect as the tap target, so
+  /// what you see is exactly what you can press.
+  static Rect channelButtonRect(Size s, int i) {
+    final double w = s.width / _designW;
+    return Rect.fromCenter(
+      center: Offset(w * (firstChannelX + channelSpacing * i), s.height * 0.935),
+      width: w * 0.27,
+      height: s.height * 0.115,
+    );
+  }
+
+  static const Color _chOn = Color(0xFF16A34A);
+  static const Color _chOnDark = Color(0xFF15803D);
+  static const Color _chOff = Color(0xFF64748B);
+  static const Color _chOffDark = Color(0xFF475569);
+
   void _drawChannelButtons(Canvas c) {
     for (int i = 0; i < channelCount; i++) {
-      final double xc = _cx(i);
       final bool active = isChannelActive(i);
+      final Rect btn = channelButtonRect(_size, i);
+      final double bh = btn.height;
+      final RRect body = RRect.fromRectAndRadius(btn, Radius.circular(bh / 2));
 
-      // Substantially larger button box located straight under channel i, outside/below the frame body
-      final Rect btn = Rect.fromCenter(
-        center: Offset(xc, _h * 0.955),
-        width: _w * 0.22,
-        height: _h * 0.088,
-      );
-
-      // Outer bezel enclosure box
+      // soft drop shadow (+ green glow when running)
       c.drawRRect(
-        RRect.fromRectAndRadius(btn, const Radius.circular(7)),
-        _gh(btn, const [Color(0xFF1E293B), Color(0xFF0F172A)]),
+        body.shift(Offset(0, bh * 0.10)),
+        Paint()
+          ..color = (active ? _chOn : Colors.black).withValues(alpha: active ? 0.40 : 0.25)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bh * 0.22),
       );
+
+      // body: solid green = ON, solid slate = OFF
       c.drawRRect(
-        RRect.fromRectAndRadius(btn, const Radius.circular(7)),
-        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF64748B), active ? 2.0 : 1.2),
+        body,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: active
+                ? const [Color(0xFF22C55E), _chOnDark]
+                : const [_chOff, _chOffDark],
+          ).createShader(btn),
+      );
+      // top gloss
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(btn.left + bh * 0.3, btn.top + bh * 0.07, btn.width - bh * 0.6, bh * 0.32),
+          Radius.circular(bh * 0.16),
+        ),
+        Paint()..color = Colors.white.withValues(alpha: active ? 0.22 : 0.14),
+      );
+      // border
+      c.drawRRect(
+        body,
+        _stroke(active ? const Color(0xFFBBF7D0) : const Color(0xFFCBD5E1), 1.2),
       );
 
-      if (active) {
-        c.drawRRect(
-          RRect.fromRectAndRadius(btn.inflate(1.5), const Radius.circular(8)),
-          _stroke(const Color(0xFF10B981).withValues(alpha: 0.35), 1.5),
-        );
-      }
+      // ---- left: round power badge (white disc + power glyph)
+      final double r = bh * 0.36;
+      final Offset bc = Offset(btn.left + bh * 0.5, btn.center.dy);
+      c.drawCircle(bc, r, Paint()..color = Colors.white);
+      final Color glyph = active ? _chOnDark : _chOff;
+      final Paint gp = Paint()
+        ..color = glyph
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = math.max(1.1, r * 0.28);
+      final double gr = r * 0.52;
+      c.drawArc(
+        Rect.fromCircle(center: bc, radius: gr),
+        -math.pi / 2 + 0.7,
+        2 * math.pi - 1.4,
+        false,
+        gp,
+      );
+      c.drawLine(bc.translate(0, -gr * 1.05), bc.translate(0, -gr * 0.10), gp);
 
-      // LED dot on left
-      final Offset dotPos = Offset(btn.left + _w * 0.028, btn.center.dy);
-      final Color ledColor = active ? const Color(0xFF10B981) : const Color(0xFFEF4444);
-      c.drawCircle(dotPos, _w * 0.016, Paint()..color = ledColor);
-      if (active) {
-        c.drawCircle(
-          dotPos,
-          _w * 0.026,
-          _stroke(const Color(0xFF10B981).withValues(alpha: 0.6), 1.5),
-        );
-      } else {
-        c.drawCircle(
-          dotPos,
-          _w * 0.020,
-          _stroke(const Color(0xFFEF4444).withValues(alpha: 0.4), 1.0),
-        );
-      }
-
-      // "CH 1", "CH 2", "CH 3", "CH 4" Text / Badge label in center
-      final TextPainter tp = TextPainter(
+      // ---- middle: channel name
+      final double fs = bh * 0.40;
+      final TextPainter name = TextPainter(
         text: TextSpan(
           text: 'CH ${i + 1}',
           style: TextStyle(
-            color: active ? Colors.white : const Color(0xFF94A3B8),
-            fontSize: _w * 0.024,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
+            color: Colors.white,
+            fontSize: fs,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.3,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(c, Offset(btn.left + _w * 0.052, btn.center.dy - tp.height / 2));
+      name.paint(c, Offset(bc.dx + r + bh * 0.14, btn.center.dy - name.height / 2));
 
-      // Right side ON / OFF switch toggle track
-      final Rect pill = Rect.fromLTWH(
-        btn.right - _w * 0.082,
-        btn.top + _h * 0.016,
-        _w * 0.070,
-        _h * 0.056,
+      // ---- right: explicit state word ("ON" / "OFF") in a small chip
+      final TextPainter st = TextPainter(
+        text: TextSpan(
+          text: active ? 'ON' : 'OFF',
+          style: TextStyle(
+            color: active ? _chOnDark : const Color(0xFF334155),
+            fontSize: fs * 0.82,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.4,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final double chipW = st.width + bh * 0.34;
+      final Rect chip = Rect.fromLTWH(
+        btn.right - chipW - bh * 0.16,
+        btn.center.dy - bh * 0.26,
+        chipW,
+        bh * 0.52,
       );
       c.drawRRect(
-        RRect.fromRectAndRadius(pill, const Radius.circular(10)),
-        Paint()..color = active ? const Color(0xFF065F46) : const Color(0xFF334155),
+        RRect.fromRectAndRadius(chip, Radius.circular(bh * 0.26)),
+        Paint()..color = Colors.white.withValues(alpha: active ? 0.95 : 0.85),
       );
-      c.drawRRect(
-        RRect.fromRectAndRadius(pill, const Radius.circular(10)),
-        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF475569), 1.0),
-      );
-
-      // Smooth 3D slider knob inside pill
-      final Offset knob = Offset(
-        active ? pill.right - _w * 0.018 : pill.left + _w * 0.018,
-        pill.center.dy,
-      );
-      c.drawCircle(knob, _w * 0.016, Paint()..color = Colors.white);
-      c.drawCircle(
-        knob,
-        _w * 0.016,
-        _stroke(active ? const Color(0xFF10B981) : const Color(0xFF64748B), 1.2),
-      );
+      st.paint(c, Offset(chip.center.dx - st.width / 2, chip.center.dy - st.height / 2));
     }
   }
 
@@ -1241,9 +1271,9 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant DetailedMultiInjectorPainter old) =>
       old.isOn != isOn ||
-      old.phase != phase ||
-      old.showJoints != showJoints ||
-      !listEquals(old.channelStates, channelStates);
+          old.phase != phase ||
+          old.showJoints != showJoints ||
+          !listEquals(old.channelStates, channelStates);
 }
 
 /// Stateful wrapper for DetailedMultiInjectorPainter.

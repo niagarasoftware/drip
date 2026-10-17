@@ -29,11 +29,11 @@ class NodeImageCache {
   static final Map<String, ui.Image> _cache = {};
 
   static ui.Image renderAndCache(
-    String key,
-    CustomPainter painter,
-    Size size, {
-    double devicePixelRatio = 4.0,
-  }) {
+      String key,
+      CustomPainter painter,
+      Size size, {
+        double devicePixelRatio = 4.0,
+      }) {
     final existing = _cache[key];
     if (existing != null) return existing;
 
@@ -273,24 +273,19 @@ class NodeWidget extends StatelessWidget {
             ),
           ),
           if (node.type == NodeType.multiInjector)
-            ...List.generate(4, (i) {
-              const double firstX = 0.52;
-              const double spacing = 0.32;
-              const double designW = 1.75;
-              final double xc = node.size.width * (firstX + spacing * i) / designW;
-              final double btnW = math.max(38.0, node.size.width * (0.24 / designW));
-              final double btnH = math.max(22.0, node.size.height * 0.14);
-              final double btnY = node.size.height * 0.955 - (btnH / 2);
-
+            ...List.generate(DetailedMultiInjectorPainter.channelCount, (i) {
+              // Same rect the painter draws -> tap target matches the button.
+              final Rect r =
+              DetailedMultiInjectorPainter.channelButtonRect(node.size, i)
+                  .inflate(4);
               return Positioned(
-                left: xc - (btnW / 2) - 4,
-                top: btnY - 4,
-                width: btnW + 8,
-                height: btnH + 8,
+                left: r.left,
+                top: r.top,
+                width: r.width,
+                height: r.height,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {
-                    NodeImageCache.clear();
                     if (onChannelToggle != null) {
                       onChannelToggle!(i);
                     } else {
@@ -527,18 +522,22 @@ class NodeWidget extends StatelessWidget {
     }
 
     if (node.type == NodeType.multiInjector) {
-      final String chKey = node.activeChannelStates.join('_');
+      // IMPORTANT: copy the list. If the model mutates its list in place the
+      // old and new painter would share one instance, listEquals() would say
+      // "unchanged" and the live painter would never repaint.
+      final List<bool> chStates = List<bool>.of(node.activeChannelStates);
+      final String chKey = chStates.map((e) => e ? '1' : '0').join();
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_inj_v4_${node.isOn}_${node.showJoints}_${chKey}_$szKey',
+          cacheKey: 'multi_inj_v5_${node.isOn}_${node.showJoints}_${chKey}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiInjectorPainter(
             isOn: node.isOn,
             phase: 0.0,
             showJoints: node.showJoints,
-            channelStates: node.activeChannelStates,
+            channelStates: chStates,
           ),
         ),
       );

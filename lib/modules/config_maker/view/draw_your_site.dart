@@ -16,7 +16,7 @@ import '../widget/node_widget.dart';
 import '../widget/painter/pipe_painter.dart';
 
 const double kCanvasWidth = 3000;
-const double kCanvasHeight = 1150;
+const double kCanvasHeight = 2000;
 const double kPipeHitTolerance = 14;
 
 class CanvasNotifier extends ChangeNotifier {
