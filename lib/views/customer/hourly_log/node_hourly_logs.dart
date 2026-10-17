@@ -1,11 +1,13 @@
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+
 import '../../../models/customer/site_model.dart';
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../view_models/customer/node_hourly_logs_vm.dart';
-
 
 class NodeHourlyLogs extends StatelessWidget {
   const NodeHourlyLogs({
@@ -15,18 +17,23 @@ class NodeHourlyLogs extends StatelessWidget {
     required this.nodes,
   });
 
-  final int userId, controllerId;
+  final int userId;
+  final int controllerId;
   final List<NodeListModel> nodes;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => NodeHourlyLogsVm(Repository(HttpService()), userId, controllerId, nodes,)..getNodeLogs(),
+      create: (_) => NodeHourlyLogsVm(
+        Repository(HttpService()),
+        userId,
+        controllerId,
+        nodes,
+      )..getNodeLogs(),
       child: const _NodeHourlyLogsView(),
     );
   }
 }
-
 
 class _NodeHourlyLogsView extends StatelessWidget {
   const _NodeHourlyLogsView();
@@ -41,21 +48,39 @@ class _NodeHourlyLogsView extends StatelessWidget {
             actions: [
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
+                  padding: const EdgeInsets.only(right: 8),
                   child: Text(
-                    "${viewModel.selectedDate.toLocal()}".split(' ')[0],
-                    style: const TextStyle(fontSize: 14, color: Colors.white),
+                    DateFormat('yyyy-MM-dd')
+                        .format(viewModel.selectedDate),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.calendar_today),
-                onPressed: () => viewModel.selectDate(context),
+                onPressed: viewModel.isLoading
+                    ? null
+                    : () => viewModel.selectDate(context),
               ),
             ],
           ),
-          body: viewModel.nodeDataMap.isEmpty
-              ? const Center(child: Text('Node hourly log not found'))
+          body: viewModel.isLoading
+              ? const Center(
+            child: CircularProgressIndicator(),
+          )
+              : viewModel.nodeDataMap.isEmpty
+              ? Center(
+            child: Text(
+              viewModel.errorMessage.isNotEmpty
+                  ? viewModel.errorMessage
+                  : 'Node hourly logs not found for '
+                  '${DateFormat('yyyy-MM-dd').format(viewModel.selectedDate)}',
+              textAlign: TextAlign.center,
+            ),
+          )
               : ListView.builder(
             itemCount: viewModel.nodeDataMap.length,
             itemBuilder: (context, index) {
@@ -66,15 +91,17 @@ class _NodeHourlyLogsView extends StatelessWidget {
               final List<ChartDataLog> chartData = entry.value;
 
               if (chartData.isEmpty) {
-                return const SizedBox();
+                return const SizedBox.shrink();
               }
 
               return Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(12),
                 child: SizedBox(
                   height: 350,
                   child: SfCartesianChart(
-                    key: ValueKey(nodeId),
+                    key: ValueKey(
+                      '${viewModel.selectedDate}_$nodeId',
+                    ),
                     enableAxisAnimation: false,
                     primaryXAxis: const CategoryAxis(),
                     primaryYAxis: const NumericAxis(
@@ -96,7 +123,9 @@ class _NodeHourlyLogsView extends StatelessWidget {
                         data.batteryVoltage,
                         name: 'Battery Voltage',
                         dataLabelSettings:
-                        const DataLabelSettings(isVisible: true),
+                        const DataLabelSettings(
+                          isVisible: true,
+                        ),
                       ),
                       LineSeries<ChartDataLog, String>(
                         animationDuration: 0,
@@ -106,7 +135,9 @@ class _NodeHourlyLogsView extends StatelessWidget {
                         data.solarVoltage,
                         name: 'Solar Voltage',
                         dataLabelSettings:
-                        const DataLabelSettings(isVisible: true),
+                        const DataLabelSettings(
+                          isVisible: true,
+                        ),
                       ),
                     ],
                   ),
@@ -118,19 +149,4 @@ class _NodeHourlyLogsView extends StatelessWidget {
       },
     );
   }
-}
-
-
-class ChartDataLog {
-  final String deviceName;
-  final String hour;
-  final double batteryVoltage;
-  final double solarVoltage;
-
-  ChartDataLog(
-      this.deviceName,
-      this.hour,
-      this.batteryVoltage,
-      this.solarVoltage,
-      );
 }

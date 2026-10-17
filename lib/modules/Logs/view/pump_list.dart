@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/pump_list.dart' as repository;
 import 'package:oro_drip_irrigation/modules/Logs/view/pump_log.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/voltage_log.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import '../../../models/customer/site_model.dart';
@@ -18,7 +20,7 @@ class PumpList extends StatefulWidget {
   final int userId;
   final Map<String, dynamic> userData;
   final MasterControllerModel masterData;
-  const PumpList({super.key, required this.pumpList,required this.userData, required this.userId, required this.masterData});
+  const PumpList({super.key, required this.pumpList,required this.userData, required this.userId, required this.masterData, required int controllerId});
 
   @override
   State<PumpList> createState() => _PumpListState();
@@ -101,7 +103,7 @@ class _PumpListState extends State<PumpList> {
                             () => MediaQuery.of(context).size.width >= 600 ? showModalBottomSheet(
                           context: context,
                           isScrollControlled: true,
-                          builder: (context) => PumpLogScreen(
+                          builder: (context) => PumpLogDashboardScreen(
                             userId: widget.userId,
                             controllerId: widget.masterData.controllerId,
                             nodeControllerId: AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId) ? 0 : pumpItem['controllerId'],
@@ -111,11 +113,11 @@ class _PumpListState extends State<PumpList> {
                         ) : Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => PumpLogScreen(
+                                    builder: (context) => PumpLogDashboardScreen(
                                       userId: widget.userId,
                                       controllerId: widget.masterData.controllerId,
                                       nodeControllerId: AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId) ? 0 : pumpItem['controllerId'],
-                                      masterData: widget.masterData,
+                                      masterData: widget.masterData, showMobileCalendar: true,
                                     ))
                             ),
                             () => MediaQuery.of(context).size.width >= 600 ? showModalBottomSheet(

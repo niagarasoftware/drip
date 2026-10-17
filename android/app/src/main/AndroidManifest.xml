@@ -108,10 +108,16 @@
             </intent-filter>
         </activity>
 
-        <!-- Google Maps -->
+<!--         Google Maps -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY" />
+            android:value="AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw" />
+<!--            android:value="AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw" />-->
+<!--            android:value="AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw" />-->
+<!--this is AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw is oro ,this is AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw smartcomm-->
+<!--        <meta-data-->
+<!--            android:name="com.google.android.geo.API_KEY"-->
+<!--            android:value="YOUR_GOOGLE_MAPS_API_KEY" />-->
 
         <!-- Flutter embedding -->
         <meta-data
