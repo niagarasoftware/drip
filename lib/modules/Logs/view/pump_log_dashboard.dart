@@ -44,7 +44,7 @@ class PumpLogDashboardScreen extends StatefulWidget {
     this.nodeControllerId = 0,
     required this.masterData,
     this.pumpList = const [],
-    this.userData = const {},
+    this.userData = const {}, required bool showMobileCalendar,
   });
 
   @override
