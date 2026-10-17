@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -6,94 +7,140 @@ import '../../repository/repository.dart';
 
 class SensorHourlyLogsVm extends ChangeNotifier {
   final Repository repository;
+  final int customerId;
+  final int controllerId;
+  final List<ConfigObject> configObjects;
+
   bool isLoading = false;
-  String errorMessage = "";
-  int customerId, controllerId;
+  String errorMessage = '';
 
   final Map<String, List<SensorHourlyData>> sensorsBySNo = {};
 
-  final List<ConfigObject> configObjects;
-
   DateTime selectedDate = DateTime.now();
 
-  SensorHourlyLogsVm(this.repository, this.customerId, this.controllerId, this.configObjects);
+  SensorHourlyLogsVm(
+      this.repository,
+      this.customerId,
+      this.controllerId,
+      this.configObjects,
+      );
 
-  Future<void> getSensorHourlyLogs(date) async {
+  Future<void> getSensorHourlyLogs([DateTime? date]) async {
+    // Use the requested date, or the currently selected date.
+    final requestedDate = date ?? selectedDate;
+    selectedDate = requestedDate;
+
+    final formattedDate = DateFormat('yyyy-MM-dd').format(requestedDate);
+
+    // Clear old chart data immediately.
     sensorsBySNo.clear();
-    date = DateFormat('yyyy-MM-dd').format(selectedDate);
+    errorMessage = '';
+    isLoading = true;
+    notifyListeners();
 
-    Map<String, Object> body = {
-      "userId": customerId,
-      "controllerId": controllerId,
-      "fromDate": date,
-      "toDate": date,
-    };
+    try {
+      final Map<String, Object> body = {
+        'userId': customerId,
+        'controllerId': controllerId,
+        'fromDate': formattedDate,
+        'toDate': formattedDate,
+      };
 
-    var response = await repository.fetchSensorHourlyData(body);
-    if (response.statusCode == 200) {
-      var data = jsonDecode(response.body);
-      if (data["code"] == 200) {
-        final jsonData = data["data"] as List;
+      final response = await repository.fetchSensorHourlyData(body);
 
-        if (jsonData.isEmpty) return;
+      if (response.statusCode != 200) {
+        errorMessage = 'Failed to load sensor logs.';
+        return;
+      }
 
-        try {
-          for (var hourEntry in jsonData[0].entries) {
-            final hour = hourEntry.key;
-            final value = hourEntry.value;
+      final data = jsonDecode(response.body);
 
-            if (hour != 'date' && value.isNotEmpty) {
-              final sensorStrings = value.split(';');
+      if (data['code'] != 200) {
+        errorMessage = data['message']?.toString() ??
+            'Unable to load sensor logs.';
+        return;
+      }
 
-              for (final sensorStr in sensorStrings) {
-                final parts = sensorStr.split(',');
-                if (parts.length == 3) {
-                  double sNo = double.parse(parts[0]);
-                  final val1 = double.tryParse(parts[1]) ?? 0.0;
+      final jsonData = data['data'] as List;
 
-                  var matchedNode = configObjects.firstWhere(
-                        (obj) => obj.sNo == sNo,
-                  );
+      if (jsonData.isEmpty) {
+        // Keep the charts empty for dates without data.
+        return;
+      }
 
-                  String sensorName = matchedNode.name;
-                  String objectName = matchedNode.objectName;
+      for (final hourEntry in jsonData[0].entries) {
+        final String hour = hourEntry.key;
+        final dynamic value = hourEntry.value;
 
-                  final sensorData = SensorHourlyData(
-                    sNo: sNo,
-                    hour: hour,
-                    objectName: objectName,
-                    value: val1,
-                    name: sensorName,
-                  );
+        if (hour == 'date' || value == null || value.toString().isEmpty) {
+          continue;
+        }
 
-                  sensorsBySNo.putIfAbsent(sNo.toString(), () => []);
-                  sensorsBySNo[sNo.toString()]!.add(sensorData);
-                }
-              }
-            }
-          }
+        final sensorStrings = value.toString().split(';');
 
-          notifyListeners();
-        } catch (e) {
-          print('Error: $e');
+        for (final sensorStr in sensorStrings) {
+          final parts = sensorStr.split(',');
+
+          if (parts.length != 3) continue;
+
+          final double? sNo = double.tryParse(parts[0].trim());
+          if (sNo == null) continue;
+
+          final double val1 = double.tryParse(parts[1].trim()) ?? 0.0;
+
+          // Avoid firstWhere throwing if a sensor is missing in config.
+          final int matchedIndex =
+          configObjects.indexWhere((obj) => obj.sNo == sNo);
+
+          if (matchedIndex == -1) continue;
+
+          final matchedNode = configObjects[matchedIndex];
+
+          final sensorData = SensorHourlyData(
+            sNo: sNo,
+            hour: hour,
+            objectName: matchedNode.objectName,
+            value: val1,
+            name: matchedNode.name,
+          );
+
+          sensorsBySNo.putIfAbsent(sNo.toString(), () => []);
+          sensorsBySNo[sNo.toString()]!.add(sensorData);
         }
       }
+    } catch (e, stackTrace) {
+      debugPrint('Error loading hourly sensor logs: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      errorMessage = 'An error occurred while loading sensor logs.';
+    } finally {
+      isLoading = false;
+      notifyListeners();
     }
   }
 
-  void selectDate(BuildContext context) async {
+  Future<void> selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != selectedDate) {
-      selectedDate = picked;
-      getSensorHourlyLogs(selectedDate);
-    }
-  }
 
+    if (picked == null) return;
+
+    // Compare calendar dates, not timestamps.
+    final bool sameDate =
+        picked.year == selectedDate.year &&
+            picked.month == selectedDate.month &&
+            picked.day == selectedDate.day;
+
+    if (sameDate) return;
+
+    selectedDate = picked;
+    notifyListeners();
+
+    await getSensorHourlyLogs(picked);
+  }
 }
 
 class SensorHourlyData {
@@ -112,19 +159,19 @@ class SensorHourlyData {
   });
 
   factory SensorHourlyData.fromJson(Map<String, dynamic> json) {
-    String snrName;
+    String sensorName;
 
     if (json['Valve'] == null || json['Valve'].toString().isEmpty) {
-      snrName = '${json['Name'] ?? json['Id']}';
+      sensorName = '${json['Name'] ?? json['Id']}';
     } else {
-      snrName = '${json['Name'] ?? json['Id']}(${json['Valve']})';
+      sensorName = '${json['Name'] ?? json['Id']}(${json['Valve']})';
     }
 
     return SensorHourlyData(
-      sNo: json['SNo'],
-      name: snrName,
+      sNo: (json['SNo'] as num).toDouble(),
+      name: sensorName,
       objectName: json['objectName'] as String,
-      value: (json['Value'] is num)
+      value: json['Value'] is num
           ? (json['Value'] as num).toDouble()
           : double.tryParse(json['Value'].toString()) ?? 0.0,
       hour: json['hour'] as String? ?? '',
