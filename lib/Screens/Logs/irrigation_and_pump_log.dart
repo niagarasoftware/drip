@@ -9,7 +9,7 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../StateManagement/customer_provider.dart';
 import '../../models/customer/site_model.dart';
 import '../../modules/Logs/repository/log_repos.dart';
-import '../../modules/Logs/view/pump_list.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 
 import '../../modules/irrigation_report/view/channel_log_page.dart';
 import '../../modules/irrigation_report/view/list_of_log_config.dart';
@@ -32,35 +32,48 @@ class IrrigationAndPumpLog extends StatefulWidget {
   });
 
   @override
-  State<IrrigationAndPumpLog> createState() => _IrrigationAndPumpLogState();
+  State<IrrigationAndPumpLog> createState() =>
+      _IrrigationAndPumpLogState();
 }
 
-class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
+class _IrrigationAndPumpLogState
+    extends State<IrrigationAndPumpLog>
     with SingleTickerProviderStateMixin {
+
   late TabController tabController;
 
   List pumpList = [];
+
   String message = '';
-  final LogRepository repository = LogRepository(HttpService());
+
+  final LogRepository repository =
+  LogRepository(HttpService());
 
   // Channel Log data
   List<ChannelLogRecord> channelLogData = [];
 
   bool get isEcoGem =>
-      AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
+      AppConstants.ecoGemAndPlusModelList
+          .contains(widget.masterData.modelId);
 
   bool get isOmsGem =>
-      AppConstants.omsGemList.contains(widget.masterData.modelId);
+      AppConstants.omsGemList
+          .contains(widget.masterData.modelId);
 
-  bool get showPumpLog => isEcoGem || pumpList.isNotEmpty;
+  bool get showPumpLog =>
+      isEcoGem || pumpList.isNotEmpty;
 
   int _calculateTabLength() {
     if (isOmsGem) {
       return 1;
     }
+
     if (isEcoGem) {
-      return 3;
+      return 3; // Motor + Zone Cyclic + Pump
     }
+
+    // Irrigation + Zone + Standalone + Channel
+    // + optional Pump
     return 4 + (showPumpLog ? 1 : 0);
   }
 
@@ -84,12 +97,15 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     }
 
     final oldController = tabController;
+
     final oldIndex = oldController.index;
 
     tabController = TabController(
       length: newLength,
       vsync: this,
-      initialIndex: oldIndex < newLength ? oldIndex : newLength - 1,
+      initialIndex: oldIndex < newLength
+          ? oldIndex
+          : newLength - 1,
     );
 
     oldController.dispose();
@@ -99,22 +115,28 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     try {
       final userData = {
         'userId': widget.userData['customerId'],
-        'controllerId': widget.userData['controllerId'],
+        'controllerId':
+        widget.userData['controllerId'],
       };
 
-      final result = await repository.getUserNodePumpList(userData);
+      final result =
+      await repository.getUserNodePumpList(
+        userData,
+      );
 
       if (!mounted) return;
 
       final response = jsonDecode(result.body);
 
       setState(() {
-        if (result.statusCode == 200 && response['data'] is List) {
+        if (result.statusCode == 200 &&
+            response['data'] is List) {
           pumpList = response['data'];
           message = '';
         } else {
           pumpList = [];
-          message = response['message']?.toString() ?? '';
+          message =
+              response['message']?.toString() ?? '';
         }
 
         _updateTabController();
@@ -155,29 +177,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
   @override
   Widget build(BuildContext context) {
-    CustomerScreenControllerViewModel? customerVM;
-    try {
-      customerVM =
-          Provider.of<CustomerScreenControllerViewModel>(context, listen: true);
-    } catch (_) {}
-
-    final bool isOffline = customerVM?.isNotCommunicate ?? false;
-
-    final List<_LogCardItem> cards = _buildCardItems();
-
-    return Scaffold(
-      key: ValueKey(
-        Provider.of<CustomerProvider>(context).controllerId,
-      ),
-      backgroundColor: const Color(0xFFF7FAFD),
-      body: SafeArea(
-        child: _buildOverviewDashboard(context, cards, isOffline, customerVM),
-      ),
-    );
-  }
-
-  List<_LogCardItem> _buildCardItems() {
-    final List<_LogCardItem> cards = [];
+    final List<Tab> tabs = [];
+    final List<Widget> pages = [];
 
     if (isOmsGem) {
       cards.add(
@@ -222,6 +223,25 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         ),
       );
     } else if (isEcoGem) {
+      tabs.addAll([
+        const Tab(text: 'Motor Cyclic Log'),
+        const Tab(text: 'Zone Cyclic Log'),
+        const Tab(text: 'Pump Log'),
+      ]);
+
+      pages.addAll([
+        MotorCyclicLog(
+          userData: widget.userData,
+        ),
+        ZoneCyclicLog(
+          userData: widget.userData,
+        ),
+        PumpLogDashboardScreen(
+          pumpList: pumpList,
+          userId: widget.userData['customerId'],
+          controllerId: widget.masterData.controllerId,
+          masterData: widget.masterData,
+          userData: widget.userData,
       cards.addAll([
         _LogCardItem(
           title: 'Motor Cyclic Log',
@@ -496,6 +516,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
           page: PumpList(
             pumpList: pumpList,
             userId: widget.userData['customerId'],
+            controllerId: widget.masterData.controllerId,
             masterData: widget.masterData,
             userData: widget.userData,
           ),
@@ -638,234 +659,36 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF006775).withOpacity(0.08),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.eco_outlined,
-            size: 30,
-            color: Color(0xFF006775),
-          ),
-        ),
-        const SizedBox(width: 14),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Logs',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'View and manage your system logs',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogCard(BuildContext context, _LogCardItem card) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+    return Scaffold(
+      key: ValueKey(
+        Provider.of<CustomerProvider>(context)
+            .controllerId,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          // Subtle top-right ambient colored corner glow
-          Positioned(
-            top: -30,
-            right: -30,
-            child: IgnorePointer(
-              child: Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      card.accentColor.withOpacity(0.12),
-                      card.accentColor.withOpacity(0.0),
-                    ],
-                  ),
-                ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            TabBar(
+              controller: tabController,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              labelColor:
+              const Color(0xFF006775),
+              unselectedLabelColor:
+              Colors.grey,
+              indicatorColor:
+              const Color(0xFF006775),
+              tabs: tabs,
+            ),
+
+            Expanded(
+              child: TabBarView(
+                controller: tabController,
+                children: pages,
               ),
             ),
-          ),
-
-          // Card content
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openLogDetail(context, card),
-              child: Padding(
-                padding: const EdgeInsets.all(22.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Icon Avatar
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: card.iconBgColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(child: card.iconWidget),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Title
-                    Text(
-                      card.title,
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Subtitle
-                    Text(
-                      card.subtitle,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        height: 1.45,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Feature bullet list
-                    for (final item in card.features) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Icon(item.icon, size: 18, color: item.iconColor),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                item.text,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: Color(0xFF475569),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-
-                    // View Log button
-                    InkWell(
-                      onTap: () => _openLogDetail(context, card),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: double.infinity,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: card.buttonColor,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text(
-                              'View Log',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(width: 6),
-                            Icon(
-                              Icons.arrow_forward_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-class _LogCardItem {
-  final String title;
-  final String subtitle;
-  final Widget iconWidget;
-  final Color accentColor;
-  final Color iconBgColor;
-  final Color buttonColor;
-  final List<_FeatureBullet> features;
-  final Widget page;
-
-  const _LogCardItem({
-    required this.title,
-    required this.subtitle,
-    required this.iconWidget,
-    required this.accentColor,
-    required this.iconBgColor,
-    required this.buttonColor,
-    required this.features,
-    required this.page,
-  });
-}
-
-class _FeatureBullet {
-  final IconData icon;
-  final String text;
-  final Color iconColor;
-
-  const _FeatureBullet({
-    required this.icon,
-    required this.text,
-    required this.iconColor,
-  });
 }

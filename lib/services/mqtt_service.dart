@@ -56,6 +56,18 @@ class MqttService {
     _schedulePayloadController.add(_schedulePayload);
   }
 
+  // Raw Schedule / Live Irrigation Payload (columnar Map from cM['3601'])
+  Map<String, dynamic>? _rawSchedulePayload;
+  Map<String, dynamic>? get rawSchedulePayload => _rawSchedulePayload;
+  final BehaviorSubject<Map<String, dynamic>?> _rawSchedulePayloadController =
+  BehaviorSubject<Map<String, dynamic>?>.seeded(null);
+  Stream<Map<String, dynamic>?> get rawSchedulePayloadStream => _rawSchedulePayloadController.stream;
+
+  set rawSchedulePayload(Map<String, dynamic>? newPayload) {
+    _rawSchedulePayload = newPayload;
+    _rawSchedulePayloadController.add(_rawSchedulePayload);
+  }
+
   // Pump Dashboard Payload
   PumpControllerData? _pumpDashboardPayload;
   PumpControllerData? get pumpDashboardPayload => _pumpDashboardPayload;
@@ -232,7 +244,10 @@ class MqttService {
           break;
 
         case '3600':
-          schedulePayload = Constants.dataConversionForScheduleView(payloadMessage['cM']['3601']);
+          if (payloadMessage['cM'] != null && payloadMessage['cM']['3601'] != null) {
+            rawSchedulePayload = Map<String, dynamic>.from(payloadMessage['cM']['3601']);
+            schedulePayload = Constants.dataConversionForScheduleView(payloadMessage['cM']['3601']);
+          }
           break;
 
         case '4200':
