@@ -227,8 +227,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final pumps = configPvd.pump;
     final fertSites = configPvd.fertilization;
     final channelConfigs = configPvd.channelConfig;
+    final filtrations = configPvd.filtration;
 
-    if (sources.isEmpty && pumps.isEmpty && fertSites.isEmpty && channelConfigs.isEmpty) {
+    if (sources.isEmpty && pumps.isEmpty && fertSites.isEmpty && channelConfigs.isEmpty && filtrations.isEmpty) {
       if (showSnackBar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -306,12 +307,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final waterPumps = pumps.where((p) => !fertPumpSNos.contains(p.commonDetails.sNo)).toList();
     final fertPumps = pumps.where((p) => fertPumpSNos.contains(p.commonDetails.sNo)).toList();
 
+    final List<_LayoutEdge> edges = [];
+    final Map<double, NodeObject> pumpMap = {};
+
     // -------------------------------------------------------------------------
     // WATER FORMATION (Top section - sources sourceType 1..5 and water pumps)
     // -------------------------------------------------------------------------
     if (waterSources.isNotEmpty || waterPumps.isNotEmpty) {
       final Map<double, NodeObject> sourceMap = {};
-      final Map<double, NodeObject> pumpMap = {};
 
       for (final src in waterSources) {
         final double sNo = src.commonDetails.sNo ?? 0.0;
@@ -350,7 +353,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         pumpMap[sNo] = node;
       }
 
-      final List<_LayoutEdge> edges = [];
       final Set<String> edgeKeys = {}; // from.port > to.port (unique pipe)
       final Set<String> pairKeys = {}; // from > to (used for loop detection)
       void addEdge(NodeObject from, NodeObject to, String fp, String tp) {
@@ -540,7 +542,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       // 4. Y positions
-      const double vGap = 24.0;
+      const double vGap = 42.0;
       double block(NodeObject n) =>
           n.size.height + (n.type == NodeType.overheadTank ? 34.0 : 0.0);
 
@@ -602,6 +604,221 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // 5. Clean pipe routing for water edges
       _snapNearStraightEdges(edges);
       _buildCleanPipes(edges, layerOf, colX, colW);
+    }
+
+    // -------------------------------------------------------------------------
+    // FILTRATION FORMATION (Multi-Filter Station)
+    // -------------------------------------------------------------------------
+    double maxWaterX = 0.0;
+    double maxWaterY = 0.0;
+    for (final n in _nodes) {
+      if (n.position.dx + n.size.width > maxWaterX) {
+        maxWaterX = n.position.dx + n.size.width;
+      }
+      if (n.position.dy + n.size.height > maxWaterY) {
+        maxWaterY = n.position.dy + n.size.height;
+      }
+    }
+
+    final List<NodeObject> irrigationPumpNodes = [];
+
+    // First preference: pumps explicitly configured with pumpType == 2 (Irrigation Pump) in PumpConfiguration
+    for (final p in waterPumps) {
+      if (p.pumpType == 2) {
+        final node = pumpMap[p.commonDetails.sNo ?? 0.0];
+        if (node != null) irrigationPumpNodes.add(node);
+      }
+    }
+
+    // Fallback: if no pump has pumpType == 2, use terminal water pumps (no outgoing edge in edges)
+    if (irrigationPumpNodes.isEmpty) {
+      final outgoingFromIds = edges.map((e) => e.from.id).toSet();
+      for (final p in waterPumps) {
+        final node = pumpMap[p.commonDetails.sNo ?? 0.0];
+        if (node != null && !outgoingFromIds.contains(node.id)) {
+          irrigationPumpNodes.add(node);
+        }
+      }
+    }
+
+    if (irrigationPumpNodes.isEmpty && waterPumps.isNotEmpty) {
+      final lastNode = pumpMap[waterPumps.last.commonDetails.sNo ?? 0.0];
+      if (lastNode != null) irrigationPumpNodes.add(lastNode);
+    }
+
+    final List<NodeObject> filterNodes = [];
+    if (filtrations.isNotEmpty) {
+      for (int f = 0; f < filtrations.length; f++) {
+        final fSite = filtrations[f];
+        final double sNo = fSite.commonDetails.sNo ?? 0.0;
+        final String label = (fSite.commonDetails.name?.isNotEmpty == true)
+            ? fSite.commonDetails.name!
+            : 'Multi-Filter Station';
+        final filterNode = NodeObject(
+          id: _nextId('multi_filter_${sNo.toInt()}'),
+          position: Offset.zero,
+          type: NodeType.multiFilter,
+          label: label,
+          showJoints: !_globalHideJoints,
+        );
+        filterNode.size = filterNode.defaultSize;
+        _nodes.add(filterNode);
+        filterNodes.add(filterNode);
+      }
+    } else {
+      final filterNode = NodeObject(
+        id: _nextId('multi_filter_0'),
+        position: Offset.zero,
+        type: NodeType.multiFilter,
+        label: 'Multi-Filter Station',
+        showJoints: !_globalHideJoints,
+      );
+      filterNode.size = filterNode.defaultSize;
+      _nodes.add(filterNode);
+      filterNodes.add(filterNode);
+    }
+
+    for (int f = 0; f < filterNodes.length; f++) {
+      final fn = filterNodes[f];
+      final double fnX = math.max(160.0, (maxWaterX - fn.size.width) / 2.0 + f * 180.0);
+      final double fnY = math.max(400.0, maxWaterY + 70.0);
+      fn.position = Offset(fnX, fnY);
+    }
+
+    NodeObject? findBlockingNode(Offset startPt, double targetX) {
+      final lRect = Rect.fromLTRB(
+        math.min(startPt.dx, targetX) + 10.0,
+        startPt.dy - 12.0,
+        math.max(startPt.dx, targetX) - 5.0,
+        startPt.dy + 12.0,
+      );
+      for (final n in _nodes) {
+        if (n.type == NodeType.junction || n.type == NodeType.multiFilter) continue;
+        final double effHeight = n.size.height + (n.type == NodeType.overheadTank ? 34.0 : 0.0);
+        final nRect = Rect.fromLTWH(n.position.dx, n.position.dy, n.size.width, effHeight);
+        if (lRect.overlaps(nRect)) {
+          return n;
+        }
+      }
+      return null;
+    }
+
+    // Connect Irrigation Pumps -> Multi-Filter Station
+    if (irrigationPumpNodes.isNotEmpty && filterNodes.isNotEmpty) {
+      final NodeObject firstFilterNode = filterNodes.first;
+      final Offset filterInletPt = firstFilterNode.getPort('inlet', isInput: true);
+      final double trunkX = maxWaterX + 40.0;
+
+      if (irrigationPumpNodes.length == 1) {
+        final term = irrigationPumpNodes.first;
+        final String outPort = 'output';
+        final Offset termPt = portPosition(term, outPort, isInput: false);
+        final blocking = findBlockingNode(termPt, trunkX);
+
+        final List<Offset> wps;
+        if (blocking != null) {
+          final double bypassX = math.max(termPt.dx + 20.0, blocking.position.dx - 20.0);
+          final double effH = blocking.size.height + (blocking.type == NodeType.overheadTank ? 34.0 : 0.0);
+          final double bypassY = blocking.position.dy + effH + 35.0;
+          wps = [
+            Offset(bypassX, termPt.dy),
+            Offset(bypassX, bypassY),
+            Offset(trunkX, bypassY),
+            Offset(trunkX, filterInletPt.dy - 20.0),
+            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
+          ];
+        } else {
+          wps = [
+            Offset(trunkX, termPt.dy),
+            Offset(trunkX, filterInletPt.dy - 20.0),
+            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
+          ];
+        }
+
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: term.id,
+          fromPortId: outPort,
+          toNodeId: firstFilterNode.id,
+          toPortId: 'inlet',
+          waypoints: _cleanWaypoints(termPt, wps, filterInletPt),
+        ));
+      } else {
+        String? prevJnId;
+        Offset? prevJnPt;
+
+        for (int t = 0; t < irrigationPumpNodes.length; t++) {
+          final term = irrigationPumpNodes[t];
+          final String outPort = 'output';
+          final Offset termPt = portPosition(term, outPort, isInput: false);
+
+          final blocking = findBlockingNode(termPt, trunkX);
+          Offset jnPt;
+          List<Offset> wpsToJn;
+
+          if (blocking != null) {
+            final double bypassX = math.max(termPt.dx + 20.0, blocking.position.dx - 20.0);
+            final double effH = blocking.size.height + (blocking.type == NodeType.overheadTank ? 34.0 : 0.0);
+            final double bypassY = blocking.position.dy + effH + 35.0;
+            jnPt = Offset(trunkX, bypassY);
+            wpsToJn = [
+              Offset(bypassX, termPt.dy),
+              Offset(bypassX, bypassY),
+            ];
+          } else {
+            jnPt = Offset(trunkX, termPt.dy);
+            wpsToJn = [];
+          }
+
+          final jn = _newJunction(jnPt);
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: term.id,
+            fromPortId: outPort,
+            toNodeId: jn.id,
+            waypoints: _cleanWaypoints(termPt, wpsToJn, jnPt),
+          ));
+
+          if (prevJnId != null && prevJnPt != null) {
+            _pipes.add(PipeConnection(
+              id: _nextId('pipe'),
+              fromNodeId: prevJnId,
+              toNodeId: jn.id,
+              waypoints: _cleanWaypoints(prevJnPt, [], jnPt),
+            ));
+          }
+          prevJnId = jn.id;
+          prevJnPt = jnPt;
+        }
+
+        if (prevJnId != null && prevJnPt != null) {
+          final List<Offset> wps = [
+            Offset(trunkX, filterInletPt.dy - 20.0),
+            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
+          ];
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: prevJnId,
+            toNodeId: firstFilterNode.id,
+            toPortId: 'inlet',
+            waypoints: _cleanWaypoints(prevJnPt, wps, filterInletPt),
+          ));
+        }
+      }
+    }
+
+    for (int f = 0; f < filterNodes.length - 1; f++) {
+      final f1 = filterNodes[f];
+      final f2 = filterNodes[f + 1];
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: f1.id,
+        fromPortId: 'outlet',
+        toNodeId: f2.id,
+        toPortId: 'inlet',
+        waypoints: [],
+      ));
     }
 
     // -------------------------------------------------------------------------
@@ -1110,6 +1327,149 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);
+
+      // Connect Multi-Filter Station -> Booster Pump -> Multi-Injector Skid -> Main Pipeline Output
+      if (skidNodes.isNotEmpty) {
+        for (int s = 0; s < skidNodes.length; s++) {
+          final skidNode = skidNodes[s];
+
+          // 1. Locate or create Booster Pump for this skid
+          NodeObject? boosterNode;
+          final site = s < fertSites.length ? fertSites[s] : null;
+          double? boosterSNo = (site != null && site.boosterPump.isNotEmpty)
+              ? site.boosterPump.first
+              : (fertPumps.isNotEmpty ? fertPumps.first.commonDetails.sNo : null);
+
+          if (boosterSNo != null) {
+            final pumpModel = pumps.cast<PumpModel?>().firstWhere(
+                  (p) => p?.commonDetails.sNo == boosterSNo,
+              orElse: () => null,
+            );
+            final String pumpLabel = (pumpModel?.commonDetails.name?.isNotEmpty == true)
+                ? pumpModel!.commonDetails.name!
+                : 'Booster Pump';
+
+            boosterNode = NodeObject(
+              id: _nextId('booster_pump_${boosterSNo.toInt()}'),
+              position: Offset.zero,
+              type: NodeType.pump,
+              size: const Size(68, 47),
+              label: pumpLabel,
+              isOn: true,
+              showJoints: !_globalHideJoints,
+            );
+            boosterNode.size = boosterNode.defaultSize;
+          } else {
+            boosterNode = NodeObject(
+              id: _nextId('booster_pump_$s'),
+              position: Offset.zero,
+              type: NodeType.pump,
+              size: const Size(68, 47),
+              label: 'Booster Pump',
+              isOn: true,
+              showJoints: !_globalHideJoints,
+            );
+            boosterNode.size = boosterNode.defaultSize;
+          }
+
+          // Place Booster Pump to the left of Multi-Injector Skid and align ports
+          final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
+          final double boosterX = skidNode.position.dx - 120.0;
+          boosterNode.position = Offset(boosterX, skidNode.position.dy + 35.0);
+          final Offset bOutTemp = boosterNode.outputPort;
+          boosterNode.position = boosterNode.position + Offset(0, skidInletPt.dy - bOutTemp.dy);
+          _nodes.add(boosterNode);
+
+          final NodeObject lastFilterNode = filterNodes.last;
+          final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
+
+          // Main pipeline Y level running horizontally under booster pump & skid
+          final double mainPipeY = math.max(filterOutPt.dy, skidNode.position.dy + skidNode.size.height + 40.0);
+
+          // Junction 1 on main line before Booster Pump
+          final Offset boosterInJunctionPt = Offset(boosterNode.position.dx + 20.0, mainPipeY);
+          final NodeObject jnBoosterIn = _newJunction(boosterInJunctionPt);
+
+          // Pipe: Multi-Filter Station outlet -> jnBoosterIn
+          final List<Offset> filterToBoosterWps = [
+            Offset(filterOutPt.dx + 30.0, filterOutPt.dy),
+            Offset(filterOutPt.dx + 30.0, mainPipeY),
+          ];
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: lastFilterNode.id,
+            fromPortId: 'outlet',
+            toNodeId: jnBoosterIn.id,
+            waypoints: _cleanWaypoints(filterOutPt, filterToBoosterWps, boosterInJunctionPt),
+          ));
+
+          // Pipe: jnBoosterIn -> Booster Pump inlet
+          final Offset boosterInPt = boosterNode.getPort('input', isInput: true);
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnBoosterIn.id,
+            toNodeId: boosterNode.id,
+            toPortId: 'input',
+            waypoints: _cleanWaypoints(boosterInJunctionPt, [Offset(boosterInJunctionPt.dx, boosterInPt.dy)], boosterInPt),
+          ));
+
+          // Pipe: Booster Pump outlet -> Multi-Injector Skid inlet
+          final Offset boosterOutPt = boosterNode.outputPort;
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: boosterNode.id,
+            fromPortId: 'output',
+            toNodeId: skidNode.id,
+            toPortId: 'inlet',
+            waypoints: _cleanWaypoints(boosterOutPt, [], skidInletPt),
+          ));
+
+          // Junction 2 on main line after Multi-Injector Skid
+          final Offset skidOutPt = skidNode.getPort('outlet', isInput: false);
+          final double skidRightX = skidNode.position.dx + skidNode.size.width + 40.0;
+          final Offset injectorOutJunctionPt = Offset(skidRightX, mainPipeY);
+          final NodeObject jnSkidOut = _newJunction(injectorOutJunctionPt);
+
+          // Pipe: Multi-Injector Skid outlet -> jnSkidOut
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: skidNode.id,
+            fromPortId: 'outlet',
+            toNodeId: jnSkidOut.id,
+            waypoints: _cleanWaypoints(skidOutPt, [Offset(skidRightX, skidOutPt.dy)], injectorOutJunctionPt),
+          ));
+
+          // Pipe: Main line segment between jnBoosterIn and jnSkidOut
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnBoosterIn.id,
+            toNodeId: jnSkidOut.id,
+            waypoints: _cleanWaypoints(boosterInJunctionPt, [], injectorOutJunctionPt),
+          ));
+
+          // Main line output continuation to the right
+          final Offset mainEndPt = Offset(skidRightX + 100.0, mainPipeY);
+          final NodeObject jnMainEnd = _newJunction(mainEndPt);
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnSkidOut.id,
+            toNodeId: jnMainEnd.id,
+            waypoints: _cleanWaypoints(injectorOutJunctionPt, [], mainEndPt),
+          ));
+        }
+      } else if (filterNodes.isNotEmpty) {
+        final NodeObject lastFilterNode = filterNodes.last;
+        final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
+        final Offset endPt = Offset(filterOutPt.dx + 200.0, filterOutPt.dy);
+        final NodeObject jnEnd = _newJunction(endPt);
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: lastFilterNode.id,
+          fromPortId: 'outlet',
+          toNodeId: jnEnd.id,
+          waypoints: [],
+        ));
+      }
     }
 
     // Every node object is brand new: refresh all per-node notifiers lazily
@@ -1859,6 +2219,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         return 'Pressure Sensor';
       case NodeType.moistureSensor:
         return 'Moisture Sensor';
+      case NodeType.ecSensor:
+        return 'EC Sensor';
+      case NodeType.phSensor:
+        return 'pH Sensor';
+      case NodeType.soilTemperatureSensor:
+        return 'Soil Temp Sensor';
       case NodeType.waterMeter:
         return 'Water Meter';
       case NodeType.blower:
@@ -2108,6 +2474,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                         node.type == NodeType.singleAgitator ||
                         node.type == NodeType.pressureSensor ||
                         node.type == NodeType.moistureSensor ||
+                        node.type == NodeType.ecSensor ||
+                        node.type == NodeType.phSensor ||
+                        node.type == NodeType.soilTemperatureSensor ||
                         node.type == NodeType.waterMeter ||
                         node.type == NodeType.blower ||
                         node.type == NodeType.multiFogger) ...[
@@ -2683,6 +3052,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     _pendingDragIsInput = isInput;
     _pendingDragConnectionPos = initialPos ?? (isInput ? node.getPort(portId, isInput: true) : node.getPort(portId, isInput: false));
     _canvasNotifier.notify();
+    _dragNotifier.notify();
   }
 
   void _onPortPanUpdate(DragUpdateDetails details) {
@@ -2772,6 +3142,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           break;
         }
       }
+
+
 
       // Check if dropped near a specific port of a main fertilizer source
       if (node.type == NodeType.mainFertilizerSource) {
@@ -2987,6 +3359,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _pendingDragIsInput = false;
     });
     _canvasNotifier.notify();
+    _dragNotifier.notify();
   }
 
   void _deleteSelected() {
@@ -3078,12 +3451,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   }
 
   List<Widget> _buildPortHandles() {
-    if (_globalHideJoints) return const [];
+    final bool showAll = !_globalHideJoints || _connectFromId != null;
     final List<Widget> handles = [];
     for (final node in _nodes) {
-      // Interaction layer: only the selected node (or the node a pipe is
-      // currently being dragged from) gets port handles.
-      if (node.id != _selectedNodeId && node.id != _connectFromId) continue;
+      if (!showAll && node.id != _selectedNodeId) continue;
 
       if (node.type == NodeType.pump) {
         handles.add(
@@ -3412,6 +3783,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             color: Colors.blue.withValues(alpha: 0.85),
           ),
         );
+
       } else if (node.type == NodeType.multiFogger) {
         handles.add(
           WaypointHandle(
@@ -3510,20 +3882,25 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                                           // pipes
                                           Positioned.fill(
                                             child: RepaintBoundary(
-                                              child: CustomPaint(
-                                                painter: PipePainter(
-                                                  nodes: _nodes,
-                                                  pipes: _pipes,
-                                                  selectedPipeId: _selectedPipeId,
-                                                  pendingConnectFromId: _connectFromId,
-                                                  pendingFromPortId: _connectFromPortId,
-                                                  pendingDragPos: _pendingDragConnectionPos,
-                                                  pendingIsInput: _pendingDragIsInput,
-                                                  simplify: _simplifyPaint,
-                                                  cullRect: _builtRect,
-                                                  repaint: Listenable.merge(
-                                                      [_canvasNotifier, _dragNotifier, _simplifyPaint]),
-                                                ),
+                                              child: ListenableBuilder(
+                                                listenable: _dragNotifier,
+                                                builder: (context, _) {
+                                                  return CustomPaint(
+                                                    painter: PipePainter(
+                                                      nodes: _nodes,
+                                                      pipes: _pipes,
+                                                      selectedPipeId: _selectedPipeId,
+                                                      pendingConnectFromId: _connectFromId,
+                                                      pendingFromPortId: _connectFromPortId,
+                                                      pendingDragPos: _pendingDragConnectionPos,
+                                                      pendingIsInput: _pendingDragIsInput,
+                                                      simplify: _simplifyPaint,
+                                                      cullRect: _builtRect,
+                                                      repaint: Listenable.merge(
+                                                          [_canvasNotifier, _dragNotifier, _simplifyPaint]),
+                                                    ),
+                                                  );
+                                                },
                                               ),
                                             ),
                                           ),
@@ -3702,6 +4079,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             _toolButton(Icons.cyclone, 'Single Agitator', () => _addNode(NodeType.singleAgitator)),
             _toolButton(Icons.speed, 'Pressure Sensor', () => _addNode(NodeType.pressureSensor)),
             _toolButton(Icons.grass, 'Moisture Sensor', () => _addNode(NodeType.moistureSensor)),
+            _toolButton(Icons.bolt, 'EC Sensor', () => _addNode(NodeType.ecSensor)),
+            _toolButton(Icons.science, 'pH Sensor', () => _addNode(NodeType.phSensor)),
+            _toolButton(Icons.thermostat, 'Soil Temp', () => _addNode(NodeType.soilTemperatureSensor)),
             _toolButton(Icons.water_drop, 'Water Meter', () => _addNode(NodeType.waterMeter)),
             _toolButton(Icons.air, 'Air Blower', () => _addNode(NodeType.blower)),
             _toolButton(Icons.cloud, 'Multi-Fogger', () => _addNode(NodeType.multiFogger)),

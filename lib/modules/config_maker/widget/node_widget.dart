@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/blower_painter.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/ec_sensor_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/fertilizer_tank_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/main_fertilizer_source_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/moisture_sensor_painter.dart';
@@ -15,7 +16,9 @@ import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_ou
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_valve_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/natural_source_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/over_head_tank_painter.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/ph_sensor_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/pressure_sensor_painter.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/soil_temperature_sensor_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/pump_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/single_agitator_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/single_main_valve_painter.dart';
@@ -183,6 +186,12 @@ class NodeWidget extends StatelessWidget {
         return Icons.speed;
       case NodeType.moistureSensor:
         return Icons.grass;
+      case NodeType.ecSensor:
+        return Icons.bolt;
+      case NodeType.phSensor:
+        return Icons.science;
+      case NodeType.soilTemperatureSensor:
+        return Icons.thermostat;
       case NodeType.waterMeter:
         return Icons.water_drop;
       case NodeType.blower:
@@ -232,6 +241,12 @@ class NodeWidget extends StatelessWidget {
         return const Color(0xFFE65100);
       case NodeType.moistureSensor:
         return const Color(0xFF2E7D32);
+      case NodeType.ecSensor:
+        return const Color(0xFF00838F);
+      case NodeType.phSensor:
+        return const Color(0xFFD84315);
+      case NodeType.soilTemperatureSensor:
+        return const Color(0xFFD32F2F);
       case NodeType.waterMeter:
         return const Color(0xFF2F6FB5);
       case NodeType.blower:
@@ -306,7 +321,9 @@ class NodeWidget extends StatelessWidget {
               node.type != NodeType.singleTankValve &&
               node.type != NodeType.multiOutletTankValve)
             Positioned(
-              bottom: -10,
+              bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
+                  ? -22
+                  : -16,
               left: -20,
               right: -20,
               child: Center(
@@ -372,7 +389,9 @@ class NodeWidget extends StatelessWidget {
           if (isSelected && onResizeUpdate != null)
             Positioned(
               right: -10,
-              bottom: -10,
+              bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
+                  ? -22
+                  : -16,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onPanStart: onResizeStart,
@@ -699,6 +718,51 @@ class NodeWidget extends StatelessWidget {
           size: node.size,
           simplify: simplify,
           painter: DetailedMoistureSensorPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
+        ),
+      );
+    }
+
+    if (node.type == NodeType.ecSensor) {
+      return _buildWrapper(
+        padding: EdgeInsets.zero,
+        child: CachedNodePainterWidget(
+          cacheKey: 'ec_sensor_${node.isOn}_${node.showJoints}_$szKey',
+          size: node.size,
+          simplify: simplify,
+          painter: DetailedEcSensorPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
+        ),
+      );
+    }
+
+    if (node.type == NodeType.phSensor) {
+      return _buildWrapper(
+        padding: EdgeInsets.zero,
+        child: CachedNodePainterWidget(
+          cacheKey: 'ph_sensor_${node.isOn}_${node.showJoints}_$szKey',
+          size: node.size,
+          simplify: simplify,
+          painter: DetailedPhSensorPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+          ),
+        ),
+      );
+    }
+
+    if (node.type == NodeType.soilTemperatureSensor) {
+      return _buildWrapper(
+        padding: EdgeInsets.zero,
+        child: CachedNodePainterWidget(
+          cacheKey: 'soil_temp_sensor_${node.isOn}_${node.showJoints}_$szKey',
+          size: node.size,
+          simplify: simplify,
+          painter: DetailedSoilTemperatureSensorPainter(
             isOn: node.isOn,
             showJoints: node.showJoints,
           ),

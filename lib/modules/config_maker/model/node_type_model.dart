@@ -31,6 +31,9 @@ enum NodeType {
   pressureSensor,
   waterMeter,
   moistureSensor,
+  ecSensor,
+  phSensor,
+  soilTemperatureSensor,
   blower,
   multiFogger,
 }
@@ -388,6 +391,12 @@ class NodeObject {
         return const Size(27, 27);
       case NodeType.moistureSensor:
         return const Size(32, 42);
+      case NodeType.ecSensor:
+        return const Size(32, 48);
+      case NodeType.phSensor:
+        return const Size(32, 48);
+      case NodeType.soilTemperatureSensor:
+        return const Size(32, 48);
       case NodeType.blower:
         return const Size(60, 56);
       case NodeType.multiFogger:
