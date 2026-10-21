@@ -67,7 +67,6 @@ class _MyAppState extends State<MyApp> {
 
         var isOro = F.appFlavor?.name.contains('oro') ?? false;
         var isATel = F.appFlavor?.name.contains('agritel') ?? false;
-
         return MaterialApp(
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,

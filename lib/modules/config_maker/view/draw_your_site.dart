@@ -638,7 +638,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           id: _nextId('main_fert_${sNo.toInt()}'),
           position: Offset(mfsX, row1Y + 20.0),
           type: NodeType.mainFertilizerSource,
-          size: const Size(74, 52),
+          size: const Size(148, 104),
           label: label,
           showJoints: !_globalHideJoints,
         );
@@ -661,7 +661,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
               : 'New Pump';
           final pumpNode = NodeObject(
             id: _nextId('fert_pump_${pNo.toInt()}'),
-            position: Offset(mfsX + 74.0 + 30.0, row1Y + 35.0),
+            position: Offset(mfsX + 148.0 + 30.0, row1Y + 35.0),
             type: NodeType.pump,
             size: const Size(68, 47),
             label: pumpLabel,
@@ -1863,7 +1863,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         return 'Water Meter';
       case NodeType.blower:
         return 'Air Blower';
+      case NodeType.multiFogger:
+        return 'Multi-Fogger System';
       case NodeType.junction:
+        return '';
+      default:
         return '';
     }
   }
@@ -2105,7 +2109,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                         node.type == NodeType.pressureSensor ||
                         node.type == NodeType.moistureSensor ||
                         node.type == NodeType.waterMeter ||
-                        node.type == NodeType.blower) ...[
+                        node.type == NodeType.blower ||
+                        node.type == NodeType.multiFogger) ...[
                       const SizedBox(height: 8),
                       SwitchListTile(
                         title: Text(node.type == NodeType.pump ? 'Pump running' : 'Active / Flowing'),
@@ -2218,6 +2223,35 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                               ),
                             ),
                             const Text('300', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          ],
+                        ),
+                      ],
+                      if (node.type == NodeType.multiFogger) ...[
+                        const Divider(height: 24),
+                        Text(
+                          'Fogger Nozzle Count (${node.outletPortCount})',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Text('1', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            Expanded(
+                              child: Slider(
+                                value: node.outletPortCount.toDouble().clamp(1.0, 12.0),
+                                min: 1.0,
+                                max: 12.0,
+                                divisions: 11,
+                                label: '${node.outletPortCount}',
+                                onChanged: (v) {
+                                  _saveToHistory();
+                                  setSheetState(() => node.outletPortCount = v.round());
+                                  setState(() {});
+                                  _canvasNotifier.notify();
+                                },
+                              ),
+                            ),
+                            const Text('12', style: TextStyle(fontSize: 12, color: Colors.grey)),
                           ],
                         ),
                       ],
@@ -2741,14 +2775,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
       // Check if dropped near a specific port of a main fertilizer source
       if (node.type == NodeType.mainFertilizerSource) {
-        if ((node.inputPort - pos).distance < 20) {
+        final inlet = node.getPort('inlet', isInput: true);
+        final waterOutlet = node.getPort('water_outlet', isInput: false);
+        final outlet = node.getPort('outlet', isInput: false);
+        final ports = [
+          MapEntry('inlet', (inlet - pos).distance),
+          MapEntry('water_outlet', (waterOutlet - pos).distance),
+          MapEntry('outlet', (outlet - pos).distance),
+        ];
+        ports.sort((a, b) => a.value.compareTo(b.value));
+        if (ports.first.value < 35) {
           targetNodeId = node.id;
-          targetPortId = 'inlet';
-          break;
-        }
-        if ((node.outputPort - pos).distance < 20) {
-          targetNodeId = node.id;
-          targetPortId = 'outlet';
+          targetPortId = ports.first.key;
           break;
         }
       }
@@ -2870,6 +2908,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       // Check if dropped near a port of a blower
       if (node.type == NodeType.blower) {
         if ((node.outputPort - pos).distance < 35) {
+          targetNodeId = node.id;
+          targetPortId = 'outlet';
+        }
+        if (targetNodeId != null) break;
+      }
+
+      // Check if dropped near a port of a multi-fogger system
+      if (node.type == NodeType.multiFogger) {
+        if ((node.inputPort - pos).distance < 35) {
+          targetNodeId = node.id;
+          targetPortId = 'inlet';
+        } else if ((node.outputPort - pos).distance < 35) {
           targetNodeId = node.id;
           targetPortId = 'outlet';
         }
@@ -3119,24 +3169,35 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       } else if (node.type == NodeType.mainFertilizerSource) {
         handles.add(
           WaypointHandle(
-            key: ValueKey('${node.id}_in'),
-            position: node.inputPort,
-            onPanStart: (d) => _onPortPanStart(node, isInput: true),
+            key: ValueKey('${node.id}_inlet'),
+            position: node.getPort('inlet', isInput: true),
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
             onPanUpdate: _onPortPanUpdate,
             onPanEnd: _onPortPanEnd,
             onLongPress: () {},
-            color: Colors.lightGreen.withValues(alpha: 0.7),
+            color: const Color(0xFF1565C0).withValues(alpha: 0.85),
           ),
         );
         handles.add(
           WaypointHandle(
-            key: ValueKey('${node.id}_out'),
-            position: node.outputPort,
-            onPanStart: (d) => _onPortPanStart(node, isInput: false),
+            key: ValueKey('${node.id}_water_outlet'),
+            position: node.getPort('water_outlet', isInput: false),
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'water_outlet'),
             onPanUpdate: _onPortPanUpdate,
             onPanEnd: _onPortPanEnd,
             onLongPress: () {},
-            color: Colors.green.withValues(alpha: 0.7),
+            color: const Color(0xFF00897B).withValues(alpha: 0.85),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.getPort('outlet', isInput: false),
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: const Color(0xFF2E7D32).withValues(alpha: 0.85),
           ),
         );
       } else if (node.type == NodeType.fertilizerTank) {
@@ -3349,6 +3410,29 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             onPanEnd: _onPortPanEnd,
             onLongPress: () {},
             color: Colors.blue.withValues(alpha: 0.85),
+          ),
+        );
+      } else if (node.type == NodeType.multiFogger) {
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_inlet'),
+            position: node.inputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: true, portId: 'inlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.cyan.withValues(alpha: 0.85),
+          ),
+        );
+        handles.add(
+          WaypointHandle(
+            key: ValueKey('${node.id}_outlet'),
+            position: node.outputPort,
+            onPanStart: (d) => _onPortPanStart(node, isInput: false, portId: 'outlet'),
+            onPanUpdate: _onPortPanUpdate,
+            onPanEnd: _onPortPanEnd,
+            onLongPress: () {},
+            color: Colors.lightBlue.withValues(alpha: 0.85),
           ),
         );
       }
@@ -3620,6 +3704,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             _toolButton(Icons.grass, 'Moisture Sensor', () => _addNode(NodeType.moistureSensor)),
             _toolButton(Icons.water_drop, 'Water Meter', () => _addNode(NodeType.waterMeter)),
             _toolButton(Icons.air, 'Air Blower', () => _addNode(NodeType.blower)),
+            _toolButton(Icons.cloud, 'Multi-Fogger', () => _addNode(NodeType.multiFogger)),
             const SizedBox(width: 12),
             const VerticalDivider(width: 1),
             const SizedBox(width: 12),

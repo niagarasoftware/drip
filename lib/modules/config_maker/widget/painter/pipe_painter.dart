@@ -292,8 +292,11 @@ class PipePainter extends CustomPainter {
       return false;
     }
 
-    if (from.type == NodeType.mainFertilizerSource ||
-        to.type == NodeType.mainFertilizerSource) {
+    final bool fromMainFert = from.type == NodeType.mainFertilizerSource &&
+        (pipe.fromPortId == 'outlet' || pipe.fromPortId == 'fert_outlet' || pipe.fromPortId == null);
+    final bool toMainFert = to.type == NodeType.mainFertilizerSource &&
+        (pipe.toPortId == 'outlet' || pipe.toPortId == 'fert_outlet');
+    if (fromMainFert || toMainFert) {
       return true;
     }
 
@@ -327,7 +330,7 @@ class PipePainter extends CustomPainter {
     bool isSource(NodeObject n, String? port) =>
         n.type == NodeType.singleTankValve ||
             n.type == NodeType.multiOutletTankValve ||
-            n.type == NodeType.mainFertilizerSource ||
+            (n.type == NodeType.mainFertilizerSource && (port == 'outlet' || port == 'fert_outlet' || port == null)) ||
             (n.type == NodeType.fertilizerTank && port != 'top_inlet');
 
     // "nodeId|channel_i" when the end is an injector channel port, else null.
@@ -643,7 +646,7 @@ class PipePainter extends CustomPainter {
         if (from.type == NodeType.blower || pendingFromPortId == 'top_inlet' || airNodeIds.contains(from.id)) {
           isAirDrag = true;
         } else if (from.type == NodeType.mainFertilizerSource) {
-          isFertilizerDrag = true;
+          isFertilizerDrag = (pendingFromPortId == 'outlet' || pendingFromPortId == 'fert_outlet' || pendingFromPortId == null);
         } else if (from.type == NodeType.junction) {
           isFertilizerDrag = pipes.any((p) =>
           fertilizerPipeIds.contains(p.id) &&
@@ -680,9 +683,8 @@ class PipePainter extends CustomPainter {
                 break;
               }
             } else if (n.type == NodeType.mainFertilizerSource) {
-              if ((n.position & n.size).inflate(30).contains(pendingDragPos!) ||
-                  (n.inputPort - pendingDragPos!).distance < 40 ||
-                  (n.outputPort - pendingDragPos!).distance < 40) {
+              final fertOutlet = n.getPort('outlet', isInput: false);
+              if ((fertOutlet - pendingDragPos!).distance < 40) {
                 isFertilizerDrag = true;
                 break;
               }

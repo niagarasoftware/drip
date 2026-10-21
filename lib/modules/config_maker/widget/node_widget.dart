@@ -8,6 +8,7 @@ import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/main_fer
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/moisture_sensor_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_agitator_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_filter_painter.dart';
+import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_fogger_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_injector_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_main_valve_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/multi_outlet_tank_valve_painter.dart';
@@ -186,6 +187,8 @@ class NodeWidget extends StatelessWidget {
         return Icons.water_drop;
       case NodeType.blower:
         return Icons.air;
+      case NodeType.multiFogger:
+        return Icons.cloud;
 
     }
   }
@@ -233,6 +236,8 @@ class NodeWidget extends StatelessWidget {
         return const Color(0xFF2F6FB5);
       case NodeType.blower:
         return const Color(0xFF37474F);
+      case NodeType.multiFogger:
+        return const Color(0xFF0288D1);
     }
   }
 
@@ -498,7 +503,6 @@ class NodeWidget extends StatelessWidget {
           simplify: simplify,
           painter: DetailedMainFertilizerSourcePainter(
             isOn: node.isOn,
-            phase: 0.0,
             showJoints: node.showJoints,
           ),
         ),
@@ -730,6 +734,22 @@ class NodeWidget extends StatelessWidget {
             showJoints: node.showJoints,
             phase: 0.0,
             speed: node.isOn ? 1.0 : 0.0,
+          ),
+        ),
+      );
+    }
+
+    if (node.type == NodeType.multiFogger) {
+      return _buildWrapper(
+        padding: EdgeInsets.zero,
+        child: CachedNodePainterWidget(
+          cacheKey: 'multi_fogger_${node.isOn}_${node.showJoints}_${node.outletPortCount}_$szKey',
+          size: node.size,
+          simplify: simplify,
+          painter: DetailedMultiFoggerPainter(
+            isOn: node.isOn,
+            showJoints: node.showJoints,
+            foggers: node.outletPortCount,
           ),
         ),
       );

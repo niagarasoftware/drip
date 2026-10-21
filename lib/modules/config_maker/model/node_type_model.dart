@@ -2,7 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../widget/painter/blower_painter.dart';
+import '../widget/painter/main_fertilizer_source_painter.dart';
 import '../widget/painter/multi_agitator_painter.dart';
+import '../widget/painter/multi_fogger_painter.dart';
 import '../widget/painter/multi_injector_painter.dart';
 
 
@@ -30,6 +32,7 @@ enum NodeType {
   waterMeter,
   moistureSensor,
   blower,
+  multiFogger,
 }
 
 /// A draggable piece of equipment on the canvas (pump, tank, source, etc).
@@ -98,7 +101,8 @@ class NodeObject {
       return Offset(position.dx + size.width * 0.14, position.dy + size.height * 0.12);
     }
     if (type == NodeType.mainFertilizerSource) {
-      return Offset(position.dx + size.width * 0.15, position.dy + size.height * 0.15);
+      final p = DetailedMainFertilizerSourcePainter.waterInletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.fertilizerTank) {
       return Offset(position.dx + size.width * (92 / 944), position.dy + size.height * (434 / 1132));
@@ -120,6 +124,10 @@ class NodeObject {
     }
     if (type == NodeType.blower) {
       final p = DetailedBlowerPainter.outletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
+    }
+    if (type == NodeType.multiFogger) {
+      final p = DetailedMultiFoggerPainter.inletPort(size);
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.waterMeter) {
@@ -159,7 +167,8 @@ class NodeObject {
       return Offset(position.dx + size.width * 0.5, position.dy + size.height * 0.95);
     }
     if (type == NodeType.mainFertilizerSource) {
-      return Offset(position.dx + size.width * 0.85, position.dy + size.height * 0.82);
+      final p = DetailedMainFertilizerSourcePainter.fertOutletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.fertilizerTank) {
       return Offset(position.dx + size.width * (500 / 944), position.dy + size.height * (968 / 1132));
@@ -182,6 +191,13 @@ class NodeObject {
     if (type == NodeType.blower) {
       final p = DetailedBlowerPainter.outletPort(size);
       return Offset(position.dx + p.dx, position.dy + p.dy);
+    }
+    if (type == NodeType.multiFogger) {
+      final double u = math.min(size.height, size.width / DetailedMultiFoggerPainter.recommendedAspect);
+      return Offset(
+        position.dx + size.width - u * 0.08,
+        position.dy + (size.height - u) / 2 + u * 0.22,
+      );
     }
     if (type == NodeType.waterMeter) {
       return isHorizontal
@@ -221,8 +237,16 @@ class NodeObject {
       if (portId == 'intake' || (portId == null && !isInput)) return outputPort;
     }
     if (type == NodeType.mainFertilizerSource) {
-      if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
-      if (portId == 'outlet' || (portId == null && !isInput)) return outputPort;
+      if (portId == 'inlet' || portId == 'water_inlet' || (portId == null && isInput)) {
+        return inputPort;
+      }
+      if (portId == 'water_outlet' || portId == 'drain') {
+        final p = DetailedMainFertilizerSourcePainter.waterOutletPort(size);
+        return Offset(position.dx + p.dx, position.dy + p.dy);
+      }
+      if (portId == 'outlet' || portId == 'fert_outlet' || (portId == null && !isInput)) {
+        return outputPort;
+      }
     }
     if (type == NodeType.fertilizerTank) {
       if (portId == 'top_inlet') {
@@ -305,6 +329,10 @@ class NodeObject {
     if (type == NodeType.blower) {
       return outputPort;
     }
+    if (type == NodeType.multiFogger) {
+      if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
+      if (portId == 'outlet' || (portId == null && !isInput)) return outputPort;
+    }
     if (type == NodeType.waterMeter) {
       if (isHorizontal) {
         if (portId == 'left' || portId == 'inlet' || (portId == null && isInput)) {
@@ -334,7 +362,7 @@ class NodeObject {
       case NodeType.junction:
         return const Size(10, 10);
       case NodeType.mainFertilizerSource:
-        return const Size(74, 52);
+        return const Size(148, 104);
       case NodeType.fertilizerTank:
         return const Size(70, 88);
       case NodeType.multiInjector:
@@ -362,6 +390,8 @@ class NodeObject {
         return const Size(32, 42);
       case NodeType.blower:
         return const Size(60, 56);
+      case NodeType.multiFogger:
+        return const Size(160, 80);
       case NodeType.waterMeter:
         return isHorizontal ? const Size(95, 63) : const Size(63, 95);
       case NodeType.overheadTank:
