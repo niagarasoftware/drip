@@ -30,6 +30,8 @@ import '../../../models/customer/site_model.dart';
 import '../../../services/mqtt_service.dart';
 import '../../../utils/environment.dart';
 import '../../../utils/constants.dart';
+import 'package:provider/provider.dart';
+import '../../../StateManagement/customer_provider.dart';
 
 class LogHome extends StatefulWidget {
   final dynamic serverData;
@@ -778,7 +780,9 @@ class _LogHomeState extends State<LogHome> {
 
   void _mergeLivePayload(Map<String, dynamic> rawLive) {
     if (!mounted) return;
-    if (dataSource == null || dataSource is! Map) return;
+    if (dataSource == null || dataSource is! Map) {
+      dataSource = {'log': []};
+    }
     final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     final preparedLive = _prepareLiveIrrigationData(rawLive, todayStr);
@@ -816,7 +820,16 @@ class _LogHomeState extends State<LogHome> {
   }
 
   Future<void> _requestLiveSync({bool silent = false}) async {
-    final deviceId = widget.masterData?.deviceId ?? widget.userData['deviceId']?.toString();
+    String? deviceId = widget.masterData?.deviceId ?? widget.userData['deviceId']?.toString();
+    if (deviceId == null || deviceId.isEmpty) {
+      try {
+        final custPvd = Provider.of<CustomerProvider>(context, listen: false);
+        if (custPvd.deviceId != null && custPvd.deviceId!.isNotEmpty) {
+          deviceId = custPvd.deviceId;
+        }
+      } catch (_) {}
+    }
+
     if (deviceId == null || deviceId.isEmpty) {
       if (!silent && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
