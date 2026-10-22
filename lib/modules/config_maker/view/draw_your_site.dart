@@ -1645,7 +1645,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       final double headerX = 80.0;
-      final double headerY = currentReturnY + 12.0;
+      final double headerY = currentReturnY - 40.0;
 
       final lineHeaderNode = NodeObject(
         id: _nextId('line_header_$i'),
@@ -1654,11 +1654,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         label: lineName,
         showJoints: false,
       );
-      lineHeaderNode.size = Size(math.max(180.0, 11.0 * lineName.length + 60.0), 34);
+      lineHeaderNode.size = Size(math.max(120.0, 9.0 * lineName.length + 32.0), 30);
       _nodes.add(lineHeaderNode);
 
       final double valveBankX = 80.0;
-      final double valveBankStartY = headerY + lineHeaderNode.size.height + 15.0;
+      final double valveBankStartY = currentReturnY + 55.0;
 
       // Split lValves into rows/banks of at most kMaxValvesPerRow (20) valves
       final int bankCount = lValves > 0 ? (lValves / kMaxValvesPerRow).ceil() : 0;

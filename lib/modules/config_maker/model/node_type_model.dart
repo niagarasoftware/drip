@@ -419,7 +419,7 @@ class NodeObject {
       case NodeType.pump:
         return const Size(68, 47);
       case NodeType.lineHeader:
-        return Size(math.max(180.0, 11.0 * label.length + 60.0), 34);
+        return Size(math.max(120.0, 9.0 * label.length + 32.0), 30);
     }
   }
 

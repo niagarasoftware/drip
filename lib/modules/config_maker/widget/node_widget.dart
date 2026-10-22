@@ -370,7 +370,8 @@ class NodeWidget extends StatelessWidget {
           if (showNameBadge &&
               node.type != NodeType.singleTankValve &&
               node.type != NodeType.multiOutletTankValve &&
-              node.type != NodeType.multiValve)
+              node.type != NodeType.multiValve &&
+              node.type != NodeType.lineHeader)
             Positioned(
               bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
                   ? -22
@@ -696,24 +697,6 @@ class NodeWidget extends StatelessWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 0.8),
-                ),
-                child: Text(
-                  'LINE ${lineIdx + 1}',
-                  style: TextStyle(
-                    color: accentColor,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
                   ),
                 ),
               ),
