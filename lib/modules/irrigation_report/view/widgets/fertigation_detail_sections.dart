@@ -9,6 +9,9 @@ class FertigationDetailSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool hasActiveCentral = cardModel.centralChannels.any((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—' && c.actual.isNotEmpty);
+    bool hasActiveLocal = cardModel.localChannels.any((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—' && c.actual.isNotEmpty);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -53,67 +56,30 @@ class FertigationDetailSections extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // 3. FERTILIZER CHANNELS (Central C-CH1..8 and Local L-CH1..8)
+        // 3. CHANNELS (Image 2 compact horizontal row design)
         const Text(
-          'Central Fertilizer Channels (C-CH1 to C-CH8)',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
+          'CHANNELS',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
         ),
-        const SizedBox(height: 8),
-        LayoutBuilder(builder: (context, constraints) {
-          int crossAxisCount = 4;
-          if (constraints.maxWidth < 400) {
-            crossAxisCount = 1;
-          } else if (constraints.maxWidth < 650) {
-            crossAxisCount = 2;
-          } else if (constraints.maxWidth < 900) {
-            crossAxisCount = 3;
-          }
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cardModel.centralChannels.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 2.2,
-            ),
-            itemBuilder: (context, index) {
-              return FertigationChannelTile(channel: cardModel.centralChannels[index]);
-            },
-          );
-        }),
+        const SizedBox(height: 6),
+        ...cardModel.centralChannels.take(4).map((c) => FertigationChannelTile(channel: c)),
+        if (cardModel.centralChannels.length > 4)
+          ...cardModel.centralChannels.skip(4).where((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—').map((c) => FertigationChannelTile(channel: c)),
+        if (cardModel.centralChannels.length > 4 && cardModel.centralChannels.skip(4).every((c) => c.actual == '00:00:00' || c.actual == '0' || c.actual == '—'))
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: Text('CH5–CH8 · no data', style: TextStyle(fontSize: 11, color: Color(0xFF637D7A))),
+          ),
 
-        const SizedBox(height: 12),
-        const Text(
-          'Local Fertilizer Channels (L-CH1 to L-CH8)',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
-        ),
-        const SizedBox(height: 8),
-        LayoutBuilder(builder: (context, constraints) {
-          int crossAxisCount = 4;
-          if (constraints.maxWidth < 400) {
-            crossAxisCount = 1;
-          } else if (constraints.maxWidth < 650) {
-            crossAxisCount = 2;
-          } else if (constraints.maxWidth < 900) {
-            crossAxisCount = 3;
-          }
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cardModel.localChannels.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 2.2,
-            ),
-            itemBuilder: (context, index) {
-              return FertigationChannelTile(channel: cardModel.localChannels[index]);
-            },
-          );
-        }),
+        if (cardModel.localChannels.isNotEmpty && hasActiveLocal) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'LOCAL CHANNELS',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
+          ),
+          const SizedBox(height: 6),
+          ...cardModel.localChannels.map((c) => FertigationChannelTile(channel: c)),
+        ],
 
         const Divider(height: 24, thickness: 1, color: Color(0xFFEDF4F4)),
 

@@ -88,48 +88,48 @@ class _UserManualScreenState extends State<UserManualScreen> {
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
-            )
+        child: CircularProgressIndicator(),
+      )
           : errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.red,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: retryPdf,
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : document != null
-                  ? PDFViewer(
-                      key: ValueKey(
-                        '${widget.pdfUrl}_$retryCount',
-                      ),
-                      document: document!,
-                    )
-                  : const Center(
-                      child: Text('Unable to load user manual'),
-                    ),
+          ? Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                color: Colors.red,
+                size: 48,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: retryPdf,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      )
+          : document != null
+          ? PDFViewer(
+        key: ValueKey(
+          '${widget.pdfUrl}_$retryCount',
+        ),
+        document: document!,
+      )
+          : const Center(
+        child: Text('Unable to load user manual'),
+      ),
     );
   }
 }
