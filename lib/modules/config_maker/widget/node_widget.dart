@@ -244,6 +244,8 @@ class NodeWidget extends StatelessWidget {
         return Icons.air;
       case NodeType.multiFogger:
         return Icons.cloud;
+      case NodeType.lineHeader:
+        return Icons.label;
 
     }
   }
@@ -299,6 +301,8 @@ class NodeWidget extends StatelessWidget {
         return const Color(0xFF37474F);
       case NodeType.multiFogger:
         return const Color(0xFF0288D1);
+      case NodeType.lineHeader:
+        return const Color(0xFF10B981);
     }
   }
 
@@ -365,7 +369,8 @@ class NodeWidget extends StatelessWidget {
             }),
           if (showNameBadge &&
               node.type != NodeType.singleTankValve &&
-              node.type != NodeType.multiOutletTankValve)
+              node.type != NodeType.multiOutletTankValve &&
+              node.type != NodeType.multiValve)
             Positioned(
               bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
                   ? -22
@@ -630,20 +635,113 @@ class NodeWidget extends StatelessWidget {
       );
     }
 
+    if (node.type == NodeType.lineHeader) {
+      int lineIdx = 0;
+      final match = RegExp(r'line_header_(\d+)').firstMatch(node.id);
+      if (match != null) {
+        lineIdx = int.tryParse(match.group(1)!) ?? 0;
+      }
+
+      const List<Color> lineColors = [
+        Color(0xFF10B981), // Emerald Green
+        Color(0xFF3B82F6), // Royal Blue
+        Color(0xFFF59E0B), // Amber Orange
+        Color(0xFF8B5CF6), // Purple Violet
+        Color(0xFFF43F5E), // Rose Pink
+        Color(0xFF06B6D4), // Cyan Sky
+      ];
+      final Color accentColor = lineColors[lineIdx % lineColors.length];
+
+      return _buildWrapper(
+        padding: EdgeInsets.zero,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xEE0F172A),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: accentColor, width: 1.8),
+            boxShadow: [
+              BoxShadow(
+                color: accentColor.withValues(alpha: 0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accentColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: accentColor.withValues(alpha: 0.8),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  node.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: accentColor.withValues(alpha: 0.5), width: 0.8),
+                ),
+                child: Text(
+                  'LINE ${lineIdx + 1}',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (node.type == NodeType.multiValve) {
       int effectiveValves = node.outletPortCount;
       List<String> valveNames = [];
       try {
         final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
-        final lineModel = _findLineForNode(node, configPvd);
 
-        if (lineModel != null) {
-          effectiveValves = lineModel.valve.length;
-          for (final double vSno in lineModel.valve) {
-            valveNames.add(_getDeviceName(vSno, configPvd));
+        if (node.portLabels != null && node.portLabels!.isNotEmpty) {
+          valveNames = node.portLabels!;
+          effectiveValves = valveNames.length;
+        } else {
+          final lineModel = _findLineForNode(node, configPvd);
+          if (lineModel != null) {
+            effectiveValves = lineModel.valve.length;
+            for (final double vSno in lineModel.valve) {
+              valveNames.add(_getDeviceName(vSno, configPvd));
+            }
+          } else if (configPvd.line.isNotEmpty) {
+            effectiveValves = configPvd.line.fold<int>(0, (sum, l) => sum + l.valve.length);
           }
-        } else if (configPvd.line.isNotEmpty) {
-          effectiveValves = configPvd.line.fold<int>(0, (sum, l) => sum + l.valve.length);
         }
 
         node.outletPortCount = effectiveValves;

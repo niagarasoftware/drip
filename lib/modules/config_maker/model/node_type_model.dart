@@ -38,6 +38,7 @@ enum NodeType {
   soilTemperatureSensor,
   blower,
   multiFogger,
+  lineHeader,
 }
 
 /// A draggable piece of equipment on the canvas (pump, tank, source, etc).
@@ -417,6 +418,8 @@ class NodeObject {
         return const Size(68, 47);
       case NodeType.pump:
         return const Size(68, 47);
+      case NodeType.lineHeader:
+        return Size(math.max(180.0, 11.0 * label.length + 60.0), 34);
     }
   }
 

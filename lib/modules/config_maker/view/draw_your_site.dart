@@ -176,6 +176,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           if (configPvd.source.isNotEmpty ||
               configPvd.pump.isNotEmpty ||
               configPvd.fertilization.isNotEmpty ||
+              configPvd.filtration.isNotEmpty ||
               configPvd.channelConfig.isNotEmpty) {
             _generateFromSourceConfig(showSnackBar: false);
           }
@@ -607,6 +608,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     }
 
     // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // FILTRATION FORMATION (Multi-Filter Station)
     // -------------------------------------------------------------------------
     double maxWaterX = 0.0;
@@ -620,31 +622,55 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
     }
 
-    final List<NodeObject> irrigationPumpNodes = [];
+    final List<_SupplyNodeRef> waterSupplyNodes = [];
 
     // First preference: pumps explicitly configured with pumpType == 2 (Irrigation Pump) in PumpConfiguration
     for (final p in waterPumps) {
       if (p.pumpType == 2) {
         final node = pumpMap[p.commonDetails.sNo ?? 0.0];
-        if (node != null) irrigationPumpNodes.add(node);
+        if (node != null) waterSupplyNodes.add(_SupplyNodeRef(node, 'output'));
       }
     }
 
     // Fallback: if no pump has pumpType == 2, use terminal water pumps (no outgoing edge in edges)
-    if (irrigationPumpNodes.isEmpty) {
+    if (waterSupplyNodes.isEmpty) {
       final outgoingFromIds = edges.map((e) => e.from.id).toSet();
       for (final p in waterPumps) {
         final node = pumpMap[p.commonDetails.sNo ?? 0.0];
         if (node != null && !outgoingFromIds.contains(node.id)) {
-          irrigationPumpNodes.add(node);
+          waterSupplyNodes.add(_SupplyNodeRef(node, 'output'));
         }
       }
     }
 
-    if (irrigationPumpNodes.isEmpty && waterPumps.isNotEmpty) {
+    if (waterSupplyNodes.isEmpty && waterPumps.isNotEmpty) {
       final lastNode = pumpMap[waterPumps.last.commonDetails.sNo ?? 0.0];
-      if (lastNode != null) irrigationPumpNodes.add(lastNode);
+      if (lastNode != null) waterSupplyNodes.add(_SupplyNodeRef(lastNode, 'output'));
     }
+
+    // Fallback if no water pumps exist: use terminal water sources or outlet tank valves
+    if (waterSupplyNodes.isEmpty && waterSources.isNotEmpty) {
+      final outgoingFromIds = edges.map((e) => e.from.id).toSet();
+      for (final n in _nodes) {
+        if (!outgoingFromIds.contains(n.id)) {
+          if (n.type == NodeType.singleTankValve || n.type == NodeType.multiOutletTankValve) {
+            final port = n.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet';
+            waterSupplyNodes.add(_SupplyNodeRef(n, port));
+          } else if (n.type == NodeType.overheadTank ||
+              n.type == NodeType.sump ||
+              n.type == NodeType.well ||
+              n.type == NodeType.naturalSource) {
+            waterSupplyNodes.add(_SupplyNodeRef(n, 'outlet'));
+          }
+        }
+      }
+    }
+
+    final bool hasFertData = mainFertSources.isNotEmpty ||
+        fertTanks.isNotEmpty ||
+        fertSites.isNotEmpty ||
+        channelConfigs.isNotEmpty ||
+        fertPumps.isNotEmpty;
 
     final List<NodeObject> filterNodes = [];
     if (filtrations.isNotEmpty) {
@@ -665,24 +691,48 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         _nodes.add(filterNode);
         filterNodes.add(filterNode);
       }
-    } else {
-      final filterNode = NodeObject(
-        id: _nextId('multi_filter_0'),
-        position: Offset.zero,
-        type: NodeType.multiFilter,
-        label: 'Multi-Filter Station',
-        showJoints: !_globalHideJoints,
-      );
-      filterNode.size = filterNode.defaultSize;
-      _nodes.add(filterNode);
-      filterNodes.add(filterNode);
-    }
 
-    for (int f = 0; f < filterNodes.length; f++) {
-      final fn = filterNodes[f];
-      final double fnX = math.max(160.0, (maxWaterX - fn.size.width) / 2.0 + f * 180.0);
-      final double fnY = math.max(400.0, maxWaterY + 70.0);
-      fn.position = Offset(fnX, fnY);
+      if (hasFertData) {
+        // BOTH Filtration and Fertigation exist: place Filtration UNDER the water setup
+        final double totalFilterW = filterNodes.fold<double>(0.0, (sum, fn) => sum + fn.size.width) + (filterNodes.length - 1) * 30.0;
+        for (int f = 0; f < filterNodes.length; f++) {
+          final fn = filterNodes[f];
+          final double fnX = math.max(160.0, (maxWaterX - totalFilterW) / 2.0 + f * (fn.size.width + 30.0));
+          final double fnY = math.max(380.0, maxWaterY + 70.0);
+          fn.position = Offset(fnX, fnY);
+        }
+      } else {
+        // ONLY Filtration exists (No Fertigation): place Filtration IN-LINE (Horizontal) to the right of water setup
+        double primarySupplyY = maxWaterY / 2.0;
+        if (waterSupplyNodes.isNotEmpty) {
+          final termRef = waterSupplyNodes.last;
+          final termPt = portPosition(termRef.node, termRef.portId, isInput: false);
+          primarySupplyY = termPt.dy;
+        }
+
+        final double firstFilterX = math.max(300.0, maxWaterX + 80.0);
+        final Offset sampleInletLocal = filterNodes.first.getPort('inlet', isInput: true) - filterNodes.first.position;
+
+        for (int f = 0; f < filterNodes.length; f++) {
+          final fn = filterNodes[f];
+          final double fnX = firstFilterX + f * (fn.size.width + 40.0);
+          final double fnY = math.max(30.0, primarySupplyY - sampleInletLocal.dy);
+          fn.position = Offset(fnX, fnY);
+        }
+      }
+
+      for (int f = 0; f < filterNodes.length - 1; f++) {
+        final f1 = filterNodes[f];
+        final f2 = filterNodes[f + 1];
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: f1.id,
+          fromPortId: 'outlet',
+          toNodeId: f2.id,
+          toPortId: 'inlet',
+          waypoints: [],
+        ));
+      }
     }
 
     NodeObject? findBlockingNode(Offset startPt, double targetX) {
@@ -693,7 +743,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         startPt.dy + 12.0,
       );
       for (final n in _nodes) {
-        if (n.type == NodeType.junction || n.type == NodeType.multiFilter) continue;
+        if (n.type == NodeType.junction || n.type == NodeType.multiFilter || n.type == NodeType.lineHeader) continue;
         final double effHeight = n.size.height + (n.type == NodeType.overheadTank ? 34.0 : 0.0);
         final nRect = Rect.fromLTWH(n.position.dx, n.position.dy, n.size.width, effHeight);
         if (lRect.overlaps(nRect)) {
@@ -703,15 +753,21 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       return null;
     }
 
-    // Connect Irrigation Pumps -> Multi-Filter Station
-    if (irrigationPumpNodes.isNotEmpty && filterNodes.isNotEmpty) {
-      final NodeObject firstFilterNode = filterNodes.first;
-      final Offset filterInletPt = firstFilterNode.getPort('inlet', isInput: true);
-      final double trunkX = maxWaterX + 40.0;
+    void connectWaterSupplyTo({
+      required List<_SupplyNodeRef> supplyNodes,
+      required String targetNodeId,
+      required String? targetPortId,
+      required Offset targetPt,
+      required double maxWaterX,
+    }) {
+      if (supplyNodes.isEmpty) return;
 
-      if (irrigationPumpNodes.length == 1) {
-        final term = irrigationPumpNodes.first;
-        final String outPort = 'output';
+      final double trunkX = math.max(maxWaterX + 40.0, targetPt.dx - 30.0);
+
+      if (supplyNodes.length == 1) {
+        final termRef = supplyNodes.first;
+        final term = termRef.node;
+        final String outPort = termRef.portId;
         final Offset termPt = portPosition(term, outPort, isInput: false);
         final blocking = findBlockingNode(termPt, trunkX);
 
@@ -724,32 +780,37 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             Offset(bypassX, termPt.dy),
             Offset(bypassX, bypassY),
             Offset(trunkX, bypassY),
-            Offset(trunkX, filterInletPt.dy - 20.0),
-            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
+            Offset(trunkX, targetPt.dy - 20.0),
+            Offset(targetPt.dx, targetPt.dy - 20.0),
           ];
         } else {
-          wps = [
-            Offset(trunkX, termPt.dy),
-            Offset(trunkX, filterInletPt.dy - 20.0),
-            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
-          ];
+          if ((termPt.dy - targetPt.dy).abs() < 2.0) {
+            wps = [];
+          } else {
+            wps = [
+              Offset(trunkX, termPt.dy),
+              Offset(trunkX, targetPt.dy - 20.0),
+              Offset(targetPt.dx, targetPt.dy - 20.0),
+            ];
+          }
         }
 
         _pipes.add(PipeConnection(
           id: _nextId('pipe'),
           fromNodeId: term.id,
           fromPortId: outPort,
-          toNodeId: firstFilterNode.id,
-          toPortId: 'inlet',
-          waypoints: _cleanWaypoints(termPt, wps, filterInletPt),
+          toNodeId: targetNodeId,
+          toPortId: targetPortId,
+          waypoints: _cleanWaypoints(termPt, wps, targetPt),
         ));
       } else {
         String? prevJnId;
         Offset? prevJnPt;
 
-        for (int t = 0; t < irrigationPumpNodes.length; t++) {
-          final term = irrigationPumpNodes[t];
-          final String outPort = 'output';
+        for (int t = 0; t < supplyNodes.length; t++) {
+          final termRef = supplyNodes[t];
+          final term = termRef.node;
+          final String outPort = termRef.portId;
           final Offset termPt = portPosition(term, outPort, isInput: false);
 
           final blocking = findBlockingNode(termPt, trunkX);
@@ -793,42 +854,27 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         }
 
         if (prevJnId != null && prevJnPt != null) {
-          final List<Offset> wps = [
-            Offset(trunkX, filterInletPt.dy - 20.0),
-            Offset(filterInletPt.dx, filterInletPt.dy - 20.0),
-          ];
+          final List<Offset> wps = (prevJnPt.dy - targetPt.dy).abs() < 2.0
+              ? []
+              : [
+                  Offset(trunkX, targetPt.dy - 20.0),
+                  Offset(targetPt.dx, targetPt.dy - 20.0),
+                ];
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
             fromNodeId: prevJnId,
-            toNodeId: firstFilterNode.id,
-            toPortId: 'inlet',
-            waypoints: _cleanWaypoints(prevJnPt, wps, filterInletPt),
+            toNodeId: targetNodeId,
+            toPortId: targetPortId,
+            waypoints: _cleanWaypoints(prevJnPt, wps, targetPt),
           ));
         }
       }
     }
 
-    for (int f = 0; f < filterNodes.length - 1; f++) {
-      final f1 = filterNodes[f];
-      final f2 = filterNodes[f + 1];
-      _pipes.add(PipeConnection(
-        id: _nextId('pipe'),
-        fromNodeId: f1.id,
-        fromPortId: 'outlet',
-        toNodeId: f2.id,
-        toPortId: 'inlet',
-        waypoints: [],
-      ));
-    }
-
     // -------------------------------------------------------------------------
     // FERTILIZATION FORMATION (Placed to the RIGHT side of Water & Pump setup)
     // -------------------------------------------------------------------------
-    final bool hasFertData = mainFertSources.isNotEmpty ||
-        fertTanks.isNotEmpty ||
-        fertSites.isNotEmpty ||
-        channelConfigs.isNotEmpty ||
-        fertPumps.isNotEmpty;
+    final List<NodeObject> skidNodes = [];
 
     if (hasFertData) {
       final double maxWaterX = _nodes.isNotEmpty
@@ -1155,7 +1201,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
           final valveNode = NodeObject(
             id: _nextId('fert_valve_${sNo.toInt()}'),
-            position: Offset(0, valvesY),
+            position: const Offset(0, valvesY),
             type: valveType,
             label: valveLabel,
             outletPortCount: portCount,
@@ -1227,7 +1273,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       final double provisionalSkidY = maxValveBottom + 150.0;
       final double totalAreaW = totalTanksSpan;
 
-      final List<NodeObject> skidNodes = [];
       final List<_FertLink> fertLinks = [];
 
       if (fertSites.isNotEmpty) {
@@ -1327,26 +1372,38 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       }
 
       _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);
+    }
 
-      // Connect Multi-Filter Station -> Multi-Injector Skid -> Main Pipeline Output
+    // -------------------------------------------------------------------------
+    // MAIN WATER PIPELINE FORMATION:
+    // Water Supply -> (Filter Station) -> (Fertigation Skid) -> Irrigation Lines
+    // -------------------------------------------------------------------------
+    if (filterNodes.isNotEmpty) {
+      final NodeObject firstFilter = filterNodes.first;
+      final Offset filterInletPt = firstFilter.getPort('inlet', isInput: true);
+
+      connectWaterSupplyTo(
+        supplyNodes: waterSupplyNodes,
+        targetNodeId: firstFilter.id,
+        targetPortId: 'inlet',
+        targetPt: filterInletPt,
+        maxWaterX: maxWaterX,
+      );
+
+      final NodeObject lastFilterNode = filterNodes.last;
+      final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
+
       if (skidNodes.isNotEmpty) {
         for (int s = 0; s < skidNodes.length; s++) {
           final skidNode = skidNodes[s];
-
-          final NodeObject lastFilterNode = filterNodes.last;
-          final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
           final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
           final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
 
-          // Main pipeline Y level running horizontally under the skid
           final double mainPipeY = math.max(filterOutPt.dy, skidNode.position.dy + skidNode.size.height + 40.0);
-
-          // Junction 1 on main line before the skid inlet
           final double skidLeftX = skidNode.position.dx - 30.0;
           final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
           final NodeObject jnSkidIn = _newJunction(skidInJunctionPt);
 
-          // Pipe: Multi-Filter Station outlet -> jnSkidIn
           final List<Offset> filterToSkidWps = [
             Offset(filterOutPt.dx + 30.0, filterOutPt.dy),
             Offset(filterOutPt.dx + 30.0, mainPipeY),
@@ -1359,7 +1416,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             waypoints: _cleanWaypoints(filterOutPt, filterToSkidWps, skidInJunctionPt),
           ));
 
-          // Pipe: jnSkidIn -> Multi-Injector Skid inlet (L-structure)
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
             fromNodeId: jnSkidIn.id,
@@ -1368,12 +1424,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             waypoints: _cleanWaypoints(skidInJunctionPt, [Offset(skidLeftX, skidInletPt.dy)], skidInletPt),
           ));
 
-          // Junction 2 on main line after Multi-Injector Skid
           final double skidRightX = skidNode.position.dx + skidNode.size.width + 30.0;
           final Offset skidOutJunctionPt = Offset(skidRightX, mainPipeY);
           final NodeObject jnSkidOut = _newJunction(skidOutJunctionPt);
 
-          // Pipe: Multi-Injector Skid outlet -> jnSkidOut
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
             fromNodeId: skidNode.id,
@@ -1382,7 +1436,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             waypoints: _cleanWaypoints(skidOutletPt, [Offset(skidRightX, skidOutletPt.dy)], skidOutJunctionPt),
           ));
 
-          // Pipe: Main line segment between jnSkidIn and jnSkidOut
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
             fromNodeId: jnSkidIn.id,
@@ -1390,7 +1443,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             waypoints: _cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
           ));
 
-          // Connect Main Irrigation Line to Multi-Valve Bank and Multi-Fogger System
           _connectIrrigationLineNodes(
             startJunction: jnSkidOut,
             startPt: skidOutJunctionPt,
@@ -1399,9 +1451,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             configPvd: configPvd,
           );
         }
-      } else if (filterNodes.isNotEmpty) {
-        final NodeObject lastFilterNode = filterNodes.last;
-        final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
+      } else {
         final Offset endPt = Offset(filterOutPt.dx + 60.0, filterOutPt.dy);
         final NodeObject jnEnd = _newJunction(endPt);
         _pipes.add(PipeConnection(
@@ -1417,6 +1467,83 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           startPt: endPt,
           mainPipeY: filterOutPt.dy,
           skidRightX: filterOutPt.dx,
+          configPvd: configPvd,
+        );
+      }
+    } else {
+      if (skidNodes.isNotEmpty) {
+        for (int s = 0; s < skidNodes.length; s++) {
+          final skidNode = skidNodes[s];
+          final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
+          final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
+
+          final double mainPipeY = math.max(400.0, skidNode.position.dy + skidNode.size.height + 40.0);
+          final double skidLeftX = skidNode.position.dx - 30.0;
+          final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
+          final NodeObject jnSkidIn = _newJunction(skidInJunctionPt);
+
+          connectWaterSupplyTo(
+            supplyNodes: waterSupplyNodes,
+            targetNodeId: jnSkidIn.id,
+            targetPortId: null,
+            targetPt: skidInJunctionPt,
+            maxWaterX: maxWaterX,
+          );
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnSkidIn.id,
+            toNodeId: skidNode.id,
+            toPortId: 'inlet',
+            waypoints: _cleanWaypoints(skidInJunctionPt, [Offset(skidLeftX, skidInletPt.dy)], skidInletPt),
+          ));
+
+          final double skidRightX = skidNode.position.dx + skidNode.size.width + 30.0;
+          final Offset skidOutJunctionPt = Offset(skidRightX, mainPipeY);
+          final NodeObject jnSkidOut = _newJunction(skidOutJunctionPt);
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: skidNode.id,
+            fromPortId: 'outlet',
+            toNodeId: jnSkidOut.id,
+            waypoints: _cleanWaypoints(skidOutletPt, [Offset(skidRightX, skidOutletPt.dy)], skidOutJunctionPt),
+          ));
+
+          _pipes.add(PipeConnection(
+            id: _nextId('pipe'),
+            fromNodeId: jnSkidIn.id,
+            toNodeId: jnSkidOut.id,
+            waypoints: _cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
+          ));
+
+          _connectIrrigationLineNodes(
+            startJunction: jnSkidOut,
+            startPt: skidOutJunctionPt,
+            mainPipeY: mainPipeY,
+            skidRightX: skidRightX,
+            configPvd: configPvd,
+          );
+        }
+      } else {
+        final double endX = math.max(300.0, maxWaterX + 100.0);
+        final double endY = math.max(200.0, maxWaterY / 2.0);
+        final Offset endPt = Offset(endX, endY);
+        final NodeObject jnEnd = _newJunction(endPt);
+
+        connectWaterSupplyTo(
+          supplyNodes: waterSupplyNodes,
+          targetNodeId: jnEnd.id,
+          targetPortId: null,
+          targetPt: endPt,
+          maxWaterX: maxWaterX,
+        );
+
+        _connectIrrigationLineNodes(
+          startJunction: jnEnd,
+          startPt: endPt,
+          mainPipeY: endY,
+          skidRightX: endX,
           configPvd: configPvd,
         );
       }
@@ -1452,6 +1579,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
   }) {
     final lines = configPvd.line;
     if (lines.isEmpty) return;
+
+    // Maximum number of valves shown per row / multiValve bank
+    const int kMaxValvesPerRow = 20;
 
     // Check total assigned valves & foggers across all lines
     final int totalValves = lines.fold<int>(0, (sum, l) => sum + l.valve.length + l.mainValve.length + l.flowControlValve.length);
@@ -1490,36 +1620,86 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         lFoggers = 4;
       }
 
-      // If this specific line has 0 valves and 0 foggers, skip creating painter nodes for it
+      // If this specific line has 0 valves and 0 foggers, skip creating nodes for it
       if (lValves == 0 && lFoggers == 0) continue;
 
       final String lineName = (lineSpec.commonDetails.name?.isNotEmpty == true && lineSpec.commonDetails.name != '-')
           ? lineSpec.commonDetails.name!
           : 'Irrigation Line ${i + 1}';
 
-      final double valveBankX = 80.0;
-      final double valveBankY = currentReturnY + 55.0;
-
-      NodeObject? valveBankNode;
-      NodeObject? foggerSystemNode;
-
-      // Create Multi-Valve Bank for Line i
-      if (lValves > 0) {
-        valveBankNode = NodeObject(
-          id: _nextId('multi_valve_line_$i'),
-          position: Offset(valveBankX, valveBankY),
-          type: NodeType.multiValve,
-          label: '$lineName - Multi-Valve Bank',
-          outletPortCount: lValves,
-          showJoints: !_globalHideJoints,
-        );
-        valveBankNode.size = Size(math.max(120.0, 70.0 * lValves + 40.0), 190);
-        _nodes.add(valveBankNode);
+      // Gather all valve names for Line i
+      final List<String> allValveNames = [];
+      if (lineSpec.valve.isNotEmpty) {
+        for (int v = 0; v < lineSpec.valve.length; v++) {
+          final double vSno = lineSpec.valve[v];
+          final deviceObj = _getObjectName(vSno, configPvd);
+          final String name = (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
+              ? deviceObj.name!
+              : 'Valve ${v + 1}';
+          allValveNames.add(name);
+        }
+      } else {
+        for (int v = 0; v < lValves; v++) {
+          allValveNames.add('Valve ${v + 1}');
+        }
       }
 
-      // Create Multi-Fogger System for Line i
+      final double headerX = 80.0;
+      final double headerY = currentReturnY + 12.0;
+
+      final lineHeaderNode = NodeObject(
+        id: _nextId('line_header_$i'),
+        position: Offset(headerX, headerY),
+        type: NodeType.lineHeader,
+        label: lineName,
+        showJoints: false,
+      );
+      lineHeaderNode.size = Size(math.max(180.0, 11.0 * lineName.length + 60.0), 34);
+      _nodes.add(lineHeaderNode);
+
+      final double valveBankX = 80.0;
+      final double valveBankStartY = headerY + lineHeaderNode.size.height + 15.0;
+
+      // Split lValves into rows/banks of at most kMaxValvesPerRow (20) valves
+      final int bankCount = lValves > 0 ? (lValves / kMaxValvesPerRow).ceil() : 0;
+      final List<NodeObject> lineValveBanks = [];
+
+      for (int b = 0; b < bankCount; b++) {
+        final int startIdx = b * kMaxValvesPerRow;
+        final int endIdx = math.min(startIdx + kMaxValvesPerRow, lValves);
+        final int bankValves = endIdx - startIdx;
+        final List<String> bankValveNames = allValveNames.sublist(
+          math.min(startIdx, allValveNames.length),
+          math.min(endIdx, allValveNames.length),
+        );
+
+        final double bankY = valveBankStartY + b * (190.0 + 35.0);
+
+        final bankNode = NodeObject(
+          id: _nextId('multi_valve_line_${i}_bank_$b'),
+          position: Offset(valveBankX, bankY),
+          type: NodeType.multiValve,
+          label: '',
+          outletPortCount: bankValves,
+          showJoints: !_globalHideJoints,
+          portLabels: bankValveNames,
+        );
+        bankNode.size = Size(math.max(120.0, 70.0 * bankValves + 40.0), 190);
+        _nodes.add(bankNode);
+        lineValveBanks.add(bankNode);
+      }
+
+      // Height occupied by all valve banks in Line i
+      final double valveBanksTotalH = bankCount > 0
+          ? (bankCount * 190.0 + (bankCount - 1) * 35.0)
+          : 0.0;
+
+      // Create Multi-Fogger System for Line i (below last valve bank row)
+      NodeObject? foggerSystemNode;
       if (lFoggers > 0) {
-        final double foggerSystemY = lValves > 0 ? valveBankY + 205.0 : valveBankY;
+        final double foggerSystemY = bankCount > 0
+            ? (valveBankStartY + valveBanksTotalH + 35.0)
+            : valveBankStartY;
         foggerSystemNode = NodeObject(
           id: _nextId('multi_fogger_line_$i'),
           position: Offset(valveBankX, foggerSystemY),
@@ -1532,15 +1712,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         _nodes.add(foggerSystemNode);
       }
 
-      final NodeObject targetFirstNode = valveBankNode ?? foggerSystemNode!;
+      // First inlet port that feeds Line i
+      final NodeObject targetFirstNode = lineValveBanks.isNotEmpty
+          ? lineValveBanks.first
+          : foggerSystemNode!;
       final Offset firstInlet = targetFirstNode.inputPort;
       final double lineDropX = firstInlet.dx - 40.0;
 
-      // Vertical distribution riser junction for Line i
+      // Vertical distribution riser junction on right for Line i
       final Offset lineBranchRiserPt = Offset(loopFarX, currentReturnY);
       final NodeObject lineBranchJn = _newJunction(lineBranchRiserPt);
 
-      // Vertical pipe segment on the right riser: prevRiserJn -> lineBranchJn
+      // Connect right riser: prevRiserJn -> lineBranchJn
       _pipes.add(PipeConnection(
         id: _nextId('pipe'),
         fromNodeId: prevRiserJn.id,
@@ -1548,7 +1731,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         waypoints: _cleanWaypoints(prevRiserPt, [], lineBranchRiserPt),
       ));
 
-      // Horizontal branch pipe across screen for Line i: lineBranchJn -> Line i First Inlet
+      // Connect horizontal branch pipe from right riser across to left manifold line
+      final Offset firstJnPt = Offset(lineDropX, firstInlet.dy);
+      final NodeObject jnBank0 = _newJunction(firstJnPt);
+
       final List<Offset> branchWps = [
         Offset(lineDropX, currentReturnY),
         Offset(lineDropX, firstInlet.dy),
@@ -1556,37 +1742,78 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       _pipes.add(PipeConnection(
         id: _nextId('pipe'),
         fromNodeId: lineBranchJn.id,
-        toNodeId: targetFirstNode.id,
-        toPortId: 'inlet',
-        waypoints: _cleanWaypoints(lineBranchRiserPt, branchWps, firstInlet),
+        toNodeId: jnBank0.id,
+        waypoints: _cleanWaypoints(lineBranchRiserPt, branchWps, firstJnPt),
       ));
 
-      // Drop Pipe from Valve Bank to Fogger System if both exist for Line i
-      if (valveBankNode != null && foggerSystemNode != null) {
-        final Offset foggerInlet = foggerSystemNode.inputPort;
-        final Offset dropJnPt = Offset(lineDropX, firstInlet.dy);
-        final NodeObject dropJn = _newJunction(dropJnPt);
+      // Connect jnBank0 -> Bank 0 inlet
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: jnBank0.id,
+        toNodeId: targetFirstNode.id,
+        toPortId: 'inlet',
+        waypoints: _cleanWaypoints(firstJnPt, [], firstInlet),
+      ));
+
+      NodeObject prevBankJn = jnBank0;
+      Offset prevBankJnPt = firstJnPt;
+
+      // Connect subsequent valve bank rows vertically along lineDropX manifold
+      for (int b = 1; b < lineValveBanks.length; b++) {
+        final bankNode = lineValveBanks[b];
+        final Offset bankInlet = bankNode.inputPort;
+        final Offset bankJnPt = Offset(lineDropX, bankInlet.dy);
+        final NodeObject jnBank = _newJunction(bankJnPt);
+
+        // Vertical drop along manifold
         _pipes.add(PipeConnection(
           id: _nextId('pipe'),
-          fromNodeId: dropJn.id,
+          fromNodeId: prevBankJn.id,
+          toNodeId: jnBank.id,
+          waypoints: _cleanWaypoints(prevBankJnPt, [], bankJnPt),
+        ));
+
+        // Horizontal feed into Bank b inlet
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: jnBank.id,
+          toNodeId: bankNode.id,
+          toPortId: 'inlet',
+          waypoints: _cleanWaypoints(bankJnPt, [], bankInlet),
+        ));
+
+        prevBankJn = jnBank;
+        prevBankJnPt = bankJnPt;
+      }
+
+      // Connect Fogger System if present
+      if (lineValveBanks.isNotEmpty && foggerSystemNode != null) {
+        final Offset foggerInlet = foggerSystemNode.inputPort;
+        final Offset foggerJnPt = Offset(lineDropX, foggerInlet.dy);
+        final NodeObject jnFogger = _newJunction(foggerJnPt);
+
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: prevBankJn.id,
+          toNodeId: jnFogger.id,
+          waypoints: _cleanWaypoints(prevBankJnPt, [], foggerJnPt),
+        ));
+
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: jnFogger.id,
           toNodeId: foggerSystemNode.id,
           toPortId: 'inlet',
-          waypoints: _cleanWaypoints(
-            dropJnPt,
-            [
-              Offset(lineDropX, foggerInlet.dy),
-            ],
-            foggerInlet,
-          ),
+          waypoints: _cleanWaypoints(foggerJnPt, [], foggerInlet),
         ));
       }
 
       // Calculate vertical Y for next line setup below Line i
       final double lineSetupBottom = foggerSystemNode != null
-          ? (valveBankNode != null ? valveBankY + 205.0 + 112.0 : valveBankY + 112.0)
-          : (valveBankY + 190.0);
+          ? (foggerSystemNode.position.dy + 112.0)
+          : (lineValveBanks.isNotEmpty ? lineValveBanks.last.position.dy + 190.0 : valveBankStartY + 190.0);
 
-      currentReturnY = lineSetupBottom + 120.0;
+      currentReturnY = lineSetupBottom + 100.0;
       prevRiserJn = lineBranchJn;
       prevRiserPt = lineBranchRiserPt;
     }
@@ -4262,6 +4489,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
       ),
     );
   }
+}
+
+/// Reference to a water supply node (pump or source or valve) and its output port.
+class _SupplyNodeRef {
+  final NodeObject node;
+  final String portId;
+  _SupplyNodeRef(this.node, this.portId);
 }
 
 /// One pipe to be drawn by the auto-arrange layout.
