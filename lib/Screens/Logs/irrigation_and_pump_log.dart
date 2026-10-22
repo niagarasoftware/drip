@@ -86,8 +86,10 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
   @override
   void didUpdateWidget(covariant IrrigationAndPumpLog oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldCtrlId = oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
-    final newCtrlId = widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    final oldCtrlId =
+        oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
+    final newCtrlId =
+        widget.userData['controllerId'] ?? widget.masterData.controllerId;
     if (oldCtrlId != newCtrlId ||
         oldWidget.userData['customerId'] != widget.userData['customerId']) {
       getUserNodePumpList();
@@ -127,7 +129,9 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       final response = jsonDecode(result.body);
 
       List fetchedList = [];
-      if (result.statusCode == 200 && response['data'] is List && (response['data'] as List).isNotEmpty) {
+      if (result.statusCode == 200 &&
+          response['data'] is List &&
+          (response['data'] as List).isNotEmpty) {
         fetchedList = response['data'];
       } else if (widget.masterData.nodeList.isNotEmpty) {
         final pumpNodes = widget.masterData.nodeList.where((n) {
@@ -136,17 +140,23 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
               n.categoryName.toLowerCase().contains('pump');
         }).toList();
 
-        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
-        fetchedList = nodesToUse.map((n) => {
-          'controllerId': n.controllerId,
-          'deviceId': n.deviceId,
-          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
-        }).toList();
+        final nodesToUse =
+            pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fetchedList = nodesToUse
+            .map((n) => {
+                  'controllerId': n.controllerId,
+                  'deviceId': n.deviceId,
+                  'deviceName': n.deviceName.isNotEmpty
+                      ? n.deviceName
+                      : 'Node ${n.serialNumber}',
+                })
+            .toList();
       }
 
       setState(() {
         pumpList = fetchedList;
-        message = fetchedList.isEmpty ? (response['message']?.toString() ?? '') : '';
+        message =
+            fetchedList.isEmpty ? (response['message']?.toString() ?? '') : '';
         _updateTabController();
       });
     } catch (e) {
@@ -160,12 +170,17 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
               n.categoryName.toLowerCase().contains('pump');
         }).toList();
 
-        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
-        fallbackList = nodesToUse.map((n) => {
-          'controllerId': n.controllerId,
-          'deviceId': n.deviceId,
-          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
-        }).toList();
+        final nodesToUse =
+            pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fallbackList = nodesToUse
+            .map((n) => {
+                  'controllerId': n.controllerId,
+                  'deviceId': n.deviceId,
+                  'deviceName': n.deviceName.isNotEmpty
+                      ? n.deviceName
+                      : 'Node ${n.serialNumber}',
+                })
+            .toList();
       }
 
       setState(() {
@@ -237,7 +252,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     return _LogCardItem(
       title: 'Irrigation Log',
       subtitle:
-      'View detailed records of irrigation cycles, water usage and duration for each zone.',
+          'View detailed records of irrigation cycles, water usage and duration for each zone.',
       iconWidget: const Icon(
         Icons.water_drop_outlined,
         color: Color(0xFF0284C7),
@@ -277,9 +292,9 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
   _LogCardItem _zoneLogCard() {
     return _LogCardItem(
-      title: 'Zone Log',
+      title: 'Cumulative Log',
       subtitle:
-      'Review zone-wise irrigation history, valve activity and runtime details.',
+          'Review cumulative irrigation history, valve activity and runtime details.',
       iconWidget: const Icon(
         Icons.grid_view_rounded,
         color: Color(0xFF7C3AED),
@@ -291,7 +306,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       features: const [
         _FeatureBullet(
           icon: Icons.grid_view_rounded,
-          text: 'Zone-wise irrigation records',
+          text: 'cumulative irrigation records',
           iconColor: Color(0xFF7C3AED),
         ),
         _FeatureBullet(
@@ -364,7 +379,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     return _LogCardItem(
       title: 'Standalone Log',
       subtitle:
-      'Track standalone (manual) operations with their start and stop history.',
+          'Track standalone (manual) operations with their start and stop history.',
       iconWidget: const Icon(
         Icons.touch_app_outlined,
         color: Color(0xFFDB2777),
@@ -405,13 +420,12 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     return _LogCardItem(
       title: 'Pump Log',
       subtitle:
-      'Track pump operations, start/stop events, runtime and fault history.',
+          'Track pump operations, start/stop events, runtime and fault history.',
       iconWidget: SvgPicture.asset(
         'assets/svg_images/pump.svg',
         width: 26,
         height: 26,
-        colorFilter:
-        const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
+        colorFilter: const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
       ),
       accentColor: const Color(0xFFEA580C),
       iconBgColor: const Color(0xFFFFEDD5),
@@ -443,7 +457,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         userId: widget.userData['customerId'],
         controllerId: widget.masterData.controllerId,
         masterData: widget.masterData,
-        userData: widget.userData, showMobileCalendar: true,
+        userData: widget.userData,
+        showMobileCalendar: true,
       ),
     );
   }
@@ -458,7 +473,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         _LogCardItem(
           title: 'Motor Cyclic Log',
           subtitle:
-          'Track cyclic motor operations, runtime intervals and status logs.',
+              'Track cyclic motor operations, runtime intervals and status logs.',
           iconWidget: const Icon(
             Icons.sync_rounded,
             color: Color(0xFF0284C7),
@@ -494,7 +509,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         _LogCardItem(
           title: 'Zone Cyclic Log',
           subtitle:
-          'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
+              'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
           iconWidget: const Icon(
             Icons.pin_drop_outlined,
             color: Color(0xFF16A34A),
@@ -548,11 +563,11 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
   // ---------------------------------------------------------------------------
 
   Widget _buildOverviewDashboard(
-      BuildContext context,
-      List<_LogCardItem> cards,
-      bool isOffline,
-      CustomerScreenControllerViewModel? customerVM,
-      ) {
+    BuildContext context,
+    List<_LogCardItem> cards,
+    bool isOffline,
+    CustomerScreenControllerViewModel? customerVM,
+  ) {
     return LayoutBuilder(
       builder: (context, screenConstraints) {
         final bool isCompact = screenConstraints.maxWidth < 620;
@@ -644,7 +659,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                                 if (hasNext)
                                   Expanded(
                                       child:
-                                      _buildLogCard(context, cards[i + 1]))
+                                          _buildLogCard(context, cards[i + 1]))
                                 else
                                   const Spacer(),
                               ],
