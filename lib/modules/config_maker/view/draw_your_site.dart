@@ -30,9 +30,10 @@ class DrawYourSiteScreen extends StatefulWidget {
   State<DrawYourSiteScreen> createState() => _DrawYourSiteScreenState();
 }
 
-class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
+class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProviderStateMixin {
   final List<NodeObject> _nodes = [];
   final List<PipeConnection> _pipes = [];
+  String _activeTabId = 'all';
 
   // ---- Render / performance infrastructure ------------------------------
   // _canvasNotifier : STRUCTURE changes (add/delete node, new pipe, select...)
@@ -698,7 +699,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
         for (int f = 0; f < filterNodes.length; f++) {
           final fn = filterNodes[f];
           final double fnX = math.max(160.0, (maxWaterX - totalFilterW) / 2.0 + f * (fn.size.width + 30.0));
-          final double fnY = math.max(380.0, maxWaterY + 70.0);
+          final double fnY = math.max(180.0, maxWaterY + 45.0);
           fn.position = Offset(fnX, fnY);
         }
       } else {
@@ -1558,6 +1559,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     });
     _canvasNotifier.notify();
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusOnAllNodes();
+      }
+    });
+
     if (showSnackBar && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1587,8 +1594,32 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final int totalValves = lines.fold<int>(0, (sum, l) => sum + l.valve.length + l.mainValve.length + l.flowControlValve.length);
     final int totalFoggers = lines.fold<int>(0, (sum, l) => sum + l.fogger.length);
 
-    // Main Irrigation Line loop parameters
-    final double loopFarX = math.max(skidRightX + 450.0, 1080.0);
+    // Calculate actual maximum right edge across all irrigation line equipment
+    double maxLineEquipmentX = math.max(300.0, skidRightX);
+    for (int i = 0; i < lines.length; i++) {
+      final lineSpec = lines[i];
+      int lValves = lineSpec.valve.length;
+      if (lValves == 0) {
+        lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
+      }
+      int lFoggers = lineSpec.fogger.length;
+      if (totalValves == 0 && totalFoggers == 0 && i == 0) {
+        lValves = 6;
+        lFoggers = 4;
+      }
+      if (lValves > 0) {
+        final int bankValves = math.min(lValves, kMaxValvesPerRow);
+        final double bankWidth = math.max(120.0, 70.0 * bankValves + 40.0);
+        maxLineEquipmentX = math.max(maxLineEquipmentX, 80.0 + bankWidth);
+      }
+      if (lFoggers > 0) {
+        final double foggerWidth = math.max(100.0, 50.0 * lFoggers + 20.0);
+        maxLineEquipmentX = math.max(maxLineEquipmentX, 80.0 + foggerWidth);
+      }
+    }
+
+    // Main Irrigation Line loop far right riser position (tight wrap around equipment)
+    final double loopFarX = math.max(450.0, maxLineEquipmentX + 80.0);
     double currentReturnY = mainPipeY + 90.0;
 
     // Common supply pipe segment from startJunction -> right distribution riser top
@@ -2468,8 +2499,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final Matrix4 m = _tc.value.clone()..leftTranslate(-dx, -dy);
     final double s = m.getMaxScaleOnAxis();
     // keep the canvas from being scrolled completely out of view
-    final double tx = m.storage[12].clamp(-(kCanvasWidth * s) + 100.0, 300.0).toDouble();
-    final double ty = m.storage[13].clamp(-(kCanvasHeight * s) + 100.0, 300.0).toDouble();
+    final double tx = m.storage[12].clamp(-(kCanvasWidth * s) + 100.0, 0.0).toDouble();
+    final double ty = m.storage[13].clamp(-(kCanvasHeight * s) + 100.0, 0.0).toDouble();
     m.storage[12] = tx;
     m.storage[13] = ty;
     _tc.value = m;
@@ -2479,6 +2510,387 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
     final double target = (_scale * factor).clamp(0.4, 2.0).toDouble();
     final double k = target / _scale;
     _tc.value = _tc.value.clone()..scale(k, k, 1.0);
+  }
+
+  // ---------------------------------------------------------------------
+  // Smooth Camera Focus & Google Sheets Tabs Navigation
+  // ---------------------------------------------------------------------
+  void _focusOnRect(Rect targetRect, {double padding = 140.0}) {
+    final Size viewportSize = MediaQuery.of(context).size;
+    final double vW = math.max(300.0, viewportSize.width - 60.0);
+    final double vH = math.max(300.0, viewportSize.height - 180.0);
+
+    final double rectW = math.max(120.0, targetRect.width + padding * 2.0);
+    final double rectH = math.max(120.0, targetRect.height + padding * 2.0);
+
+    final double scaleX = vW / rectW;
+    final double scaleY = vH / rectH;
+    final double targetScale = math.min(scaleX, scaleY).clamp(0.5, 1.4).toDouble();
+
+    final Offset center = targetRect.center;
+    double tx = (vW / 2.0) - (center.dx * targetScale);
+    double ty = (vH / 2.0) - (center.dy * targetScale);
+
+    tx = math.min(0.0, tx);
+    ty = math.min(0.0, ty);
+
+    final Matrix4 endM = Matrix4.identity()
+      ..translate(tx, ty)
+      ..scale(targetScale);
+
+    final Matrix4 startM = _tc.value.clone();
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    final animation = Matrix4Tween(begin: startM, end: endM).animate(
+      CurvedAnimation(parent: controller, curve: Curves.fastOutSlowIn),
+    );
+    animation.addListener(() {
+      _tc.value = animation.value;
+    });
+    controller.forward().then((_) => controller.dispose());
+  }
+
+  void _focusOnAllNodes() {
+    if (_nodes.isEmpty) return;
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+    for (final n in _nodes) {
+      if (n.type == NodeType.junction) continue;
+      minX = math.min(minX, n.position.dx);
+      minY = math.min(minY, n.position.dy);
+      maxX = math.max(maxX, n.position.dx + n.size.width);
+      maxY = math.max(maxY, n.position.dy + n.size.height);
+    }
+    if (minX.isFinite) {
+      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+    }
+  }
+
+  void _focusOnWaterSource() {
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+
+    for (final n in _nodes) {
+      final bool isWaterSourceNode = n.type == NodeType.overheadTank ||
+          n.type == NodeType.sump ||
+          n.type == NodeType.well ||
+          n.type == NodeType.naturalSource ||
+          n.type == NodeType.pump ||
+          n.type == NodeType.singleTankValve ||
+          n.type == NodeType.multiOutletTankValve;
+      if (isWaterSourceNode) {
+        minX = math.min(minX, n.position.dx);
+        minY = math.min(minY, n.position.dy);
+        maxX = math.max(maxX, n.position.dx + n.size.width);
+        maxY = math.max(maxY, n.position.dy + n.size.height);
+      }
+    }
+
+    if (minX.isFinite) {
+      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+    }
+  }
+
+  void _focusOnLine(int lineIdx) {
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+
+    for (final n in _nodes) {
+      final bool matchesLine = n.id.contains('line_header_$lineIdx') ||
+          n.id.contains('multi_valve_line_${lineIdx}_') ||
+          n.id.contains('multi_fogger_line_$lineIdx');
+      if (matchesLine) {
+        minX = math.min(minX, n.position.dx);
+        minY = math.min(minY, n.position.dy);
+        maxX = math.max(maxX, n.position.dx + n.size.width);
+        maxY = math.max(maxY, n.position.dy + n.size.height);
+      }
+    }
+
+    if (minX.isFinite) {
+      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+    }
+  }
+
+  void _focusOnFilterSite(int filterIdx) {
+    final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+    if (filterIdx >= configPvd.filtration.length) return;
+    final fSite = configPvd.filtration[filterIdx];
+    final double sNo = fSite.commonDetails.sNo ?? 0.0;
+
+    for (final n in _nodes) {
+      if (n.type == NodeType.multiFilter && n.id.contains('multi_filter_${sNo.toInt()}')) {
+        _focusOnRect(Rect.fromLTWH(n.position.dx, n.position.dy, n.size.width, n.size.height));
+        return;
+      }
+    }
+    for (final n in _nodes) {
+      if (n.type == NodeType.multiFilter) {
+        _focusOnRect(Rect.fromLTWH(n.position.dx, n.position.dy, n.size.width, n.size.height));
+        return;
+      }
+    }
+  }
+
+  void _focusOnFertilizationSite(int fertIdx) {
+    double minX = double.infinity, minY = double.infinity;
+    double maxX = -double.infinity, maxY = -double.infinity;
+
+    for (final n in _nodes) {
+      final bool isFertNode = n.type == NodeType.mainFertilizerSource ||
+          n.type == NodeType.fertilizerTank ||
+          n.type == NodeType.multiInjector ||
+          n.type == NodeType.blower;
+      if (isFertNode) {
+        minX = math.min(minX, n.position.dx);
+        minY = math.min(minY, n.position.dy);
+        maxX = math.max(maxX, n.position.dx + n.size.width);
+        maxY = math.max(maxY, n.position.dy + n.size.height);
+      }
+    }
+
+    if (minX.isFinite) {
+      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+    }
+  }
+
+  final ScrollController _sheetTabScrollController = ScrollController();
+
+  Widget _buildGoogleSheetTabBar() {
+    final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+    final lines = configPvd.line;
+    final filtrations = configPvd.filtration;
+    final fertilizations = configPvd.fertilization;
+
+    final List<_SiteTabItem> tabs = [];
+
+    // 1. All Tab
+    tabs.add(_SiteTabItem(
+      id: 'all',
+      title: 'All',
+      icon: Icons.grid_view_rounded,
+      accentColor: const Color(0xFF10B981),
+      onTap: () {
+        setState(() => _activeTabId = 'all');
+        _focusOnAllNodes();
+      },
+    ));
+
+    // 2. Water Source Tab
+    tabs.add(_SiteTabItem(
+      id: 'water_source',
+      title: 'Water Source',
+      icon: Icons.water_drop_outlined,
+      accentColor: const Color(0xFF0284C7),
+      onTap: () {
+        setState(() => _activeTabId = 'water_source');
+        _focusOnWaterSource();
+      },
+    ));
+
+    // 2. Irrigation Line Tabs
+    const List<Color> lineColors = [
+      Color(0xFF10B981),
+      Color(0xFF3B82F6),
+      Color(0xFFF59E0B),
+      Color(0xFF8B5CF6),
+      Color(0xFFF43F5E),
+      Color(0xFF06B6D4),
+    ];
+
+    for (int i = 0; i < lines.length; i++) {
+      final lSpec = lines[i];
+      final String lName = (lSpec.commonDetails.name?.isNotEmpty == true && lSpec.commonDetails.name != '-')
+          ? lSpec.commonDetails.name!
+          : 'Irrigation Line ${i + 1}';
+      final Color color = lineColors[i % lineColors.length];
+
+      tabs.add(_SiteTabItem(
+        id: 'line_$i',
+        title: lName,
+        icon: Icons.alt_route_rounded,
+        accentColor: color,
+        onTap: () {
+          setState(() => _activeTabId = 'line_$i');
+          _focusOnLine(i);
+        },
+      ));
+    }
+
+    // 3. Filtration Site Tabs
+    for (int f = 0; f < filtrations.length; f++) {
+      final fSite = filtrations[f];
+      final String fName = (fSite.commonDetails.name?.isNotEmpty == true)
+          ? fSite.commonDetails.name!
+          : 'Filtration Site ${f + 1}';
+
+      tabs.add(_SiteTabItem(
+        id: 'filter_$f',
+        title: fName,
+        icon: Icons.filter_alt_outlined,
+        accentColor: const Color(0xFFEF4444),
+        onTap: () {
+          setState(() => _activeTabId = 'filter_$f');
+          _focusOnFilterSite(f);
+        },
+      ));
+    }
+
+    // 4. Fertigation Site Tabs
+    for (int s = 0; s < fertilizations.length; s++) {
+      final fSite = fertilizations[s];
+      final String sName = (fSite.commonDetails.name?.isNotEmpty == true)
+          ? fSite.commonDetails.name!
+          : 'Fertilization Site ${s + 1}';
+
+      tabs.add(_SiteTabItem(
+        id: 'fert_$s',
+        title: sName,
+        icon: Icons.science_outlined,
+        accentColor: const Color(0xFF3B82F6),
+        onTap: () {
+          setState(() => _activeTabId = 'fert_$s');
+          _focusOnFertilizationSite(s);
+        },
+      ));
+    }
+
+    return Container(
+      height: 38,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A),
+        border: Border(
+          top: BorderSide(color: Color(0xFF334155), width: 1.0),
+          bottom: BorderSide(color: Color(0xFF0F172A), width: 1.0),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Google Sheets style Left Scroll Action Buttons
+          Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E293B),
+              border: Border(right: BorderSide(color: Color(0xFF334155), width: 1)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () {
+                    _sheetTabScrollController.animateTo(
+                      math.max(0.0, _sheetTabScrollController.offset - 150),
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.chevron_left, size: 20, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () {
+                    _sheetTabScrollController.animateTo(
+                      math.min(_sheetTabScrollController.position.maxScrollExtent, _sheetTabScrollController.offset + 150),
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.chevron_right, size: 20, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Scrollable Google Sheets Tabs
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _sheetTabScrollController,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(left: 6, right: 16, top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: tabs.map((tab) {
+                  final bool isActive = tab.id == _activeTabId;
+
+                  return GestureDetector(
+                    onTap: tab.onTap,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.only(right: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? const Color(0xFF1E293B)
+                            : const Color(0xFF334155),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          topRight: Radius.circular(8),
+                        ),
+                        border: Border.all(
+                          color: isActive
+                              ? tab.accentColor
+                              : const Color(0xFF475569),
+                          width: isActive ? 1.8 : 1.0,
+                        ),
+                        boxShadow: isActive
+                            ? [
+                                BoxShadow(
+                                  color: tab.accentColor.withValues(alpha: 0.35),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, -1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: tab.accentColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            tab.icon,
+                            size: 14,
+                            color: isActive ? Colors.white : Colors.white70,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            tab.title,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -4165,7 +4577,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             RepaintBoundary(child: _buildToolbar()),
             Expanded(
               child: Container(
-                color: const Color(0xFFF3F5F7),
+                color: Colors.white,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return Stack(
@@ -4181,7 +4593,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                           scaleEnabled: false, // no wheel / pinch zoom (buttons only)
                           minScale: 0.4,
                           maxScale: 2.0,
-                          boundaryMargin: const EdgeInsets.all(300),
+                          boundaryMargin: const EdgeInsets.all(100),
                           child: SizedBox(
                             width: kCanvasWidth,
                             height: kCanvasHeight,
@@ -4283,11 +4695,20 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                     ),
                     // Custom attractive scrollbars overlay
                     Positioned.fill(
+                      bottom: 36,
                       child: _AttractiveScrollbars(
                         tc: _tc,
                         viewportWidth: constraints.maxWidth,
-                        viewportHeight: constraints.maxHeight,
+                        viewportHeight: constraints.maxHeight - 36,
                       ),
+                    ),
+                    // Google Sheets Style Tab Bar
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 36,
+                      child: _buildGoogleSheetTabBar(),
                     ),
                     // Right side vertical floating action buttons (placed to the left of the vertical scrollbar)
                     Positioned(
@@ -4878,4 +5299,20 @@ class _AttractiveScrollbarsState extends State<_AttractiveScrollbars> {
       },
     );
   }
+}
+
+class _SiteTabItem {
+  final String id;
+  final String title;
+  final IconData icon;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  _SiteTabItem({
+    required this.id,
+    required this.title,
+    required this.icon,
+    required this.accentColor,
+    required this.onTap,
+  });
 }
