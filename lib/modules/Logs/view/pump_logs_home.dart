@@ -26,37 +26,40 @@ class _PumpLogsHomeState extends State<PumpLogsHome> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-          child: DefaultTabController(
-              length: tabController.length,
-              child: Column(
-                children: [
-                  const TabBar(
-                      tabs: [
-                        Tab(text: "Pump log",),
-                        Tab(text: "Power graph",),
-                        Tab(text: "Voltage log",),
-                      ]
-                  ),
-                  // SizedBox(height: 10,),
-                  Expanded(
-                      child: TabBarView(
-                        physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            PumpLogScreen(
-                              userId: widget.userId,
-                              controllerId: widget.controllerId,
-                              masterData: widget.masterData,
-                            ),
-                            PowerGraphScreen(userId: widget.userId, controllerId: widget.controllerId, masterData: widget.masterData,),
-                            PumpVoltageLogScreen(userId: widget.userId, controllerId: widget.controllerId, masterData: widget.masterData,),
-                          ]
-                      )
-                  )
-                ],
-              )
-          )
+    return KeyedSubtree(
+      key : ValueKey(widget.controllerId),
+      child: Scaffold(
+        body: SafeArea(
+            child: DefaultTabController(
+                length: tabController.length,
+                child: Column(
+                  children: [
+                    const TabBar(
+                        tabs: [
+                          Tab(text: "Pump log",),
+                          Tab(text: "Power graph",),
+                          Tab(text: "Voltage log",),
+                        ]
+                    ),
+                    // SizedBox(height: 10,),
+                    Expanded(
+                        child: TabBarView(
+                          physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              PumpLogScreen(
+                                userId: widget.userId,
+                                controllerId: widget.controllerId,
+                                masterData: widget.masterData,
+                              ),
+                              PowerGraphScreen(userId: widget.userId, controllerId: widget.controllerId, masterData: widget.masterData,),
+                              PumpVoltageLogScreen(userId: widget.userId, controllerId: widget.controllerId, masterData: widget.masterData,),
+                            ]
+                        )
+                    )
+                  ],
+                )
+            )
+        ),
       ),
     );
   }

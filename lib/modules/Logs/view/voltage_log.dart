@@ -36,6 +36,19 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant PumpVoltageLogScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controllerId != oldWidget.controllerId ||
+        widget.nodeControllerId != oldWidget.nodeControllerId) {
+      pumpControllerProvider.getUserVoltageLog(
+        userId: widget.userId,
+        controllerId: widget.controllerId,
+        nodeControllerId: widget.nodeControllerId,
+      );
+    }
+  }
+
+  @override
   void dispose() {
     // TODO: implement dispose
     super.dispose();
