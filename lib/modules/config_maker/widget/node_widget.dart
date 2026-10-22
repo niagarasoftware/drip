@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../state_management/config_maker_provider.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/blower_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/ec_sensor_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/fertilizer_tank_painter.dart';
@@ -27,6 +29,50 @@ import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/sump_pai
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/water_meter_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/well_painter.dart';
 import '../model/node_type_model.dart';
+import '../model/irrigation_line_model.dart';
+
+String _getDeviceName(double sNo, ConfigMakerProvider configPvd) {
+  for (final obj in configPvd.listOfGeneratedObject) {
+    if (obj.sNo == sNo) {
+      if (obj.name != null && obj.name!.isNotEmpty && obj.name != '-') {
+        return obj.name!;
+      }
+    }
+  }
+  for (final v in configPvd.valveConfig) {
+    if (v.commonDetails.sNo == sNo) {
+      if (v.commonDetails.name != null && v.commonDetails.name!.isNotEmpty && v.commonDetails.name != '-') {
+        return v.commonDetails.name!;
+      }
+    }
+  }
+  String sNoStr = sNo.toString();
+  if (sNoStr.endsWith('.0')) {
+    sNoStr = sNo.toInt().toString();
+  }
+  return sNoStr;
+}
+
+IrrigationLineModel? _findLineForNode(NodeObject node, ConfigMakerProvider configPvd) {
+  if (configPvd.line.isEmpty) return null;
+
+  final match = RegExp(r'line_(\d+)').firstMatch(node.id);
+  if (match != null) {
+    final idx = int.tryParse(match.group(1)!);
+    if (idx != null && idx >= 0 && idx < configPvd.line.length) {
+      return configPvd.line[idx];
+    }
+  }
+
+  for (int i = 0; i < configPvd.line.length; i++) {
+    final lName = configPvd.line[i].commonDetails.name;
+    if (lName != null && lName.isNotEmpty && lName != '-' && node.label.contains(lName)) {
+      return configPvd.line[i];
+    }
+  }
+
+  return null;
+}
 
 
 class NodeImageCache {
@@ -585,15 +631,42 @@ class NodeWidget extends StatelessWidget {
     }
 
     if (node.type == NodeType.multiValve) {
+      int effectiveValves = node.outletPortCount;
+      List<String> valveNames = [];
+      try {
+        final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+        final lineModel = _findLineForNode(node, configPvd);
+
+        if (lineModel != null) {
+          effectiveValves = lineModel.valve.length;
+          for (final double vSno in lineModel.valve) {
+            valveNames.add(_getDeviceName(vSno, configPvd));
+          }
+        } else if (configPvd.line.isNotEmpty) {
+          effectiveValves = configPvd.line.fold<int>(0, (sum, l) => sum + l.valve.length);
+        }
+
+        node.outletPortCount = effectiveValves;
+        final double targetW = math.max(120.0, 70.0 * effectiveValves + 40.0);
+        if (node.size.width != targetW) {
+          node.size = Size(targetW, 200);
+        }
+      } catch (_) {}
+
+      if (effectiveValves <= 0) return const SizedBox.shrink();
+
+      final String vNamesKey = valveNames.join('_');
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_valve_${node.isOn}_${node.showJoints}_$szKey',
+          cacheKey: 'multi_valve_${node.id}_${node.isOn}_${node.showJoints}_${effectiveValves}_${vNamesKey}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiValvePainter(
             isOn: node.isOn,
             showJoints: node.showJoints,
+            valves: effectiveValves,
+            valveNames: valveNames,
           ),
         ),
       );
@@ -804,16 +877,42 @@ class NodeWidget extends StatelessWidget {
     }
 
     if (node.type == NodeType.multiFogger) {
+      int effectiveFoggers = node.outletPortCount;
+      List<String> foggerNames = [];
+      try {
+        final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+        final lineModel = _findLineForNode(node, configPvd);
+
+        if (lineModel != null) {
+          effectiveFoggers = lineModel.fogger.length;
+          for (final double fSno in lineModel.fogger) {
+            foggerNames.add(_getDeviceName(fSno, configPvd));
+          }
+        } else if (configPvd.line.isNotEmpty) {
+          effectiveFoggers = configPvd.line.fold<int>(0, (sum, l) => sum + l.fogger.length);
+        }
+
+        node.outletPortCount = effectiveFoggers;
+        final double targetW = math.max(100.0, 50.0 * effectiveFoggers + 20.0);
+        if (node.size.width != targetW) {
+          node.size = Size(targetW, 125);
+        }
+      } catch (_) {}
+
+      if (effectiveFoggers <= 0) return const SizedBox.shrink();
+
+      final String fNamesKey = foggerNames.join('_');
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_fogger_${node.isOn}_${node.showJoints}_${node.outletPortCount}_$szKey',
+          cacheKey: 'multi_fogger_${node.id}_${node.isOn}_${node.showJoints}_${effectiveFoggers}_${fNamesKey}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiFoggerPainter(
             isOn: node.isOn,
             showJoints: node.showJoints,
-            foggers: node.outletPortCount,
+            foggers: effectiveFoggers,
+            foggerNames: foggerNames,
           ),
         ),
       );

@@ -44,6 +44,7 @@ class DetailedMultiValvePainter extends CustomPainter {
   final List<double>? valvePressures;
   final List<double>? lateralPressures;
   final int? valves;
+  final List<String>? valveNames;
 
   /// 0-based indices of the valves that have pressure sensors.
   final Set<int> sensorValves;
@@ -54,6 +55,7 @@ class DetailedMultiValvePainter extends CustomPainter {
     this.valvePressures,
     this.lateralPressures,
     this.valves,
+    this.valveNames,
     this.sensorValves = const {0, 1},
   });
 
@@ -65,7 +67,7 @@ class DetailedMultiValvePainter extends CustomPainter {
 
   /// Minimum canvas width / height for the full-size layout. Narrower
   /// canvases shrink the drawing uniformly instead of overlapping.
-  static const double recommendedAspect = 2.2;
+  static const double recommendedAspect = 3.2;
 
   /// Canvas size that gives the layout at full scale for a given height.
   static Size preferredSize(double height) =>
@@ -74,7 +76,7 @@ class DetailedMultiValvePainter extends CustomPainter {
   // Layout constants (fractions of u, the design-box height)
   static const double _firstValveU = 0.36; // x of valve 1
   static const double _rightMarginU = 0.18; // room right of the last valve
-  static const double _inletU = 0.08; // x of the inlet opening centre
+  static const double _inletU = 0.11; // x of the inlet opening centre
 
   // Vertical layout (fractions of u)
   static const double _hy = 0.258; // header centre line
@@ -85,7 +87,7 @@ class DetailedMultiValvePainter extends CustomPainter {
   /// Elbow bend direction per valve: 1 = right, -1 = left, 0 = straight down.
   static const List<int> _elbowDir = [0, 0, 0, 0, 0, 0, 0];
 
-  static double _unit(Size s) => math.min(s.height, s.width / recommendedAspect);
+  static double _unit(Size s) => s.height;
 
   static Offset inletPort(Size s) {
     final double u = _unit(s);
@@ -251,17 +253,20 @@ class DetailedMultiValvePainter extends CustomPainter {
   // ---------------------------------------------------------------- Paint
   @override
   void paint(Canvas canvas, Size size) {
-    _n = math.max(1, valves ?? valveCount);
+    _n = valves ?? valveCount;
+    if (_n <= 0) return;
 
     final double u = _unit(size);
     _w = size.width;
     _h = u;
     _sw = u * designAspect;
     _firstX = u * _firstValveU;
-    _gap = math.max(
-      u * 0.2,
-      (size.width - u * _rightMarginU - _firstX) / math.max(1, _n - 1),
-    );
+    _gap = _n > 1
+        ? math.max(
+            u * 0.28,
+            (size.width - u * _rightMarginU - _firstX) / (_n - 1),
+          )
+        : 0;
 
     canvas.save();
     // centre the design box vertically when the canvas is taller than needed
@@ -284,7 +289,6 @@ class DetailedMultiValvePainter extends CustomPainter {
       if (sensorValves.contains(i)) _drawPressureGauges(canvas, i);
     }
 
-    _drawInletOpening(canvas);
     canvas.restore();
   }
 
@@ -311,9 +315,7 @@ class DetailedMultiValvePainter extends CustomPainter {
     );
   }
 
-  void _drawInletOpening(Canvas c) {
-    _openEnd(c, Offset(_h * _inletU, _h * _hy), _h * 0.052);
-  }
+  void _drawInletOpening(Canvas c) {}
 
   // ----------------------------------------------- Common header + sleeves
   void _drawHeader(Canvas c) {
@@ -568,6 +570,45 @@ class DetailedMultiValvePainter extends CustomPainter {
       _flatPipe(c, elbow, pwL);
       _groundCollarSide(c, Offset(endX, endY), pwL);
     }
+
+    // Valve Name / Serial No Badge
+    final String vName = (valveNames != null && i < valveNames!.length)
+        ? valveNames![i]
+        : 'V${i + 1}';
+
+    final TextPainter tp = TextPainter(
+      text: TextSpan(
+        text: vName,
+        style: TextStyle(
+          color: const Color(0xFF0F172A),
+          fontSize: math.max(8.0, _h * 0.046),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final double badgeW = math.max(tp.width + 8, _sw * 0.065);
+    final double badgeH = tp.height + 3;
+    final double labelY = vy + _h * 0.43;
+
+    final Rect badgeRect = Rect.fromCenter(
+      center: Offset(xc, labelY),
+      width: badgeW,
+      height: badgeH,
+    );
+    final RRect badgeRRect = RRect.fromRectAndRadius(badgeRect, Radius.circular(_h * 0.010));
+
+    c.drawRRect(badgeRRect, Paint()..color = Colors.white);
+    c.drawRRect(badgeRRect, _stroke(const Color(0xFF1976D2), 1.0));
+
+    tp.paint(
+      c,
+      Offset(
+        badgeRect.left + (badgeW - tp.width) / 2,
+        badgeRect.top + (badgeH - tp.height) / 2,
+      ),
+    );
   }
 
   // ------------------------------------------------------ Pressure gauges
@@ -630,6 +671,7 @@ class DetailedMultiValvePainter extends CustomPainter {
       old.isOn != isOn ||
           old.showJoints != showJoints ||
           old.valves != valves ||
+          !listEquals(old.valveNames, valveNames) ||
           !setEquals(old.sensorValves, sensorValves) ||
           !listEquals(old.valvePressures, valvePressures) ||
           !listEquals(old.lateralPressures, lateralPressures);
@@ -648,6 +690,7 @@ class MultiValveView extends StatelessWidget {
 
   /// Number of channels (default 7).
   final int? valves;
+  final List<String>? valveNames;
 
   /// 0-based indices of the valves that carry pressure sensors.
   /// Default {0, 1} = only the first and second valve.
@@ -665,6 +708,7 @@ class MultiValveView extends StatelessWidget {
     this.showJoints = true,
     required this.size,
     this.valves,
+    this.valveNames,
     this.sensorValves = const {0, 1},
     this.valvePressures,
     this.lateralPressures,
@@ -678,6 +722,7 @@ class MultiValveView extends StatelessWidget {
         isOn: isOn,
         showJoints: showJoints,
         valves: valves,
+        valveNames: valveNames,
         sensorValves: sensorValves,
         valvePressures: valvePressures,
         lateralPressures: lateralPressures,

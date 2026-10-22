@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../widget/painter/blower_painter.dart';
 import '../widget/painter/main_fertilizer_source_painter.dart';
 import '../widget/painter/multi_agitator_painter.dart';
+import '../widget/painter/multi_filter_painter.dart';
 import '../widget/painter/multi_fogger_painter.dart';
 import '../widget/painter/multi_injector_painter.dart';
+import '../widget/painter/multi_valve_painter.dart';
 
 
 /// Type of equipment a node represents on the canvas.
@@ -115,10 +117,12 @@ class NodeObject {
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiFilter) {
-      return Offset(position.dx + size.width * 0.02, position.dy + size.height * 0.10);
+      final p = DetailedMultiFilterPainter.inletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiValve) {
-      return Offset(position.dx + size.width * 0.04, position.dy + size.height * 0.258);
+      final p = DetailedMultiValvePainter.inletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiAgitator) {
       final double leftX = 600.0 - 420.0 * outletSpacing;
@@ -181,7 +185,8 @@ class NodeObject {
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiFilter) {
-      return Offset(position.dx + size.width * 0.98, position.dy + size.height * 0.867);
+      final p = DetailedMultiFilterPainter.outletPort(size);
+      return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiValve) {
       return inputPort;
@@ -272,8 +277,9 @@ class NodeObject {
       if (portId == 'outlet' || (portId == null && !isInput)) return outputPort;
     }
     if (type == NodeType.multiFilter) {
-      if (portId == 'backwash') {
-        return Offset(position.dx + size.width * 0.02, position.dy + size.height * 0.217);
+      if (portId == 'backwash' || portId == 'dirty' || portId == 'drain') {
+        final p = DetailedMultiFilterPainter.backwashPort(size);
+        return Offset(position.dx + p.dx, position.dy + p.dy);
       }
       if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
       if (portId == 'outlet' || (portId == null && !isInput)) return outputPort;
@@ -371,9 +377,9 @@ class NodeObject {
       case NodeType.multiInjector:
         return const Size(308, 132);
       case NodeType.multiFilter:
-        return const Size(148, 88);
+        return const Size(220, 132);
       case NodeType.multiValve:
-        return const Size(158, 95);
+        return Size(math.max(120.0, 70.0 * outletPortCount + 40.0), 190);
       case NodeType.mainValve:
       case NodeType.multiMainValve:
         return const Size(116, 105);
@@ -400,7 +406,7 @@ class NodeObject {
       case NodeType.blower:
         return const Size(60, 56);
       case NodeType.multiFogger:
-        return const Size(160, 80);
+        return Size(math.max(100.0, 50.0 * outletPortCount + 20.0), 112);
       case NodeType.waterMeter:
         return isHorizontal ? const Size(95, 63) : const Size(63, 95);
       case NodeType.overheadTank:

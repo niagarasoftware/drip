@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Top-down/elevation view painter for a Greenhouse Multi-Fogger System.
@@ -15,18 +16,20 @@ class DetailedMultiFoggerPainter extends CustomPainter {
   final bool isOn;
   final bool showJoints;
   final int? foggers;
+  final List<String>? foggerNames;
 
   DetailedMultiFoggerPainter({
     required this.isOn,
     this.showJoints = true,
     this.foggers,
+    this.foggerNames,
   });
 
   /// Default number of fogger channels.
   static const int foggerCount = 6;
 
   /// Recommended aspect ratio (width / height)
-  static const double recommendedAspect = 2.0;
+  static const double recommendedAspect = 2.5;
 
   static Size preferredSize(double height) =>
       Size(height * recommendedAspect, height);
@@ -35,9 +38,9 @@ class DetailedMultiFoggerPainter extends CustomPainter {
   static const double _hy = 0.22; // main header centre line
   static const double _firstFoggerU = 0.32; // x of first fogger channel
   static const double _rightMarginU = 0.16; // room right of last fogger
-  static const double _inletU = 0.08; // x of inlet opening centre
+  static const double _inletU = 0.11; // x of inlet opening centre
 
-  static double _unit(Size s) => math.min(s.height, s.width / recommendedAspect);
+  static double _unit(Size s) => s.height;
 
   static Offset inletPort(Size s) {
     final double u = _unit(s);
@@ -149,15 +152,19 @@ class DetailedMultiFoggerPainter extends CustomPainter {
   // ---------------------------------------------------------------- Paint
   @override
   void paint(Canvas canvas, Size size) {
-    _n = math.max(1, foggers ?? foggerCount);
+    _n = foggers ?? foggerCount;
+    if (_n <= 0) return;
+
     final double u = _unit(size);
     _w = size.width;
     _h = u;
     _firstX = u * _firstFoggerU;
-    _gap = math.max(
-      u * 0.20,
-      (size.width - u * _rightMarginU - _firstX) / math.max(1, _n - 1),
-    );
+    _gap = _n > 1
+        ? math.max(
+            u * 0.20,
+            (size.width - u * _rightMarginU - _firstX) / (_n - 1),
+          )
+        : 0;
 
     canvas.save();
     canvas.translate(0, (size.height - u) / 2);
@@ -169,16 +176,10 @@ class DetailedMultiFoggerPainter extends CustomPainter {
     _drawInletPipe(canvas);
     _drawHeader(canvas);
 
-    // 3. Main regulator / master solenoid on supply line
-    _drawMainSolenoid(canvas);
-
-    // 4. Drop channels with anti-drip check valves & 4-way fogger heads
+    // 3. Drop channels with anti-drip check valves & 4-way fogger heads
     for (int i = 0; i < _n; i++) {
       _drawDropChannel(canvas, i);
     }
-
-    // 5. Open pipe ends
-    _drawInletOpening(canvas);
 
     canvas.restore();
   }
@@ -234,9 +235,7 @@ class DetailedMultiFoggerPainter extends CustomPainter {
     );
   }
 
-  void _drawInletOpening(Canvas c) {
-    _openEnd(c, Offset(_h * _inletU, _h * _hy), _h * 0.05);
-  }
+  void _drawInletOpening(Canvas c) {}
 
   void _drawHeader(Canvas c) {
     final double startX = _firstX - _h * 0.12;
@@ -283,46 +282,7 @@ class DetailedMultiFoggerPainter extends CustomPainter {
     }
   }
 
-  void _drawMainSolenoid(Canvas c) {
-    // Master solenoid on header supply line (between inlet and first fogger)
-    final double sx = _firstX - _h * 0.22;
-    final double sy = _h * _hy;
-
-    final Rect body = Rect.fromCenter(
-      center: Offset(sx, sy),
-      width: _h * 0.08,
-      height: _h * 0.08,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(body, Radius.circular(_h * 0.015)),
-      Paint()..color = _solenoidBody,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(body, Radius.circular(_h * 0.015)),
-      _stroke(_edge, 1.0),
-    );
-
-    // Solenoid coil top cap (blue)
-    final Rect coil = Rect.fromCenter(
-      center: Offset(sx, sy - _h * 0.05),
-      width: _h * 0.055,
-      height: _h * 0.05,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(coil, Radius.circular(_h * 0.01)),
-      _gh(coil, [_solenoidBlue, _solenoidBody]),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(coil, Radius.circular(_h * 0.01)),
-      _stroke(_edge, 0.8),
-    );
-
-    // Control wire loop
-    final Path wire = Path()
-      ..moveTo(sx, sy - _h * 0.075)
-      ..cubicTo(sx - _h * 0.05, sy - _h * 0.12, sx - _h * 0.08, sy - _h * 0.04, sx - _h * 0.1, sy - _h * 0.08);
-    c.drawPath(wire, _stroke(const Color(0xFFFFD600), 1.8));
-  }
+  void _drawMainSolenoid(Canvas c) {}
 
   void _drawDropChannel(Canvas c, int i) {
     final double xc = _firstX + _gap * i;
@@ -330,11 +290,11 @@ class DetailedMultiFoggerPainter extends CustomPainter {
 
     // 1. Vertical drop pipe from header tee down to anti-drip check valve
     final double pipeTop = hy + _h * 0.035;
-    final double valveTop = hy + _h * 0.18;
+    final double valveTop = hy + _h * 0.22;
     _cylV(c, Rect.fromLTRB(xc - _h * 0.018, pipeTop, xc + _h * 0.018, valveTop));
 
     // 2. Anti-drip check valve body (brass hex / cylinder)
-    final double valveH = _h * 0.10;
+    final double valveH = _h * 0.12;
     final Rect valveRect = Rect.fromLTWH(xc - _h * 0.03, valveTop, _h * 0.06, valveH);
     c.drawRRect(
       RRect.fromRectAndRadius(valveRect, Radius.circular(_h * 0.012)),
@@ -352,15 +312,54 @@ class DetailedMultiFoggerPainter extends CustomPainter {
 
     // 3. Lower riser pipe connecting valve to fogger head
     final double lowerPipeTop = valveTop + valveH;
-    final double foggerY = _h * 0.58;
+    final double foggerY = _h * 0.74;
     _cylV(c, Rect.fromLTRB(xc - _h * 0.016, lowerPipeTop, xc + _h * 0.016, foggerY));
 
     // 4. 4-Way Cross Fogger Nozzle Assembly
     _draw4WayFoggerHead(c, Offset(xc, foggerY));
+
+    // Fogger Name / Serial No Badge
+    final String fName = (foggerNames != null && i < foggerNames!.length)
+        ? foggerNames![i]
+        : 'F${i + 1}';
+
+    final TextPainter tp = TextPainter(
+      text: TextSpan(
+        text: fName,
+        style: TextStyle(
+          color: const Color(0xFF0F172A),
+          fontSize: math.max(8.0, _h * 0.045),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final double badgeW = math.max(tp.width + 6, _h * 0.06);
+    final double badgeH = tp.height + 2;
+    final double labelY = _h * 0.88;
+
+    final Rect badgeRect = Rect.fromCenter(
+      center: Offset(xc, labelY),
+      width: badgeW,
+      height: badgeH,
+    );
+    final RRect badgeRRect = RRect.fromRectAndRadius(badgeRect, Radius.circular(_h * 0.010));
+
+    c.drawRRect(badgeRRect, Paint()..color = Colors.white);
+    c.drawRRect(badgeRRect, _stroke(const Color(0xFF0288D1), 0.8));
+
+    tp.paint(
+      c,
+      Offset(
+        badgeRect.left + (badgeW - tp.width) / 2,
+        badgeRect.top + (badgeH - tp.height) / 2,
+      ),
+    );
   }
 
   void _draw4WayFoggerHead(Canvas c, Offset center) {
-    final double r = _h * 0.038;
+    final double r = _h * 0.048;
 
     // Outer shadow
     c.drawCircle(center + const Offset(0, 2), r + 1, Paint()..color = Colors.black26);
@@ -371,8 +370,8 @@ class DetailedMultiFoggerPainter extends CustomPainter {
       center,
       r,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.3, -0.3),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.3, -0.3),
           colors: [_brassLight, _brassMid, _brassDark],
         ).createShader(hubBox),
     );
@@ -384,8 +383,8 @@ class DetailedMultiFoggerPainter extends CustomPainter {
     c.drawCircle(center, r * 0.25, Paint()..color = Colors.white);
 
     // 4 Stainless Micro Fogger Nozzle tips (pointing North, South, East, West / angled)
-    final double nozzleLen = _h * 0.042;
-    final double nozzleW = _h * 0.016;
+    final double nozzleLen = _h * 0.055;
+    final double nozzleW = _h * 0.02;
 
     // Angle offsets for 4-way nozzle distribution (30 deg, 150 deg, 210 deg, 330 deg or 4-cross)
     final List<double> angles = [
@@ -428,7 +427,8 @@ class DetailedMultiFoggerPainter extends CustomPainter {
   bool shouldRepaint(covariant DetailedMultiFoggerPainter old) =>
       old.isOn != isOn ||
       old.showJoints != showJoints ||
-      old.foggers != foggers;
+      old.foggers != foggers ||
+      !listEquals(old.foggerNames, foggerNames);
 }
 
 /// Widget Wrapper for DetailedMultiFoggerPainter.
@@ -437,6 +437,7 @@ class MultiFoggerView extends StatelessWidget {
   final bool showJoints;
   final Size size;
   final int? foggers;
+  final List<String>? foggerNames;
 
   const MultiFoggerView({
     super.key,
@@ -444,6 +445,7 @@ class MultiFoggerView extends StatelessWidget {
     this.showJoints = true,
     required this.size,
     this.foggers,
+    this.foggerNames,
   });
 
   @override
@@ -454,6 +456,7 @@ class MultiFoggerView extends StatelessWidget {
         isOn: isOn,
         showJoints: showJoints,
         foggers: foggers,
+        foggerNames: foggerNames,
       ),
     );
   }

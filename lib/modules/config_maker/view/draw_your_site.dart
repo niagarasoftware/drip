@@ -1328,70 +1328,26 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
 
       _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);
 
-      // Connect Multi-Filter Station -> Booster Pump -> Multi-Injector Skid -> Main Pipeline Output
+      // Connect Multi-Filter Station -> Multi-Injector Skid -> Main Pipeline Output
       if (skidNodes.isNotEmpty) {
         for (int s = 0; s < skidNodes.length; s++) {
           final skidNode = skidNodes[s];
 
-          // 1. Locate or create Booster Pump for this skid
-          NodeObject? boosterNode;
-          final site = s < fertSites.length ? fertSites[s] : null;
-          double? boosterSNo = (site != null && site.boosterPump.isNotEmpty)
-              ? site.boosterPump.first
-              : (fertPumps.isNotEmpty ? fertPumps.first.commonDetails.sNo : null);
-
-          if (boosterSNo != null) {
-            final pumpModel = pumps.cast<PumpModel?>().firstWhere(
-                  (p) => p?.commonDetails.sNo == boosterSNo,
-              orElse: () => null,
-            );
-            final String pumpLabel = (pumpModel?.commonDetails.name?.isNotEmpty == true)
-                ? pumpModel!.commonDetails.name!
-                : 'Booster Pump';
-
-            boosterNode = NodeObject(
-              id: _nextId('booster_pump_${boosterSNo.toInt()}'),
-              position: Offset.zero,
-              type: NodeType.pump,
-              size: const Size(68, 47),
-              label: pumpLabel,
-              isOn: true,
-              showJoints: !_globalHideJoints,
-            );
-            boosterNode.size = boosterNode.defaultSize;
-          } else {
-            boosterNode = NodeObject(
-              id: _nextId('booster_pump_$s'),
-              position: Offset.zero,
-              type: NodeType.pump,
-              size: const Size(68, 47),
-              label: 'Booster Pump',
-              isOn: true,
-              showJoints: !_globalHideJoints,
-            );
-            boosterNode.size = boosterNode.defaultSize;
-          }
-
-          // Place Booster Pump to the left of Multi-Injector Skid and align ports
-          final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
-          final double boosterX = skidNode.position.dx - 120.0;
-          boosterNode.position = Offset(boosterX, skidNode.position.dy + 35.0);
-          final Offset bOutTemp = boosterNode.outputPort;
-          boosterNode.position = boosterNode.position + Offset(0, skidInletPt.dy - bOutTemp.dy);
-          _nodes.add(boosterNode);
-
           final NodeObject lastFilterNode = filterNodes.last;
           final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
+          final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
+          final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
 
-          // Main pipeline Y level running horizontally under booster pump & skid
+          // Main pipeline Y level running horizontally under the skid
           final double mainPipeY = math.max(filterOutPt.dy, skidNode.position.dy + skidNode.size.height + 40.0);
 
-          // Junction 1 on main line before Booster Pump
-          final Offset boosterInJunctionPt = Offset(boosterNode.position.dx + 20.0, mainPipeY);
-          final NodeObject jnBoosterIn = _newJunction(boosterInJunctionPt);
+          // Junction 1 on main line before the skid inlet
+          final double skidLeftX = skidNode.position.dx - 30.0;
+          final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
+          final NodeObject jnSkidIn = _newJunction(skidInJunctionPt);
 
-          // Pipe: Multi-Filter Station outlet -> jnBoosterIn
-          final List<Offset> filterToBoosterWps = [
+          // Pipe: Multi-Filter Station outlet -> jnSkidIn
+          final List<Offset> filterToSkidWps = [
             Offset(filterOutPt.dx + 30.0, filterOutPt.dy),
             Offset(filterOutPt.dx + 30.0, mainPipeY),
           ];
@@ -1399,36 +1355,23 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             id: _nextId('pipe'),
             fromNodeId: lastFilterNode.id,
             fromPortId: 'outlet',
-            toNodeId: jnBoosterIn.id,
-            waypoints: _cleanWaypoints(filterOutPt, filterToBoosterWps, boosterInJunctionPt),
+            toNodeId: jnSkidIn.id,
+            waypoints: _cleanWaypoints(filterOutPt, filterToSkidWps, skidInJunctionPt),
           ));
 
-          // Pipe: jnBoosterIn -> Booster Pump inlet
-          final Offset boosterInPt = boosterNode.getPort('input', isInput: true);
+          // Pipe: jnSkidIn -> Multi-Injector Skid inlet (L-structure)
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: jnBoosterIn.id,
-            toNodeId: boosterNode.id,
-            toPortId: 'input',
-            waypoints: _cleanWaypoints(boosterInJunctionPt, [Offset(boosterInJunctionPt.dx, boosterInPt.dy)], boosterInPt),
-          ));
-
-          // Pipe: Booster Pump outlet -> Multi-Injector Skid inlet
-          final Offset boosterOutPt = boosterNode.outputPort;
-          _pipes.add(PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: boosterNode.id,
-            fromPortId: 'output',
+            fromNodeId: jnSkidIn.id,
             toNodeId: skidNode.id,
             toPortId: 'inlet',
-            waypoints: _cleanWaypoints(boosterOutPt, [], skidInletPt),
+            waypoints: _cleanWaypoints(skidInJunctionPt, [Offset(skidLeftX, skidInletPt.dy)], skidInletPt),
           ));
 
           // Junction 2 on main line after Multi-Injector Skid
-          final Offset skidOutPt = skidNode.getPort('outlet', isInput: false);
-          final double skidRightX = skidNode.position.dx + skidNode.size.width + 40.0;
-          final Offset injectorOutJunctionPt = Offset(skidRightX, mainPipeY);
-          final NodeObject jnSkidOut = _newJunction(injectorOutJunctionPt);
+          final double skidRightX = skidNode.position.dx + skidNode.size.width + 30.0;
+          final Offset skidOutJunctionPt = Offset(skidRightX, mainPipeY);
+          final NodeObject jnSkidOut = _newJunction(skidOutJunctionPt);
 
           // Pipe: Multi-Injector Skid outlet -> jnSkidOut
           _pipes.add(PipeConnection(
@@ -1436,31 +1379,30 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             fromNodeId: skidNode.id,
             fromPortId: 'outlet',
             toNodeId: jnSkidOut.id,
-            waypoints: _cleanWaypoints(skidOutPt, [Offset(skidRightX, skidOutPt.dy)], injectorOutJunctionPt),
+            waypoints: _cleanWaypoints(skidOutletPt, [Offset(skidRightX, skidOutletPt.dy)], skidOutJunctionPt),
           ));
 
-          // Pipe: Main line segment between jnBoosterIn and jnSkidOut
+          // Pipe: Main line segment between jnSkidIn and jnSkidOut
           _pipes.add(PipeConnection(
             id: _nextId('pipe'),
-            fromNodeId: jnBoosterIn.id,
+            fromNodeId: jnSkidIn.id,
             toNodeId: jnSkidOut.id,
-            waypoints: _cleanWaypoints(boosterInJunctionPt, [], injectorOutJunctionPt),
+            waypoints: _cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
           ));
 
-          // Main line output continuation to the right
-          final Offset mainEndPt = Offset(skidRightX + 100.0, mainPipeY);
-          final NodeObject jnMainEnd = _newJunction(mainEndPt);
-          _pipes.add(PipeConnection(
-            id: _nextId('pipe'),
-            fromNodeId: jnSkidOut.id,
-            toNodeId: jnMainEnd.id,
-            waypoints: _cleanWaypoints(injectorOutJunctionPt, [], mainEndPt),
-          ));
+          // Connect Main Irrigation Line to Multi-Valve Bank and Multi-Fogger System
+          _connectIrrigationLineNodes(
+            startJunction: jnSkidOut,
+            startPt: skidOutJunctionPt,
+            mainPipeY: mainPipeY,
+            skidRightX: skidRightX,
+            configPvd: configPvd,
+          );
         }
       } else if (filterNodes.isNotEmpty) {
         final NodeObject lastFilterNode = filterNodes.last;
         final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
-        final Offset endPt = Offset(filterOutPt.dx + 200.0, filterOutPt.dy);
+        final Offset endPt = Offset(filterOutPt.dx + 60.0, filterOutPt.dy);
         final NodeObject jnEnd = _newJunction(endPt);
         _pipes.add(PipeConnection(
           id: _nextId('pipe'),
@@ -1469,6 +1411,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           toNodeId: jnEnd.id,
           waypoints: [],
         ));
+
+        _connectIrrigationLineNodes(
+          startJunction: jnEnd,
+          startPt: endPt,
+          mainPipeY: filterOutPt.dy,
+          skidRightX: filterOutPt.dx,
+          configPvd: configPvd,
+        );
       }
     }
 
@@ -1490,6 +1440,155 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
           backgroundColor: const Color(0xFF059669),
         ),
       );
+    }
+  }
+
+  void _connectIrrigationLineNodes({
+    required NodeObject startJunction,
+    required Offset startPt,
+    required double mainPipeY,
+    required double skidRightX,
+    required ConfigMakerProvider configPvd,
+  }) {
+    final lines = configPvd.line;
+    if (lines.isEmpty) return;
+
+    // Check total assigned valves & foggers across all lines
+    final int totalValves = lines.fold<int>(0, (sum, l) => sum + l.valve.length + l.mainValve.length + l.flowControlValve.length);
+    final int totalFoggers = lines.fold<int>(0, (sum, l) => sum + l.fogger.length);
+
+    // Main Irrigation Line loop parameters
+    final double loopFarX = math.max(skidRightX + 450.0, 1080.0);
+    double currentReturnY = mainPipeY + 90.0;
+
+    // Common supply pipe segment from startJunction -> right distribution riser top
+    final Offset topRiserPt = Offset(loopFarX, startPt.dy);
+    final NodeObject topRiserJn = _newJunction(topRiserPt);
+    _pipes.add(PipeConnection(
+      id: _nextId('pipe'),
+      fromNodeId: startJunction.id,
+      toNodeId: topRiserJn.id,
+      waypoints: _cleanWaypoints(startPt, [], topRiserPt),
+    ));
+
+    NodeObject prevRiserJn = topRiserJn;
+    Offset prevRiserPt = topRiserPt;
+
+    for (int i = 0; i < lines.length; i++) {
+      final lineSpec = lines[i];
+
+      // Get Line i's valve count and fogger count
+      int lValves = lineSpec.valve.length;
+      if (lValves == 0) {
+        lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
+      }
+      int lFoggers = lineSpec.fogger.length;
+
+      // Fallback for Line 0 if no line has assigned valves or foggers yet
+      if (totalValves == 0 && totalFoggers == 0 && i == 0) {
+        lValves = 6;
+        lFoggers = 4;
+      }
+
+      // If this specific line has 0 valves and 0 foggers, skip creating painter nodes for it
+      if (lValves == 0 && lFoggers == 0) continue;
+
+      final String lineName = (lineSpec.commonDetails.name?.isNotEmpty == true && lineSpec.commonDetails.name != '-')
+          ? lineSpec.commonDetails.name!
+          : 'Irrigation Line ${i + 1}';
+
+      final double valveBankX = 80.0;
+      final double valveBankY = currentReturnY + 55.0;
+
+      NodeObject? valveBankNode;
+      NodeObject? foggerSystemNode;
+
+      // Create Multi-Valve Bank for Line i
+      if (lValves > 0) {
+        valveBankNode = NodeObject(
+          id: _nextId('multi_valve_line_$i'),
+          position: Offset(valveBankX, valveBankY),
+          type: NodeType.multiValve,
+          label: '$lineName - Multi-Valve Bank',
+          outletPortCount: lValves,
+          showJoints: !_globalHideJoints,
+        );
+        valveBankNode.size = Size(math.max(120.0, 70.0 * lValves + 40.0), 190);
+        _nodes.add(valveBankNode);
+      }
+
+      // Create Multi-Fogger System for Line i
+      if (lFoggers > 0) {
+        final double foggerSystemY = lValves > 0 ? valveBankY + 205.0 : valveBankY;
+        foggerSystemNode = NodeObject(
+          id: _nextId('multi_fogger_line_$i'),
+          position: Offset(valveBankX, foggerSystemY),
+          type: NodeType.multiFogger,
+          label: '$lineName - Multi-Fogger System',
+          outletPortCount: lFoggers,
+          showJoints: !_globalHideJoints,
+        );
+        foggerSystemNode.size = Size(math.max(100.0, 50.0 * lFoggers + 20.0), 112);
+        _nodes.add(foggerSystemNode);
+      }
+
+      final NodeObject targetFirstNode = valveBankNode ?? foggerSystemNode!;
+      final Offset firstInlet = targetFirstNode.inputPort;
+      final double lineDropX = firstInlet.dx - 40.0;
+
+      // Vertical distribution riser junction for Line i
+      final Offset lineBranchRiserPt = Offset(loopFarX, currentReturnY);
+      final NodeObject lineBranchJn = _newJunction(lineBranchRiserPt);
+
+      // Vertical pipe segment on the right riser: prevRiserJn -> lineBranchJn
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: prevRiserJn.id,
+        toNodeId: lineBranchJn.id,
+        waypoints: _cleanWaypoints(prevRiserPt, [], lineBranchRiserPt),
+      ));
+
+      // Horizontal branch pipe across screen for Line i: lineBranchJn -> Line i First Inlet
+      final List<Offset> branchWps = [
+        Offset(lineDropX, currentReturnY),
+        Offset(lineDropX, firstInlet.dy),
+      ];
+      _pipes.add(PipeConnection(
+        id: _nextId('pipe'),
+        fromNodeId: lineBranchJn.id,
+        toNodeId: targetFirstNode.id,
+        toPortId: 'inlet',
+        waypoints: _cleanWaypoints(lineBranchRiserPt, branchWps, firstInlet),
+      ));
+
+      // Drop Pipe from Valve Bank to Fogger System if both exist for Line i
+      if (valveBankNode != null && foggerSystemNode != null) {
+        final Offset foggerInlet = foggerSystemNode.inputPort;
+        final Offset dropJnPt = Offset(lineDropX, firstInlet.dy);
+        final NodeObject dropJn = _newJunction(dropJnPt);
+        _pipes.add(PipeConnection(
+          id: _nextId('pipe'),
+          fromNodeId: dropJn.id,
+          toNodeId: foggerSystemNode.id,
+          toPortId: 'inlet',
+          waypoints: _cleanWaypoints(
+            dropJnPt,
+            [
+              Offset(lineDropX, foggerInlet.dy),
+            ],
+            foggerInlet,
+          ),
+        ));
+      }
+
+      // Calculate vertical Y for next line setup below Line i
+      final double lineSetupBottom = foggerSystemNode != null
+          ? (valveBankNode != null ? valveBankY + 205.0 + 112.0 : valveBankY + 112.0)
+          : (valveBankY + 190.0);
+
+      currentReturnY = lineSetupBottom + 120.0;
+      prevRiserJn = lineBranchJn;
+      prevRiserPt = lineBranchRiserPt;
     }
   }
 
@@ -3840,14 +3939,16 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
             Expanded(
               child: Container(
                 color: const Color(0xFFF3F5F7),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      // Camera: pan / zoom is just a matrix change, no rebuilds.
-                      child: Listener(
-                        key: _viewKey,
-                        onPointerSignal: _onCanvasPointerSignal,
-                        child: InteractiveViewer(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          // Camera: pan / zoom is just a matrix change, no rebuilds.
+                          child: Listener(
+                            key: _viewKey,
+                            onPointerSignal: _onCanvasPointerSignal,
+                            child: InteractiveViewer(
                           transformationController: _tc,
                           constrained: false,
                           scaleEnabled: false, // no wheel / pinch zoom (buttons only)
@@ -3953,10 +4054,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                         ),
                       ),
                     ),
-                    // Right side vertical floating action buttons
+                    // Custom attractive scrollbars overlay
+                    Positioned.fill(
+                      child: _AttractiveScrollbars(
+                        tc: _tc,
+                        viewportWidth: constraints.maxWidth,
+                        viewportHeight: constraints.maxHeight,
+                      ),
+                    ),
+                    // Right side vertical floating action buttons (placed to the left of the vertical scrollbar)
                     Positioned(
                       top: 16,
-                      right: 16,
+                      right: 22,
                       child: Material(
                         elevation: 4,
                         borderRadius: BorderRadius.circular(12),
@@ -4044,14 +4153,16 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
+                );
+              },
             ),
-          ],
+          ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  ),
+);
+}
 
   Widget _buildToolbar() {
     return Material(
@@ -4234,4 +4345,303 @@ class _GridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _AttractiveScrollbars extends StatefulWidget {
+  final TransformationController tc;
+  final double viewportWidth;
+  final double viewportHeight;
+
+  const _AttractiveScrollbars({
+    required this.tc,
+    required this.viewportWidth,
+    required this.viewportHeight,
+  });
+
+  @override
+  State<_AttractiveScrollbars> createState() => _AttractiveScrollbarsState();
+}
+
+class _AttractiveScrollbarsState extends State<_AttractiveScrollbars> {
+  bool _hoverH = false;
+  bool _hoverV = false;
+  bool _dragH = false;
+  bool _dragV = false;
+
+  double _startThumbLeft = 0.0;
+  double _startDragX = 0.0;
+
+  double _startThumbTop = 0.0;
+  double _startDragY = 0.0;
+
+  void _scrollToRatioX(double targetRatio, double scale, double minVisX, double spanX) {
+    final double clampedRatio = targetRatio.clamp(0.0, 1.0);
+    final double newVisLeft = minVisX + clampedRatio * spanX;
+    final Matrix4 nextM = widget.tc.value.clone();
+    nextM.storage[12] = -newVisLeft * scale;
+    widget.tc.value = nextM;
+  }
+
+  void _scrollToRatioY(double targetRatio, double scale, double minVisY, double spanY) {
+    final double clampedRatio = targetRatio.clamp(0.0, 1.0);
+    final double newVisTop = minVisY + clampedRatio * spanY;
+    final Matrix4 nextM = widget.tc.value.clone();
+    nextM.storage[13] = -newVisTop * scale;
+    widget.tc.value = nextM;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.tc,
+      builder: (context, _) {
+        final Matrix4 m = widget.tc.value;
+        final double scale = m.getMaxScaleOnAxis();
+        final double tx = m.storage[12];
+        final double ty = m.storage[13];
+
+        final double visW = widget.viewportWidth / scale;
+        final double visH = widget.viewportHeight / scale;
+
+        const double minVisX = -300.0;
+        final double maxVisX = kCanvasWidth + 300.0 - visW;
+        final double spanX = math.max(1.0, maxVisX - minVisX);
+
+        const double minVisY = -300.0;
+        final double maxVisY = kCanvasHeight + 300.0 - visH;
+        final double spanY = math.max(1.0, maxVisY - minVisY);
+
+        final double visLeft = (-tx / scale).clamp(minVisX, maxVisX);
+        final double visTop = (-ty / scale).clamp(minVisY, maxVisY);
+
+        final double ratioX = ((visLeft - minVisX) / spanX).clamp(0.0, 1.0);
+        final double ratioY = ((visTop - minVisY) / spanY).clamp(0.0, 1.0);
+
+        // Horizontal Track & Thumb (placed at the very bottom edge)
+        const double padLeftH = 6.0;
+        const double padRightH = 20.0;
+        final double trackW = math.max(100.0, widget.viewportWidth - padLeftH - padRightH);
+        final double totalSpanW = kCanvasWidth + 600.0;
+        final double thumbW = (trackW * (visW / totalSpanW)).clamp(40.0, trackW * 0.85);
+        final double availTrackW = math.max(1.0, trackW - thumbW);
+        final double thumbLeft = availTrackW * ratioX;
+
+        // Vertical Track & Thumb (placed at the very right edge, after floating action buttons)
+        const double padTopV = 6.0;
+        const double padBottomV = 20.0;
+        final double trackH = math.max(100.0, widget.viewportHeight - padTopV - padBottomV);
+        final double totalSpanH = kCanvasHeight + 600.0;
+        final double thumbH = (trackH * (visH / totalSpanH)).clamp(40.0, trackH * 0.85);
+        final double availTrackH = math.max(1.0, trackH - thumbH);
+        final double thumbTop = availTrackH * ratioY;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // ── HORIZONTAL SCROLLBAR (At the very bottom edge) ──
+            Positioned(
+              left: padLeftH,
+              bottom: 4,
+              width: trackW,
+              height: 12,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _hoverH = true),
+                onExit: (_) => setState(() => _hoverH = false),
+                child: GestureDetector(
+                  onTapDown: (details) {
+                    final double localX = details.localPosition.dx;
+                    final double targetRatio = (localX - thumbW / 2) / availTrackW;
+                    _scrollToRatioX(targetRatio, scale, minVisX, spanX);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: _hoverH || _dragH ? 0.90 : 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (_hoverH || _dragH ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1))
+                            .withValues(alpha: 0.7),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.10),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: thumbLeft,
+                          top: 1,
+                          bottom: 1,
+                          width: thumbW,
+                          child: GestureDetector(
+                            onPanStart: (details) {
+                              setState(() {
+                                _dragH = true;
+                                _startThumbLeft = thumbLeft;
+                                _startDragX = details.globalPosition.dx;
+                              });
+                            },
+                            onPanEnd: (_) => setState(() => _dragH = false),
+                            onPanCancel: () => setState(() => _dragH = false),
+                            onPanUpdate: (details) {
+                              if (availTrackW <= 0) return;
+                              final double dx = details.globalPosition.dx - _startDragX;
+                              final double targetThumbLeft = _startThumbLeft + dx;
+                              final double targetRatio = targetThumbLeft / availTrackW;
+                              _scrollToRatioX(targetRatio, scale, minVisX, spanX);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: (_dragH || _hoverH)
+                                      ? const [Color(0xFF06B6D4), Color(0xFF0284C7)]
+                                      : const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0284C7)
+                                        .withValues(alpha: _dragH || _hoverH ? 0.55 : 0.30),
+                                    blurRadius: _dragH || _hoverH ? 8 : 4,
+                                    spreadRadius: _dragH || _hoverH ? 1 : 0,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (int i = 0; i < 3; i++)
+                                      Container(
+                                        width: 2,
+                                        height: 5,
+                                        margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          borderRadius: BorderRadius.circular(1),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // ── VERTICAL SCROLLBAR (At the very right edge, after floating action buttons) ──
+            Positioned(
+              right: 4,
+              top: padTopV,
+              width: 12,
+              height: trackH,
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _hoverV = true),
+                onExit: (_) => setState(() => _hoverV = false),
+                child: GestureDetector(
+                  onTapDown: (details) {
+                    final double localY = details.localPosition.dy;
+                    final double targetRatio = (localY - thumbH / 2) / availTrackH;
+                    _scrollToRatioY(targetRatio, scale, minVisY, spanY);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: _hoverV || _dragV ? 0.90 : 0.65),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: (_hoverV || _dragV ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1))
+                            .withValues(alpha: 0.7),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withValues(alpha: 0.10),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          top: thumbTop,
+                          left: 1,
+                          right: 1,
+                          height: thumbH,
+                          child: GestureDetector(
+                            onPanStart: (details) {
+                              setState(() {
+                                _dragV = true;
+                                _startThumbTop = thumbTop;
+                                _startDragY = details.globalPosition.dy;
+                              });
+                            },
+                            onPanEnd: (_) => setState(() => _dragV = false),
+                            onPanCancel: () => setState(() => _dragV = false),
+                            onPanUpdate: (details) {
+                              if (availTrackH <= 0) return;
+                              final double dy = details.globalPosition.dy - _startDragY;
+                              final double targetThumbTop = _startThumbTop + dy;
+                              final double targetRatio = targetThumbTop / availTrackH;
+                              _scrollToRatioY(targetRatio, scale, minVisY, spanY);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: (_dragV || _hoverV)
+                                      ? const [Color(0xFF06B6D4), Color(0xFF0284C7)]
+                                      : const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                                ),
+                                borderRadius: BorderRadius.circular(6),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF0284C7)
+                                        .withValues(alpha: _dragV || _hoverV ? 0.55 : 0.30),
+                                    blurRadius: _dragV || _hoverV ? 8 : 4,
+                                    spreadRadius: _dragV || _hoverV ? 1 : 0,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    for (int i = 0; i < 3; i++)
+                                      Container(
+                                        width: 5,
+                                        height: 2,
+                                        margin: const EdgeInsets.symmetric(vertical: 1.2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(alpha: 0.85),
+                                          borderRadius: BorderRadius.circular(1),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
