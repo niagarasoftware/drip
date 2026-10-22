@@ -83,6 +83,17 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     getUserNodePumpList();
   }
 
+  @override
+  void didUpdateWidget(covariant IrrigationAndPumpLog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldCtrlId = oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
+    final newCtrlId = widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    if (oldCtrlId != newCtrlId ||
+        oldWidget.userData['customerId'] != widget.userData['customerId']) {
+      getUserNodePumpList();
+    }
+  }
+
   void _updateTabController() {
     final newLength = _calculateTabLength();
 
@@ -115,22 +126,52 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
       final response = jsonDecode(result.body);
 
-      setState(() {
-        if (result.statusCode == 200 && response['data'] is List) {
-          pumpList = response['data'];
-          message = '';
-        } else {
-          pumpList = [];
-          message = response['message']?.toString() ?? '';
-        }
+      List fetchedList = [];
+      if (result.statusCode == 200 && response['data'] is List && (response['data'] as List).isNotEmpty) {
+        fetchedList = response['data'];
+      } else if (widget.masterData.nodeList.isNotEmpty) {
+        final pumpNodes = widget.masterData.nodeList.where((n) {
+          return AppConstants.pumpList.contains(n.modelId) ||
+              n.categoryId == 1 ||
+              n.categoryName.toLowerCase().contains('pump');
+        }).toList();
 
+        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fetchedList = nodesToUse.map((n) => {
+          'controllerId': n.controllerId,
+          'deviceId': n.deviceId,
+          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        }).toList();
+      }
+
+      setState(() {
+        pumpList = fetchedList;
+        message = fetchedList.isEmpty ? (response['message']?.toString() ?? '') : '';
         _updateTabController();
       });
     } catch (e) {
       if (!mounted) return;
 
+      List fallbackList = [];
+      if (widget.masterData.nodeList.isNotEmpty) {
+        final pumpNodes = widget.masterData.nodeList.where((n) {
+          return AppConstants.pumpList.contains(n.modelId) ||
+              n.categoryId == 1 ||
+              n.categoryName.toLowerCase().contains('pump');
+        }).toList();
+
+        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fallbackList = nodesToUse.map((n) => {
+          'controllerId': n.controllerId,
+          'deviceId': n.deviceId,
+          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        }).toList();
+      }
+
       setState(() {
-        message = e.toString();
+        pumpList = fallbackList;
+        message = fallbackList.isEmpty ? e.toString() : '';
+        _updateTabController();
       });
 
       debugPrint('Pump list error: $e');

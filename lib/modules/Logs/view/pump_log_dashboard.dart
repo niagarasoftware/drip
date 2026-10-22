@@ -86,8 +86,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceId;
     }
-    if (widget.pumpList.isNotEmpty && _selectedPumpIndex < widget.pumpList.length) {
-      final item = widget.pumpList[_selectedPumpIndex];
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty && _selectedPumpIndex < devices.length) {
+      final item = devices[_selectedPumpIndex];
       final deviceId = item['deviceId']?.toString();
       if (deviceId != null && deviceId.isNotEmpty) return deviceId;
     }
@@ -98,8 +99,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceName;
     }
-    if (widget.pumpList.isNotEmpty && _selectedPumpIndex < widget.pumpList.length) {
-      final item = widget.pumpList[_selectedPumpIndex];
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty && _selectedPumpIndex < devices.length) {
+      final item = devices[_selectedPumpIndex];
       final deviceName = item['deviceName']?.toString();
       if (deviceName != null && deviceName.isNotEmpty) return deviceName;
     }
@@ -112,9 +114,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     _selectedDate = DateTime.now();
     _alignWeekStartDate(_selectedDate);
 
-    if (widget.pumpList.isNotEmpty) {
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty) {
       final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
-      _activeNodeControllerId = isEcoGem ? 0 : (widget.pumpList[0]['controllerId'] ?? widget.nodeControllerId);
+      _activeNodeControllerId = isEcoGem ? 0 : (devices[0]['controllerId'] ?? widget.nodeControllerId);
     } else {
       _activeNodeControllerId = widget.nodeControllerId;
     }
@@ -127,17 +130,20 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   @override
   void didUpdateWidget(covariant PumpLogDashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.pumpList != oldWidget.pumpList && widget.pumpList.isNotEmpty) {
-      if (_selectedPumpIndex >= widget.pumpList.length) {
-        _selectedPumpIndex = 0;
+    final controllerChanged = widget.controllerId != oldWidget.controllerId ||
+        widget.masterData.controllerId != oldWidget.masterData.controllerId;
+    final pumpListChanged = widget.pumpList != oldWidget.pumpList;
+
+    if (controllerChanged || pumpListChanged) {
+      _selectedPumpIndex = 0;
+      final devices = effectiveDeviceList;
+      if (devices.isNotEmpty) {
+        final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
+        _activeNodeControllerId = isEcoGem ? 0 : (devices[0]['controllerId'] ?? widget.nodeControllerId);
+      } else {
+        _activeNodeControllerId = widget.nodeControllerId;
       }
-      final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
-      final newControllerId =
-      isEcoGem ? 0 : (widget.pumpList[_selectedPumpIndex]['controllerId'] ?? widget.nodeControllerId);
-      if (newControllerId != _activeNodeControllerId) {
-        _activeNodeControllerId = newControllerId;
-        _fetchAllData();
-      }
+      _fetchAllData();
     }
   }
 
@@ -430,65 +436,68 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<PumpControllerProvider>();
 
-    return Scaffold(
-      backgroundColor: _kBg,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            return Column(
-              children: [
-                // Edge-to-edge calendar bar
-                _buildCalendarHeader(isWide),
+    return KeyedSubtree(
+      key: ValueKey(widget.controllerId),
+      child: Scaffold(
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 900;
+              return Column(
+                children: [
+                  // Edge-to-edge calendar bar
+                  _buildCalendarHeader(isWide),
 
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _fetchAllData,
-                    color: _kTeal,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildDeviceHeader(),
-                          _buildPumpSegmentControl(provider),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchAllData,
+                      color: _kTeal,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildDeviceHeader(),
+                            _buildPumpSegmentControl(provider),
 
-                          if (_isLoading)
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 10),
-                              child: LinearProgressIndicator(
-                                color: _kTeal,
-                                backgroundColor: Color(0xFFE0F4F7),
+                            if (_isLoading)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 10),
+                                child: LinearProgressIndicator(
+                                  color: _kTeal,
+                                  backgroundColor: Color(0xFFE0F4F7),
+                                ),
                               ),
-                            ),
 
-                          _buildPowerGraphCard(provider, isWide),
-                          const SizedBox(height: 12),
-
-                          if (isWide)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: _buildPumpLogCard(provider)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildVoltageLogCard(provider)),
-                              ],
-                            )
-                          else ...[
-                            _buildPumpLogCard(provider),
+                            _buildPowerGraphCard(provider, isWide),
                             const SizedBox(height: 12),
-                            _buildVoltageLogCard(provider),
+
+                            if (isWide)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: _buildPumpLogCard(provider)),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: _buildVoltageLogCard(provider)),
+                                ],
+                              )
+                            else ...[
+                              _buildPumpLogCard(provider),
+                              const SizedBox(height: 12),
+                              _buildVoltageLogCard(provider),
+                            ],
+                            const SizedBox(height: 24),
                           ],
-                          const SizedBox(height: 24),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -506,6 +515,20 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     }
     if (widget.pumpList.isNotEmpty) {
       return widget.pumpList.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    if (widget.masterData.nodeList.isNotEmpty) {
+      final pumpNodes = widget.masterData.nodeList.where((n) {
+        return AppConstants.pumpList.contains(n.modelId) ||
+            n.categoryId == 1 ||
+            n.categoryName.toLowerCase().contains('pump');
+      }).toList();
+
+      final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+      return nodesToUse.map((n) => {
+        'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        'deviceId': n.deviceId,
+        'controllerId': n.controllerId,
+      }).toList();
     }
     return [
       {
