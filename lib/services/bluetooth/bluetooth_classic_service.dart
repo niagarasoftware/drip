@@ -1,10 +1,10 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bluetooth_serial_plus/flutter_bluetooth_serial_plus.dart' as classic;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -27,25 +27,9 @@ class BluetoothClassicService {
     return _instance!;
   }
 
-
-  Future<bool> ensureBluetoothEnabled() async {
-    final bluetooth = classic.FlutterBluetoothSerial.instance;
-
-    final state = await bluetooth.state;
-
-    if (state == classic.BluetoothState.STATE_ON) {
-      return true;
-    }
-
-    // Ask Android to enable Bluetooth.
-    final enabled = await bluetooth.requestEnable();
-
-    return enabled == true;
-  }
-
-// ============================================================
-// CALLBACKS
-// ============================================================
+  // ============================================================
+  // CALLBACKS
+  // ============================================================
 
   VoidCallback? onDeviceFound;
   Function()? onNoDeviceFound;
@@ -53,9 +37,9 @@ class BluetoothClassicService {
   Function(String message)? onBluetoothDisabled;
   Function(String message, bool success)? onWifiUpdateResult;
 
-// ============================================================
-// BLUETOOTH STATE
-// ============================================================
+  // ============================================================
+  // BLUETOOTH STATE
+  // ============================================================
 
   final classic.FlutterBluetoothSerial _bluetooth =
       classic.FlutterBluetoothSerial.instance;
@@ -76,17 +60,30 @@ class BluetoothClassicService {
   bool _isConnecting = false;
   bool _manualDisconnect = false;
 
+  // Set when the app asks to stop everything (for example the user left
+  // Bluetooth mode). A connect or scan still in flight then ends silently
+  // instead of raising alerts later.
+  bool _cancelConnect = false;
+  bool _scanStopped = false;
+  Completer<void>? _scanCompleter;
+
   int _reconnectAttempts = 0;
 
   static const int maxReconnectAttempts = 3;
 
   Timer? _reconnectTimer;
 
-  static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration scanSafetyTimeout = Duration(seconds: 16);
 
-  bool get isConnected =>
-      _connection != null && _connection!.isConnected;
+  // How long to wait for the user to accept the Android pairing dialog.
+  static const Duration pairingTimeout = Duration(seconds: 30);
+
+  // The unit does not accept a bond saved from an earlier session, so by
+  // default any old bond is removed before connecting and pairing starts
+  // fresh. Set to false if the firmware is fixed to keep its pairing keys.
+  static const bool alwaysPairFresh = true;
+
+  bool get isConnected => _connection != null && _connection!.isConnected;
 
   bool get isScanning => _isScanning;
 
@@ -98,9 +95,9 @@ class BluetoothClassicService {
 
   classic.BluetoothDevice? get connectedDevice => _connectedDeviceRef;
 
-// ============================================================
-// RESPONSE BUFFER
-// ============================================================
+  // ============================================================
+  // RESPONSE BUFFER
+  // ============================================================
 
   String _buffer = '';
 
@@ -112,9 +109,9 @@ class BluetoothClassicService {
 
   DateTime? _lastActivity;
 
-// ============================================================
-// TRACE LOG
-// ============================================================
+  // ============================================================
+  // TRACE LOG
+  // ============================================================
 
   List<String> traceLog = [];
 
@@ -136,9 +133,9 @@ class BluetoothClassicService {
     return utf8.encode(traceChunk).length;
   }
 
-// ============================================================
-// WRITE SETTINGS
-// ============================================================
+  // ============================================================
+  // WRITE SETTINGS
+  // ============================================================
 
   static const int writeChunkSize = 20;
 
@@ -146,9 +143,9 @@ class BluetoothClassicService {
 
   Future<void> _writeQueue = Future.value();
 
-// ============================================================
-// INITIALIZATION
-// ============================================================
+  // ============================================================
+  // INITIALIZATION
+  // ============================================================
 
   Future<void> initializeClassicService({
     MqttPayloadProvider? state,
@@ -159,29 +156,46 @@ class BluetoothClassicService {
       hardStop();
     };
 
-// Prevent duplicate adapter listeners if initialization is repeated.
+    // Prevent duplicate adapter listeners if initialization is repeated.
     await _adapterStateSubscription?.cancel();
     _adapterStateSubscription = null;
 
     try {
-      _adapterStateSubscription =
-          _bluetooth.onStateChanged().listen((state) {
-            debugPrint('🔵 Classic Bluetooth State: $state');
+      _adapterStateSubscription = _bluetooth.onStateChanged().listen((state) {
+        debugPrint('🔵 Classic Bluetooth State: $state');
 
-            if (state == classic.BluetoothState.STATE_OFF) {
-              _resetConnection();
+        if (state == classic.BluetoothState.STATE_OFF) {
+          _resetConnection();
 
-              providerState?.updateClassicConnectedDeviceStatus(null);
+          providerState?.updateClassicConnectedDeviceStatus(null);
 
-              onBluetoothDisabled?.call(
-                'Bluetooth was turned off. Please turn it back on to continue.',
-              );
-            }
-          });
+          onBluetoothDisabled?.call(
+            'Bluetooth was turned off. Please turn it back on to continue.',
+          );
+        }
+      });
     } catch (e) {
-      debugPrint(
-        '⚠️ Could not listen to classic adapter state: $e',
-      );
+      debugPrint('⚠️ Could not listen to classic adapter state: $e');
+    }
+  }
+
+  /// Returns true when Bluetooth is ON (asks Android to enable it if not).
+  /// Call requestPermissions() first: on Android 12+ the enable request
+  /// needs BLUETOOTH_CONNECT.
+  Future<bool> ensureBluetoothEnabled() async {
+    try {
+      final state = await _bluetooth.state;
+
+      if (state == classic.BluetoothState.STATE_ON) {
+        return true;
+      }
+
+      final enabled = await _bluetooth.requestEnable();
+
+      return enabled == true;
+    } catch (e) {
+      debugPrint('⚠️ Error enabling Bluetooth: $e');
+      return false;
     }
   }
 
@@ -203,18 +217,18 @@ class BluetoothClassicService {
     }
   }
 
-// ============================================================
-// PERMISSIONS
-//
-// Android 12+:
-//   - BLUETOOTH_CONNECT for connecting.
-//   - BLUETOOTH_SCAN for discovery.
-//   - Location is not forced just to connect.
-//
-// Android 11 and below:
-//   - Bluetooth permission for Classic Bluetooth.
-//   - Location permission for discovery.
-// ============================================================
+  // ============================================================
+  // PERMISSIONS
+  //
+  // Android 12+:
+  //   - BLUETOOTH_CONNECT for connecting / pairing.
+  //   - BLUETOOTH_SCAN for discovery.
+  //   - Location is not needed (manifest uses neverForLocation).
+  //
+  // Android 11 and below:
+  //   - Bluetooth permission for Classic Bluetooth.
+  //   - Location permission for discovery.
+  // ============================================================
 
   Future<bool> requestPermissions({
     bool forScan = false,
@@ -257,8 +271,7 @@ class BluetoothClassicService {
             status.isPermanentlyDenied ||
             status.isRestricted) {
           debugPrint(
-            '❌ Bluetooth permission not granted: '
-                '${entry.key} => $status',
+            '❌ Bluetooth permission not granted: ${entry.key} => $status',
           );
 
           return false;
@@ -267,9 +280,7 @@ class BluetoothClassicService {
 
       return true;
     } catch (e) {
-      debugPrint(
-        '⚠️ Error requesting Classic Bluetooth permissions: $e',
-      );
+      debugPrint('⚠️ Error requesting Classic Bluetooth permissions: $e');
 
       return false;
     }
@@ -277,8 +288,7 @@ class BluetoothClassicService {
 
   Future<void> checkLocationServices() async {
     try {
-      final isLocationEnabled =
-      await Geolocator.isLocationServiceEnabled();
+      final isLocationEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (!isLocationEnabled) {
         debugPrint(
@@ -293,25 +303,18 @@ class BluetoothClassicService {
     }
   }
 
-// ============================================================
-// SCAN
-// ============================================================
+  // ============================================================
+  // SCAN
+  // ============================================================
 
   Future<void> scanDevices(String deviceId) async {
-
-    final enabled = await ensureBluetoothEnabled();
-
-    if (!enabled) {
-      debugPrint('Bluetooth is disabled or permission was denied.');
-      return;
-    }
-
     if (_isScanning) {
       debugPrint('⚠️ Classic scan already in progress.');
       return;
     }
 
     var coordinatorClaimed = false;
+    var scanStarted = false;
 
     try {
       await BluetoothActivityCoordinator.instance.claim(
@@ -320,9 +323,9 @@ class BluetoothClassicService {
 
       coordinatorClaimed = true;
 
-      final permissionsGranted = await requestPermissions(
-        forScan: true,
-      );
+      // Permissions first: enabling Bluetooth needs BLUETOOTH_CONNECT
+      // on Android 12+.
+      final permissionsGranted = await requestPermissions(forScan: true);
 
       if (!permissionsGranted) {
         onConnectionError?.call(
@@ -333,7 +336,15 @@ class BluetoothClassicService {
         return;
       }
 
-// Location is only checked here for discovery, not connection.
+      if (!await ensureBluetoothEnabled()) {
+        onBluetoothDisabled?.call(
+          'Please turn on Bluetooth to scan for devices.',
+        );
+
+        return;
+      }
+
+      // Location is only checked here for discovery, not connection.
       if (Platform.isAndroid) {
         await checkLocationServices();
       }
@@ -343,9 +354,7 @@ class BluetoothClassicService {
       try {
         providerState?.updateClassicPairedDevices([]);
       } catch (e) {
-        debugPrint(
-          '⚠️ Error clearing Classic provider devices: $e',
-        );
+        debugPrint('⚠️ Error clearing Classic provider devices: $e');
       }
 
       await _scanSubscription?.cancel();
@@ -358,8 +367,11 @@ class BluetoothClassicService {
       }
 
       _isScanning = true;
+      scanStarted = true;
+      _scanStopped = false;
 
       final completer = Completer<void>();
+      _scanCompleter = completer;
 
       _scanSubscription = _bluetooth.startDiscovery().listen(
             (result) {
@@ -376,8 +388,7 @@ class BluetoothClassicService {
           if (!exists) {
             _devices.add(device);
 
-            final existing =
-            providerState?.pairedDevicesClassic.firstWhere(
+            final existing = providerState?.pairedDevicesClassic.firstWhere(
                   (e) => e.device.address == device.address,
               orElse: () => ClassicBluetoothDeviceModel(
                 device: device,
@@ -386,8 +397,8 @@ class BluetoothClassicService {
 
             final updatedDevice = ClassicBluetoothDeviceModel(
               device: device,
-              connectionState: existing?.connectionState ??
-                  BlueConnectionState.disconnected,
+              connectionState:
+              existing?.connectionState ?? BlueConnectionState.disconnected,
             );
 
             final updatedList = [
@@ -398,20 +409,22 @@ class BluetoothClassicService {
               updatedDevice,
             ];
 
-            providerState?.updateClassicPairedDevices(
-              updatedList,
-            );
+            providerState?.updateClassicPairedDevices(updatedList);
           }
 
           onDeviceFound?.call();
+
+          // The target device was found: end the scan now so discovery
+          // is not running while the user pairs / connects.
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
         },
         onError: (Object e, StackTrace stackTrace) {
           debugPrint('❌ Classic discovery stream error: $e');
           debugPrintStack(stackTrace: stackTrace);
 
-          onConnectionError?.call(
-            'Bluetooth scan failed: $e',
-          );
+          onConnectionError?.call('Bluetooth scan failed: $e');
 
           if (!completer.isCompleted) {
             completer.complete();
@@ -439,9 +452,7 @@ class BluetoothClassicService {
       debugPrint('❌ Error during Classic scan: $e');
       debugPrintStack(stackTrace: stackTrace);
 
-      onConnectionError?.call(
-        'Bluetooth scan failed: $e',
-      );
+      onConnectionError?.call('Bluetooth scan failed: $e');
     } finally {
       try {
         await _scanSubscription?.cancel();
@@ -451,20 +462,24 @@ class BluetoothClassicService {
 
       _scanSubscription = null;
 
-      try {
-        await _bluetooth.cancelDiscovery();
-      } catch (e) {
-        debugPrint('⚠️ Error stopping discovery: $e');
-      }
+      if (scanStarted) {
+        try {
+          await _bluetooth.cancelDiscovery();
+        } catch (e) {
+          debugPrint('⚠️ Error stopping discovery: $e');
+        }
 
-      _isScanning = false;
+        _isScanning = false;
 
-      if (_devices.isEmpty) {
-        debugPrint(
-          '⚠️ Classic scan finished — no matching devices found.',
-        );
+        // Only report "no device" for a scan that ran to its end, not one
+        // that was stopped on purpose.
+        if (_devices.isEmpty && !_scanStopped) {
+          debugPrint(
+            '⚠️ Classic scan finished — no matching devices found.',
+          );
 
-        onNoDeviceFound?.call();
+          onNoDeviceFound?.call();
+        }
       }
 
       if (coordinatorClaimed) {
@@ -476,6 +491,15 @@ class BluetoothClassicService {
   }
 
   Future<void> stopDiscovery() async {
+    _scanStopped = true;
+
+    // A scan waiting on discovery must end right away, otherwise it keeps
+    // waiting for its safety timeout and reports "no device" much later.
+    final pending = _scanCompleter;
+    if (pending != null && !pending.isCompleted) {
+      pending.complete();
+    }
+
     try {
       await _scanSubscription?.cancel();
     } catch (e) {
@@ -500,47 +524,138 @@ class BluetoothClassicService {
     providerState?.updateClassicPairedDevices([]);
   }
 
-// ============================================================
-// CONNECT
-//
-// Important:
-// - Do not bond explicitly here.
-// - The device must expose a compatible Classic SPP/RFCOMM service.
-// - The caller must stop BLE scanning before connecting.
-// ============================================================
+  // ============================================================
+  // PAIRING
+  //
+  // Newer Android versions (12+) can time out the RFCOMM socket if
+  // pairing is started as a side effect of connect(): the pairing
+  // dialog interrupts the socket. So pairing is completed as a
+  // separate step first, then the socket is opened.
+  // ============================================================
+
+  /// Pairs with automatic retries. The first pairing request is sometimes
+  /// rejected instantly (the bond goes bonding -> none within a moment)
+  /// and the next one succeeds, so we retry quietly. If an attempt took
+  /// long, the user had time to see the dialog and probably cancelled it,
+  /// so we stop instead of showing the dialog again.
+  Future<bool> _ensureBonded(String address) async {
+    const maxAttempts = 4;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      final startedAt = DateTime.now();
+
+      if (await _pairOnce(address)) {
+        return true;
+      }
+
+      final elapsed = DateTime.now().difference(startedAt);
+
+      if (elapsed > const Duration(seconds: 8)) {
+        debugPrint('⚠️ Pairing took long and failed — not retrying.');
+        return false;
+      }
+
+      if (attempt < maxAttempts) {
+        debugPrint(
+          '🔁 Pairing attempt $attempt failed quickly, retrying in 4s.',
+        );
+
+        await Future.delayed(const Duration(seconds: 4));
+      }
+    }
+
+    return false;
+  }
+
+  Future<bool> _pairOnce(String address) async {
+    try {
+      final current = await _bluetooth.getBondStateForAddress(address);
+
+      if (current == classic.BluetoothBondState.bonded) {
+        return true;
+      }
+
+      debugPrint('🔐 Pairing with $address ...');
+
+      final started = await _bluetooth.bondDeviceAtAddress(address) ?? false;
+
+      if (!started) {
+        debugPrint('❌ Pairing request was not started.');
+        return false;
+      }
+
+      // Wait for the user to accept the pairing dialog.
+      final polls = pairingTimeout.inMilliseconds ~/ 500;
+      var sawBonding = false;
+
+      for (var i = 0; i < polls; i++) {
+        final state = await _bluetooth.getBondStateForAddress(address);
+
+        if (state == classic.BluetoothBondState.bonded) {
+          debugPrint('✅ Paired with $address.');
+          return true;
+        }
+
+        if (state == classic.BluetoothBondState.bonding) {
+          sawBonding = true;
+        }
+
+        // Pairing started and then dropped back to "none": it failed.
+        if (sawBonding && state == classic.BluetoothBondState.none) {
+          debugPrint('❌ Pairing was rejected (bonding -> none).');
+          return false;
+        }
+
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      debugPrint('⏱️ Pairing timed out for $address.');
+      return false;
+    } catch (e) {
+      // If the bond API is unavailable, do not block the connection:
+      // let the socket connect try (this was the old behaviour).
+      debugPrint('⚠️ Bond check failed, continuing without it: $e');
+      return true;
+    }
+  }
+
+  // ============================================================
+  // CONNECT
+  //
+  // Important:
+  // - Pairing is completed first (see _ensureBonded).
+  // - The device must expose a compatible Classic SPP/RFCOMM service.
+  // - The caller must stop BLE scanning before connecting.
+  // ============================================================
 
   Future<void> connectToDevice(
-      ClassicBluetoothDeviceModel device,
-      ) async {
+      ClassicBluetoothDeviceModel device, {
+        bool freshPair = true,
+      }) async {
     final address = device.device.address;
 
     if (_isConnecting) {
-      debugPrint(
-        '⚠️ Classic connection already in progress.',
-      );
+      debugPrint('⚠️ Classic connection already in progress.');
 
       return;
     }
 
     if (isConnected && _connectedAddress == address) {
-      debugPrint(
-        '✅ Already connected to $address.',
-      );
+      debugPrint('✅ Already connected to $address.');
 
       providerState?.updateClassicDeviceStatus(
         address,
         BlueConnectionState.connected.index,
       );
 
-      providerState?.updateClassicConnectedDeviceStatus(
-        device,
-      );
+      providerState?.updateClassicConnectedDeviceStatus(device);
 
       return;
     }
 
     _isConnecting = true;
     _manualDisconnect = false;
+    _cancelConnect = false;
 
     var coordinatorClaimed = false;
 
@@ -550,6 +665,9 @@ class BluetoothClassicService {
       );
 
       coordinatorClaimed = true;
+
+      // Make sure no discovery is running while pairing / connecting.
+      await stopDiscovery();
 
       final permissionsGranted = await requestPermissions();
 
@@ -577,11 +695,9 @@ class BluetoothClassicService {
         BlueConnectionState.connecting.index,
       );
 
-// Close an existing connection before switching devices.
+      // Close an existing connection before switching devices.
       if (_connection != null) {
-        debugPrint(
-          '🔌 Closing existing Classic connection before switching.',
-        );
+        debugPrint('🔌 Closing existing Classic connection before switching.');
 
         await _closeCurrentConnection(
           manual: true,
@@ -591,41 +707,65 @@ class BluetoothClassicService {
         _manualDisconnect = false;
       }
 
-// Do not mark the requested device as connected before the socket
-// has actually opened successfully.
-      await _bluetooth.cancelDiscovery();
-
-// Wait briefly for Android discovery to stop.
+      // Wait briefly for Android discovery to stop.
       for (var i = 0; i < 15; i++) {
         bool discovering = false;
 
         try {
           discovering = await _bluetooth.isDiscovering ?? false;
         } catch (e) {
-          debugPrint(
-            '⚠️ Could not check discovery state: $e',
-          );
+          debugPrint('⚠️ Could not check discovery state: $e');
         }
 
         if (!discovering) {
           break;
         }
 
-        await Future.delayed(
-          const Duration(milliseconds: 200),
-        );
+        await Future.delayed(const Duration(milliseconds: 200));
       }
 
-// Allow the Bluetooth adapter to settle after discovery.
-      await Future.delayed(
-        const Duration(milliseconds: 1000),
-      );
+      // Allow the Bluetooth adapter to settle after discovery.
+      await Future.delayed(const Duration(milliseconds: 1000));
 
-      debugPrint(
-        '🔵 Opening Classic RFCOMM connection to $address.',
-      );
+      // Remove a saved bond the unit would reject, then pair fresh.
+      // (Not done for automatic reconnects: those must not ask the user
+      // to pair again.)
+      if (alwaysPairFresh && freshPair) {
+        try {
+          final saved = await _bluetooth.getBondStateForAddress(address);
 
-      final connection = await _connectWithRetries(address);
+          if (saved == classic.BluetoothBondState.bonded) {
+            debugPrint('🧹 Removing saved bond so pairing starts fresh.');
+            await _removeBond(address);
+            await Future.delayed(const Duration(seconds: 2));
+          }
+        } catch (e) {
+          debugPrint('⚠️ Could not check saved bond: $e');
+        }
+      }
+
+      // Step 1: finish pairing before opening the socket.
+      if (!await _ensureBonded(address)) {
+        throw StateError('Pairing failed or was cancelled.');
+      }
+
+      // Give the unit a moment to finish its side of pairing.
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Step 2: open the RFCOMM socket (retry once, keeping the bond).
+      debugPrint('🔵 Opening Classic RFCOMM connection to $address.');
+
+      final classic.BluetoothConnection connection =
+      await _openWithBondRepair(address);
+
+      // The user left Bluetooth mode while we were connecting.
+      if (_cancelConnect) {
+        try {
+          await connection.close();
+        } catch (_) {}
+
+        throw StateError('Connection cancelled.');
+      }
 
       if (!connection.isConnected) {
         try {
@@ -637,7 +777,7 @@ class BluetoothClassicService {
         );
       }
 
-// Install the listener before publishing the connected state.
+      // Install the listener before publishing the connected state.
       _connection = connection;
       _connectedAddress = address;
       _connectedDeviceRef = device.device;
@@ -653,47 +793,37 @@ class BluetoothClassicService {
       _inputSubscription = input.listen(
         _onDataReceived,
         onError: (Object error, StackTrace stackTrace) {
-          debugPrint(
-            '❌ Classic input stream error: $error',
-          );
+          debugPrint('❌ Classic input stream error: $error');
 
           debugPrintStack(stackTrace: stackTrace);
 
           _handleConnectionClosed(connection, device);
         },
         onDone: () {
-          debugPrint(
-            '🔌 Classic input stream closed for $address.',
-          );
+          debugPrint('🔌 Classic input stream closed for $address.');
 
           _handleConnectionClosed(connection, device);
         },
         cancelOnError: true,
       );
 
-// The socket is now connected; update the UI/provider.
+      // The socket is now connected; update the UI/provider.
       providerState?.updateClassicDeviceStatus(
         address,
         BlueConnectionState.connected.index,
       );
 
-      providerState?.updateClassicConnectedDeviceStatus(
-        device,
-      );
+      providerState?.updateClassicConnectedDeviceStatus(device);
 
       _reconnectAttempts = 0;
 
-      debugPrint(
-        '✅ Classic Bluetooth connected successfully: $address',
-      );
+      debugPrint('✅ Classic Bluetooth connected successfully: $address');
     } catch (e, stackTrace) {
-      debugPrint(
-        '❌ Classic connection failed for $address: $e',
-      );
+      debugPrint('❌ Classic connection failed for $address: $e');
 
       debugPrintStack(stackTrace: stackTrace);
 
-// Remove stale connection state before updating the UI.
+      // Remove stale connection state before updating the UI.
       await _closeCurrentConnection(
         manual: false,
         updateProvider: false,
@@ -706,11 +836,24 @@ class BluetoothClassicService {
 
       providerState?.updateClassicConnectedDeviceStatus(null);
 
+      // Cancelled on purpose: no alert for the user.
+      if (_cancelConnect) {
+        debugPrint('🛑 Classic connect was cancelled.');
+        return;
+      }
+
+      final text = e.toString();
+
       if (e is TimeoutException) {
         onConnectionError?.call(
           'Bluetooth connection timed out. '
               'Make sure the device is powered on, nearby, and not '
               'connected to another phone.',
+        );
+      } else if (text.contains('Pairing failed')) {
+        onConnectionError?.call(
+          'Pairing failed. Forget this device in your phone Bluetooth '
+              'settings, then try again and accept the pairing request.',
         );
       } else {
         onConnectionError?.call(
@@ -731,25 +874,106 @@ class BluetoothClassicService {
     }
   }
 
-// ============================================================
-// CONNECTION RETRIES
-//
-// Do not wrap toAddress() with Future.timeout().
-//
-// Future.timeout() does not cancel the native socket operation.
-// Timing out a native attempt and starting another can leave multiple
-// native connection attempts competing with each other.
-// ============================================================
+  // ============================================================
+  // OPEN CONNECTION
+  //
+  // Do not wrap toAddress() with Future.timeout().
+  //
+  // Future.timeout() does not cancel the native socket operation.
+  // Timing out a native attempt and starting another can leave
+  // multiple native connection attempts competing with each other.
+  // ============================================================
 
+  /// Waits while Android is mid-pairing (it may be showing the pairing
+  /// dialog) and returns the final bond state.
+  Future<classic.BluetoothBondState?> _waitBondSettled(String address) async {
+    classic.BluetoothBondState? state;
 
-  Future<classic.BluetoothConnection> _connectWithRetries(
+    for (var i = 0; i < 60; i++) {
+      try {
+        state = await _bluetooth.getBondStateForAddress(address);
+      } catch (e) {
+        debugPrint('⚠️ Could not read bond state: $e');
+        return state;
+      }
+
+      if (state != classic.BluetoothBondState.bonding) {
+        return state;
+      }
+
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    return state;
+  }
+
+  Future<void> _removeBond(String address) async {
+    try {
+      await _bluetooth.removeDeviceBondWithAddress(address);
+      debugPrint('🧹 Removed stale bond for $address.');
+    } catch (e) {
+      debugPrint('⚠️ Could not remove bond: $e');
+    }
+  }
+
+  /// Opens the RFCOMM socket. If it fails with "read failed" the saved
+  /// pairing key is usually stale (the unit rejected it and Android drops
+  /// the bond and starts pairing again by itself). In that case:
+  ///   1. wait for Android's own re-pairing to finish,
+  ///   2. re-pair if the bond is gone,
+  ///   3. if it fails again with an unchanged bond, delete the bond and
+  ///      pair from scratch,
+  /// then retry the socket.
+  Future<classic.BluetoothConnection> _openWithBondRepair(
+      String address,
+      ) async {
+    const maxAttempts = 3;
+
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await _openConnection(address);
+      } on PlatformException catch (e) {
+        final readFailed = (e.message ?? '').contains('read failed');
+
+        if (!readFailed || attempt == maxAttempts) {
+          rethrow;
+        }
+
+        debugPrint(
+          '⚠️ Socket failed (attempt $attempt/$maxAttempts) — '
+              'checking pairing state.',
+        );
+
+        var state = await _waitBondSettled(address);
+
+        // Failed again while still bonded: the saved key is stale.
+        if (state == classic.BluetoothBondState.bonded && attempt >= 2) {
+          await _removeBond(address);
+          await Future.delayed(const Duration(seconds: 2));
+          state = classic.BluetoothBondState.none;
+        }
+
+        if (state != classic.BluetoothBondState.bonded) {
+          if (!await _ensureBonded(address)) {
+            throw StateError('Pairing failed or was cancelled.');
+          }
+        }
+
+        // Give the unit a moment to finish its side of pairing.
+        await Future.delayed(const Duration(seconds: 2));
+      }
+    }
+
+    throw StateError('Could not open the Bluetooth connection.');
+  }
+
+  Future<classic.BluetoothConnection> _openConnection(
       String address,
       ) async {
     debugPrint('🔵 Attempting one Classic Bluetooth connection: $address');
 
     try {
-      final connection =
-      await classic.BluetoothConnection.toAddress(address);
+      final connection = await classic.BluetoothConnection.toAddress(address);
 
       if (!connection.isConnected) {
         await connection.close();
@@ -765,24 +989,22 @@ class BluetoothClassicService {
     }
   }
 
-
-// ============================================================
-// INPUT STREAM CLOSED
-// ============================================================
+  // ============================================================
+  // INPUT STREAM CLOSED
+  // ============================================================
 
   void _handleConnectionClosed(
       classic.BluetoothConnection connection,
       ClassicBluetoothDeviceModel device,
       ) {
-// An old stream may close after a newer connection has succeeded.
-// Do not clear the newer connection in that case.
+    // An old stream may close after a newer connection has succeeded.
+    // Do not clear the newer connection in that case.
     if (!identical(_connection, connection)) {
       return;
     }
 
     debugPrint(
-      '🔌 Cleaning up closed Classic connection: '
-          '${device.device.address}',
+      '🔌 Cleaning up closed Classic connection: ${device.device.address}',
     );
 
     _connection = null;
@@ -802,17 +1024,15 @@ class BluetoothClassicService {
     providerState?.updateClassicConnectedDeviceStatus(null);
 
     if (!_manualDisconnect) {
-      onConnectionError?.call(
-        'Bluetooth device disconnected.',
-      );
+      onConnectionError?.call('Bluetooth device disconnected.');
 
       _attemptReconnect(device);
     }
   }
 
-// ============================================================
-// AUTO RECONNECT
-// ============================================================
+  // ============================================================
+  // AUTO RECONNECT
+  // ============================================================
 
   void _attemptReconnect(
       ClassicBluetoothDeviceModel device,
@@ -843,25 +1063,22 @@ class BluetoothClassicService {
           () async {
         _reconnectTimer = null;
 
-        if (!isConnected &&
-            !_isConnecting &&
-            !_manualDisconnect) {
-          await connectToDevice(device);
+        if (!isConnected && !_isConnecting && !_manualDisconnect) {
+          await connectToDevice(device, freshPair: false);
         }
       },
     );
   }
 
-// ============================================================
-// HARD STOP
-// ============================================================
+  // ============================================================
+  // HARD STOP
+  // ============================================================
 
   Future<void> hardStop() async {
-    debugPrint(
-      '🛑 Classic hardStop — releasing Bluetooth radio.',
-    );
+    debugPrint('🛑 Classic hardStop — releasing Bluetooth radio.');
 
     _manualDisconnect = true;
+    _cancelConnect = true;
 
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
@@ -875,8 +1092,8 @@ class BluetoothClassicService {
       updateProvider: true,
     );
 
-// Do not reset this immediately; it prevents a closed input stream
-// from triggering an unwanted reconnect.
+    // Do not reset this immediately; it prevents a closed input stream
+    // from triggering an unwanted reconnect.
     Future.delayed(
       const Duration(seconds: 1),
           () {
@@ -885,9 +1102,9 @@ class BluetoothClassicService {
     );
   }
 
-// ============================================================
-// RESPONSE: INCOMING DATA
-// ============================================================
+  // ============================================================
+  // RESPONSE: INCOMING DATA
+  // ============================================================
 
   void _onDataReceived(Uint8List data) {
     if (data.isEmpty) {
@@ -899,17 +1116,13 @@ class BluetoothClassicService {
       allowMalformed: true,
     );
 
-    debugPrint(
-      '📩 Classic RAW DATA length: ${data.length}',
-    );
+    debugPrint('📩 Classic RAW DATA length: ${data.length}');
 
     _handleDeviceResponse(response);
   }
 
   void _handleDeviceResponse(String response) {
-    debugPrint(
-      '📱 Processing Classic device response: $response',
-    );
+    debugPrint('📱 Processing Classic device response: $response');
 
     _lastActivity = DateTime.now();
     _isReceivingMessage = true;
@@ -919,9 +1132,7 @@ class BluetoothClassicService {
       return;
     }
 
-    if (response.isNotEmpty &&
-        response[0] == '*' &&
-        _buffer.isNotEmpty) {
+    if (response.isNotEmpty && response[0] == '*' && _buffer.isNotEmpty) {
       debugPrint(
         '⚠️ New message started while old buffer was incomplete. '
             'Discarding stale buffer.',
@@ -938,9 +1149,7 @@ class BluetoothClassicService {
       const Duration(milliseconds: bufferStaleTimeoutMS),
           () {
         if (_buffer.isNotEmpty) {
-          debugPrint(
-            '⏱️ Classic buffer stale — clearing: $_buffer',
-          );
+          debugPrint('⏱️ Classic buffer stale — clearing: $_buffer');
 
           _buffer = '';
         }
@@ -952,13 +1161,12 @@ class BluetoothClassicService {
     _parseBuffer();
   }
 
-// ============================================================
-// TRACE LOG PROCESSING
-// ============================================================
+  // ============================================================
+  // TRACE LOG PROCESSING
+  // ============================================================
 
   bool _handleTraceLogData(String chunk) {
-    final sizeMatch =
-    RegExp(r'LogFileSize:(\d+)').firstMatch(chunk);
+    final sizeMatch = RegExp(r'LogFileSize:(\d+)').firstMatch(chunk);
 
     if (sizeMatch != null) {
       providerState?.setTotalTraceSize(
@@ -973,9 +1181,7 @@ class BluetoothClassicService {
     if (hasStart) {
       isLogging = true;
 
-      traceChunk = chunk.substring(
-        chunk.indexOf('*StartLog'),
-      );
+      traceChunk = chunk.substring(chunk.indexOf('*StartLog'));
     } else if (isLogging) {
       traceChunk += chunk;
     }
@@ -983,9 +1189,7 @@ class BluetoothClassicService {
     if (isLogging) {
       providerState?.setTraceLoading(true);
 
-      providerState?.setTraceLoadingsize(
-        getCurrentChunkSize(),
-      );
+      providerState?.setTraceLoadingsize(getCurrentChunkSize());
     }
 
     if (hasEnd && traceChunk.isNotEmpty) {
@@ -998,13 +1202,9 @@ class BluetoothClassicService {
 
       final sizeInBytes = getTraceLogSize();
 
-      debugPrint(
-        'TraceLog size in bytes: $sizeInBytes',
-      );
+      debugPrint('TraceLog size in bytes: $sizeInBytes');
 
-      providerState?.setTraceLoadingsize(
-        sizeInBytes,
-      );
+      providerState?.setTraceLoadingsize(sizeInBytes);
 
       traceChunk = '';
     }
@@ -1012,14 +1212,12 @@ class BluetoothClassicService {
     return hasStart || hasEnd || wasLogging;
   }
 
-// ============================================================
-// MESSAGE PARSING
-// ============================================================
+  // ============================================================
+  // MESSAGE PARSING
+  // ============================================================
 
   void _parseBuffer() {
-    debugPrint(
-      'Classic _buffer----> $_buffer',
-    );
+    debugPrint('Classic _buffer----> $_buffer');
 
     if (_buffer.isEmpty) {
       return;
@@ -1028,42 +1226,30 @@ class BluetoothClassicService {
     if (_buffer[0] == '*' &&
         !_buffer.startsWith('*Start') &&
         _buffer[_buffer.length - 1] == '#') {
-      final sliced = _buffer.substring(
-        1,
-        _buffer.length - 1,
-      );
+      final sliced = _buffer.substring(1, _buffer.length - 1);
 
       debugPrint('sliced : $sliced');
 
-      final result = Constants.validatePayloadWithCrc(
-        sliced,
-      );
+      final result = Constants.validatePayloadWithCrc(sliced);
 
-      debugPrint(
-        'classic result => $result',
-      );
+      debugPrint('classic result => $result');
 
       if (result != null) {
         _processData(result);
         _isReceivingMessage = false;
       } else {
-        debugPrint(
-          '⚠️ CRC mismatch — discarding buffer.',
-        );
+        debugPrint('⚠️ CRC mismatch — discarding buffer.');
       }
 
       _buffer = '';
     }
 
-    while (_buffer.contains('*Start') &&
-        _buffer.contains('#End')) {
+    while (_buffer.contains('*Start') && _buffer.contains('#End')) {
       final start = _buffer.indexOf('*Start');
       final end = _buffer.indexOf('#End', start);
 
       if (start != -1 && end != -1 && end > start) {
-        final jsonString = _buffer
-            .substring(start + 6, end)
-            .trim();
+        final jsonString = _buffer.substring(start + 6, end).trim();
 
         _processData(jsonString);
 
@@ -1079,9 +1265,7 @@ class BluetoothClassicService {
   }
 
   void _processData(String jsonString) {
-    debugPrint(
-      'Classic _processData call $jsonString',
-    );
+    debugPrint('Classic _processData call $jsonString');
 
     try {
       final data = json.decode(jsonString);
@@ -1089,10 +1273,7 @@ class BluetoothClassicService {
 
       MqttService().onMqttPayloadReceived(jsonString);
 
-      providerState?.updateReceivedPayload(
-        jsonStr,
-        false,
-      );
+      providerState?.updateReceivedPayload(jsonStr, false);
 
       switch (data['mC'].toString()) {
         case '7300':
@@ -1104,31 +1285,23 @@ class BluetoothClassicService {
           break;
 
         case '6600':
-          providerState?.updateReceivedPayload(
-            jsonStr,
-            false,
-          );
+          providerState?.updateReceivedPayload(jsonStr, false);
           break;
 
         default:
-          providerState?.updateReceivedPayload(
-            jsonStr,
-            true,
-          );
+          providerState?.updateReceivedPayload(jsonStr, true);
           break;
       }
     } catch (e, stackTrace) {
-      debugPrint(
-        '❌ Error parsing Classic JSON: $e',
-      );
+      debugPrint('❌ Error parsing Classic JSON: $e');
 
       debugPrintStack(stackTrace: stackTrace);
     }
   }
 
-// ============================================================
-// WIFI INFORMATION
-// ============================================================
+  // ============================================================
+  // WIFI INFORMATION
+  // ============================================================
 
   void _handleWifiInfo(dynamic data) {
     final rawList = data['cM']?['7301']?['ListOfWifi'];
@@ -1136,18 +1309,11 @@ class BluetoothClassicService {
     final interfaceType = data['cM']?['7301']?['InterfaceType'];
     final ipAddress = data['cM']?['7301']?['IpAddress'];
 
-    providerState?.updateWifiStatus(
-      wifiStatus,
-      false,
-    );
+    providerState?.updateWifiStatus(wifiStatus, false);
 
-    providerState?.updateInterfaceType(
-      interfaceType,
-    );
+    providerState?.updateInterfaceType(interfaceType);
 
-    providerState?.updateIpAddress(
-      ipAddress,
-    );
+    providerState?.updateIpAddress(ipAddress);
 
     if (rawList is List) {
       final wifiList = rawList
@@ -1156,15 +1322,13 @@ class BluetoothClassicService {
       )
           .toList();
 
-      providerState?.updateWifiList(
-        wifiList,
-      );
+      providerState?.updateWifiList(wifiList);
     }
   }
 
-// ============================================================
-// WIFI UPDATE RESPONSE
-// ============================================================
+  // ============================================================
+  // WIFI UPDATE RESPONSE
+  // ============================================================
 
   void _handleWifiUpdateResponse(dynamic data) {
     final entry = data['cM']?.entries.first.value;
@@ -1172,53 +1336,38 @@ class BluetoothClassicService {
     final code = entry?['Code']?.toString();
 
     final name =
-        (entry?['Name'] ?? entry?['Message'])
-            ?.toString()
-            .trim() ??
-            '';
+        (entry?['Name'] ?? entry?['Message'])?.toString().trim() ?? '';
 
-    debugPrint(
-      '📱 WiFi Response - Code: $code, Name: $name',
-    );
+    debugPrint('📱 WiFi Response - Code: $code, Name: $name');
 
     final isFormatError = code == '2';
 
     if (isFormatError) {
-      debugPrint(
-        '⚠️ Ignoring malformed-command error.',
-      );
+      debugPrint('⚠️ Ignoring malformed-command error.');
 
       return;
     }
 
-    final isSuccess =
-    name.toUpperCase().startsWith('SUCCESS');
+    final isSuccess = name.toUpperCase().startsWith('SUCCESS');
 
     final cleanMessage = name.contains(':')
         ? name.split(':').skip(1).join(':').trim()
         : name;
 
-    final displayMessage =
-    cleanMessage.isNotEmpty ? cleanMessage : name;
+    final displayMessage = cleanMessage.isNotEmpty ? cleanMessage : name;
 
-    providerState?.updateWifiMessage(
-      displayMessage,
-    );
+    providerState?.updateWifiMessage(displayMessage);
 
-    onWifiUpdateResult?.call(
-      displayMessage,
-      isSuccess,
-    );
+    onWifiUpdateResult?.call(displayMessage, isSuccess);
 
     debugPrint(
-      '📢 Display Message: '
-          '${isSuccess ? '✅' : '❌'} $displayMessage',
+      '📢 Display Message: ${isSuccess ? '✅' : '❌'} $displayMessage',
     );
   }
 
-// ============================================================
-// BUFFER CLEANUP
-// ============================================================
+  // ============================================================
+  // BUFFER CLEANUP
+  // ============================================================
 
   void _clearBufferState() {
     _bufferStaleTimer?.cancel();
@@ -1228,9 +1377,9 @@ class BluetoothClassicService {
     _isReceivingMessage = false;
   }
 
-// ============================================================
-// WRITE QUEUE
-// ============================================================
+  // ============================================================
+  // WRITE QUEUE
+  // ============================================================
 
   Future<T> _enqueueWrite<T>(
       Future<T> Function() task,
@@ -1268,9 +1417,7 @@ class BluetoothClassicService {
       ) async {
     if (!isConnected) {
       if (!silent) {
-        debugPrint(
-          '❌ Classic device not connected.',
-        );
+        debugPrint('❌ Classic device not connected.');
       }
 
       return false;
@@ -1282,9 +1429,7 @@ class BluetoothClassicService {
 
     final finalPayload = '*$payload#';
 
-    final bytes = utf8.encode(
-      '$finalPayload\r\n',
-    );
+    final bytes = utf8.encode('$finalPayload\r\n');
 
     var attempts = 0;
 
@@ -1292,8 +1437,7 @@ class BluetoothClassicService {
       try {
         if (!silent) {
           debugPrint(
-            '📤 [Classic] Sending: $finalPayload '
-                '(Attempt ${attempts + 1})',
+            '📤 [Classic] Sending: $finalPayload (Attempt ${attempts + 1})',
           );
         }
 
@@ -1301,21 +1445,12 @@ class BluetoothClassicService {
           final conn = _connection;
 
           if (conn == null || !conn.isConnected) {
-            throw StateError(
-              'Classic connection closed while writing.',
-            );
+            throw StateError('Classic connection closed while writing.');
           }
 
-          final end = math.min(
-            i + writeChunkSize,
-            bytes.length,
-          );
+          final end = math.min(i + writeChunkSize, bytes.length);
 
-          conn.output.add(
-            Uint8List.fromList(
-              bytes.sublist(i, end),
-            ),
-          );
+          conn.output.add(Uint8List.fromList(bytes.sublist(i, end)));
 
           await conn.output.allSent;
 
@@ -1325,9 +1460,7 @@ class BluetoothClassicService {
         }
 
         if (!silent) {
-          debugPrint(
-            '✅ [Classic] Sent successfully.',
-          );
+          debugPrint('✅ [Classic] Sent successfully.');
         }
 
         _lastActivity = DateTime.now();
@@ -1337,10 +1470,7 @@ class BluetoothClassicService {
         attempts++;
 
         if (!silent) {
-          debugPrint(
-            '❌ [Classic] Write error '
-                '(Attempt $attempts): $e',
-          );
+          debugPrint('❌ [Classic] Write error (Attempt $attempts): $e');
         }
 
         if (!isConnected) {
@@ -1348,17 +1478,13 @@ class BluetoothClassicService {
         }
 
         if (attempts < maxRetries) {
-          await Future.delayed(
-            const Duration(milliseconds: 500),
-          );
+          await Future.delayed(const Duration(milliseconds: 500));
         }
       }
     }
 
     if (!silent) {
-      debugPrint(
-        '❌ [Classic] Failed to write after $maxRetries attempts.',
-      );
+      debugPrint('❌ [Classic] Failed to write after $maxRetries attempts.');
     }
 
     return false;
@@ -1369,28 +1495,22 @@ class BluetoothClassicService {
       final conn = _connection;
 
       if (conn != null && conn.isConnected) {
-        debugPrint(
-          'Sending ${data.length} bytes over Bluetooth.',
-        );
+        debugPrint('Sending ${data.length} bytes over Bluetooth.');
 
-        conn.output.add(
-          Uint8List.fromList(data),
-        );
+        conn.output.add(Uint8List.fromList(data));
 
         await conn.output.allSent;
 
         _lastActivity = DateTime.now();
       } else {
-        debugPrint(
-          '❌ Cannot send firmware data: not connected.',
-        );
+        debugPrint('❌ Cannot send firmware data: not connected.');
       }
     });
   }
 
-// ============================================================
-// DISCONNECT
-// ============================================================
+  // ============================================================
+  // DISCONNECT
+  // ============================================================
 
   Future<void> disconnect() async {
     debugPrint('🔌 Manual Classic disconnect requested.');
@@ -1415,9 +1535,9 @@ class BluetoothClassicService {
     );
   }
 
-// ============================================================
-// CONNECTION CLEANUP
-// ============================================================
+  // ============================================================
+  // CONNECTION CLEANUP
+  // ============================================================
 
   Future<void> _closeCurrentConnection({
     required bool manual,
@@ -1444,9 +1564,7 @@ class BluetoothClassicService {
     try {
       await _inputSubscription?.cancel();
     } catch (e) {
-      debugPrint(
-        '⚠️ Error cancelling Classic input subscription: $e',
-      );
+      debugPrint('⚠️ Error cancelling Classic input subscription: $e');
     } finally {
       _inputSubscription = null;
     }
@@ -1455,9 +1573,7 @@ class BluetoothClassicService {
       try {
         await oldConnection.close();
       } catch (e) {
-        debugPrint(
-          '⚠️ Error closing Classic connection: $e',
-        );
+        debugPrint('⚠️ Error closing Classic connection: $e');
       }
     }
 
@@ -1469,15 +1585,13 @@ class BluetoothClassicService {
         );
       }
 
-      providerState?.updateClassicConnectedDeviceStatus(
-        null,
-      );
+      providerState?.updateClassicConnectedDeviceStatus(null);
     }
   }
 
-// ============================================================
-// RESET CONNECTION
-// ============================================================
+  // ============================================================
+  // RESET CONNECTION
+  // ============================================================
 
   void _resetConnection() {
     _reconnectTimer?.cancel();
@@ -1500,9 +1614,7 @@ class BluetoothClassicService {
     if (oldSubscription != null) {
       unawaited(
         oldSubscription.cancel().catchError((Object e) {
-          debugPrint(
-            '⚠️ Error cancelling input during reset: $e',
-          );
+          debugPrint('⚠️ Error cancelling input during reset: $e');
         }),
       );
     }
@@ -1510,17 +1622,15 @@ class BluetoothClassicService {
     if (oldConnection != null) {
       unawaited(
         oldConnection.close().catchError((Object e) {
-          debugPrint(
-            '⚠️ Error closing connection during reset: $e',
-          );
+          debugPrint('⚠️ Error closing connection during reset: $e');
         }),
       );
     }
   }
 
-// ============================================================
-// DISPOSE
-// ============================================================
+  // ============================================================
+  // DISPOSE
+  // ============================================================
 
   Future<void> dispose() async {
     _manualDisconnect = true;

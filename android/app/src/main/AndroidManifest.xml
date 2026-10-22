@@ -1,75 +1,42 @@
-
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
     <!-- General permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Location permissions for BLE scanning on Android 11 and below -->
+    <!-- Android 11 and below: BLE scan / Classic discovery need location -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
-
     <uses-permission
         android:name="android.permission.ACCESS_COARSE_LOCATION"
         android:maxSdkVersion="30" />
 
-    <!-- Bluetooth Classic permissions for Android 11 and below -->
+    <!-- Android 11 and below: Bluetooth Classic and BLE -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
-
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <!-- Bluetooth permissions for Android 12 and above -->
+    <!-- Android 12 and above: no location needed for scanning -->
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation" />
-
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_CONNECT" />
 
-    <!-- Add only if the app makes the phone discoverable to other devices -->
-    <!--
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADVERTISE" />
-    -->
-
-    <!-- Optional storage permissions, if required by your app -->
-    <!--
-    <uses-permission
-        android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
-
-    <uses-permission
-        android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
-        tools:ignore="ScopedStorage" />
-
-    <uses-permission
-        android:name="android.permission.CAMERA" />
-
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_IMAGES" />
-    -->
-
-    <!-- Hardware features -->
+    <!-- Optional features: the app checks support at runtime -->
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
     <uses-feature
         android:name="android.hardware.bluetooth"
         android:required="false" />
-
-    <uses-feature
-        android:name="android.hardware.bluetooth_le"
-        android:required="true" />
-
     <uses-feature
         android:name="android.hardware.location"
         android:required="false" />
@@ -79,7 +46,6 @@
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true"
         android:enableOnBackInvokedCallback="true"
         android:theme="@style/LaunchTheme"
         tools:replace="android:theme">
@@ -108,34 +74,21 @@
             </intent-filter>
         </activity>
 
-<!--         Google Maps -->
+        <!-- Google Maps: paste your restricted key here (do not commit it publicly) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw" />
-<!--            android:value="AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw" />-->
-<!--            android:value="AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw" />-->
-<!--this is AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw is oro ,this is AIzaSyCfMo2V0inDY3xpp91BjfIrD4s-v6PPSzw smartcomm-->
-<!--        <meta-data-->
-<!--            android:name="com.google.android.geo.API_KEY"-->
-<!--            android:value="YOUR_GOOGLE_MAPS_API_KEY" />-->
-
-        <!-- Flutter embedding -->
-        <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
+            android:value="YOUR_GOOGLE_MAPS_API_KEY" />
 
         <!-- Azure Notification Hub -->
         <meta-data
             android:name="NotificationHubName"
             android:value="YOUR_NOTIFICATION_HUB_NAME" />
-
         <meta-data
             android:name="NotificationHubConnectionString"
             android:value="YOUR_NOTIFICATION_HUB_CONNECTION_STRING" />
 
     </application>
 
-    <!-- Package visibility for Flutter text processing -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
