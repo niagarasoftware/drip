@@ -9,8 +9,7 @@ class FertigationDetailSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool hasActiveCentral = cardModel.centralChannels.any((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—' && c.actual.isNotEmpty);
-    bool hasActiveLocal = cardModel.localChannels.any((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—' && c.actual.isNotEmpty);
+    bool hasChannels = cardModel.centralChannels.isNotEmpty || cardModel.localChannels.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,46 +37,47 @@ class FertigationDetailSections extends StatelessWidget {
         }),
         const SizedBox(height: 12),
 
-        // 2. CENTRAL EC / pH Stats
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEDF4F4),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _statItem('Central EC', '${cardModel.centralEc} mS/cm'),
-              Container(height: 20, width: 1, color: Colors.black26),
-              _statItem('Central pH', cardModel.centralPh),
-            ],
-          ),
+        // 2A. CENTRAL EC / pH Table
+        _buildEcPhTable(
+          'CENTRAL EC / pH',
+          cardModel.centralEcSet,
+          cardModel.centralEcMin,
+          cardModel.centralEcMax,
+          cardModel.centralEcAvg,
+          cardModel.centralPhSet,
+          cardModel.centralPhMin,
+          cardModel.centralPhMax,
+          cardModel.centralPhAvg,
+        ),
+        const SizedBox(height: 12),
+
+        // 2B. LOCAL EC / pH Table
+        _buildEcPhTable(
+          'LOCAL EC / pH',
+          cardModel.localEcSet,
+          cardModel.localEcMin,
+          cardModel.localEcMax,
+          cardModel.localEcAvg,
+          cardModel.localPhSet,
+          cardModel.localPhMin,
+          cardModel.localPhMax,
+          cardModel.localPhAvg,
         ),
         const SizedBox(height: 16),
 
-        // 3. CHANNELS (Image 2 compact horizontal row design)
+        // 3. CHANNELS
         const Text(
           'CHANNELS',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
         ),
         const SizedBox(height: 6),
-        ...cardModel.centralChannels.take(4).map((c) => FertigationChannelTile(channel: c)),
-        if (cardModel.centralChannels.length > 4)
-          ...cardModel.centralChannels.skip(4).where((c) => c.actual != '00:00:00' && c.actual != '0' && c.actual != '—').map((c) => FertigationChannelTile(channel: c)),
-        if (cardModel.centralChannels.length > 4 && cardModel.centralChannels.skip(4).every((c) => c.actual == '00:00:00' || c.actual == '0' || c.actual == '—'))
+        if (!hasChannels)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-            child: Text('CH5–CH8 · no data', style: TextStyle(fontSize: 11, color: Color(0xFF637D7A))),
-          ),
-
-        if (cardModel.localChannels.isNotEmpty && hasActiveLocal) ...[
-          const SizedBox(height: 8),
-          const Text(
-            'LOCAL CHANNELS',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
-          ),
-          const SizedBox(height: 6),
+            child: Text('No fertilizer data / Fertigation OFF', style: TextStyle(fontSize: 11, color: Color(0xFF637D7A))),
+          )
+        else ...[
+          ...cardModel.centralChannels.map((c) => FertigationChannelTile(channel: c)),
           ...cardModel.localChannels.map((c) => FertigationChannelTile(channel: c)),
         ],
 
@@ -166,6 +166,62 @@ class FertigationDetailSections extends StatelessWidget {
     );
   }
 
+  Widget _buildEcPhTable(
+    String title,
+    String ecSet,
+    String ecMin,
+    String ecMax,
+    String ecAvg,
+    String phSet,
+    String phMin,
+    String phMax,
+    String phAvg,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEDF4F4),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF006573))),
+          const SizedBox(height: 6),
+          Row(
+            children: const [
+              SizedBox(width: 35, child: Text('', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54))),
+              Expanded(child: Text('Set', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54))),
+              Expanded(child: Text('Min', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54))),
+              Expanded(child: Text('Max', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54))),
+              Expanded(child: Text('Avg', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black54))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const SizedBox(width: 35, child: Text('EC', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF203B3D)))),
+              Expanded(child: Text(ecSet, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(ecMin, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(ecMax, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(ecAvg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const SizedBox(width: 35, child: Text('pH', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF203B3D)))),
+              Expanded(child: Text(phSet, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(phMin, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(phMax, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+              Expanded(child: Text(phAvg, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, color: Colors.black87))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _rowInfo(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -176,16 +232,6 @@ class FertigationDetailSections extends StatelessWidget {
           Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87)),
         ],
       ),
-    );
-  }
-
-  Widget _statItem(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF006573))),
-      ],
     );
   }
 }

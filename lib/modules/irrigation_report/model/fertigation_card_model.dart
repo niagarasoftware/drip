@@ -34,6 +34,27 @@ class FertigationCardModel {
   final String postTimeQty;
   final String centralEc;
   final String centralPh;
+  
+  // Central EC / pH
+  final String centralEcSet;
+  final String centralEcMin;
+  final String centralEcMax;
+  final String centralEcAvg;
+  final String centralPhSet;
+  final String centralPhMin;
+  final String centralPhMax;
+  final String centralPhAvg;
+
+  // Local EC / pH
+  final String localEcSet;
+  final String localEcMin;
+  final String localEcMax;
+  final String localEcAvg;
+  final String localPhSet;
+  final String localPhMin;
+  final String localPhMax;
+  final String localPhAvg;
+
   final String progress;
   final double progressValue; // 0.0 to 1.0
   final List<FertigationChannelModel> centralChannels;
@@ -59,6 +80,22 @@ class FertigationCardModel {
     required this.postTimeQty,
     required this.centralEc,
     required this.centralPh,
+    required this.centralEcSet,
+    required this.centralEcMin,
+    required this.centralEcMax,
+    required this.centralEcAvg,
+    required this.centralPhSet,
+    required this.centralPhMin,
+    required this.centralPhMax,
+    required this.centralPhAvg,
+    required this.localEcSet,
+    required this.localEcMin,
+    required this.localEcMax,
+    required this.localEcAvg,
+    required this.localPhSet,
+    required this.localPhMin,
+    required this.localPhMax,
+    required this.localPhAvg,
     required this.progress,
     required this.progressValue,
     required this.centralChannels,
