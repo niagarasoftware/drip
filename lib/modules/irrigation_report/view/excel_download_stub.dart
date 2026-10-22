@@ -2,15 +2,28 @@ import 'dart:typed_data';
 
 import 'package:better_download_saver/better_download_saver.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:excel/excel.dart';
 
 import 'excel_builder.dart';
 
 Future<bool> generateExcel(
-    Map<String, dynamic> data,
+    dynamic data,
     String name,
     ) async {
   try {
-    final excel = buildLogsExcel(data);
+    final Excel excel;
+    if (data is Map<String, Map<String, dynamic>>) {
+      excel = buildMultiSheetLogsExcel(data);
+    } else if (data is Map<String, dynamic>) {
+      bool isMultiSheet = data.isNotEmpty && data.values.every((v) => v is Map);
+      if (isMultiSheet) {
+        excel = buildMultiSheetLogsExcel(data.map((k, v) => MapEntry(k, Map<String, dynamic>.from(v))));
+      } else {
+        excel = buildLogsExcel(data);
+      }
+    } else {
+      return false;
+    }
 
     final fileBytes = excel.encode();
 

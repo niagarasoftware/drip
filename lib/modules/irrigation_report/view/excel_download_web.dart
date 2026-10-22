@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'package:excel/excel.dart';
 import 'excel_builder.dart';
 
 /// This file is selected by the conditional import in log_home.dart when
@@ -8,14 +9,21 @@ import 'excel_builder.dart';
 ///
 /// IMPORTANT: both header row and data rows are built by buildLogsExcel()
 /// from the SAME column-group list, so they can never drift out of sync.
-/// Do not go back to building the header row and data rows from separately
-/// filtered lists (e.g. 'xColumn' vs 'xColumnData') - that mismatch was the
-/// root cause of the "RangeError: no indices are valid: 0" crash, since a
-/// group's label list and its data list could end up with different
-/// lengths depending on which columns the user had toggled on.
-Future<bool> generateExcel(Map<String, dynamic> data, String name) async {
+Future<bool> generateExcel(dynamic data, String name) async {
   try {
-    final excel = buildLogsExcel(data);
+    final Excel excel;
+    if (data is Map<String, Map<String, dynamic>>) {
+      excel = buildMultiSheetLogsExcel(data);
+    } else if (data is Map<String, dynamic>) {
+      bool isMultiSheet = data.isNotEmpty && data.values.every((v) => v is Map);
+      if (isMultiSheet) {
+        excel = buildMultiSheetLogsExcel(data.map((k, v) => MapEntry(k, Map<String, dynamic>.from(v))));
+      } else {
+        excel = buildLogsExcel(data);
+      }
+    } else {
+      return false;
+    }
 
     // Save the file
     var fileBytes = excel.encode();

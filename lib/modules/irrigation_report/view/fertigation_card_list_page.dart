@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import '../model/fertigation_card_model.dart';
 import '../repository/irrigation_repository.dart';
 import '../services/fertigation_card_mapper.dart';
+import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
 
 import 'widgets/program_wise_view.dart';
 import 'widgets/sequence_wise_view.dart';
@@ -427,6 +427,130 @@ class _FertigationCardListPageState
     }
   }
 
+  Future<void> _downloadExcel() async {
+    if (allCards.isEmpty) return;
+
+    final multiSheetData = _buildMultiSheetData(allCards);
+    final fileName = 'Fertigation_Report_${DateFormat('yyyy-MM-dd').format(_toDate)}';
+
+    final result = await generateExcel(multiSheetData, fileName);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result ? 'Excel report downloaded successfully' : 'Failed to download Excel report',
+          ),
+          backgroundColor: result ? const Color(0xFF006573) : Colors.red,
+        ),
+      );
+    }
+  }
+
+  Map<String, Map<String, dynamic>> _buildMultiSheetData(List<FertigationCardModel> cards) {
+    final sheetNames = ['Program Wise', 'Sequence Wise', 'Line Wise', 'Status Wise'];
+    final fixedColumns = ['Program', 'Sequence', 'Line', 'Status'];
+    Map<String, Map<String, dynamic>> sheetsData = {};
+
+    for (int i = 0; i < sheetNames.length; i++) {
+      String sheetName = sheetNames[i];
+      String fixedCol = fixedColumns[i];
+
+      List<String> fixedColumnData = cards.map((c) {
+        switch (fixedCol) {
+          case 'Program':
+            return c.programName;
+          case 'Sequence':
+            return c.sequenceName;
+          case 'Line':
+            return c.lineName;
+          case 'Status':
+            return c.status;
+          default:
+            return c.programName;
+        }
+      }).toList();
+
+      List<String> generalColumn = [
+        'Program',
+        'Sequence',
+        'Line',
+        'Date',
+        'Status',
+        'Start Time',
+        'Stop Time',
+        'Start Reason',
+        'Stop Reason',
+      ];
+      List<List<dynamic>> generalColumnData = cards.map((c) => [
+        c.programName,
+        c.sequenceName,
+        c.lineName,
+        c.date,
+        c.status,
+        c.startTime,
+        c.stopTime,
+        c.startReason,
+        c.stopReason,
+      ]).toList();
+
+      List<String> waterColumn = ['Method', 'Planned', 'Actual'];
+      List<List<dynamic>> waterColumnData = cards.map((c) => [
+        c.waterMethod,
+        c.waterPlanned,
+        c.waterActual,
+      ]).toList();
+
+      List<String> prePostColumn = ['Method', 'Pre Time/Qty', 'Post Time/Qty'];
+      List<List<dynamic>> prePostColumnData = cards.map((c) => [
+        c.preMethod,
+        c.preTimeQty,
+        c.postTimeQty,
+      ]).toList();
+
+      List<String> centralEcPhColumn = ['Set', 'Min', 'Max', 'Avg', 'Set', 'Min', 'Max', 'Avg'];
+      List<List<dynamic>> centralEcPhColumnData = cards.map((c) => [
+        c.centralEcSet,
+        c.centralEcMin,
+        c.centralEcMax,
+        c.centralEcAvg,
+        c.centralPhSet,
+        c.centralPhMin,
+        c.centralPhMax,
+        c.centralPhAvg,
+      ]).toList();
+
+      List<String> localEcPhColumn = ['Set', 'Min', 'Max', 'Avg', 'Set', 'Min', 'Max', 'Avg'];
+      List<List<dynamic>> localEcPhColumnData = cards.map((c) => [
+        c.localEcSet,
+        c.localEcMin,
+        c.localEcMax,
+        c.localEcAvg,
+        c.localPhSet,
+        c.localPhMin,
+        c.localPhMax,
+        c.localPhAvg,
+      ]).toList();
+
+      sheetsData[sheetName] = {
+        'fixedColumn': fixedCol,
+        'fixedColumnData': fixedColumnData,
+        'generalColumn': generalColumn,
+        'generalColumnData': generalColumnData,
+        'waterColumn': waterColumn,
+        'waterColumnData': waterColumnData,
+        'prePostColumn': prePostColumn,
+        'prePostColumnData': prePostColumnData,
+        'centralEcPhColumn': centralEcPhColumn,
+        'centralEcPhColumnData': centralEcPhColumnData,
+        'localEcPhColumn': localEcPhColumn,
+        'localEcPhColumnData': localEcPhColumnData,
+      };
+    }
+
+    return sheetsData;
+  }
+
   void _showDatePickerDialog() {
     showDialog<void>(
       context: context,
@@ -610,6 +734,14 @@ class _FertigationCardListPageState
             ),
             tooltip: 'Select Date Range',
             onPressed: _showDatePickerDialog,
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.download,
+              color: Colors.white,
+            ),
+            tooltip: 'Download Excel Report',
+            onPressed: (_isLoading || allCards.isEmpty) ? null : _downloadExcel,
           ),
           IconButton(
             icon: const Icon(
