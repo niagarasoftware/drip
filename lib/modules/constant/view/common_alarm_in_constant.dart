@@ -23,7 +23,6 @@ class CommonAlarmInConstant extends StatefulWidget {
 
 class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
   double cellWidth = 180;
-  ValueNotifier<int> selectedIrrigationLine = ValueNotifier(0);
 
   bool _isTitleMatch(String t1, String t2) {
     String clean(String s) => s
@@ -33,41 +32,52 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
     return clean(t1) == clean(t2);
   }
 
-  void _syncWithNormalCritical(int lineIndex, int rowIndex,
-      ConstantSettingModel setting, dynamic value) {
-    if (lineIndex < widget.constPvd.commonAlarm.length &&
-        rowIndex < widget.constPvd.commonAlarm[lineIndex].alarmList.length) {
-      final alarm = widget.constPvd.commonAlarm[lineIndex].alarmList[rowIndex];
-      if (setting.title.toLowerCase().contains('on/off')) {
-        for (var g in widget.constPvd.globalAlarm) {
-          if (_isTitleMatch(g.title, alarm.title)) {
-            g.value.value = value;
-            break;
+  void _syncWithNormalCritical(
+      int rowIndex, ConstantSettingModel setting, dynamic value) {
+    if (widget.constPvd.commonAlarm.isEmpty) return;
+    if (rowIndex >= widget.constPvd.commonAlarm[0].alarmList.length) return;
+
+    final alarm = widget.constPvd.commonAlarm[0].alarmList[rowIndex];
+
+    // Update in all commonAlarm lines
+    for (var line in widget.constPvd.commonAlarm) {
+      if (rowIndex < line.alarmList.length) {
+        for (var s in line.alarmList[rowIndex].setting) {
+          if (s.sNo == setting.sNo || _isTitleMatch(s.title, setting.title)) {
+            s.value.value = value;
           }
         }
-        return;
       }
+    }
 
-      if (lineIndex < widget.constPvd.normalCriticalAlarm.length) {
-        final normalCriticalLine =
-            widget.constPvd.normalCriticalAlarm[lineIndex];
-        for (var normalAlarm in normalCriticalLine.normal) {
-          if (_isTitleMatch(normalAlarm.title, alarm.title)) {
-            for (var s in normalAlarm.setting) {
-              if (s.title.toLowerCase() == setting.title.toLowerCase()) {
-                s.value.value = value;
-                break;
-              }
+    if (setting.title.toLowerCase().contains('on/off')) {
+      for (var g in widget.constPvd.globalAlarm) {
+        if (_isTitleMatch(g.title, alarm.title)) {
+          g.value.value = value;
+          break;
+        }
+      }
+      return;
+    }
+
+    // Sync across ALL normalCriticalAlarm lines
+    for (var normalCriticalLine in widget.constPvd.normalCriticalAlarm) {
+      for (var normalAlarm in normalCriticalLine.normal) {
+        if (_isTitleMatch(normalAlarm.title, alarm.title)) {
+          for (var s in normalAlarm.setting) {
+            if (s.title.toLowerCase() == setting.title.toLowerCase()) {
+              s.value.value = value;
+              break;
             }
           }
         }
-        for (var criticalAlarm in normalCriticalLine.critical) {
-          if (_isTitleMatch(criticalAlarm.title, alarm.title)) {
-            for (var s in criticalAlarm.setting) {
-              if (s.title.toLowerCase() == setting.title.toLowerCase()) {
-                s.value.value = value;
-                break;
-              }
+      }
+      for (var criticalAlarm in normalCriticalLine.critical) {
+        if (_isTitleMatch(criticalAlarm.title, alarm.title)) {
+          for (var s in criticalAlarm.setting) {
+            if (s.title.toLowerCase() == setting.title.toLowerCase()) {
+              s.value.value = value;
+              break;
             }
           }
         }
@@ -90,9 +100,6 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
 
     bool isGem = AppConstants.gemModelList.contains(modelId);
     bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
-
-    print("gemmodelid : $isGem");
-    print("novamodelid : $isNova");
 
     if (widget.constPvd.commonAlarm.isEmpty) {
       return const Center(child: Text('No common alarm settings available.'));
@@ -121,242 +128,143 @@ class _CommonAlarmInConstantState extends State<CommonAlarmInConstant> {
     double minWidth =
         (cellWidth * 1) + (visibleSettings.length * cellWidth) + 50;
     Color borderColor = const Color(0xffE1E2E3);
+    final currentLine = widget.constPvd.commonAlarm[0];
 
-    return Column(
-      children: [
-        _buildIrrigationLineTabs(),
-        Expanded(
-          child: AnimatedBuilder(
-            animation: selectedIrrigationLine,
-            builder: (context, child) {
-              if (selectedIrrigationLine.value >=
-                  widget.constPvd.commonAlarm.length) {
-                selectedIrrigationLine.value = 0;
-              }
-              final currentLine =
-                  widget.constPvd.commonAlarm[selectedIrrigationLine.value];
+    return DataTable2(
+      border: TableBorder(
+        top: BorderSide(color: borderColor, width: 1),
+        bottom: BorderSide(color: borderColor, width: 1),
+        left: BorderSide(color: borderColor, width: 1),
+        right: BorderSide(color: borderColor, width: 1),
+      ),
+      minWidth: minWidth,
+      fixedLeftColumns: minWidth < screenWidth ? 0 : 1,
+      columns: [
+        DataColumn2(
+          headingRowAlignment: MainAxisAlignment.center,
+          fixedWidth: cellWidth,
+          label: Text(
+            'Alarm',
+            style: Theme.of(context).textTheme.labelLarge,
+            textAlign: TextAlign.center,
+            softWrap: true,
+          ),
+        ),
+        ...visibleSettings.map((defaultSetting) {
+          return DataColumn2(
+            headingRowAlignment: MainAxisAlignment.center,
+            fixedWidth: cellWidth,
+            label: Text(
+              defaultSetting.title,
+              style: Theme.of(context).textTheme.labelLarge,
+              textAlign: TextAlign.center,
+              softWrap: true,
+            ),
+          );
+        }),
+      ],
+      rows: List.generate(currentLine.alarmList.length, (row) {
+        AlarmInConstantModel alarm = currentLine.alarmList[row];
 
-              return DataTable2(
-                border: TableBorder(
-                  top: BorderSide(color: borderColor, width: 1),
-                  bottom: BorderSide(color: borderColor, width: 1),
-                  left: BorderSide(color: borderColor, width: 1),
-                  right: BorderSide(color: borderColor, width: 1),
-                ),
-                minWidth: minWidth,
-                fixedLeftColumns: minWidth < screenWidth ? 0 : 1,
-                columns: [
-                  DataColumn2(
-                    headingRowAlignment: MainAxisAlignment.center,
-                    fixedWidth: cellWidth,
-                    label: Text(
-                      'Alarm',
-                      style: Theme.of(context).textTheme.labelLarge,
-                      textAlign: TextAlign.center,
-                      softWrap: true,
-                    ),
+        return DataRow2(
+          specificRowHeight: 50,
+          color: WidgetStatePropertyAll(
+            row.isOdd ? Colors.white : const Color(0xffF8F8F8),
+          ),
+          cells: [
+            DataCell(
+              Center(
+                child: Text(
+                  alarm.title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.orange.shade600,
+                    fontWeight: FontWeight.w500,
                   ),
-                  ...visibleSettings.map((defaultSetting) {
-                    return DataColumn2(
-                      headingRowAlignment: MainAxisAlignment.center,
-                      fixedWidth: cellWidth,
-                      label: Text(
-                        defaultSetting.title,
-                        style: Theme.of(context).textTheme.labelLarge,
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                      ),
-                    );
-                  }),
-                ],
-                rows: List.generate(currentLine.alarmList.length, (row) {
-                  AlarmInConstantModel alarm = currentLine.alarmList[row];
+                ),
+              ),
+            ),
+            for (var index = 0;
+                index < widget.constPvd.defaultCommonAlarmSetting.length;
+                index++)
+              if (visibleSettings.contains(
+                  widget.constPvd.defaultCommonAlarmSetting[index]))
+                DataCell(
+                  Builder(
+                    builder: (context) {
+                      ConstantSettingModel? foundSetting;
+                      for (var s in alarm.setting) {
+                        if (s.sNo ==
+                            widget.constPvd.defaultCommonAlarmSetting[index]
+                                .sNo) {
+                          foundSetting = s;
+                          break;
+                        }
+                      }
+                      if (foundSetting == null) {
+                        return SizedBox(
+                          height: 40,
+                          width: cellWidth,
+                          child: const Center(child: Text('-')),
+                        );
+                      }
+                      final alarmSetting = foundSetting;
 
-                  return DataRow2(
-                    specificRowHeight: 50,
-                    color: WidgetStatePropertyAll(
-                      row.isOdd ? Colors.white : const Color(0xffF8F8F8),
-                    ),
-                    cells: [
-                      DataCell(
-                        Center(
-                          child: Text(
-                            alarm.title,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.orange.shade600,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                      for (var index = 0;
-                          index <
-                              widget.constPvd.defaultCommonAlarmSetting.length;
-                          index++)
-                        if (visibleSettings.contains(
-                            widget.constPvd.defaultCommonAlarmSetting[index]))
-                          DataCell(
-                            Builder(
-                              builder: (context) {
-                                ConstantSettingModel? foundSetting;
-                                for (var s in alarm.setting) {
-                                  if (s.sNo ==
-                                      widget
-                                          .constPvd
-                                          .defaultCommonAlarmSetting[index]
-                                          .sNo) {
-                                    foundSetting = s;
-                                    break;
-                                  }
-                                }
-                                if (foundSetting == null) {
-                                  return SizedBox(
-                                    height: 40,
-                                    width: cellWidth,
-                                    child: const Center(child: Text('-')),
-                                  );
-                                }
-                                final alarmSetting = foundSetting;
+                      if (isNova &&
+                          widget.constPvd.defaultCommonAlarmSetting[index].title
+                              .toLowerCase()
+                              .contains('scan time') &&
+                          !(alarm.title.toLowerCase().contains('low flow') ||
+                              alarm.title.toLowerCase().contains('high flow') ||
+                              alarm.title.toLowerCase().contains('no flow'))) {
+                        return SizedBox(
+                          height: 40,
+                          width: cellWidth,
+                          child: const Center(child: Text('-')),
+                        );
+                      }
 
-                                if (isNova &&
-                                    widget.constPvd
-                                        .defaultCommonAlarmSetting[index].title
-                                        .toLowerCase()
-                                        .contains('scan time') &&
-                                    !(alarm.title
-                                            .toLowerCase()
-                                            .contains('low flow') ||
-                                        alarm.title
-                                            .toLowerCase()
-                                            .contains('high flow') ||
-                                        alarm.title
-                                            .toLowerCase()
-                                            .contains('no flow'))) {
-                                  return SizedBox(
-                                    height: 40,
-                                    width: cellWidth,
-                                    child: const Center(child: Text('-')),
-                                  );
-                                }
-
-                                return AnimatedBuilder(
-                                  animation: alarmSetting.value,
-                                  builder: (context, child) {
-                                    return SizedBox(
-                                      height: 40,
-                                      width: cellWidth,
-                                      child: FindSuitableWidget(
-                                        constantSettingModel: alarmSetting,
-                                        onUpdate: (value) {
-                                          alarmSetting.value.value = value;
-                                          _syncWithNormalCritical(
-                                            selectedIrrigationLine.value,
-                                            row,
-                                            alarmSetting,
-                                            value,
-                                          );
-                                        },
-                                        onOk: () {
-                                          alarmSetting.value.value =
-                                              widget.overAllPvd.getTime();
-                                          _syncWithNormalCritical(
-                                            selectedIrrigationLine.value,
-                                            row,
-                                            alarmSetting,
-                                            widget.overAllPvd.getTime(),
-                                          );
-                                          Navigator.pop(context);
-                                        },
-                                        popUpItemModelList: alarmSetting.title
-                                                .toLowerCase()
-                                                .contains('status')
-                                            ? widget.constPvd.alarmOnStatus
-                                            : widget.constPvd
-                                                .alarmResetAfterIrrigation,
-                                      ),
-                                    );
-                                  },
+                      return AnimatedBuilder(
+                        animation: alarmSetting.value,
+                        builder: (context, child) {
+                          return SizedBox(
+                            height: 40,
+                            width: cellWidth,
+                            child: FindSuitableWidget(
+                              constantSettingModel: alarmSetting,
+                              onUpdate: (value) {
+                                alarmSetting.value.value = value;
+                                _syncWithNormalCritical(
+                                  row,
+                                  alarmSetting,
+                                  value,
                                 );
                               },
+                              onOk: () {
+                                alarmSetting.value.value =
+                                    widget.overAllPvd.getTime();
+                                _syncWithNormalCritical(
+                                  row,
+                                  alarmSetting,
+                                  widget.overAllPvd.getTime(),
+                                );
+                                Navigator.pop(context);
+                              },
+                              popUpItemModelList: alarmSetting.title
+                                      .toLowerCase()
+                                      .contains('status')
+                                  ? widget.constPvd.alarmOnStatus
+                                  : widget.constPvd.alarmResetAfterIrrigation,
                             ),
-                          ),
-                    ],
-                  );
-                }),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIrrigationLineTabs() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            spacing: 10,
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var line = 0;
-                  line < widget.constPvd.commonAlarm.length;
-                  line++)
-                AnimatedBuilder(
-                  animation: selectedIrrigationLine,
-                  builder: (context, child) {
-                    final isSelected = selectedIrrigationLine.value == line;
-                    return InkWell(
-                      onTap: () {
-                        selectedIrrigationLine.value = line;
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 500),
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 15,
-                          vertical: isSelected ? 12 : 10,
-                        ),
-                        decoration: BoxDecoration(
-                          border: const Border(
-                            top: BorderSide(width: 0.5),
-                            left: BorderSide(width: 0.5),
-                            right: BorderSide(width: 0.5),
-                          ),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(5),
-                            topRight: Radius.circular(5),
-                          ),
-                          color: isSelected
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade100,
-                        ),
-                        child: Text(
-                          widget.constPvd.commonAlarm[line].name,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
-            ],
-          ),
-        ),
-        Container(
-          width: double.infinity,
-          height: 3,
-          color: Theme.of(context).primaryColor,
-        ),
-        const SizedBox(height: 10),
-      ],
+          ],
+        );
+      }),
     );
   }
 }

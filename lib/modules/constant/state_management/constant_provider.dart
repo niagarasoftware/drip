@@ -136,7 +136,7 @@ class ConstantProvider extends ChangeNotifier {
                     : ArrowTabState.inComplete));
       }).toList();
 
-      // Ensure Common Alarm is placed between Normal Critical Alarm and Global Alarm
+      // Ensure Common Alarm is placed in front of Normal Critical Alarm
       int commonAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
         (m) =>
             m.dealerDefinitionId == AppConstants.commonAlarmInConstant ||
@@ -162,7 +162,7 @@ class ConstantProvider extends ChangeNotifier {
         );
         if (normalCriticalMenuIndex != -1) {
           listOfConstantMenuModel.insert(
-              normalCriticalMenuIndex + 1, commonAlarmMenu);
+              normalCriticalMenuIndex, commonAlarmMenu);
         } else {
           int globalAlarmMenuIndex = listOfConstantMenuModel.indexWhere(
             (m) => m.dealerDefinitionId == AppConstants.globalAlarmInConstant,
