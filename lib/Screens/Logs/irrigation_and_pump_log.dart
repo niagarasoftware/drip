@@ -10,10 +10,10 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../StateManagement/customer_provider.dart';
 import '../../models/customer/site_model.dart';
 import '../../modules/Logs/repository/log_repos.dart';
-import '../../modules/Logs/view/pump_list.dart';
 
 import '../../modules/irrigation_report/view/channel_log_page.dart';
 import '../../modules/irrigation_report/view/list_of_log_config.dart';
+import '../../modules/irrigation_report/view/fertigation_card_list_page.dart';
 import '../../modules/irrigation_report/view/standalone_log.dart';
 import '../../modules/irrigation_report/view/zone_log.dart';
 import '../../modules/irrigation_report/view/zone_cyclic_log.dart';
@@ -66,7 +66,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       return 3; // Motor + Zone Cyclic + Pump
     }
 
-    // Irrigation + Zone + Standalone + Channel
+    // Irrigation + Zone + Fertilizer + Standalone
     // + optional Pump
     return 4 + (showPumpLog ? 1 : 0);
   }
@@ -146,16 +146,21 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
   void _openLogDetail(BuildContext context, _LogCardItem card) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(card.title),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
+        builder: (context) {
+          if (card.page is FertigationCardListPage) {
+            return card.page;
+          }
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(card.title),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
-          ),
-          body: card.page,
-        ),
+            body: card.page,
+          );
+        },
       ),
     );
   }
@@ -267,6 +272,49 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       page: ZoneLog(
         userData: widget.userData,
         masterData: widget.masterData,
+      ),
+    );
+  }
+
+  _LogCardItem _fertilizerLogCard() {
+    return _LogCardItem(
+      title: 'Fertilizer Log',
+      subtitle:
+          'Track fertigation recipes, fertilizer channel runtime and EC/pH details.',
+      iconWidget: const Icon(
+        Icons.science_outlined,
+        color: Color(0xFF0D9488),
+        size: 28,
+      ),
+      accentColor: const Color(0xFF0D9488),
+      iconBgColor: const Color(0xFFCCFBF1),
+      buttonColor: const Color(0xFF006573),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.science_outlined,
+          text: 'Fertigation recipes',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.water_drop_outlined,
+          text: 'Channel duration & quantity',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.speed_rounded,
+          text: 'EC & pH monitoring',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.bar_chart_rounded,
+          text: 'Program & sequence views',
+          iconColor: Color(0xFF0D9488),
+        ),
+      ],
+      page: FertigationCardListPage(
+        serverData: const {'logName': 'Fertilizer'},
+        userData: widget.userData,
+        nameData: const [],
       ),
     );
   }
@@ -444,6 +492,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       cards.addAll([
         _irrigationCard(),
         _zoneLogCard(),
+        _fertilizerLogCard(),
         _standaloneLogCard(),
         // Matches _calculateTabLength(): pump log only when it applies
         if (showPumpLog) _pumpLogCard(),
@@ -481,8 +530,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFFE2E8F0).withOpacity(0.4),
-                        const Color(0xFFE2E8F0).withOpacity(0.0),
+                        const Color(0xFFE2E8F0).withValues(alpha: 0.4),
+                        const Color(0xFFE2E8F0).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -500,8 +549,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFFE0F2FE).withOpacity(0.45),
-                        const Color(0xFFE0F2FE).withOpacity(0.0),
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.45),
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -526,7 +575,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     builder: (context, constraints) {
                       final double width = constraints.maxWidth;
 
-                      if (width >= 1050) {
+                      if (width >= 1150) {
                         // All cards in a single row
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -594,7 +643,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF006775).withOpacity(0.08),
+            color: const Color(0xFF006775).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(
@@ -640,7 +689,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -661,8 +710,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      card.accentColor.withOpacity(0.12),
-                      card.accentColor.withOpacity(0.0),
+                      card.accentColor.withValues(alpha: 0.12),
+                      card.accentColor.withValues(alpha: 0.0),
                     ],
                   ),
                 ),

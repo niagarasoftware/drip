@@ -785,29 +785,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   void _parseCumulativeApiResponse(Map<String, dynamic> responseData) {
     Map<String, CumulativeRowData> rowsMap = {};
 
-    // 1. If channels exist from config maker, pre-create rows in order
-    for (int idx = 0; idx < _fertilizerChannelsFromConfig.length; idx++) {
-      var chObj = _fertilizerChannelsFromConfig[idx];
-      double sNoVal = (chObj['sNo'] is num)
-          ? (chObj['sNo'] as num).toDouble()
-          : double.tryParse(chObj['sNo']?.toString() ?? '') ??
-              (10.001 + idx * 0.001);
-      String chName = chObj['name'] ?? 'Channel ${idx + 1}';
-      String key = "C_${sNoVal.toStringAsFixed(3)}";
-
-      rowsMap.putIfAbsent(
-        key,
-        () => CumulativeRowData(
-          key: key,
-          channelName: chName,
-          channelCategory: "Central Fertilizer",
-          channelSNo: sNoVal,
-          dayEntries: {},
-        ),
-      );
-    }
-
-    // 2. Parse log entries
+    // Parse log entries using CentralFertilizerChannel and LocalFertilizerChannel
     if (responseData['log'] != null && responseData['log'] is List) {
       List logs = responseData['log'];
 
@@ -827,32 +805,75 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
         List recordDates = irrigation['Date'] ?? [];
         List programSNos = irrigation['ProgramS_No'] ?? [];
-        List centralMethods = irrigation['CentralFertMethod'] ?? [];
-        List centralDurations =
-            irrigation['CentralFertilizerChannelDuration'] ?? [];
-        List centralQuantities =
-            irrigation['CentralFertilizerChannelQuantity'] ?? [];
-        List centralChannels = irrigation['CentralFertilizerChannel'] ?? [];
-        List centralNames = irrigation['CentralFertChannelName'] ?? [];
 
-        List localMethods = irrigation['LocalFertMethod'] ?? [];
-        List localDurations =
-            irrigation['LocalFertilizerChannelDuration'] ?? [];
-        List localQuantities =
-            irrigation['LocalFertilizerChannelQuantity'] ?? [];
-        List localChannels = irrigation['LocalFertilizerChannel'] ?? [];
-        List localNames = irrigation['LocalFertChannelName'] ?? [];
+        List centralDurations = [];
+        if (irrigation['CentralFertilizerChannelDuration'] is List) {
+          centralDurations = irrigation['CentralFertilizerChannelDuration'];
+        } else if (irrigation['CentralFertilizerChannelDuration'] != null) {
+          centralDurations = [irrigation['CentralFertilizerChannelDuration']];
+        }
+
+        List centralQuantities = [];
+        if (irrigation['CentralFertilizerChannelQuantity'] is List) {
+          centralQuantities = irrigation['CentralFertilizerChannelQuantity'];
+        } else if (irrigation['CentralFertilizerChannelQuantity'] != null) {
+          centralQuantities = [irrigation['CentralFertilizerChannelQuantity']];
+        }
+
+        List centralChannels = [];
+        if (irrigation['CentralFertilizerChannel'] is List) {
+          centralChannels = irrigation['CentralFertilizerChannel'];
+        } else if (irrigation['CentralFertilizerChannel'] != null) {
+          centralChannels = [irrigation['CentralFertilizerChannel']];
+        }
+
+        List centralNames = [];
+        if (irrigation['CentralFertChannelName'] is List) {
+          centralNames = irrigation['CentralFertChannelName'];
+        } else if (irrigation['CentralFertChannelName'] != null) {
+          centralNames = [irrigation['CentralFertChannelName']];
+        }
+
+        List localDurations = [];
+        if (irrigation['LocalFertilizerChannelDuration'] is List) {
+          localDurations = irrigation['LocalFertilizerChannelDuration'];
+        } else if (irrigation['LocalFertilizerChannelDuration'] != null) {
+          localDurations = [irrigation['LocalFertilizerChannelDuration']];
+        }
+
+        List localQuantities = [];
+        if (irrigation['LocalFertilizerChannelQuantity'] is List) {
+          localQuantities = irrigation['LocalFertilizerChannelQuantity'];
+        } else if (irrigation['LocalFertilizerChannelQuantity'] != null) {
+          localQuantities = [irrigation['LocalFertilizerChannelQuantity']];
+        }
+
+        List localChannels = [];
+        if (irrigation['LocalFertilizerChannel'] is List) {
+          localChannels = irrigation['LocalFertilizerChannel'];
+        } else if (irrigation['LocalFertilizerChannel'] != null) {
+          localChannels = [irrigation['LocalFertilizerChannel']];
+        }
+
+        List localNames = [];
+        if (irrigation['LocalFertChannelName'] is List) {
+          localNames = irrigation['LocalFertChannelName'];
+        } else if (irrigation['LocalFertChannelName'] != null) {
+          localNames = [irrigation['LocalFertChannelName']];
+        }
 
         int baseLength = [
           recordDates.length,
           programSNos.length,
-          centralMethods.length,
+          centralChannels.length,
           centralDurations.length,
           centralQuantities.length,
-          localMethods.length,
+          localChannels.length,
           localDurations.length,
           localQuantities.length,
         ].fold(0, (max, len) => len > max ? len : max);
+
+        if (baseLength == 0) baseLength = 1;
 
         for (int i = 0; i < baseLength; i++) {
           String itemDateStr = (i < recordDates.length &&
@@ -870,65 +891,57 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           String itemDateKey = DateFormat('yyyy-MM-dd').format(itemParsedDate);
 
           // Central Fertilizer
-          String cMethodStr =
-              (i < centralMethods.length && centralMethods[i] != null)
-                  ? centralMethods[i].toString()
-                  : '';
-          String cDurStr =
-              (i < centralDurations.length && centralDurations[i] != null)
-                  ? centralDurations[i].toString()
-                  : '';
-          String cQtyStr =
-              (i < centralQuantities.length && centralQuantities[i] != null)
-                  ? centralQuantities[i].toString()
-                  : '';
-          dynamic cChanVal =
-              (i < centralChannels.length) ? centralChannels[i] : null;
-          dynamic cNameVal = (i < centralNames.length) ? centralNames[i] : null;
+          dynamic cChanVal = (i < centralChannels.length)
+              ? centralChannels[i]
+              : (centralChannels.isNotEmpty ? centralChannels[0] : null);
+          dynamic cDurVal = (i < centralDurations.length)
+              ? centralDurations[i]
+              : (centralDurations.isNotEmpty ? centralDurations[0] : null);
+          dynamic cQtyVal = (i < centralQuantities.length)
+              ? centralQuantities[i]
+              : (centralQuantities.isNotEmpty ? centralQuantities[0] : null);
+          dynamic cNameVal = (i < centralNames.length)
+              ? centralNames[i]
+              : (centralNames.isNotEmpty ? centralNames[0] : null);
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
             itemDateKey: itemDateKey,
             isCentral: true,
-            methodStr: cMethodStr,
-            durStr: cDurStr,
-            qtyStr: cQtyStr,
             chanVal: cChanVal,
+            durVal: cDurVal,
+            qtyVal: cQtyVal,
             nameVal: cNameVal,
           );
 
           // Local Fertilizer
-          String lMethodStr =
-              (i < localMethods.length && localMethods[i] != null)
-                  ? localMethods[i].toString()
-                  : '';
-          String lDurStr =
-              (i < localDurations.length && localDurations[i] != null)
-                  ? localDurations[i].toString()
-                  : '';
-          String lQtyStr =
-              (i < localQuantities.length && localQuantities[i] != null)
-                  ? localQuantities[i].toString()
-                  : '';
-          dynamic lChanVal =
-              (i < localChannels.length) ? localChannels[i] : null;
-          dynamic lNameVal = (i < localNames.length) ? localNames[i] : null;
+          dynamic lChanVal = (i < localChannels.length)
+              ? localChannels[i]
+              : (localChannels.isNotEmpty ? localChannels[0] : null);
+          dynamic lDurVal = (i < localDurations.length)
+              ? localDurations[i]
+              : (localDurations.isNotEmpty ? localDurations[0] : null);
+          dynamic lQtyVal = (i < localQuantities.length)
+              ? localQuantities[i]
+              : (localQuantities.isNotEmpty ? localQuantities[0] : null);
+          dynamic lNameVal = (i < localNames.length)
+              ? localNames[i]
+              : (localNames.isNotEmpty ? localNames[0] : null);
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
             itemDateKey: itemDateKey,
             isCentral: false,
-            methodStr: lMethodStr,
-            durStr: lDurStr,
-            qtyStr: lQtyStr,
             chanVal: lChanVal,
+            durVal: lDurVal,
+            qtyVal: lQtyVal,
             nameVal: lNameVal,
           );
         }
       }
     }
 
-    // 3. Calculate total duration and quantity per row
+    // Calculate total duration and quantity per row
     List<CumulativeRowData> rows = rowsMap.values.toList();
     for (var r in rows) {
       int sumSec = 0;
@@ -941,7 +954,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       r.totalQuantity = sumQty;
     }
 
-    // 4. Sort rows: Central Fertilizer first, then Local Fertilizer, then by channelSNo
+    // Sort rows: Central Fertilizer first, then Local Fertilizer, then by channelSNo
     rows.sort((a, b) {
       if (a.channelCategory != b.channelCategory) {
         return a.channelCategory.compareTo(b.channelCategory);
@@ -983,86 +996,125 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     required Map<String, CumulativeRowData> rowsMap,
     required String itemDateKey,
     required bool isCentral,
-    required String methodStr,
-    required String durStr,
-    required String qtyStr,
     required dynamic chanVal,
+    required dynamic durVal,
+    required dynamic qtyVal,
     required dynamic nameVal,
   }) {
-    List<String> mParts = methodStr.isNotEmpty ? methodStr.split('_') : [];
-    List<String> dParts = durStr.isNotEmpty ? durStr.split('_') : [];
-    List<String> qParts = qtyStr.isNotEmpty ? qtyStr.split('_') : [];
-
+    // 1. Extract channel sNos from chanVal (CentralFertilizerChannel or LocalFertilizerChannel)
     List<String> chParts = [];
     if (chanVal != null) {
       if (chanVal is List) {
-        chParts = chanVal.map((e) => e.toString()).toList();
+        for (var e in chanVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              chParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              chParts.add(s);
+            }
+          }
+        }
       } else {
         String cv = chanVal.toString().trim();
-        if (cv.isNotEmpty) chParts = cv.split('_');
+        if (cv.isNotEmpty) {
+          chParts = cv.split('_');
+        }
       }
     }
+    chParts = chParts.map((e) => e.trim()).toList();
 
+    // 2. Extract durations from durVal (CentralFertilizerChannelDuration or LocalFertilizerChannelDuration)
+    List<String> dParts = [];
+    if (durVal != null) {
+      if (durVal is List) {
+        for (var e in durVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              dParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              dParts.add(s);
+            }
+          }
+        }
+      } else {
+        String s = durVal.toString().trim();
+        if (s.isNotEmpty) {
+          dParts = s.split('_');
+        }
+      }
+    }
+    dParts = dParts.map((e) => e.trim()).toList();
+
+    // 3. Extract quantities from qtyVal (CentralFertilizerChannelQuantity or LocalFertilizerChannelQuantity)
+    List<String> qParts = [];
+    if (qtyVal != null) {
+      if (qtyVal is List) {
+        for (var e in qtyVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              qParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              qParts.add(s);
+            }
+          }
+        }
+      } else {
+        String s = qtyVal.toString().trim();
+        if (s.isNotEmpty) {
+          qParts = s.split('_');
+        }
+      }
+    }
+    qParts = qParts.map((e) => e.trim()).toList();
+
+    // 4. Extract names if any
     List<String> nParts = [];
     if (nameVal != null) {
       if (nameVal is List) {
-        nParts = nameVal.map((e) => e.toString()).toList();
+        for (var e in nameVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              nParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              nParts.add(s);
+            }
+          }
+        }
       } else {
-        String nv = nameVal.toString().trim();
-        if (nv.isNotEmpty) nParts = nv.split('_');
+        String s = nameVal.toString().trim();
+        if (s.isNotEmpty) {
+          nParts = s.split('_');
+        }
       }
     }
+    nParts = nParts.map((e) => e.trim()).toList();
 
-    int count = [
-      mParts.length,
-      dParts.length,
-      qParts.length,
-      chParts.length,
-      nParts.length,
-    ].fold(0, (max, l) => l > max ? l : max);
+    if (chParts.isEmpty) return;
 
-    if (count == 0 && (durStr.isNotEmpty || qtyStr.isNotEmpty)) {
-      dParts = [durStr];
-      qParts = [qtyStr];
-      count = 1;
-    }
+    for (int chIdx = 0; chIdx < chParts.length; chIdx++) {
+      String explicitSNo = chParts[chIdx];
+      if (explicitSNo.isEmpty || explicitSNo == '_') continue;
 
-    for (int chIdx = 0; chIdx < count; chIdx++) {
-      String m = chIdx < mParts.length ? mParts[chIdx].trim() : '';
-      String d = chIdx < dParts.length ? dParts[chIdx].trim() : '';
-      String q = chIdx < qParts.length ? qParts[chIdx].trim() : '';
-      String explicitSNo = chIdx < chParts.length ? chParts[chIdx].trim() : '';
-      String explicitName = chIdx < nParts.length ? nParts[chIdx].trim() : '';
+      double? parsedSNo = double.tryParse(explicitSNo);
+      if (parsedSNo == null) continue;
+
+      double sNoVal = parsedSNo;
+      String sNoStr = sNoVal.toStringAsFixed(3);
+
+      String d = chIdx < dParts.length ? dParts[chIdx] : '';
+      String q = chIdx < qParts.length ? qParts[chIdx] : '';
+      String explicitName = chIdx < nParts.length ? nParts[chIdx] : '';
 
       int durSec = _parseDurationToSeconds(d);
-      num qtyVal = num.tryParse(q) ?? 0;
-
-      // Skip if all duration, quantity and method are empty/zero
-      if (durSec == 0 && qtyVal == 0 && (m == '0' || m.isEmpty)) {
-        continue;
-      }
-
-      // Determine channel sNo
-      double sNoVal;
-      String sNoStr;
-      if (explicitSNo.isNotEmpty && double.tryParse(explicitSNo) != null) {
-        sNoVal = double.parse(explicitSNo);
-        sNoStr = sNoVal.toStringAsFixed(3);
-      } else if (isCentral && chIdx < _fertilizerChannelsFromConfig.length) {
-        var cObj = _fertilizerChannelsFromConfig[chIdx];
-        sNoVal = (cObj['sNo'] is num)
-            ? (cObj['sNo'] as num).toDouble()
-            : double.tryParse(cObj['sNo']?.toString() ?? '') ??
-                (10.001 + chIdx * 0.001);
-        sNoStr = sNoVal.toStringAsFixed(3);
-      } else {
-        sNoVal = 10.001 + (chIdx * 0.001);
-        sNoStr = sNoVal.toStringAsFixed(3);
-      }
+      num qtyValNum = num.tryParse(q) ?? 0;
 
       // Determine display name (matching from configmaker / names)
       String channelName = '';
-      if (explicitName.isNotEmpty) {
+      if (explicitName.isNotEmpty && explicitName != '_') {
         channelName = explicitName;
       } else if (_channelNameMap.containsKey(sNoStr) &&
           _channelNameMap[sNoStr]!.isNotEmpty) {
@@ -1072,14 +1124,32 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         channelName = _channelNameMap[sNoVal.toString()]!;
       } else {
         int sInt = sNoVal.toInt();
-        if (_channelNameMap.containsKey(sInt.toString())) {
+        if (_channelNameMap.containsKey(sInt.toString()) &&
+            _channelNameMap[sInt.toString()]!.isNotEmpty) {
           channelName = _channelNameMap[sInt.toString()]!;
-        } else if (isCentral && chIdx < _fertilizerChannelsFromConfig.length) {
-          channelName = _fertilizerChannelsFromConfig[chIdx]['name'] ??
-              'Channel ${chIdx + 1}';
         } else {
-          channelName =
-              isCentral ? "Channel ${chIdx + 1}" : "Local Channel ${chIdx + 1}";
+          // Look up in _fertilizerChannelsFromConfig
+          Map<String, dynamic>? match;
+          for (var c in _fertilizerChannelsFromConfig) {
+            if (c['sNo'] != null) {
+              String cSNo = c['sNo'].toString();
+              if (cSNo == sNoStr ||
+                  cSNo == sNoVal.toString() ||
+                  double.tryParse(cSNo) == sNoVal) {
+                match = c;
+                break;
+              }
+            }
+          }
+          if (match != null &&
+              match['name'] != null &&
+              match['name'].toString().isNotEmpty) {
+            channelName = match['name'].toString();
+          } else {
+            channelName = isCentral
+                ? "Channel ${chIdx + 1}"
+                : "Local Channel ${chIdx + 1}";
+          }
         }
       }
 
@@ -1104,8 +1174,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
       // Duplicate value sum for same day
       dayData.durationSeconds += durSec;
-      dayData.quantity += qtyVal;
-      dayData.hasRun = true;
+      dayData.quantity += qtyValNum;
+      if (durSec > 0 || qtyValNum > 0) {
+        dayData.hasRun = true;
+      }
     }
   }
 
@@ -1197,7 +1269,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }).toList();
 
       String fileName =
-          "CumulativeLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+          "CHANNELLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
 
       String? res = await exportZoneLogMatrixToExcel(
         dateColumns: _dateColumns,
@@ -1400,73 +1472,62 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Row 2: Program Filter & Excel Button
+                // Row 2: Program Filter (only for Zone Log tab) & Excel Button
                 Row(
                   children: [
-                    // Program Dropdown
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Text(
-                              _selectedLogTypeTab == 0
-                                  ? "Program"
-                                  : "Fertilizer",
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Container(
-                              height: 36,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6),
-                              decoration: BoxDecoration(
-                                border:
-                                    Border.all(color: const Color(0xFFCBD5E1)),
-                                borderRadius: BorderRadius.circular(6),
-                                color: Colors.white,
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _selectedLogTypeTab == 0
-                                      ? (_programDropdownOptions
-                                              .contains(_selectedProgramFilter)
-                                          ? _selectedProgramFilter
-                                          : 'All Programs')
-                                      : (_cumulativeDropdownOptions.contains(
-                                              _selectedCumulativeFilter)
-                                          ? _selectedCumulativeFilter
-                                          : 'All Channels'),
-                                  isDense: true,
-                                  isExpanded: true,
-                                  items: (_selectedLogTypeTab == 0
-                                          ? _programDropdownOptions
-                                          : _cumulativeDropdownOptions)
-                                      .map((e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  fontSize: 11.5))))
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setState(() {
-                                        if (_selectedLogTypeTab == 0) {
+                    if (_selectedLogTypeTab == 0) ...[
+                      // Program Dropdown
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Text("Program",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Container(
+                                height: 36,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _programDropdownOptions
+                                            .contains(_selectedProgramFilter)
+                                        ? _selectedProgramFilter
+                                        : 'All Programs',
+                                    isDense: true,
+                                    isExpanded: true,
+                                    items: _programDropdownOptions
+                                        .map((e) => DropdownMenuItem(
+                                            value: e,
+                                            child: Text(e,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                    fontSize: 11.5))))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
                                           _selectedProgramFilter = val;
-                                        } else {
-                                          _selectedCumulativeFilter = val;
-                                        }
-                                      });
-                                    }
-                                  },
+                                        });
+                                      }
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
+                      const SizedBox(width: 6),
+                    ] else
+                      const Spacer(),
                     // Excel Button
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
@@ -1539,58 +1600,48 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ),
                 ],
               ),
-              // Program Filter Dropdown
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_selectedLogTypeTab == 0 ? "Program" : "Fertilizer",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(width: 8),
-                  Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                      borderRadius: BorderRadius.circular(6),
-                      color: Colors.white,
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedLogTypeTab == 0
-                            ? (_programDropdownOptions
-                                    .contains(_selectedProgramFilter)
-                                ? _selectedProgramFilter
-                                : 'All Programs')
-                            : (_cumulativeDropdownOptions
-                                    .contains(_selectedCumulativeFilter)
-                                ? _selectedCumulativeFilter
-                                : 'All Channels'),
-                        isDense: true,
-                        items: (_selectedLogTypeTab == 0
-                                ? _programDropdownOptions
-                                : _cumulativeDropdownOptions)
-                            .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e,
-                                    style: const TextStyle(fontSize: 13))))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              if (_selectedLogTypeTab == 0) {
+              // Program Filter Dropdown (only for Zone Log tab)
+              if (_selectedLogTypeTab == 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Program",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.white,
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _programDropdownOptions
+                                  .contains(_selectedProgramFilter)
+                              ? _selectedProgramFilter
+                              : 'All Programs',
+                          isDense: true,
+                          items: _programDropdownOptions
+                              .map((e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(e,
+                                      style: const TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
                                 _selectedProgramFilter = val;
-                              } else {
-                                _selectedCumulativeFilter = val;
-                              }
-                            });
-                          }
-                        },
+                              });
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
               // Excel Export Button
               Row(
@@ -1841,6 +1892,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         if (_selectedLogTypeTab != 1) {
                           setState(() {
                             _selectedLogTypeTab = 1;
+                            _selectedCumulativeFilter = 'All Channels';
                           });
                           if (_verticalScrollController.hasClients) {
                             _verticalScrollController.jumpTo(0);

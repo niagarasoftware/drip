@@ -360,10 +360,28 @@ class _FertigationCardListPageState
         '========== FERTIGATION MAPPER START ==========',
       );
 
+      List<dynamic> activeNames = widget.nameData;
+      if (activeNames.isEmpty) {
+        try {
+          final namesRes = await IrrigationRepository().getUserNames({
+            "userId": widget.userData['customerId'],
+            "controllerId": widget.userData['controllerId'],
+          });
+          if (namesRes.statusCode == 200) {
+            final namesJson = jsonDecode(namesRes.body);
+            if (namesJson['code'] == 200 &&
+                namesJson['data'] != null &&
+                namesJson['data']['configObject'] is List) {
+              activeNames = namesJson['data']['configObject'];
+            }
+          }
+        } catch (_) {}
+      }
+
       final List<FertigationCardModel> mappedCards =
       FertigationCardMapper.mapLogData(
         rawData,
-        widget.nameData,
+        activeNames,
       );
 
       debugPrint(

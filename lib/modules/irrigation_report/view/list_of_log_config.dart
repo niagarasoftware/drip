@@ -14,15 +14,15 @@ import 'log_home.dart';
 class ListOfLogConfig extends StatefulWidget {
   final Map<String, dynamic> userData;
   final MasterControllerModel masterData;
-  const ListOfLogConfig({super.key, required this.userData, required this.masterData});
+  const ListOfLogConfig(
+      {super.key, required this.userData, required this.masterData});
 
   @override
   State<ListOfLogConfig> createState() => _ListOfLogConfigState();
 }
 
 class _ListOfLogConfigState extends State<ListOfLogConfig> {
-
-  Map<String,dynamic> irrigationLogParameterFromServer = {};
+  Map<String, dynamic> irrigationLogParameterFromServer = {};
   dynamic serverData;
   IrrigationLogModel irrigationParameterArray = IrrigationLogModel();
   IrrigationLogModel irrigationParameterArrayDuplicate = IrrigationLogModel();
@@ -40,70 +40,71 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
     super.initState();
   }
 
-  void createUserLogConfig({required String name,required dynamic configDetails})async{
+  void createUserLogConfig(
+      {required String name, required dynamic configDetails}) async {
     print('createUserLogConfig called...............');
-    try{
+    try {
       var body = {
-        'userId' : widget.userData['customerId'],
-        'controllerId' : widget.userData['controllerId'],
+        'userId': widget.userData['customerId'],
+        'controllerId': widget.userData['controllerId'],
         'logName': name,
         'irrigationLog': configDetails,
         'createUser': widget.userData['userId'],
       };
       var response = await IrrigationRepository().createUserLogConfig(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
-      if(jsonData['code'] == 200){
+      if (jsonData['code'] == 200) {
         getUserLogConfig();
       }
-
-    }catch(e){
+    } catch (e) {
       log(e.toString());
     }
   }
 
-  void updateUserLogConfig({required int id,required dynamic configDetails})async{
+  void updateUserLogConfig(
+      {required int id, required dynamic configDetails}) async {
     print('updateUserLogConfig called...............');
-    try{
+    try {
       var body = {
-        'userId' : widget.userData['customerId'],
-        'controllerId' : widget.userData['controllerId'],
+        'userId': widget.userData['customerId'],
+        'controllerId': widget.userData['controllerId'],
         'logName': logName,
         'irrigationLog': configDetails,
         'modifyUser': widget.userData['userId'],
-        'logConfigId' : id,
+        'logConfigId': id,
       };
       var response = await IrrigationRepository().updateUserLogConfig(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
-      if(jsonData['code'] == 200){
+      if (jsonData['code'] == 200) {
         getUserLogConfig();
       }
-    }catch(e){
+    } catch (e) {
       log(e.toString());
     }
   }
 
-  void getUserLogConfig()async{
+  void getUserLogConfig() async {
     if (kDebugMode) {
       print('getUserLogConfig called...............');
     }
-    try{
+    try {
       var body = {
-        'userId' : widget.userData['customerId'],
-        'controllerId' : widget.userData['controllerId'],
+        'userId': widget.userData['customerId'],
+        'controllerId': widget.userData['controllerId'],
       };
       debugPrint("body getUserLogConfig: $body");
       var response = await IrrigationRepository().getUserLogConfig(body);
       var configResponse = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
       Map<String, dynamic> configJsonData = jsonDecode(configResponse.body);
-      if(configJsonData['code'] == 200){
-        if(names.isEmpty){
+      if (configJsonData['code'] == 200) {
+        if (names.isEmpty) {
           setState(() {
             names = configJsonData['data']['configObject'];
           });
         }
       }
-      if(jsonData['code'] == 200){
+      if (jsonData['code'] == 200) {
         setState(() {
           serverData = jsonData['data'];
         });
@@ -111,36 +112,41 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
           print('serverData => $serverData');
         }
         setState(() {
-          irrigationLogParameterFromServer = mergeDefaultLogParameters(serverData['default']);
+          irrigationLogParameterFromServer =
+              mergeDefaultLogParameters(serverData['default']);
         });
-        irrigationParameterArray.editParameter(irrigationLogParameterFromServer);
-        irrigationParameterArrayDuplicate.editParameter(irrigationLogParameterFromServer);
-        if(serverData['logConfig'].isEmpty){
-          createUserLogConfig(name: 'General', configDetails: irrigationParameterArrayDuplicate.toJson());
+        irrigationParameterArray
+            .editParameter(irrigationLogParameterFromServer);
+        irrigationParameterArrayDuplicate
+            .editParameter(irrigationLogParameterFromServer);
+        if (serverData['logConfig'].isEmpty) {
+          createUserLogConfig(
+              name: 'General',
+              configDetails: irrigationParameterArrayDuplicate.toJson());
         }
       }
-    }catch(e){
+    } catch (e) {
       log(e.toString());
     }
   }
 
-  void deleteUserLogConfig({required id})async{
+  void deleteUserLogConfig({required id}) async {
     if (kDebugMode) {
       print('deleteUserLogConfig called...............');
     }
-    try{
+    try {
       var body = {
-        'userId' : widget.userData['customerId'],
-        'controllerId' : widget.userData['controllerId'],
-        'logConfigId' : id,
+        'userId': widget.userData['customerId'],
+        'controllerId': widget.userData['controllerId'],
+        'logConfigId': id,
       };
       var response = await IrrigationRepository().deleteUserLogConfig(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
       print('delete response =>${jsonData}');
-      if(jsonData['code'] == 200){
+      if (jsonData['code'] == 200) {
         getUserLogConfig();
       }
-    }catch(e){
+    } catch (e) {
       log(e.toString());
     }
   }
@@ -148,33 +154,44 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
   @override
   Widget build(BuildContext context) {
     return Material(
-      child: LayoutBuilder(builder: (context,constraint){
+      child: LayoutBuilder(builder: (context, constraint) {
         return Padding(
           padding: const EdgeInsets.all(8.0),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20,),
-                const Text('Pre Configured Log',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold)),
-                if(constraint.maxWidth > 300)
+                const SizedBox(
+                  height: 20,
+                ),
+                const Text('Pre Configured Log',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (constraint.maxWidth > 300)
                   customizeGridView(
                       maxWith: 300,
                       maxHeight: 100,
                       screenWidth: constraint.maxWidth,
                       listOfWidget: [
-                        if(serverData != null)
-                          if(serverData['staticLogConfig'].isNotEmpty)
-                            for(var i = 0;i < serverData['staticLogConfig'].length;i++)
-                              if(AppConstants.aquacultureModelList.contains(widget.masterData.modelId) && !['Fertilizer', 'Filter'].contains(serverData['staticLogConfig'][i]['logName']) || !AppConstants.aquacultureModelList.contains(widget.masterData.modelId))
+                        if (serverData != null)
+                          if (serverData['staticLogConfig'].isNotEmpty)
+                            for (var i = 0;
+                                i < serverData['staticLogConfig'].length;
+                                i++)
+                              if (AppConstants.aquacultureModelList.contains(
+                                          widget.masterData.modelId) &&
+                                      !['Fertilizer', 'Filter'].contains(
+                                          serverData['staticLogConfig'][i]
+                                              ['logName']) ||
+                                  !AppConstants.aquacultureModelList
+                                      .contains(widget.masterData.modelId))
                                 Container(
                                   margin: const EdgeInsets.only(bottom: 20),
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                      color:  Colors.white,
+                                      color: Colors.white,
                                       boxShadow: customBoxShadow,
-                                      borderRadius: BorderRadius.circular(10)
-                                  ),
+                                      borderRadius: BorderRadius.circular(10)),
                                   child: Column(
                                     children: [
                                       ListTile(
@@ -182,292 +199,353 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                           backgroundColor: Color(0xff2B565B),
                                           radius: 20,
                                           child: Center(
-                                            child: Text('${i+1}',style: TextStyle(color: Colors.white),),
+                                            child: Text(
+                                              '${i + 1}',
+                                              style: TextStyle(
+                                                  color: Colors.white),
+                                            ),
                                           ),
                                         ),
-                                        title: Text('${serverData['staticLogConfig'][i]['logName']}'),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if ('${serverData['staticLogConfig'][i]['logName']}' == 'Fertilizer') ...[
-                                              IconButton(
-                                                  style: ButtonStyle(
-                                                      backgroundColor: MaterialStateProperty.all(const Color(0xffEFFFFB))
-                                                  ),
-                                                  onPressed: () {
-                                                    Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                      return FertigationCardListPage(serverData: serverData['staticLogConfig'][i], userData: widget.userData, nameData: names,);
-                                                    }));
+                                        title: Text(
+                                            '${serverData['staticLogConfig'][i]['logName']}'),
+                                        trailing: IconButton(
+                                            style: ButtonStyle(
+                                                backgroundColor:
+                                                    MaterialStateProperty.all(
+                                                        Color(0xffEFFFFB))),
+                                            onPressed: () {
+                                              Navigator.push(context,
+                                                  MaterialPageRoute(
+                                                      builder: (context) {
+                                                return LogHome(
+                                                  serverData: serverData[
+                                                      'staticLogConfig'][i],
+                                                  userData: {
+                                                    ...widget.userData,
+                                                    'deviceId': widget.userData[
+                                                            'deviceId'] ??
+                                                        widget.masterData
+                                                            .deviceId,
                                                   },
-                                                  icon: const Icon(Icons.view_agenda_outlined, color: Color(0xFF006573))
-                                              ),
-                                              const SizedBox(width: 4),
-                                            ],
-                                            IconButton(
-                                                style: ButtonStyle(
-                                                    backgroundColor: MaterialStateProperty.all(Color(0xffEFFFFB))
-                                                ),
-                                                onPressed: () {
-                                                  Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                    return LogHome(
-                                                      serverData: serverData['staticLogConfig'][i],
-                                                      userData: {
-                                                        ...widget.userData,
-                                                        'deviceId': widget.userData['deviceId'] ?? widget.masterData.deviceId,
-                                                      },
-                                                      nameData: names,
-                                                      masterData: widget.masterData,
-                                                    );
-                                                  }));
-                                                },
-                                                icon: const Icon(Icons.visibility,color: Colors.green,)
-                                            ),
-                                          ],
-                                        ),
+                                                  nameData: names,
+                                                  masterData: widget.masterData,
+                                                );
+                                              }));
+                                            },
+                                            icon: const Icon(
+                                              Icons.visibility,
+                                              color: Colors.green,
+                                            )),
                                       ),
                                     ],
                                   ),
                                 )
-                      ]
-                  )
-                else
-                  if(serverData != null)
-                    if(serverData['logConfig'].isNotEmpty)
-                      for(var i = 0;i < serverData['logConfig'].length;i++)
-                        Container(
-                          margin: EdgeInsets.only(bottom: 20),
-                          padding: EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                              color:  Colors.white,
-                              boxShadow: customBoxShadow,
-                              borderRadius: BorderRadius.circular(10)
-                          ),
-                          child: Container(),
-                        ),
-                const SizedBox(height: 20,),
-                if(!AppConstants.aquacultureModelList.contains(widget.masterData.modelId))
-                  ...[
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      width: double.infinity,
-                      child: ListTile(
-                        title: const Text('Customized Log',style: TextStyle(fontSize: 18,fontWeight: FontWeight.bold),),
-                        trailing: MaterialButton(
-                          onPressed: (){
-                            setState(() {
-                              errorMessage = '';
-                              logName = '';
-                            });
-                            sideSheet(constraints: constraint, mode: 1);
-                          },
-                          color: Colors.green,
-                          child: const Text('Add',style: TextStyle(color: Colors.white),),
+                      ])
+                else if (serverData != null)
+                  if (serverData['logConfig'].isNotEmpty)
+                    for (var i = 0; i < serverData['logConfig'].length; i++)
+                      Container(
+                        margin: EdgeInsets.only(bottom: 20),
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: customBoxShadow,
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Container(),
+                      ),
+                const SizedBox(
+                  height: 20,
+                ),
+                if (!AppConstants.aquacultureModelList
+                    .contains(widget.masterData.modelId)) ...[
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    width: double.infinity,
+                    child: ListTile(
+                      title: const Text(
+                        'Customized Log',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      trailing: MaterialButton(
+                        onPressed: () {
+                          setState(() {
+                            errorMessage = '';
+                            logName = '';
+                          });
+                          sideSheet(constraints: constraint, mode: 1);
+                        },
+                        color: Colors.green,
+                        child: const Text(
+                          'Add',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
                     ),
-                    if(constraint.maxWidth > 300)
-                      customizeGridView(
-                          maxWith: 300,
-                          maxHeight: 200,
-                          screenWidth: constraint.maxWidth,
-                          listOfWidget: [
-                            if(serverData != null)
-                              if(serverData['logConfig'].isNotEmpty)
-                                for(var i = 0;i < serverData['logConfig'].length;i++)
-                                  Container(
-                                    margin: EdgeInsets.only(bottom: 20),
-                                    padding: EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                        color:  Colors.white,
-                                        boxShadow: customBoxShadow,
-                                        borderRadius: BorderRadius.circular(10)
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        ListTile(
-                                          leading: CircleAvatar(
-                                            backgroundColor: Color(0xff2B565B),
-                                            radius: 20,
-                                            child: Center(
-                                              child: Text('${i+1}',style: TextStyle(color: Colors.white),),
+                  ),
+                  if (constraint.maxWidth > 300)
+                    customizeGridView(
+                        maxWith: 300,
+                        maxHeight: 200,
+                        screenWidth: constraint.maxWidth,
+                        listOfWidget: [
+                          if (serverData != null)
+                            if (serverData['logConfig'].isNotEmpty)
+                              for (var i = 0;
+                                  i < serverData['logConfig'].length;
+                                  i++)
+                                Container(
+                                  margin: EdgeInsets.only(bottom: 20),
+                                  padding: EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      boxShadow: customBoxShadow,
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: Column(
+                                    children: [
+                                      ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: Color(0xff2B565B),
+                                          radius: 20,
+                                          child: Center(
+                                            child: Text(
+                                              '${i + 1}',
+                                              style: TextStyle(
+                                                  color: Colors.white),
                                             ),
                                           ),
-                                          title: Text('${serverData['logConfig'][i]['logName']}'),
                                         ),
-                                        SizedBox(height: 20,),
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                          children: [
-                                            IconButton(
-                                                style: ButtonStyle(
-                                                    backgroundColor: MaterialStateProperty.all(Color(0xffFFF0E5))
-                                                ),
-                                                onPressed: ()async{
-                                                  setState(() {
-                                                    selectedIrrigationParameterArray.editParameter(mergeDefaultLogParameters(serverData['logConfig'][i]['irrigationLog']));
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.generalParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.generalParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.waterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.waterParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.prePostParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.prePostParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralEcPhParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel1ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel2ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel3ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel4ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel5ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel6ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel7ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel8ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localEcPhParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel1ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel2ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel3ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel4ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel5ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel6ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel7ParameterList);
-                                                    setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel8ParameterList);
-                                                    errorMessage = '';
-                                                    logName = serverData['logConfig'][i]['logName'];
-                                                  });
-                                                  sideSheet(constraints: constraint, mode: 2,configId: serverData['logConfig'][i]['logConfigId']);
-
-                                                },
-                                                icon: Icon(Icons.edit_note,color: Colors.orange,)
-                                            ),
-                                            IconButton(
-                                                style: ButtonStyle(
-                                                    backgroundColor: MaterialStateProperty.all(Color(0xffFFDEDC))
-                                                ),
-                                                onPressed: (){
-                                                  deleteUserLogConfig(id: serverData['logConfig'][i]['logConfigId']);
-                                                },
-                                                icon: Icon(Icons.delete,color: Colors.red,)
-                                            ),
-                                            IconButton(
-                                                style: ButtonStyle(
-                                                    backgroundColor: MaterialStateProperty.all(Color(0xffEFFFFB))
-                                                ),
-                                                onPressed: () {
-                                                  Navigator.push(context, MaterialPageRoute(builder: (context){
-                                                    return LogHome(
-                                                      serverData: serverData['logConfig'][i],
-                                                      userData: {
-                                                        ...widget.userData,
-                                                        'deviceId': widget.userData['deviceId'] ?? widget.masterData.deviceId,
-                                                      },
-                                                      nameData: names,
-                                                      masterData: widget.masterData,
-                                                    );
-                                                  }));
-                                                },
-                                                icon: Icon(Icons.visibility,color: Colors.green,)
-                                            ),
-                                            // MaterialButton(
-                                            //   color: Colors.green,
-                                            //   onPressed: () {
-                                            //     Navigator.push(context, MaterialPageRoute(builder: (context){
-                                            //       return LogHome(serverData: serverData['logConfig'][i]);
-                                            //       // return HomePage();
-                                            //     }));
-                                            //   },
-                                            //   child: Text('View Report',style: TextStyle(color: Colors.white),),
-                                            // ),
-                                          ],
-                                        )
-                                      ],
-                                    ),
-                                  )
-                          ]
-                      )
-                    else
-                      if(serverData != null)
-                        if(serverData['logConfig'].isNotEmpty)
-                          for(var i = 0;i < serverData['logConfig'].length;i++)
-                            Container(
-                              margin: EdgeInsets.only(bottom: 20),
-                              padding: EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                  color:  Colors.white,
-                                  boxShadow: customBoxShadow,
-                                  borderRadius: BorderRadius.circular(10)
-                              ),
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor: Color(0xff2B565B),
-                                      radius: 20,
-                                      child: Center(
-                                        child: Text('${i+1}',style: TextStyle(color: Colors.white),),
+                                        title: Text(
+                                            '${serverData['logConfig'][i]['logName']}'),
                                       ),
-                                    ),
-                                    title: Text('${serverData['logConfig'][i]['logName']}'),
-                                    trailing: IntrinsicWidth(
-                                      child: Row(
+                                      SizedBox(
+                                        height: 20,
+                                      ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceAround,
                                         children: [
                                           IconButton(
                                               style: ButtonStyle(
-                                                  backgroundColor: MaterialStateProperty.all(Color(0xffFFF0E5))
-                                              ),
-                                              onPressed: ()async{
+                                                  backgroundColor:
+                                                      MaterialStateProperty.all(
+                                                          Color(0xffFFF0E5))),
+                                              onPressed: () async {
                                                 setState(() {
-                                                  selectedIrrigationParameterArray.editParameter(mergeDefaultLogParameters(serverData['logConfig'][i]['irrigationLog']));
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.generalParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.generalParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.waterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.waterParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.prePostParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.prePostParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralEcPhParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel1ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel2ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel3ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel4ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel5ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel6ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel7ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.centralChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel8ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localEcPhParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel1ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel2ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel3ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel4ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel5ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel6ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel7ParameterList);
-                                                  setOriginalToDuplicateParameter(originalParameterList: selectedIrrigationParameterArray.localChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel8ParameterList);
+                                                  selectedIrrigationParameterArray
+                                                      .editParameter(
+                                                          mergeDefaultLogParameters(
+                                                              serverData['logConfig']
+                                                                      [i][
+                                                                  'irrigationLog']));
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .generalParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .generalParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .waterParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .waterParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .prePostParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .prePostParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralEcPhParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralEcPhParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel1ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel1ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel2ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel2ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel3ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel3ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel4ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel4ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel5ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel5ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel6ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel6ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel7ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel7ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .centralChannel8ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .centralChannel8ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localEcPhParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localEcPhParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel1ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel1ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel2ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel2ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel3ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel3ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel4ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel4ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel5ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel5ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel6ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel6ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel7ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel7ParameterList);
+                                                  setOriginalToDuplicateParameter(
+                                                      originalParameterList:
+                                                          selectedIrrigationParameterArray
+                                                              .localChannel8ParameterList,
+                                                      duplicateParameterList:
+                                                          irrigationParameterArrayDuplicate
+                                                              .localChannel8ParameterList);
                                                   errorMessage = '';
-                                                  logName = serverData['logConfig'][i]['logName'];
+                                                  logName =
+                                                      serverData['logConfig'][i]
+                                                          ['logName'];
                                                 });
-                                                sideSheet(constraints: constraint, mode: 2,configId: serverData['logConfig'][i]['logConfigId']);
+                                                sideSheet(
+                                                    constraints: constraint,
+                                                    mode: 2,
+                                                    configId:
+                                                        serverData['logConfig']
+                                                            [i]['logConfigId']);
                                               },
-                                              icon: Icon(Icons.edit_note,color: Colors.orange,)
-                                          ),
+                                              icon: Icon(
+                                                Icons.edit_note,
+                                                color: Colors.orange,
+                                              )),
                                           IconButton(
                                               style: ButtonStyle(
-                                                  backgroundColor: MaterialStateProperty.all(Color(0xffFFDEDC))
-                                              ),
-                                              onPressed: (){
-                                                deleteUserLogConfig(id: serverData['logConfig'][i]['logConfigId']);
-                                              },
-                                              icon: Icon(Icons.delete,color: Colors.red,)
-                                          ),
-                                          IconButton(
-                                              style: ButtonStyle(
-                                                  backgroundColor: MaterialStateProperty.all(Color(0xffEFFFFB))
-                                              ),
+                                                  backgroundColor:
+                                                      MaterialStateProperty.all(
+                                                          Color(0xffFFDEDC))),
                                               onPressed: () {
-                                                Navigator.push(context, MaterialPageRoute(builder: (context){
+                                                deleteUserLogConfig(
+                                                    id: serverData['logConfig']
+                                                        [i]['logConfigId']);
+                                              },
+                                              icon: Icon(
+                                                Icons.delete,
+                                                color: Colors.red,
+                                              )),
+                                          IconButton(
+                                              style: ButtonStyle(
+                                                  backgroundColor:
+                                                      MaterialStateProperty.all(
+                                                          Color(0xffEFFFFB))),
+                                              onPressed: () {
+                                                Navigator.push(context,
+                                                    MaterialPageRoute(
+                                                        builder: (context) {
                                                   return LogHome(
-                                                    serverData: serverData['logConfig'][i],
+                                                    serverData:
+                                                        serverData['logConfig']
+                                                            [i],
                                                     userData: {
                                                       ...widget.userData,
-                                                      'deviceId': widget.userData['deviceId'] ?? widget.masterData.deviceId,
+                                                      'deviceId':
+                                                          widget.userData[
+                                                                  'deviceId'] ??
+                                                              widget.masterData
+                                                                  .deviceId,
                                                     },
                                                     nameData: names,
-                                                    masterData: widget.masterData,
+                                                    masterData:
+                                                        widget.masterData,
                                                   );
                                                 }));
                                               },
-                                              icon: Icon(Icons.visibility,color: Colors.green,)
-                                          ),
+                                              icon: Icon(
+                                                Icons.visibility,
+                                                color: Colors.green,
+                                              )),
                                           // MaterialButton(
                                           //   color: Colors.green,
                                           //   onPressed: () {
@@ -479,21 +557,279 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                           //   child: Text('View Report',style: TextStyle(color: Colors.white),),
                                           // ),
                                         ],
-                                      ),
+                                      )
+                                    ],
+                                  ),
+                                )
+                        ])
+                  else if (serverData != null)
+                    if (serverData['logConfig'].isNotEmpty)
+                      for (var i = 0; i < serverData['logConfig'].length; i++)
+                        Container(
+                          margin: EdgeInsets.only(bottom: 20),
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              boxShadow: customBoxShadow,
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Column(
+                            children: [
+                              ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Color(0xff2B565B),
+                                  radius: 20,
+                                  child: Center(
+                                    child: Text(
+                                      '${i + 1}',
+                                      style: TextStyle(color: Colors.white),
                                     ),
                                   ),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                ),
+                                title: Text(
+                                    '${serverData['logConfig'][i]['logName']}'),
+                                trailing: IntrinsicWidth(
+                                  child: Row(
                                     children: [
-
-
+                                      IconButton(
+                                          style: ButtonStyle(
+                                              backgroundColor:
+                                                  MaterialStateProperty.all(
+                                                      Color(0xffFFF0E5))),
+                                          onPressed: () async {
+                                            setState(() {
+                                              selectedIrrigationParameterArray
+                                                  .editParameter(
+                                                      mergeDefaultLogParameters(
+                                                          serverData['logConfig']
+                                                                  [i][
+                                                              'irrigationLog']));
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .generalParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .generalParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .waterParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .waterParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .prePostParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .prePostParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralEcPhParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralEcPhParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel1ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel1ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel2ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel2ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel3ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel3ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel4ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel4ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel5ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel5ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel6ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel6ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel7ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel7ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .centralChannel8ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .centralChannel8ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localEcPhParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localEcPhParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel1ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel1ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel2ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel2ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel3ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel3ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel4ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel4ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel5ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel5ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel6ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel6ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel7ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel7ParameterList);
+                                              setOriginalToDuplicateParameter(
+                                                  originalParameterList:
+                                                      selectedIrrigationParameterArray
+                                                          .localChannel8ParameterList,
+                                                  duplicateParameterList:
+                                                      irrigationParameterArrayDuplicate
+                                                          .localChannel8ParameterList);
+                                              errorMessage = '';
+                                              logName = serverData['logConfig']
+                                                  [i]['logName'];
+                                            });
+                                            sideSheet(
+                                                constraints: constraint,
+                                                mode: 2,
+                                                configId:
+                                                    serverData['logConfig'][i]
+                                                        ['logConfigId']);
+                                          },
+                                          icon: Icon(
+                                            Icons.edit_note,
+                                            color: Colors.orange,
+                                          )),
+                                      IconButton(
+                                          style: ButtonStyle(
+                                              backgroundColor:
+                                                  MaterialStateProperty.all(
+                                                      Color(0xffFFDEDC))),
+                                          onPressed: () {
+                                            deleteUserLogConfig(
+                                                id: serverData['logConfig'][i]
+                                                    ['logConfigId']);
+                                          },
+                                          icon: Icon(
+                                            Icons.delete,
+                                            color: Colors.red,
+                                          )),
+                                      IconButton(
+                                          style: ButtonStyle(
+                                              backgroundColor:
+                                                  MaterialStateProperty.all(
+                                                      Color(0xffEFFFFB))),
+                                          onPressed: () {
+                                            Navigator.push(context,
+                                                MaterialPageRoute(
+                                                    builder: (context) {
+                                              return LogHome(
+                                                serverData:
+                                                    serverData['logConfig'][i],
+                                                userData: {
+                                                  ...widget.userData,
+                                                  'deviceId': widget.userData[
+                                                          'deviceId'] ??
+                                                      widget
+                                                          .masterData.deviceId,
+                                                },
+                                                nameData: names,
+                                                masterData: widget.masterData,
+                                              );
+                                            }));
+                                          },
+                                          icon: Icon(
+                                            Icons.visibility,
+                                            color: Colors.green,
+                                          )),
+                                      // MaterialButton(
+                                      //   color: Colors.green,
+                                      //   onPressed: () {
+                                      //     Navigator.push(context, MaterialPageRoute(builder: (context){
+                                      //       return LogHome(serverData: serverData['logConfig'][i]);
+                                      //       // return HomePage();
+                                      //     }));
+                                      //   },
+                                      //   child: Text('View Report',style: TextStyle(color: Colors.white),),
+                                      // ),
                                     ],
-                                  )
-                                ],
+                                  ),
+                                ),
                               ),
-                            )
-                  ]
-
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [],
+                              )
+                            ],
+                          ),
+                        )
+                ]
               ],
             ),
           ),
@@ -502,90 +838,205 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
     );
   }
 
-  void setOriginalToDuplicateParameter({required List<GeneralParameterModel> originalParameterList,required List<GeneralParameterModel> duplicateParameterList}){
+  void setOriginalToDuplicateParameter(
+      {required List<GeneralParameterModel> originalParameterList,
+      required List<GeneralParameterModel> duplicateParameterList}) {
     setState(() {
-      for(var i = 0;i < originalParameterList.length;i++){
+      for (var i = 0; i < originalParameterList.length; i++) {
         duplicateParameterList[i].show = originalParameterList[i].show;
       }
     });
   }
 
-  Widget getChannelFilter({required List<GeneralParameterModel> parameterList,required int channelNo,required bool central}){
+  Widget getChannelFilter(
+      {required List<GeneralParameterModel> parameterList,
+      required int channelNo,
+      required bool central}) {
     return StatefulBuilder(
-        builder: (BuildContext context, StateSetter stateSetter){
-          return Column(
-            children: [
-              SizedBox(
-                width: 250,
-                height: 60,
-                child: ListTile(
-                  title: Text('<${central ? 'C' : 'L'} - CH$channelNo>',style: const TextStyle(fontWeight: FontWeight.bold),),
-                  leading: Checkbox(
-                    value: parameterList[parameterList.length - 1].show,
-                    onChanged: (bool? value) {
-                      stateSetter(() {
-                        parameterList[parameterList.length - 1].show = value!;
-                        for(var p in parameterList){
-                          p.show = value;
-                        }
-                      });
-
-                    },
-                  ),
-                ),
+        builder: (BuildContext context, StateSetter stateSetter) {
+      return Column(
+        children: [
+          SizedBox(
+            width: 250,
+            height: 60,
+            child: ListTile(
+              title: Text(
+                '<${central ? 'C' : 'L'} - CH$channelNo>',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              // for(var i in parameterList)
-              //   if(i.payloadKey != 'overAll')
-              //     Container(
-              //       margin: EdgeInsets.symmetric(horizontal: 5),
-              //       width: 250,
-              //       child: ListTile(
-              //         leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-              //         title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
-              //         trailing: Checkbox(
-              //           value: i.show,
-              //           onChanged: (value) {
-              //             stateSetter(() {
-              //               i.show = value!;
-              //             });
-              //           },
-              //
-              //         ),
-              //       ),
-              //     ),
-              SizedBox(
-                height: 10,
+              leading: Checkbox(
+                value: parameterList[parameterList.length - 1].show,
+                onChanged: (bool? value) {
+                  stateSetter(() {
+                    parameterList[parameterList.length - 1].show = value!;
+                    for (var p in parameterList) {
+                      p.show = value;
+                    }
+                  });
+                },
               ),
-            ],
-          );
-        }
-    );
-
+            ),
+          ),
+          // for(var i in parameterList)
+          //   if(i.payloadKey != 'overAll')
+          //     Container(
+          //       margin: EdgeInsets.symmetric(horizontal: 5),
+          //       width: 250,
+          //       child: ListTile(
+          //         leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
+          //         title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+          //         trailing: Checkbox(
+          //           value: i.show,
+          //           onChanged: (value) {
+          //             stateSetter(() {
+          //               i.show = value!;
+          //             });
+          //           },
+          //
+          //         ),
+          //       ),
+          //     ),
+          SizedBox(
+            height: 10,
+          ),
+        ],
+      );
+    });
   }
 
-  void sideSheet({required constraints,required mode,configId}) {
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.generalParameterList : selectedIrrigationParameterArray.generalParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.generalParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.waterParameterList : selectedIrrigationParameterArray.waterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.waterParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.filterParameterList : selectedIrrigationParameterArray.filterParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.filterParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.prePostParameterList : selectedIrrigationParameterArray.prePostParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.prePostParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralEcPhParameterList : selectedIrrigationParameterArray.centralEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralEcPhParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel1ParameterList : selectedIrrigationParameterArray.centralChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel1ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel2ParameterList : selectedIrrigationParameterArray.centralChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel2ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel3ParameterList : selectedIrrigationParameterArray.centralChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel3ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel4ParameterList : selectedIrrigationParameterArray.centralChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel4ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel5ParameterList : selectedIrrigationParameterArray.centralChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel5ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel6ParameterList : selectedIrrigationParameterArray.centralChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel6ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel7ParameterList : selectedIrrigationParameterArray.centralChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel7ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.centralChannel8ParameterList : selectedIrrigationParameterArray.centralChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.centralChannel8ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localEcPhParameterList : selectedIrrigationParameterArray.localEcPhParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localEcPhParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel1ParameterList : selectedIrrigationParameterArray.localChannel1ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel1ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel2ParameterList : selectedIrrigationParameterArray.localChannel2ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel2ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel3ParameterList : selectedIrrigationParameterArray.localChannel3ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel3ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel4ParameterList : selectedIrrigationParameterArray.localChannel4ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel4ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel5ParameterList : selectedIrrigationParameterArray.localChannel5ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel5ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel6ParameterList : selectedIrrigationParameterArray.localChannel6ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel6ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel7ParameterList : selectedIrrigationParameterArray.localChannel7ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel7ParameterList);
-    setOriginalToDuplicateParameter(originalParameterList: mode == 1 ? irrigationParameterArray.localChannel8ParameterList : selectedIrrigationParameterArray.localChannel8ParameterList, duplicateParameterList: irrigationParameterArrayDuplicate.localChannel8ParameterList);
+  void sideSheet({required constraints, required mode, configId}) {
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.generalParameterList
+            : selectedIrrigationParameterArray.generalParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.generalParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.waterParameterList
+            : selectedIrrigationParameterArray.waterParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.waterParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.filterParameterList
+            : selectedIrrigationParameterArray.filterParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.filterParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.prePostParameterList
+            : selectedIrrigationParameterArray.prePostParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.prePostParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralEcPhParameterList
+            : selectedIrrigationParameterArray.centralEcPhParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralEcPhParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel1ParameterList
+            : selectedIrrigationParameterArray.centralChannel1ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel1ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel2ParameterList
+            : selectedIrrigationParameterArray.centralChannel2ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel2ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel3ParameterList
+            : selectedIrrigationParameterArray.centralChannel3ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel3ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel4ParameterList
+            : selectedIrrigationParameterArray.centralChannel4ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel4ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel5ParameterList
+            : selectedIrrigationParameterArray.centralChannel5ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel5ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel6ParameterList
+            : selectedIrrigationParameterArray.centralChannel6ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel6ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel7ParameterList
+            : selectedIrrigationParameterArray.centralChannel7ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel7ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.centralChannel8ParameterList
+            : selectedIrrigationParameterArray.centralChannel8ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.centralChannel8ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localEcPhParameterList
+            : selectedIrrigationParameterArray.localEcPhParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localEcPhParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel1ParameterList
+            : selectedIrrigationParameterArray.localChannel1ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel1ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel2ParameterList
+            : selectedIrrigationParameterArray.localChannel2ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel2ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel3ParameterList
+            : selectedIrrigationParameterArray.localChannel3ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel3ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel4ParameterList
+            : selectedIrrigationParameterArray.localChannel4ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel4ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel5ParameterList
+            : selectedIrrigationParameterArray.localChannel5ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel5ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel6ParameterList
+            : selectedIrrigationParameterArray.localChannel6ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel6ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel7ParameterList
+            : selectedIrrigationParameterArray.localChannel7ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel7ParameterList);
+    setOriginalToDuplicateParameter(
+        originalParameterList: mode == 1
+            ? irrigationParameterArray.localChannel8ParameterList
+            : selectedIrrigationParameterArray.localChannel8ParameterList,
+        duplicateParameterList:
+            irrigationParameterArrayDuplicate.localChannel8ParameterList);
 
     showGeneralDialog(
       barrierLabel: "Side sheet",
@@ -607,52 +1058,62 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                   child: Scaffold(
                     floatingActionButton: Container(
                       decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: customBoxShadow
-                      ),
+                          color: Colors.white, boxShadow: customBoxShadow),
                       height: 60,
-
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           MaterialButton(
-                            onPressed: (){
+                            onPressed: () {
                               Navigator.pop(context);
                             },
-                            child: Text("Cancel",style: TextStyle(color: Colors.white),),
+                            child: Text(
+                              "Cancel",
+                              style: TextStyle(color: Colors.white),
+                            ),
                             color: Colors.red,
                           ),
                           MaterialButton(
-                            onPressed: (){
-                              if(logName.isEmpty){
-                                stateSetter((){
+                            onPressed: () {
+                              if (logName.isEmpty) {
+                                stateSetter(() {
                                   setState(() {
                                     errorMessage = 'Name should not be empty';
                                   });
                                 });
-                              }else{
-                                stateSetter((){
+                              } else {
+                                stateSetter(() {
                                   setState(() {
                                     errorMessage = '';
                                   });
                                 });
                               }
-                              if(errorMessage == ''){
-                                if(mode == 1){
-                                  createUserLogConfig(name: logName, configDetails: irrigationParameterArrayDuplicate.toJson());
-                                }else if(mode == 2){
-                                  updateUserLogConfig(id: configId, configDetails: irrigationParameterArrayDuplicate.toJson());
+                              if (errorMessage == '') {
+                                if (mode == 1) {
+                                  createUserLogConfig(
+                                      name: logName,
+                                      configDetails:
+                                          irrigationParameterArrayDuplicate
+                                              .toJson());
+                                } else if (mode == 2) {
+                                  updateUserLogConfig(
+                                      id: configId,
+                                      configDetails:
+                                          irrigationParameterArrayDuplicate
+                                              .toJson());
                                 }
                                 Navigator.pop(context);
                               }
                             },
-                            child: Text("OK",style: TextStyle(color: Colors.white)),
+                            child: Text("OK",
+                                style: TextStyle(color: Colors.white)),
                             color: Theme.of(context).primaryColor,
                           )
                         ],
                       ),
                     ),
-                    floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+                    floatingActionButtonLocation:
+                        FloatingActionButtonLocation.centerDocked,
                     body: Form(
                       key: _formKey,
                       child: Container(
@@ -678,9 +1139,9 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                   initialValue: logName,
                                   style: TextStyle(fontSize: 12),
                                   maxLength: 20,
-                                  onChanged: (value){
+                                  onChanged: (value) {
                                     print('value => $value');
-                                    stateSetter((){
+                                    stateSetter(() {
                                       setState(() {
                                         logName = value;
                                       });
@@ -695,16 +1156,25 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                           color: Colors.black,
                                           width: 1.0,
                                         ),
-                                      )
-                                  ),
+                                      )),
                                 ),
                               ),
-                              Text(errorMessage,style: TextStyle(color: Colors.red),),
+                              Text(
+                                errorMessage,
+                                style: TextStyle(color: Colors.red),
+                              ),
                               //General ---------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: Text('General Parameter',style: TextStyle(fontWeight: FontWeight.bold,color: Theme.of(context).primaryColorDark,fontSize: 20),),
+                                    title: Text(
+                                      'General Parameter',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context)
+                                              .primaryColorDark,
+                                          fontSize: 20),
+                                    ),
                                     // leading: Checkbox(
                                     //   value: irrigationParameterArrayDuplicate.generalParameterList[irrigationParameterArrayDuplicate.generalParameterList.length - 1].show,
                                     //   onChanged: (bool? value) {
@@ -720,14 +1190,24 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.generalParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .generalParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.commit,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.commit,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -735,7 +1215,6 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                     i.show = value!;
                                                   });
                                                 },
-
                                               ),
                                             ),
                                           ),
@@ -749,37 +1228,63 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               //Water -----------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: Text('Water Parameter',style: TextStyle(fontWeight: FontWeight.bold),),
+                                    title: Text(
+                                      'Water Parameter',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                     leading: Checkbox(
-                                      value: irrigationParameterArrayDuplicate.waterParameterList[irrigationParameterArrayDuplicate.waterParameterList.length - 1].show,
+                                      value: irrigationParameterArrayDuplicate
+                                          .waterParameterList[
+                                              irrigationParameterArrayDuplicate
+                                                      .waterParameterList
+                                                      .length -
+                                                  1]
+                                          .show,
                                       onChanged: (bool? value) {
                                         stateSetter(() {
-                                          irrigationParameterArrayDuplicate.waterParameterList[irrigationParameterArrayDuplicate.waterParameterList.length - 1].show = value!;
-                                          for(var p in irrigationParameterArrayDuplicate.waterParameterList){
+                                          irrigationParameterArrayDuplicate
+                                              .waterParameterList[
+                                                  irrigationParameterArrayDuplicate
+                                                          .waterParameterList
+                                                          .length -
+                                                      1]
+                                              .show = value!;
+                                          for (var p
+                                              in irrigationParameterArrayDuplicate
+                                                  .waterParameterList) {
                                             p.show = value;
                                           }
                                         });
-
                                       },
                                     ),
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.waterParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .waterParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.adb_outlined,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -787,7 +1292,6 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                     i.show = value!;
                                                   });
                                                 },
-
                                               ),
                                             ),
                                           ),
@@ -801,37 +1305,63 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               //filter -----------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: Text('Filter Parameter',style: TextStyle(fontWeight: FontWeight.bold),),
+                                    title: Text(
+                                      'Filter Parameter',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                     leading: Checkbox(
-                                      value: irrigationParameterArrayDuplicate.filterParameterList[irrigationParameterArrayDuplicate.filterParameterList.length - 1].show,
+                                      value: irrigationParameterArrayDuplicate
+                                          .filterParameterList[
+                                              irrigationParameterArrayDuplicate
+                                                      .filterParameterList
+                                                      .length -
+                                                  1]
+                                          .show,
                                       onChanged: (bool? value) {
                                         stateSetter(() {
-                                          irrigationParameterArrayDuplicate.filterParameterList[irrigationParameterArrayDuplicate.filterParameterList.length - 1].show = value!;
-                                          for(var p in irrigationParameterArrayDuplicate.filterParameterList){
+                                          irrigationParameterArrayDuplicate
+                                              .filterParameterList[
+                                                  irrigationParameterArrayDuplicate
+                                                          .filterParameterList
+                                                          .length -
+                                                      1]
+                                              .show = value!;
+                                          for (var p
+                                              in irrigationParameterArrayDuplicate
+                                                  .filterParameterList) {
                                             p.show = value;
                                           }
                                         });
-
                                       },
                                     ),
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.filterParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .filterParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.adb_outlined,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -839,7 +1369,6 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                     i.show = value!;
                                                   });
                                                 },
-
                                               ),
                                             ),
                                           ),
@@ -853,37 +1382,63 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               //Pre Post -----------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: Text('Pre Post Parameter',style: TextStyle(fontWeight: FontWeight.bold),),
+                                    title: Text(
+                                      'Pre Post Parameter',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                     leading: Checkbox(
-                                      value: irrigationParameterArrayDuplicate.prePostParameterList[irrigationParameterArrayDuplicate.prePostParameterList.length - 1].show,
+                                      value: irrigationParameterArrayDuplicate
+                                          .prePostParameterList[
+                                              irrigationParameterArrayDuplicate
+                                                      .prePostParameterList
+                                                      .length -
+                                                  1]
+                                          .show,
                                       onChanged: (bool? value) {
                                         stateSetter(() {
-                                          irrigationParameterArrayDuplicate.prePostParameterList[irrigationParameterArrayDuplicate.prePostParameterList.length - 1].show = value!;
-                                          for(var p in irrigationParameterArrayDuplicate.prePostParameterList){
+                                          irrigationParameterArrayDuplicate
+                                              .prePostParameterList[
+                                                  irrigationParameterArrayDuplicate
+                                                          .prePostParameterList
+                                                          .length -
+                                                      1]
+                                              .show = value!;
+                                          for (var p
+                                              in irrigationParameterArrayDuplicate
+                                                  .prePostParameterList) {
                                             p.show = value;
                                           }
                                         });
-
                                       },
                                     ),
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.prePostParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .prePostParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.adb_outlined,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -891,7 +1446,6 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                     i.show = value!;
                                                   });
                                                 },
-
                                               ),
                                             ),
                                           ),
@@ -905,37 +1459,63 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               //Central-----------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: const Text('Central Parameters',style: TextStyle(fontWeight: FontWeight.bold),),
+                                    title: const Text(
+                                      'Central Parameters',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                     leading: Checkbox(
-                                      value: irrigationParameterArrayDuplicate.centralEcPhParameterList[irrigationParameterArrayDuplicate.centralEcPhParameterList.length - 1].show,
+                                      value: irrigationParameterArrayDuplicate
+                                          .centralEcPhParameterList[
+                                              irrigationParameterArrayDuplicate
+                                                      .centralEcPhParameterList
+                                                      .length -
+                                                  1]
+                                          .show,
                                       onChanged: (bool? value) {
                                         stateSetter(() {
-                                          irrigationParameterArrayDuplicate.centralEcPhParameterList[irrigationParameterArrayDuplicate.centralEcPhParameterList.length - 1].show = value!;
-                                          for(var p in irrigationParameterArrayDuplicate.centralEcPhParameterList){
+                                          irrigationParameterArrayDuplicate
+                                              .centralEcPhParameterList[
+                                                  irrigationParameterArrayDuplicate
+                                                          .centralEcPhParameterList
+                                                          .length -
+                                                      1]
+                                              .show = value!;
+                                          for (var p
+                                              in irrigationParameterArrayDuplicate
+                                                  .centralEcPhParameterList) {
                                             p.show = value;
                                           }
                                         });
-
                                       },
                                     ),
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.centralEcPhParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .centralEcPhParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.adb_outlined,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -943,18 +1523,57 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                     i.show = value!;
                                                   });
                                                 },
-
                                               ),
                                             ),
                                           ),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel1ParameterList, channelNo: 1,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel2ParameterList, channelNo: 2,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel3ParameterList, channelNo: 3,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel4ParameterList, channelNo: 4,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel5ParameterList, channelNo: 5,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel6ParameterList, channelNo: 6,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel7ParameterList, channelNo: 7,central: true),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.centralChannel8ParameterList, channelNo: 8,central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel1ParameterList,
+                                          channelNo: 1,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel2ParameterList,
+                                          channelNo: 2,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel3ParameterList,
+                                          channelNo: 3,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel4ParameterList,
+                                          channelNo: 4,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel5ParameterList,
+                                          channelNo: 5,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel6ParameterList,
+                                          channelNo: 6,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel7ParameterList,
+                                          channelNo: 7,
+                                          central: true),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .centralChannel8ParameterList,
+                                          channelNo: 8,
+                                          central: true),
                                     ],
                                   ),
                                   SizedBox(
@@ -965,37 +1584,63 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               //Local-----------------------------
                               Column(
                                 children: [
                                   ListTile(
-                                    title: const Text('Local Parameters',style: TextStyle(fontWeight: FontWeight.bold),),
+                                    title: const Text(
+                                      'Local Parameters',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold),
+                                    ),
                                     leading: Checkbox(
-                                      value: irrigationParameterArrayDuplicate.localEcPhParameterList[irrigationParameterArrayDuplicate.localEcPhParameterList.length - 1].show,
+                                      value: irrigationParameterArrayDuplicate
+                                          .localEcPhParameterList[
+                                              irrigationParameterArrayDuplicate
+                                                      .localEcPhParameterList
+                                                      .length -
+                                                  1]
+                                          .show,
                                       onChanged: (bool? value) {
                                         stateSetter(() {
-                                          irrigationParameterArrayDuplicate.localEcPhParameterList[irrigationParameterArrayDuplicate.localEcPhParameterList.length - 1].show = value!;
-                                          for(var p in irrigationParameterArrayDuplicate.localEcPhParameterList){
+                                          irrigationParameterArrayDuplicate
+                                              .localEcPhParameterList[
+                                                  irrigationParameterArrayDuplicate
+                                                          .localEcPhParameterList
+                                                          .length -
+                                                      1]
+                                              .show = value!;
+                                          for (var p
+                                              in irrigationParameterArrayDuplicate
+                                                  .localEcPhParameterList) {
                                             p.show = value;
                                           }
                                         });
-
                                       },
                                     ),
                                   ),
                                   Wrap(
                                     children: [
-                                      for(var i in irrigationParameterArrayDuplicate.localEcPhParameterList)
-                                        if(i.payloadKey != 'overAll')
+                                      for (var i
+                                          in irrigationParameterArrayDuplicate
+                                              .localEcPhParameterList)
+                                        if (i.payloadKey != 'overAll')
                                           Container(
-                                            margin: EdgeInsets.symmetric(horizontal: 5),
+                                            margin: EdgeInsets.symmetric(
+                                                horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                                              title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                                              leading: Icon(
+                                                Icons.adb_outlined,
+                                                color: Colors.blueGrey,
+                                              ),
+                                              title: Text(
+                                                '${i.uiKey}',
+                                                style: const TextStyle(
+                                                    fontSize: 12),
+                                              ),
                                               trailing: Checkbox(
                                                 value: i.show,
                                                 onChanged: (value) {
@@ -1006,14 +1651,54 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                               ),
                                             ),
                                           ),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel1ParameterList, channelNo: 1,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel2ParameterList, channelNo: 2,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel3ParameterList, channelNo: 3,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel4ParameterList, channelNo: 4,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel5ParameterList, channelNo: 5,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel6ParameterList, channelNo: 6,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel7ParameterList, channelNo: 7,central: false),
-                                      getChannelFilter( parameterList: irrigationParameterArrayDuplicate.localChannel8ParameterList, channelNo: 8,central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel1ParameterList,
+                                          channelNo: 1,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel2ParameterList,
+                                          channelNo: 2,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel3ParameterList,
+                                          channelNo: 3,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel4ParameterList,
+                                          channelNo: 4,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel5ParameterList,
+                                          channelNo: 5,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel6ParameterList,
+                                          channelNo: 6,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel7ParameterList,
+                                          channelNo: 7,
+                                          central: false),
+                                      getChannelFilter(
+                                          parameterList:
+                                              irrigationParameterArrayDuplicate
+                                                  .localChannel8ParameterList,
+                                          channelNo: 8,
+                                          central: false),
                                     ],
                                   ),
                                   SizedBox(
@@ -1024,13 +1709,11 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                       color: Theme.of(context).primaryColorDark,
                                     ),
                                   ),
-
                                 ],
                               ),
                               SizedBox(
                                 height: 50,
                               ),
-
                             ],
                           ),
                         ),
@@ -1045,7 +1728,8 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
       },
       transitionBuilder: (context, animation1, animation2, child) {
         return SlideTransition(
-          position: Tween(begin: const Offset(1, 0), end: const Offset(0, 0)).animate(animation1),
+          position: Tween(begin: const Offset(1, 0), end: const Offset(0, 0))
+              .animate(animation1),
           child: child,
         );
       },
