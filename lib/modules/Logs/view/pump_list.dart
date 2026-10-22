@@ -3,9 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
-import 'package:oro_drip_irrigation/modules/Logs/view/pump_list.dart' as repository;
-import 'package:oro_drip_irrigation/modules/Logs/view/pump_log.dart';
-import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/voltage_log.dart';
 import 'package:responsive_grid/responsive_grid.dart';
@@ -33,8 +30,19 @@ class _PumpListState extends State<PumpList> {
 
   @override
   void initState() {
-     getUserNodePumpList();
+    getUserNodePumpList();
     super.initState();
+  }
+
+  @override
+  void didUpdateWidget(covariant PumpList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldCtrlId = oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
+    final newCtrlId = widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    if (oldCtrlId != newCtrlId ||
+        oldWidget.userData['customerId'] != widget.userData['customerId']) {
+      getUserNodePumpList();
+    }
   }
 
   @override
@@ -193,16 +201,62 @@ class _PumpListState extends State<PumpList> {
     );
   }
 
-  Future<void> getUserNodePumpList() async{
-     final userData = {'userId' : widget.userData['customerId'], 'controllerId' :  widget.userData['controllerId']};
-     final result = await repository.getUserNodePumpList(userData);
-    setState(() {
-      if(result.statusCode == 200 && jsonDecode(result.body)['data'] != null) {
-        pumpList = jsonDecode(result.body)['data'];
-      } else {
-        message = jsonDecode(result.body)['message'];
+  Future<void> getUserNodePumpList() async {
+    final userData = {
+      'userId': widget.userData['customerId'],
+      'controllerId': widget.userData['controllerId']
+    };
+    try {
+      final result = await repository.getUserNodePumpList(userData);
+      List fetched = [];
+      if (result.statusCode == 200 && jsonDecode(result.body)['data'] != null) {
+        final data = jsonDecode(result.body)['data'];
+        if (data is List && data.isNotEmpty) {
+          fetched = data;
+        }
       }
-    });
+      if (fetched.isEmpty && widget.masterData.nodeList.isNotEmpty) {
+        final pumpNodes = widget.masterData.nodeList.where((n) {
+          return AppConstants.pumpList.contains(n.modelId) ||
+              n.categoryId == 1 ||
+              n.categoryName.toLowerCase().contains('pump');
+        }).toList();
+
+        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fetched = nodesToUse.map((n) => {
+          'controllerId': n.controllerId,
+          'deviceId': n.deviceId,
+          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        }).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          pumpList = fetched;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        List fallback = [];
+        if (widget.masterData.nodeList.isNotEmpty) {
+          final pumpNodes = widget.masterData.nodeList.where((n) {
+            return AppConstants.pumpList.contains(n.modelId) ||
+                n.categoryId == 1 ||
+                n.categoryName.toLowerCase().contains('pump');
+          }).toList();
+
+          final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+          fallback = nodesToUse.map((n) => {
+            'controllerId': n.controllerId,
+            'deviceId': n.deviceId,
+            'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+          }).toList();
+        }
+        setState(() {
+          pumpList = fallback;
+        });
+      }
+    }
   }
 
 }
