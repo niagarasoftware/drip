@@ -54,6 +54,7 @@ class ScrollingTable extends StatefulWidget {
   final List<dynamic> graphData;
   final void Function(String sequenceName)? onSequenceClicked;
 
+
   ScrollingTable({
     super.key,
     required this.fixedColumn,

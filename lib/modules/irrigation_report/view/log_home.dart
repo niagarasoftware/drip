@@ -553,7 +553,9 @@ class _LogHomeState extends State<LogHome> {
         builder: (dialogContext) {
           return AlertDialog(
             title: const Text('Error'),
-            content: Text(e.toString()),
+            content: const Text(
+              'Failed to Fetch Irrigation Log.',
+            ),
             actions: [
               TextButton(
                 onPressed: () {
@@ -757,6 +759,7 @@ class _LogHomeState extends State<LogHome> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
+
                           for(var i = 0;i < _irrigationOptionWise.length;i++)
                             Row(
                               children: [
@@ -796,7 +799,6 @@ class _LogHomeState extends State<LogHome> {
                                       });
                                       Navigator.pop(context);
                                     });
-
 
                                   },
                                 ),

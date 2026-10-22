@@ -144,12 +144,6 @@
 @import pointer_interceptor_ios;
 #endif
 
-#if __has_include(<qr_code_scanner_plus/FlutterQrPlusPlugin.h>)
-#import <qr_code_scanner_plus/FlutterQrPlusPlugin.h>
-#else
-@import qr_code_scanner_plus;
-#endif
-
 #if __has_include(<shared_preferences_foundation/SharedPreferencesPlugin.h>)
 #import <shared_preferences_foundation/SharedPreferencesPlugin.h>
 #else
@@ -206,7 +200,6 @@
   [PathProviderPlugin registerWithRegistrar:[registry registrarForPlugin:@"PathProviderPlugin"]];
   [PermissionHandlerPlugin registerWithRegistrar:[registry registrarForPlugin:@"PermissionHandlerPlugin"]];
   [PointerInterceptorIosPlugin registerWithRegistrar:[registry registrarForPlugin:@"PointerInterceptorIosPlugin"]];
-  [FlutterQrPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterQrPlusPlugin"]];
   [SharedPreferencesPlugin registerWithRegistrar:[registry registrarForPlugin:@"SharedPreferencesPlugin"]];
   [SqflitePlugin registerWithRegistrar:[registry registrarForPlugin:@"SqflitePlugin"]];
   [URLLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"URLLauncherPlugin"]];

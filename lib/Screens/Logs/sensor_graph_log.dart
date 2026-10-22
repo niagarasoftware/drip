@@ -119,6 +119,8 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
       final configRes = await HttpService().postRequest('/user/configMaker/getAsDefault', body);
       final logRes = await HttpService().postRequest('/user/log/scheduleSensor/get', logBody);
 
+
+
       if (configRes.statusCode == 200 && logRes.statusCode == 200) {
         final configJson = jsonDecode(configRes.body);
         final logJson = jsonDecode(logRes.body);
