@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -95,43 +96,46 @@ class CustomerFabMenu extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
-        FloatingActionButton(
-          heroTag: null,
-          backgroundColor: (commMode == 2 &&
-              !(vm.bluetoothClassicService.isConnected ||
-                  vm.bluetoothBleService.isConnected))
-              ? Colors.redAccent
-              : null,
-          onPressed: () => _showBottomSheet(context, currentMaster, vm,
-              vm.mySiteList.data[vm.sIndex].customerId, loggedInUser.id),
-          tooltip: 'Connectivity',
-          child: commMode == 1
-              ? Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                vm.wifiStrength == 0 ? Icons.wifi_off :
-                vm.wifiStrength <= 20 ? Icons.network_wifi_1_bar_outlined :
-                vm.wifiStrength <= 40 ? Icons.network_wifi_2_bar_outlined :
-                vm.wifiStrength <= 80 ? Icons.network_wifi_3_bar_outlined :
-                Icons.wifi,
-                color: Colors.black,
-              ),
-              Text(
-                '${vm.wifiStrength} %',
-                style: const TextStyle(fontSize: 11.0, color: Colors.black54),
-              ),
-            ],
-          )
-              : Icon(
-            (commMode == 2 &&
-                (vm.bluetoothClassicService.isConnected ||
+
+        if(Platform.isAndroid)...[
+          FloatingActionButton(
+            heroTag: null,
+            backgroundColor: (commMode == 2 &&
+                !(vm.bluetoothClassicService.isConnected ||
                     vm.bluetoothBleService.isConnected))
-                ? Icons.bluetooth
-                : Icons.bluetooth_disabled,
-            color: Colors.black,
+                ? Colors.redAccent
+                : null,
+            onPressed: () => _showBottomSheet(context, currentMaster, vm,
+                vm.mySiteList.data[vm.sIndex].customerId, loggedInUser.id),
+            tooltip: 'Connectivity',
+            child: commMode == 1
+                ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  vm.wifiStrength == 0 ? Icons.wifi_off :
+                  vm.wifiStrength <= 20 ? Icons.network_wifi_1_bar_outlined :
+                  vm.wifiStrength <= 40 ? Icons.network_wifi_2_bar_outlined :
+                  vm.wifiStrength <= 80 ? Icons.network_wifi_3_bar_outlined :
+                  Icons.wifi,
+                  color: Colors.black,
+                ),
+                Text(
+                  '${vm.wifiStrength} %',
+                  style: const TextStyle(fontSize: 11.0, color: Colors.black54),
+                ),
+              ],
+            )
+                : Icon(
+              (commMode == 2 &&
+                  (vm.bluetoothClassicService.isConnected ||
+                      vm.bluetoothBleService.isConnected))
+                  ? Icons.bluetooth
+                  : Icons.bluetooth_disabled,
+              color: Colors.black,
+            ),
           ),
-        ),
+        ],
 
         if(isWlc)
           const SizedBox(height: 50,)
