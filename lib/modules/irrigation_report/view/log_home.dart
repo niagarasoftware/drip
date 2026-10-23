@@ -89,7 +89,7 @@ class _LogHomeState extends State<LogHome> {
     'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
-    'CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
+    'CentralFilterName','LocalFilterName','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
   ];
 
   int httpError = 0;
@@ -118,11 +118,11 @@ class _LogHomeState extends State<LogHome> {
       'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
       'overAll' : ['over all',true,1]
     },
-    // 'filter' : {
-    //   'CentralFilterName' : ['Central Filter',true,2],
-    //   'LocalFilterName' : ['Local Filter',true,2],
-    //   'overAll' : ['over all',true,1]
-    // },
+    'filter' : {
+      'CentralFilterName' : ['Central Filter',true,2],
+      'LocalFilterName' : ['Local Filter',true,2],
+      'overAll' : ['over all',true,1]
+    },
     'prePost' : {
       'PrePostMethod' : ['Method',true,2],
       'Pretime/PreQty' : ['Pre',true,2],
@@ -776,6 +776,8 @@ class _LogHomeState extends State<LogHome> {
       'ValveFlowrate',
       'Pretime',
       'PostTime',
+      'CentralFilterName',
+      'LocalFilterName',
       'CentralFilterOnDuration',
       'LocalFilterOnDuration',
       'CentralFertOnOff',
