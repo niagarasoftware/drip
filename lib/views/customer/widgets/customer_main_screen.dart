@@ -66,6 +66,7 @@ Widget buildCustomerMainScreen({required int index, required UserRole role, requ
           'userId': userId,
           'controllerId': cMaster.controllerId,
           'customerId': cSite.customerId,
+          'deviceId': cMaster.deviceId,
         },
         masterData: cMaster,
       ) : isOms ? OmsLog(

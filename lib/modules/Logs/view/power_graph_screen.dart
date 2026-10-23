@@ -40,6 +40,19 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
     pumpControllerProvider.getPumpControllerData(userId: widget.userId, controllerId: widget.controllerId, nodeControllerId: widget.nodeControllerId);
   }
 
+  @override
+  void didUpdateWidget(covariant PowerGraphScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.controllerId != oldWidget.controllerId ||
+        widget.nodeControllerId != oldWidget.nodeControllerId) {
+      pumpControllerProvider.getPumpControllerData(
+        userId: widget.userId,
+        controllerId: widget.controllerId,
+        nodeControllerId: widget.nodeControllerId,
+      );
+    }
+  }
+
   Future<void> showSnackBar({required String message}) async{
     ScaffoldMessenger.of(context).showSnackBar(CustomSnackBar(message:  message));
   }

@@ -20,17 +20,31 @@ import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'package:excel/excel.dart';
 // import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'dart:html' as html;
+import 'dart:async';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
 import '../repository/irrigation_repository.dart';
 import 'package:oro_drip_irrigation/Screens/Logs/sensor_graph_log.dart';
+import '../../../models/customer/site_model.dart';
+import '../../../services/mqtt_service.dart';
+import '../../../utils/environment.dart';
+import '../../../utils/constants.dart';
+import 'package:provider/provider.dart';
+import '../../../StateManagement/customer_provider.dart';
 
 class LogHome extends StatefulWidget {
   final dynamic serverData;
   final List<dynamic> nameData;
   final Map<String, dynamic> userData;
-  const LogHome({super.key,required this.serverData, required this.userData, required this.nameData});
+  final MasterControllerModel? masterData;
+  const LogHome({
+    super.key,
+    required this.serverData,
+    required this.userData,
+    required this.nameData,
+    this.masterData,
+  });
   @override
   State<LogHome> createState() => _LogHomeState();
 }
@@ -41,12 +55,16 @@ class _LogHomeState extends State<LogHome> {
   int selectedPages = 1;
   final ScrollController _scrollController = ScrollController();
   dynamic dataSource = [];
+  List<dynamic> _localNameData = [];
   int _selectedIndex = 0;
   List<List<dynamic>> _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
   bool graphMode = false;
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
   ScrollController _graphController = ScrollController();
+  StreamSubscription? _rawScheduleSubscription;
+  bool isLiveSyncing = false;
+  bool isLiveLoaded = false;
   late LinkedScrollControllerGroup _scrollable1;
   late ScrollController _verticalScroll1;
   late ScrollController _verticalScroll2;
@@ -183,6 +201,12 @@ class _LogHomeState extends State<LogHome> {
   @override
   void initState() {
     // TODO: implement initState
+    _localNameData = List.from(widget.nameData);
+    if (_localNameData.isEmpty &&
+        (widget.masterData?.configObjects == null ||
+            widget.masterData!.configObjects.isEmpty)) {
+      _fetchConfigObjects();
+    }
     if (kDebugMode) {
       print('parameters => $parameters');
     }
@@ -220,6 +244,12 @@ class _LogHomeState extends State<LogHome> {
       }
     });
 
+    _rawScheduleSubscription = MqttService().rawSchedulePayloadStream.listen((rawPayload) {
+      if (rawPayload != null && mounted && isLiveSyncing) {
+        _mergeLivePayload(rawPayload);
+      }
+    });
+
     _scrollable1 = LinkedScrollControllerGroup();
     _verticalScroll1 = _scrollable1.addAndGet();
     _verticalScroll2 = _scrollable1.addAndGet();
@@ -227,6 +257,124 @@ class _LogHomeState extends State<LogHome> {
     _horizontalScroll1 = _scrollable2.addAndGet();
     _horizontalScroll2 = _scrollable2.addAndGet();
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    _rawScheduleSubscription?.cancel();
+    _scrollController.dispose();
+    _graphController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchConfigObjects() async {
+    try {
+      var body = {
+        'userId': widget.userData['customerId'],
+        'controllerId': widget.userData['controllerId'],
+      };
+      var configResponse = await IrrigationRepository().getUserNames(body);
+      Map<String, dynamic> configJsonData = jsonDecode(configResponse.body);
+      if (configJsonData['code'] == 200 &&
+          configJsonData['data']?['configObject'] != null) {
+        if (mounted) {
+          setState(() {
+            _localNameData = configJsonData['data']['configObject'];
+            irrigationParameterArray.editName(_localNameData);
+            irrigationParameterArrayDuplicate.editName(_localNameData);
+          });
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  bool get hasConfiguredSensors {
+    final sensorObjectIds = <int>{
+      AppConstants.moistureObjectId,          // 25
+      AppConstants.pressureSensorObjectId,    // 24
+      AppConstants.levelObjectId,             // 26
+      AppConstants.ecObjectId,                // 27
+      AppConstants.phObjectId,                // 28
+      AppConstants.temperatureObjectId,       // 29
+      AppConstants.soilTemperatureObjectId,   // 30
+      AppConstants.waterMeterObjectId,        // 22
+      AppConstants.analogWaterMeterObjectId,  // 46
+      AppConstants.humidityObjectId,          // 36
+      AppConstants.co2ObjectId,               // 33
+      AppConstants.windDirectionObjectId,     // 31
+      AppConstants.windSpeedObjectId,         // 32
+      AppConstants.luxObjectId,               // 34
+      AppConstants.ldrObjectId,               // 35
+      AppConstants.leafWetnessObjectId,       // 37
+      AppConstants.rainFallObjectId,          // 38
+      AppConstants.atmosphericPressureObjectId, // 39
+      AppConstants.pressureSwitchObjectId,    // 23
+    };
+
+    final namesToCheck = _localNameData.isNotEmpty ? _localNameData : widget.nameData;
+    if (namesToCheck.isNotEmpty) {
+      for (var item in namesToCheck) {
+        if (item is Map) {
+          final rawId = item['objectId'];
+          final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+          if (id != null && sensorObjectIds.contains(id)) {
+            return true;
+          }
+          final objectName = (item['objectName'] ?? '').toString().toLowerCase();
+          final name = (item['name'] ?? '').toString().toLowerCase();
+          if (objectName.contains('sensor') ||
+              objectName.contains('moisture') ||
+              objectName.contains('pressure') ||
+              objectName.contains('level') ||
+              objectName.contains('ec') ||
+              objectName.contains('ph') ||
+              objectName.contains('temp') ||
+              objectName.contains('humidity') ||
+              objectName.contains('water meter') ||
+              name.contains('sensor') ||
+              name.contains('moisture') ||
+              name.contains('pressure')) {
+            return true;
+          }
+        }
+      }
+    }
+
+    if (widget.masterData?.configObjects != null &&
+        widget.masterData!.configObjects.isNotEmpty) {
+      for (var obj in widget.masterData!.configObjects) {
+        if (sensorObjectIds.contains(obj.objectId)) {
+          return true;
+        }
+        final objectName = obj.objectName.toLowerCase();
+        final name = obj.name.toLowerCase();
+        if (objectName.contains('sensor') ||
+            objectName.contains('moisture') ||
+            objectName.contains('pressure') ||
+            objectName.contains('level') ||
+            objectName.contains('ec') ||
+            objectName.contains('ph') ||
+            objectName.contains('temp') ||
+            objectName.contains('humidity') ||
+            objectName.contains('water meter') ||
+            name.contains('sensor') ||
+            name.contains('moisture') ||
+            name.contains('pressure')) {
+          return true;
+        }
+      }
+    }
+
+    if (widget.masterData?.ecSensors != null && widget.masterData!.ecSensors.isNotEmpty) {
+      return true;
+    }
+    if (widget.masterData?.phSensors != null && widget.masterData!.phSensors.isNotEmpty) {
+      return true;
+    }
+
+    return false;
   }
 
   // void didChangeDependencies() {
@@ -261,20 +409,38 @@ class _LogHomeState extends State<LogHome> {
     );
   }
 
-  void getData()async{
+  Future<void> getData() async {
     loadingDialog();
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd/MM/yyyy').format(now);
     _selectedDate = _selectedDate == '' ? '$formattedDate - $formattedDate' : _selectedDate;
-    String dateString1 = _selectedDate.split(' - ')[0];
-    String dateString2 = _selectedDate.split(' - ')[1];
+    String dateString1;
+    String dateString2;
+    if (_selectedDate.contains(' - ')) {
+      final parts = _selectedDate.split(' - ');
+      dateString1 = parts[0].trim();
+      dateString2 = parts[1].trim();
+    } else {
+      dateString1 = _selectedDate.trim();
+      dateString2 = _selectedDate.trim();
+    }
 
-    List<String> parts1 = dateString1.split('/');
-    List<String> parts2 = dateString2.split('/');
+    DateTime date1;
+    DateTime date2;
 
-    // Create DateTime objects
-    DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
-    DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+    if (dateString1.contains('/')) {
+      List<String> parts1 = dateString1.split('/');
+      date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+    } else {
+      date1 = DateTime.tryParse(dateString1) ?? now;
+    }
+
+    if (dateString2.contains('/')) {
+      List<String> parts2 = dateString2.split('/');
+      date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+    } else {
+      date2 = DateTime.tryParse(dateString2) ?? now;
+    }
 
     // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
@@ -304,242 +470,10 @@ class _LogHomeState extends State<LogHome> {
       if(jsonData['code'] == 200){
         setState(() {
           dataSource = jsonData['data'];
-          dataToShow = {};
-          program = [];
-          programDuplicate = [];
-          valve = [];
-          valveDuplicate = [];
-          line = [];
-          lineDuplicate = [];
-          date = [];
-          dateDuplicate = [];
-          status = [];
-          statusDuplicate = [];
-        });
-        if(dataSource['log'] != null){
-          for(var data in dataSource['log']){
-            if(data['irrigation'].isNotEmpty){
-              if(data['irrigation']['Date'] != null){
-                //Todo date
-                try{
-                  if(data['irrigation']['Date'] != null){
-                    for(var howManyDate = 0;howManyDate < data['irrigation']['Date'].length;howManyDate++){
-                      if(data['irrigation']['HeadUnit'][howManyDate].contains('2.')){
-                        setState(() {
-                          if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
-                            date.add({
-                              'name' : data['irrigation']['Date'][howManyDate],
-                              'show' : true
-                            });
-                            dateDuplicate.add({
-                              'name' : data['irrigation']['Date'][howManyDate],
-                              'show' : true
-                            });
-                          }
-                        });
-                      }
-                    }
-                  }
-                }catch(e,stackTrace){
-                  log('Error on Date : ${e.toString()}');
-                  print('Stack Trace: $stackTrace');
-                }
-
-                //Todo Status
-                try{
-                  if(data['irrigation']['Status'] != null){
-                    for(var howManyStatus = 0;howManyStatus < data['irrigation']['Status'].length;howManyStatus++){
-                      if(data['irrigation']['HeadUnit'][howManyStatus].contains('2.')){
-                        setState(() {
-                          if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
-                            status.add({
-                              'name' : data['irrigation']['Status'][howManyStatus],
-                              'show' : true
-                            });
-                            statusDuplicate.add({
-                              'name' : data['irrigation']['Status'][howManyStatus],
-                              'show' : true
-                            });
-                          }
-                        });
-                      }
-
-                    }
-                  }
-                }catch(e,stackTrace){
-                  log('Error on Status : ${e.toString()}');
-                  print('Stack Trace: $stackTrace');
-                }
-
-                //Todo ProgramS_No
-                try{
-                  if(data['irrigation']['ProgramS_No'] != null){
-                    for(var howManyProgram = 0;howManyProgram < data['irrigation']['ProgramS_No'].length;howManyProgram++){
-                      if(data['irrigation']['HeadUnit'][howManyProgram].contains('2.')){
-                        setState(() {
-                          if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
-                            program.add({
-                              'name' : data['irrigation']['ProgramS_No'][howManyProgram],
-                              'show' : true,
-                              'programName' : irrigationParameterArray.getProgramName(dataSource['default']['program'], data['irrigation']['ProgramS_No'][howManyProgram])
-                            });
-
-
-                            programDuplicate.add({
-                              'name' : data['irrigation']['ProgramS_No'][howManyProgram],
-                              'show' : true,
-                              'programName' : irrigationParameterArray.getProgramName(dataSource['default']['program'], data['irrigation']['ProgramS_No'][howManyProgram])
-                            });
-                          }
-                        });
-                      }
-
-                    }
-                    print("program : ${program}");
-                  }
-                }catch(e,stackTrace){
-                  log('Error on ProgramS_No : ${e.toString()}');
-                  print('Stack Trace: $stackTrace');
-                }
-
-                //Todo ProgramCategory  && ProgramCategoryName
-                try{
-                  if(data['irrigation']['ProgramCategory'] != null && data['irrigation']['HeadUnit'] != null){
-                    for(var howManyLine = 0;howManyLine < data['irrigation']['ProgramCategory'].length;howManyLine++){
-                      if(data['irrigation']['HeadUnit'][howManyLine].contains('2.')){
-                        for(var splitLine in data['irrigation']['ProgramCategory'][howManyLine].split('_')){
-                          setState(() {
-                            if (!line.any((element) => element['name'] == splitLine)) {
-                              line.add({
-                                'name' : splitLine,
-                                'show' : true,
-                                'lineName' : data['irrigation']['HeadUnit'][howManyLine].split('_')
-                              });
-                              lineDuplicate.add({
-                                'name' : splitLine,
-                                'show' : true,
-                                'lineName' : data['irrigation']['HeadUnit'][howManyLine].split('_')
-                              });
-                            }
-                          });
-                        }
-                      }
-                    }
-                  }
-                }catch(e,stackTrace){
-                  log('Error on HeadUnit : ${e.toString()}');
-                  print('Stack Trace: $stackTrace');
-                }
-
-                //Todo SequenceData
-                try{
-                  if(data['irrigation']['SequenceData'] != null){
-                    for(var howManyValve =0;howManyValve < data['irrigation']['SequenceData'].length;howManyValve++){
-                      if(data['irrigation']['HeadUnit'][howManyValve].contains('2.')){
-                        for(var splitValve in data['irrigation']['SequenceData'][howManyValve].split('_')){
-                          setState(() {
-                            if(splitValve.contains('13')){
-                              if (!valve.any((element) => element['name'] == splitValve)) {
-                                valve.add({
-                                  'name' : splitValve,
-                                  'show' : true,
-                                });
-                                valveDuplicate.add({
-                                  'name' : splitValve,
-                                  'show' : true,
-                                });
-                              }
-
-                            }
-                          });
-                        }
-                      }
-                    }
-                  }
-                }catch(e,stackTrace){
-                  log('Error on SequenceData : ${e.toString()}');
-                  print('Stack Trace: $stackTrace');
-                }
-              }
-            }
-          }
-          setState(() {
-            if (valve.isNotEmpty) {
-              valve.sort((a, b) {
-                var aParts = a['name'].split('VL.');
-                var bParts = b['name'].split('VL.');
-                if (aParts.length > 1 && bParts.length > 1) {
-                  return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
-                }
-                return 0;
-              });
-
-              valveDuplicate.sort((a, b) {
-                var aParts = a['name'].split('VL.');
-                var bParts = b['name'].split('VL.');
-                if (aParts.length > 1 && bParts.length > 1) {
-                  return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
-                }
-                return 0;
-              });
-            }
-
-            // Check if the line list has elements before splitting and sorting
-            if (line.isNotEmpty) {
-              line.sort((a, b) {
-                var aParts = a['name'].split('.');
-                var bParts = b['name'].split('.');
-                if (aParts.length > 1 && bParts.length > 1) {
-                  return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
-                }
-                return 0;
-              });
-
-              lineDuplicate.sort((a, b) {
-                var aParts = a['name'].split('.');
-                var bParts = b['name'].split('.');
-                if (aParts.length > 1 && bParts.length > 1) {
-                  return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
-                }
-                return 0;
-              });
-            }
-
-            // Check if the program list has elements before sorting
-            if (program.isNotEmpty) {
-              program.sort((a, b) => a['name'].compareTo(b['name']));
-              programDuplicate.sort((a, b) => a['name'].compareTo(b['name']));
-            }
-          });
-
-          setState(() {
-            if(_irrigationOptionWise[0][1] == true){
-              dataToShow = irrigationParameterArray.editDateWise(dataSource, date);
-            }else if(_irrigationOptionWise[1][1] == true){
-              dataToShow = irrigationParameterArray.editProgramWise(dataSource, program);
-            }else if(_irrigationOptionWise[2][1] == true){
-              dataToShow = irrigationParameterArray.editLineWise(dataSource, line);
-            }else if(_irrigationOptionWise[3][1] == true){
-              dataToShow = irrigationParameterArray.editValveWise(dataSource, valve);
-            }else if(_irrigationOptionWise[4][1] == true){
-              dataToShow = irrigationParameterArray.editStatusWise(dataSource, status);
-            }
-
-          });
-          if (kDebugMode) {
-            print('get function completed......');
-          }
-        }
-        setState(() {
           httpError = 0;
+          isLiveLoaded = false;
         });
-        setState(() {
-          totalPages = (dataToShow['fixedColumnData'].length ~/ noOfRowsPerPage);
-          if ((totalPages * noOfRowsPerPage) < dataToShow['fixedColumnData'].length) {
-            totalPages += 1;
-          }
-          selectedPages = 1;
-        });
+        _reprocessAndFilterData();
       }
       Navigator.pop(context);
     }catch(e,stackTrace){
@@ -550,6 +484,450 @@ class _LogHomeState extends State<LogHome> {
       if (kDebugMode){
         print('error in log = > ${e.toString()}');
         print('error in log stackTrace= > $stackTrace');
+      }
+    }
+  }
+
+  void _reprocessAndFilterData() {
+    if (!mounted) return;
+    if (dataSource == null || dataSource is! Map || dataSource['log'] == null) return;
+    setState(() {
+      dataToShow = {};
+      program = [];
+      programDuplicate = [];
+      valve = [];
+      valveDuplicate = [];
+      line = [];
+      lineDuplicate = [];
+      date = [];
+      dateDuplicate = [];
+      status = [];
+      statusDuplicate = [];
+    });
+
+    for (var data in dataSource['log']) {
+      if (data != null && data['irrigation'] != null && data['irrigation'].isNotEmpty) {
+        if (data['irrigation']['Date'] != null) {
+          //Todo date
+          try {
+            for (var howManyDate = 0; howManyDate < data['irrigation']['Date'].length; howManyDate++) {
+              if (data['irrigation']['HeadUnit'] == null ||
+                  howManyDate < data['irrigation']['HeadUnit'].length) {
+                setState(() {
+                  if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
+                    date.add({
+                      'name': data['irrigation']['Date'][howManyDate],
+                      'show': true,
+                    });
+                    dateDuplicate.add({
+                      'name': data['irrigation']['Date'][howManyDate],
+                      'show': true,
+                    });
+                  }
+                });
+              }
+            }
+          } catch (e, stackTrace) {
+            log('Error on Date : ${e.toString()}');
+            print('Stack Trace: $stackTrace');
+          }
+
+          //Todo Status
+          try {
+            if (data['irrigation']['Status'] != null) {
+              for (var howManyStatus = 0; howManyStatus < data['irrigation']['Status'].length; howManyStatus++) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyStatus < data['irrigation']['HeadUnit'].length) {
+                  setState(() {
+                    if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
+                      status.add({
+                        'name': data['irrigation']['Status'][howManyStatus],
+                        'show': true,
+                      });
+                      statusDuplicate.add({
+                        'name': data['irrigation']['Status'][howManyStatus],
+                        'show': true,
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          } catch (e, stackTrace) {
+            log('Error on Status : ${e.toString()}');
+            print('Stack Trace: $stackTrace');
+          }
+
+          //Todo ProgramS_No
+          try {
+            if (data['irrigation']['ProgramS_No'] != null) {
+              for (var howManyProgram = 0; howManyProgram < data['irrigation']['ProgramS_No'].length; howManyProgram++) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyProgram < data['irrigation']['HeadUnit'].length) {
+                  setState(() {
+                    if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
+                      program.add({
+                        'name': data['irrigation']['ProgramS_No'][howManyProgram],
+                        'show': true,
+                        'programName': irrigationParameterArray.getProgramName(
+                            dataSource['default']?['program'] ?? [],
+                            data['irrigation']['ProgramS_No'][howManyProgram])
+                      });
+
+                      programDuplicate.add({
+                        'name': data['irrigation']['ProgramS_No'][howManyProgram],
+                        'show': true,
+                        'programName': irrigationParameterArray.getProgramName(
+                            dataSource['default']?['program'] ?? [],
+                            data['irrigation']['ProgramS_No'][howManyProgram])
+                      });
+                    }
+                  });
+                }
+              }
+            }
+          } catch (e, stackTrace) {
+            log('Error on ProgramS_No : ${e.toString()}');
+            print('Stack Trace: $stackTrace');
+          }
+
+          //Todo ProgramCategory && ProgramCategoryName
+          try {
+            if (data['irrigation']['ProgramCategory'] != null) {
+              for (var howManyLine = 0; howManyLine < data['irrigation']['ProgramCategory'].length; howManyLine++) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyLine < data['irrigation']['HeadUnit'].length) {
+                  for (var splitLine in data['irrigation']['ProgramCategory'][howManyLine].toString().split('_')) {
+                    var lineName = (data['irrigation']['HeadUnit'] != null && howManyLine < data['irrigation']['HeadUnit'].length)
+                        ? data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
+                        : [splitLine];
+                    setState(() {
+                      if (!line.any((element) => element['name'] == splitLine)) {
+                        line.add({
+                          'name': splitLine,
+                          'show': true,
+                          'lineName': lineName
+                        });
+                        lineDuplicate.add({
+                          'name': splitLine,
+                          'show': true,
+                          'lineName': lineName
+                        });
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e, stackTrace) {
+            log('Error on HeadUnit : ${e.toString()}');
+            print('Stack Trace: $stackTrace');
+          }
+
+          //Todo SequenceData
+          try {
+            if (data['irrigation']['SequenceData'] != null) {
+              for (var howManyValve = 0; howManyValve < data['irrigation']['SequenceData'].length; howManyValve++) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyValve < data['irrigation']['HeadUnit'].length) {
+                  for (var splitValve in data['irrigation']['SequenceData'][howManyValve].toString().split('_')) {
+                    setState(() {
+                      if (splitValve.contains('13')) {
+                        if (!valve.any((element) => element['name'] == splitValve)) {
+                          valve.add({
+                            'name': splitValve,
+                            'show': true,
+                          });
+                          valveDuplicate.add({
+                            'name': splitValve,
+                            'show': true,
+                          });
+                        }
+                      }
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e, stackTrace) {
+            log('Error on SequenceData : ${e.toString()}');
+            print('Stack Trace: $stackTrace');
+          }
+        }
+      }
+    }
+
+    setState(() {
+      if (valve.isNotEmpty) {
+        valve.sort((a, b) {
+          var aParts = a['name'].split('VL.');
+          var bParts = b['name'].split('VL.');
+          if (aParts.length > 1 && bParts.length > 1) {
+            return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
+          }
+          return 0;
+        });
+
+        valveDuplicate.sort((a, b) {
+          var aParts = a['name'].split('VL.');
+          var bParts = b['name'].split('VL.');
+          if (aParts.length > 1 && bParts.length > 1) {
+            return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
+          }
+          return 0;
+        });
+      }
+
+      if (line.isNotEmpty) {
+        line.sort((a, b) {
+          var aParts = a['name'].split('.');
+          var bParts = b['name'].split('.');
+          if (aParts.length > 1 && bParts.length > 1) {
+            return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
+          }
+          return 0;
+        });
+
+        lineDuplicate.sort((a, b) {
+          var aParts = a['name'].split('.');
+          var bParts = b['name'].split('.');
+          if (aParts.length > 1 && bParts.length > 1) {
+            return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
+          }
+          return 0;
+        });
+      }
+
+      if (program.isNotEmpty) {
+        program.sort((a, b) => a['name'].compareTo(b['name']));
+        programDuplicate.sort((a, b) => a['name'].compareTo(b['name']));
+      }
+    });
+
+    setState(() {
+      if (_irrigationOptionWise[0][1] == true) {
+        dataToShow = irrigationParameterArray.editDateWise(dataSource, date);
+      } else if (_irrigationOptionWise[1][1] == true) {
+        dataToShow = irrigationParameterArray.editProgramWise(dataSource, program);
+      } else if (_irrigationOptionWise[2][1] == true) {
+        dataToShow = irrigationParameterArray.editLineWise(dataSource, line);
+      } else if (_irrigationOptionWise[3][1] == true) {
+        dataToShow = irrigationParameterArray.editValveWise(dataSource, valve);
+      } else if (_irrigationOptionWise[4][1] == true) {
+        dataToShow = irrigationParameterArray.editStatusWise(dataSource, status);
+      }
+    });
+
+    setState(() {
+      if (dataToShow.containsKey('fixedColumnData') && dataToShow['fixedColumnData'] is List) {
+        totalPages = (dataToShow['fixedColumnData'].length ~/ noOfRowsPerPage);
+        if ((totalPages * noOfRowsPerPage) < dataToShow['fixedColumnData'].length) {
+          totalPages += 1;
+        }
+      } else {
+        totalPages = 0;
+      }
+      selectedPages = 1;
+    });
+  }
+
+  Map<String, dynamic>? _prepareLiveIrrigationData(Map<String, dynamic> raw, String todayStr) {
+    if (raw.isEmpty) return null;
+    final Map<String, dynamic> prepared = Map<String, dynamic>.from(raw);
+    int count = 0;
+    for (var v in prepared.values) {
+      if (v is List && v.isNotEmpty) {
+        count = v.length;
+        break;
+      }
+    }
+    if (count == 0) return null;
+
+    if (!prepared.containsKey('Date') || prepared['Date'] == null || (prepared['Date'] as List).isEmpty) {
+      prepared['Date'] = List.filled(count, todayStr);
+    } else {
+      prepared['Date'] = (prepared['Date'] as List).map((d) => (d == null || d.toString().isEmpty) ? todayStr : d.toString()).toList();
+    }
+
+    if (prepared.containsKey('HeadUnit') && prepared['HeadUnit'] is List) {
+      prepared['HeadUnit'] = (prepared['HeadUnit'] as List).map((h) {
+        final s = h.toString();
+        if (!s.contains('.')) {
+          return '2.$s';
+        }
+        return s;
+      }).toList();
+    } else {
+      prepared['HeadUnit'] = List.filled(count, '2.1');
+    }
+
+    if (!prepared.containsKey('ProgramCategory') || prepared['ProgramCategory'] == null) {
+      prepared['ProgramCategory'] = List.from(prepared['HeadUnit']);
+    }
+
+    final keysToEnsure = [
+      'Status',
+      'ProgramS_No',
+      'SequenceData',
+      'ActualStartTime',
+      'ActualEndTime',
+      'ActualStartReason',
+      'ActualStopReason',
+      'ValveFlowrate',
+      'Pretime',
+      'PostTime',
+      'CentralFilterOnDuration',
+      'LocalFilterOnDuration',
+      'CentralFertOnOff',
+      'LocalFertOnOff',
+      'PumpCtAverage',
+      'PumpCtMaximum',
+      'PumpCtMinimum',
+      'PressureAverage',
+      'PressureMaximum',
+      'PressureMinimum',
+    ];
+
+    for (final key in keysToEnsure) {
+      if (!prepared.containsKey(key) || prepared[key] == null || (prepared[key] is List && (prepared[key] as List).length < count)) {
+        prepared[key] = List.filled(count, '-');
+      }
+    }
+
+    return prepared;
+  }
+
+  void _mergeLivePayload(Map<String, dynamic> rawLive) {
+    if (!mounted) return;
+    if (dataSource == null || dataSource is! Map) {
+      dataSource = {'log': []};
+    }
+    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final preparedLive = _prepareLiveIrrigationData(rawLive, todayStr);
+    if (preparedLive == null) return;
+
+    setState(() {
+      dataSource['log'] ??= [];
+      List logs = dataSource['log'];
+
+      logs.removeWhere((item) {
+        if (item is Map && item['irrigation'] != null) {
+          final dates = item['irrigation']['Date'];
+          if (dates is List && dates.isNotEmpty && dates.any((d) => d.toString().contains(todayStr))) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      logs.add({'irrigation': preparedLive});
+      isLiveLoaded = true;
+      isLiveSyncing = false;
+    });
+
+    _reprocessAndFilterData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Live data updated from controller'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _requestLiveSync({bool silent = false}) async {
+    String? deviceId = widget.masterData?.deviceId ?? widget.userData['deviceId']?.toString();
+    if (deviceId == null || deviceId.isEmpty) {
+      try {
+        final custPvd = Provider.of<CustomerProvider>(context, listen: false);
+        if (custPvd.deviceId != null && custPvd.deviceId!.isNotEmpty) {
+          deviceId = custPvd.deviceId;
+        }
+      } catch (_) {}
+    }
+
+    if (deviceId == null || deviceId.isEmpty) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Device ID not found. Unable to request live data.')),
+        );
+      }
+      return;
+    }
+
+    DateTime now = DateTime.now();
+    DateTime today = DateTime(now.year, now.month, now.day);
+
+    DateTime date1 = today;
+    DateTime date2 = today;
+    if (_selectedDate.contains(' - ')) {
+      final parts = _selectedDate.split(' - ');
+      final p1 = parts[0].trim().split('/');
+      final p2 = parts[1].trim().split('/');
+      if (p1.length == 3 && p2.length == 3) {
+        date1 = DateTime(int.parse(p1[2]), int.parse(p1[1]), int.parse(p1[0]));
+        date2 = DateTime(int.parse(p2[2]), int.parse(p2[1]), int.parse(p2[0]));
+      }
+    }
+
+    bool includesToday = (today.isAfter(date1) || today.isAtSameMomentAs(date1)) &&
+        (today.isBefore(date2) || today.isAtSameMomentAs(date2));
+
+    if (!includesToday) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Live sync is only available for today. Please select today to view live data.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!silent) {
+      setState(() {
+        isLiveSyncing = true;
+      });
+    }
+
+    final String todayFormatted = DateFormat('yyyy-MM-dd').format(now);
+    final Map<String, dynamic> data = {
+      "2600": {
+        "2601": "$todayFormatted,$todayFormatted"
+      }
+    };
+
+    try {
+      final topic = '${Environment.mqttPublishTopic}/$deviceId';
+      await MqttService().topicToPublishAndItsMessage(jsonEncode(data), topic);
+
+      Timer(const Duration(seconds: 6), () {
+        if (mounted && isLiveSyncing) {
+          setState(() {
+            isLiveSyncing = false;
+          });
+          if (!silent) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No response from controller. Showing cloud log.'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      });
+    } catch (e) {
+      if (mounted && !silent) {
+        setState(() {
+          isLiveSyncing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to publish live request: $e')),
+        );
       }
     }
   }
@@ -611,11 +989,52 @@ class _LogHomeState extends State<LogHome> {
           appBar: AppBar(
             title: Column(
               children: [
-                const Text('Irrigation Log'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Irrigation Log'),
+                    if (isLiveLoaded) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.green, width: 0.8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.fiber_manual_record, color: Colors.green, size: 8),
+                            SizedBox(width: 4),
+                            Text('LIVE', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 Text(_selectedDate,style: const TextStyle(fontSize: 12),),
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Live Refresh from Controller',
+                onPressed: isLiveSyncing ? null : () async {
+                  await getData();
+                  _requestLiveSync(silent: false);
+                },
+                icon: isLiveSyncing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.refresh_outlined,
+                        color: isLiveLoaded ? Colors.green : Colors.black,
+                      ),
+              ),
               IconButton(
                 onPressed: (){
                   sideSheet(constraint);
@@ -844,32 +1263,35 @@ class _LogHomeState extends State<LogHome> {
                               localChannel8Column: dataToShow['localChannel8Column'],
                               localChannel8ColumnData: filterDataByPages(data: dataToShow['localChannel8ColumnData']),
                               graphData: dataToShow['graphData'],
-                              onSequenceClicked: (sequenceName) {
-                                DateTime date1 = DateTime.now();
-                                DateTime date2 = DateTime.now();
-                                try {
-                                  String dateString1 = _selectedDate.split(' - ')[0];
-                                  String dateString2 = _selectedDate.split(' - ')[1];
-                                  List<String> parts1 = dateString1.split('/');
-                                  List<String> parts2 = dateString2.split('/');
-                                  date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
-                                  date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
-                                } catch (e) {
-                                  // Fallback to now if parse fails
-                                }
+                              showSensorReport: hasConfiguredSensors,
+                              onSequenceClicked: hasConfiguredSensors
+                                  ? (sequenceName) {
+                                      DateTime date1 = DateTime.now();
+                                      DateTime date2 = DateTime.now();
+                                      try {
+                                        String dateString1 = _selectedDate.split(' - ')[0];
+                                        String dateString2 = _selectedDate.split(' - ')[1];
+                                        List<String> parts1 = dateString1.split('/');
+                                        List<String> parts2 = dateString2.split('/');
+                                        date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+                                        date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+                                      } catch (e) {
+                                        // Fallback to now if parse fails
+                                      }
 
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => SensorGraphLog(
-                                      userId: widget.userData['customerId'],
-                                      controllerId: widget.userData['controllerId'],
-                                      fromDate: date1,
-                                      toDate: date2,
-                                    ),
-                                  ),
-                                );
-                              },
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => SensorGraphLog(
+                                            userId: widget.userData['customerId'],
+                                            controllerId: widget.userData['controllerId'],
+                                            fromDate: date1,
+                                            toDate: date2,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  : null,
                             ),
                         ],
                       ),

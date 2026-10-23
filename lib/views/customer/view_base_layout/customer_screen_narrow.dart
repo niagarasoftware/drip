@@ -80,6 +80,7 @@ class _CustomerScreenNarrowState extends BaseCustomerScreenState<CustomerScreenN
           'userId': loggedInUser.id,
           'controllerId': cM.controllerId,
           'customerId': vm.mySiteList.data[vm.sIndex].customerId,
+          'deviceId': cM.deviceId,
         },
         masterData: cM,
       ),

@@ -124,10 +124,17 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
         final logJson = jsonDecode(logRes.body);
         if (configJson['code'] == 200 && logJson['code'] == 200) {
           _parseData(configJson, logJson);
+        } else if (logJson['code'] == 404 ||
+            (logJson['message'] != null &&
+                logJson['message'].toString().toLowerCase().contains('not found'))) {
+          setState(() {
+            _sensors = [];
+            _errorMessage = null;
+            _isLoading = false;
+          });
         } else {
           setState(() {
-            _errorMessage = ''
-                '${logJson['message']}';
+            _errorMessage = '${logJson['message']}';
             _isLoading = false;
           });
         }

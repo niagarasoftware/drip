@@ -1,9 +1,11 @@
+**/Flutter/ephemeral/
+
 # Miscellaneous
 *.class
 *.log
 *.pyc
 *.swp
-.DS_Store
+._*DS_Store
 .atom/
 .build/
 .buildlog/
@@ -12,59 +14,108 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IntelliJ / Android Studio
 *.iml
 *.ipr
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
+# VS Code
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+# Flutter / Dart
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
-.pub-cache/
 .pub/
-/build/
+.pub-cache/
+build/
+
+# Package files
+pubspec.lock
+
+# Generated Flutter files
+**/ios/Flutter/.last_build_id
+
+
+# Android build / generated artifacts
+# NOTE: deliberately NOT ignoring android/** wholesale — that folder holds
+# real source (AndroidManifest.xml, MainActivity, Gradle config, signing
+# setup) that should stay tracked. Only generated/build output is ignored.
+android/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/**/gradle-wrapper.jar
+GeneratedPluginRegistrant.java
 
 # Secrets
 .env*
 *.jks
 *.keystore
-keystore.txt
+*.p12
 *.pem
 *.key
-assets/ssh/
-
-# Flutter build
-build/
-android/build/
-
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-/android/key.properties
-/android/app/release-key.jks
-notification.env
-
-*.p12
+keystore.txt
 key.properties
 android/key.properties
+assets/ssh/
+notification.env
+
+# Symbolication
+app.*.symbols
+app.*.map.json
+
+# Misc IDE/editor cruft picked up from platform folders
+.idea/workspace.xml
+**/dgph
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+!default.mode1v3
+!default.mode2v3
+!default.pbxuser
+!default.perspectivev3
+**/*sync/
+.sconsign.dblite
+.tags*
+**/.vagrant/
+Icon?
+xcuserdata
+**/.generated/
+ServiceDefinitions.json
+
+# TODO: confirm these are meant to be ignored (index.html is usually
+# hand-edited, not generated) before keeping them long-term.
+web/splash/img/
+web/index.html
+# Flutter / Dart
+ .packages
+
+
+
+# IDE
+.vscode/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/ephemeral/
+ios/Flutter/.last_build_id
+
+# macOS
+macos/Pods/
+
+
+
+
 ios/**
 linux/**
 macos/**

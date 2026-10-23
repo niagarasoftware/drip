@@ -1003,14 +1003,18 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     categoryIndex < settingList.length;
                     categoryIndex++)
                   if (([...AppConstants.wlcModelList]
-                          .contains(widget.masterData['modelId']) && !AppConstants.threePhaseWireLessWlcModelList.contains(widget.masterData['modelId'])) &&
+                              .contains(widget.masterData['modelId']) &&
+                          !AppConstants.threePhaseWireLessWlcModelList
+                              .contains(widget.masterData['modelId'])) &&
                       AppConstants.otherCalibration
                           .contains(settingList[categoryIndex].type))
                     Container()
                   else if (([
-                        ...AppConstants.singlePhaseWlcModelList,
-                        ...AppConstants.threePhaseWlcModelList,
-                      ].contains(widget.masterData['modelId']) && !AppConstants.threePhaseWireLessWlcModelList.contains(widget.masterData['modelId'])) &&
+                            ...AppConstants.singlePhaseWlcModelList,
+                            ...AppConstants.threePhaseWlcModelList,
+                          ].contains(widget.masterData['modelId']) &&
+                          !AppConstants.threePhaseWireLessWlcModelList
+                              .contains(widget.masterData['modelId'])) &&
                       AppConstants.otherSetting
                           .contains(settingList[categoryIndex].type))
                     Container()
@@ -1405,10 +1409,11 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 ...rtcSettings.asMap().entries.map((entry) {
                   final int rtcIndex = entry.key;
                   final rtcSetting = entry.value;
-                  final bool isClearingAllowed = (rtcSetting.onTime.isNotEmpty &&
-                          rtcSetting.onTime != "00:00:00") ||
-                      (rtcSetting.offTime.isNotEmpty &&
-                          rtcSetting.offTime != "00:00:00");
+                  final bool isClearingAllowed =
+                      (rtcSetting.onTime.isNotEmpty &&
+                              rtcSetting.onTime != "00:00:00") ||
+                          (rtcSetting.offTime.isNotEmpty &&
+                              rtcSetting.offTime != "00:00:00");
 
                   return Column(
                     children: [
@@ -1520,8 +1525,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                                             settingList[categoryIndex]
                                                 .setting[settingIndex]
                                                 .isChanged = true;
-                                            settingList[categoryIndex]
-                                                .changed = true;
+                                            settingList[categoryIndex].changed =
+                                                true;
                                           });
                                         }
                                       }
@@ -1778,7 +1783,11 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   String? validateAllOnDelaySettings() {
     if (preferenceProvider.individualPumpSetting != null) {
       for (var individualPump in preferenceProvider.individualPumpSetting!) {
-        int minSeconds = individualPump.pumpType == 2 ? 30 : 5;
+        int minSeconds =
+            (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                    individualPump.pumpType == 2)
+                ? 30
+                : 5;
         for (var settingCategory in individualPump.settingList) {
           if (AppConstants.timerSetting.contains(settingCategory.type)) {
             for (var setting in settingCategory.setting) {
@@ -1812,9 +1821,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       int pumpType = 0;
       if (preferenceProvider.individualPumpSetting != null &&
           pumpIndex < preferenceProvider.individualPumpSetting!.length) {
-        pumpType = preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
+        pumpType =
+            preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
       }
-      int minSeconds = (pumpType == 2) ? 30 : 5;
+      int minSeconds =
+          (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                  pumpType == 2)
+              ? 30
+              : 5;
       if (val is String && val.isNotEmpty) {
         int curSeconds = _rtcTimeToSeconds(val);
         if (curSeconds < minSeconds) {
@@ -1834,13 +1848,15 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       final setting = settingList[categoryIndex].setting[settingIndex];
       final titleUpper = setting.title.toUpperCase();
       if (titleUpper.contains("ON DELAY") ||
-          (AppConstants.timerSetting.contains(settingList[categoryIndex].type) &&
+          (AppConstants.timerSetting
+                  .contains(settingList[categoryIndex].type) &&
               setting.serialNumber == 1)) {
         int pumpType = 0;
         if (preferenceProvider.individualPumpSetting != null &&
             pumpIndex != null &&
             pumpIndex < preferenceProvider.individualPumpSetting!.length) {
-          pumpType = preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
+          pumpType =
+              preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
         } else if (preferenceProvider.individualPumpSetting != null) {
           int idx = preferenceProvider.individualPumpSetting!
               .indexWhere((p) => p.settingList == settingList);
@@ -1848,7 +1864,11 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             pumpType = preferenceProvider.individualPumpSetting![idx].pumpType;
           }
         }
-        int minSeconds = (pumpType == 2) ? 30 : 5;
+        int minSeconds =
+            AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                    (pumpType == 2)
+                ? 30
+                : 5;
         if (finalValue is String) {
           int selectedSec = _rtcTimeToSeconds(finalValue);
           if (selectedSec < minSeconds) {

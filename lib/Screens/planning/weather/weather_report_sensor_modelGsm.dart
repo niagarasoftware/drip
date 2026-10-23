@@ -7,6 +7,7 @@ class SensorHourReportGsm {
   final String minValue;
   final String maxValue;
   final String averageValue;
+  final String? timeStamp;
 
   SensorHourReportGsm({
     required this.hour,
@@ -17,11 +18,12 @@ class SensorHourReportGsm {
     required this.minValue,
     required this.maxValue,
     required this.averageValue,
+    this.timeStamp,
   });
 
   @override
   String toString() {
-    return '$hour → value:$value min:$minValue max:$maxValue avg:$averageValue error:$errorCode';
+    return '$hour → value:$value min:$minValue max:$maxValue avg:$averageValue error:$errorCode timeStamp:$timeStamp';
   }
 }
 SensorHourReportGsm? parseSensorHourData({
@@ -40,8 +42,16 @@ SensorHourReportGsm? parseSensorHourData({
     minValue: 'NA',
     maxValue: 'NA',
     averageValue: 'NA',
+    timeStamp: null,
   );
   if (raw == null || raw.trim().isEmpty) return zeroReport();
+
+  String? timeStamp;
+  if (raw.contains('@')) {
+    final parts = raw.split('@');
+    raw = parts[0].trim();
+    timeStamp = parts.length > 1 && parts[1].trim().isNotEmpty ? parts[1].trim() : null;
+  }
 
   // 1️⃣ Split devices
   final deviceBlocks = raw.split(';');
@@ -88,6 +98,7 @@ SensorHourReportGsm? parseSensorHourData({
         minValue: v(3),
         maxValue: v(4),
         averageValue: averageValue,
+        timeStamp: timeStamp,
       );
     }
   }
@@ -114,9 +125,18 @@ List<SensorHourReportGsm> getSingleSensorReport({
     if (value == null || value.toString().trim().isEmpty) return;
 
     final String hour = key;
+    final String rawHourVal = value.toString();
+
+    String? hourTimeStamp;
+    String cleanHourVal = rawHourVal;
+    if (rawHourVal.contains('@')) {
+      final parts = rawHourVal.split('@');
+      cleanHourVal = parts[0].trim();
+      hourTimeStamp = parts.length > 1 && parts[1].trim().isNotEmpty ? parts[1].trim() : null;
+    }
 
     // 1️⃣ ; → device blocks
-    final deviceBlocks = value.toString().split(';');
+    final deviceBlocks = cleanHourVal.split(';');
 
     for (final block in deviceBlocks) {
       print("block:$block");
@@ -138,7 +158,7 @@ List<SensorHourReportGsm> getSingleSensorReport({
       for (final sensorRaw in sensors) {
         // 4️⃣ , → values (inside parseSensorRecord)
         final parsed = parseSensorHourData(
-          raw: sensorRaw,
+          raw: "$sensorRaw${hourTimeStamp != null ? '@$hourTimeStamp' : ''}",
           hour: hour,
           deviceSrNo: deviceId,
           targetSensor: targetSensor,
@@ -153,4 +173,3 @@ List<SensorHourReportGsm> getSingleSensorReport({
 
   return report;
 }
-

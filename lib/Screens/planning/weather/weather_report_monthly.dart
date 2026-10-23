@@ -330,13 +330,7 @@ class _SensorHourlyReportPageState
         endDate = today;
       }
 
-      // Last 30 days including selected date.
-      //
-      // Example:
-      // selectedDate = 28-09-2026
-      //
-      // fromDate = 30-08-2026
-      // toDate   = 28-09-2026
+
       final DateTime startDate =
       endDate.subtract(
         const Duration(days: 29),
@@ -404,99 +398,6 @@ class _SensorHourlyReportPageState
       }
     }
   }
-  // Future<void> fetchMonthlyReport() async {
-  //   if (!mounted) return;
-  //
-  //   setState(() {
-  //     isLoading = true;
-  //     hourlyReport = [];
-  //     dailyReport = [];
-  //   });
-  //
-  //   try {
-  //     final DateTime firstDay = DateTime(
-  //       selectedDate.year,
-  //       selectedDate.month,
-  //       1,
-  //     );
-  //
-  //     DateTime lastDay = DateTime(
-  //       selectedDate.year,
-  //       selectedDate.month + 1,
-  //       0,
-  //     );
-  //
-  //     final DateTime today =
-  //     _dateOnly(DateTime.now());
-  //
-  //     // Current month -> stop at today.
-  //     if (firstDay.year == today.year &&
-  //         firstDay.month == today.month) {
-  //       lastDay = today;
-  //     }
-  //
-  //     final String fromDate =
-  //     DateFormat('yyyy-MM-dd').format(
-  //       firstDay,
-  //     );
-  //
-  //     final String toDate =
-  //     DateFormat('yyyy-MM-dd').format(
-  //       lastDay,
-  //     );
-  //
-  //     debugPrint(
-  //       'Monthly report: $fromDate -> $toDate',
-  //     );
-  //
-  //     final response =
-  //     await repository.getweatherReport({
-  //       "userId": widget.userId,
-  //       "controllerId": widget.controllerId,
-  //       "fromDate": fromDate,
-  //       "toDate": toDate,
-  //     });
-  //
-  //     final WeatherReportModel model =
-  //     weatherReportModelFromJson(
-  //       response.body,
-  //     );
-  //
-  //     final List<SensorDailyReport> result =
-  //     calculateDailyReport(
-  //       model,
-  //     );
-  //
-  //     if (!mounted) return;
-  //
-  //     setState(() {
-  //       dailyReport = result;
-  //     });
-  //   } catch (e, stackTrace) {
-  //     debugPrint(
-  //       'Monthly report error: $e',
-  //     );
-  //     debugPrint(
-  //       '$stackTrace',
-  //     );
-  //
-  //     if (mounted) {
-  //       _showError(
-  //         'Unable to load monthly report',
-  //       );
-  //     }
-  //   } finally {
-  //     if (mounted) {
-  //       setState(() {
-  //         isLoading = false;
-  //       });
-  //     }
-  //   }
-  // }
-
-  // ============================================================
-  // DAILY CALCULATION
-  // ============================================================
 
   List<SensorDailyReport> calculateDailyReport(
       WeatherReportModel model,
@@ -1428,6 +1329,8 @@ class _SensorHourlyReportPageState
           LineTouchData(
             touchTooltipData:
             LineTouchTooltipData(
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
               getTooltipItems:
                   (
                   touchedSpots,
@@ -1435,18 +1338,42 @@ class _SensorHourlyReportPageState
                 return touchedSpots
                     .map(
                       (spot) {
-                    final String hour =
+                    final int spotHourInt =
                     spot.x
-                        .toInt()
+                        .toInt();
+                    final String hour =
+                    spotHourInt
                         .toString()
                         .padLeft(
                       2,
                       '0',
                     );
 
+                    final matchedReport =
+                    valid.firstWhere(
+                          (item) =>
+                      (int.tryParse(
+                          item.hour
+                              .split(
+                            ':',
+                          )
+                              .first) ??
+                          -1) ==
+                          spotHourInt,
+                      orElse: () =>
+                      valid.first,
+                    );
+
+                    final String? ts =
+                        matchedReport.timeStamp;
+                    final String tooltipText =
+                    (ts != null &&
+                        ts.isNotEmpty)
+                        ? '$ts\n${spot.y.toStringAsFixed(2)} ${widget.unit}'
+                        : '$hour:00:00\n${spot.y.toStringAsFixed(2)} ${widget.unit}';
+
                     return LineTooltipItem(
-                      '$hour:00\n'
-                          '${spot.y.toStringAsFixed(2)} ${widget.unit}',
+                      tooltipText,
                       const TextStyle(
                         color:
                         Colors.white,
@@ -1754,6 +1681,8 @@ class _SensorHourlyReportPageState
 
             touchTooltipData:
             LineTouchTooltipData(
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
               getTooltipItems:
                   (
                   touchedSpots,

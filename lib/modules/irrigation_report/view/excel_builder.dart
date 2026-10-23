@@ -93,7 +93,24 @@ bool _groupHasData(Map<String, dynamic> data, _ColumnGroup group) {
 Excel buildLogsExcel(Map<String, dynamic> data) {
   final excel = Excel.createExcel();
   final sheetObject = excel['Logs'];
+  _populateSheet(sheetObject, data);
+  return excel;
+}
 
+/// Builds a single workbook containing multiple named worksheets from [sheetsData].
+Excel buildMultiSheetLogsExcel(Map<String, Map<String, dynamic>> sheetsData) {
+  final excel = Excel.createExcel();
+  sheetsData.forEach((sheetName, data) {
+    final sheetObject = excel[sheetName];
+    _populateSheet(sheetObject, data);
+  });
+  if (excel.sheets.containsKey('Sheet1')) {
+    excel.delete('Sheet1');
+  }
+  return excel;
+}
+
+void _populateSheet(Sheet sheetObject, Map<String, dynamic> data) {
   final groups = _buildColumnGroups();
   final activeGroups = groups.where((g) => _groupHasData(data, g)).toList();
 
@@ -142,6 +159,4 @@ Excel buildLogsExcel(Map<String, dynamic> data) {
     }
     sheetObject.appendRow([for (var cell in eachRow) TextCellValue(cell)]);
   }
-
-  return excel;
 }

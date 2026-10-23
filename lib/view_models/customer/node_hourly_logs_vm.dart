@@ -1,21 +1,27 @@
+
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:oro_drip_irrigation/views/customer/hourly_log/node_hourly_logs.dart';
+
 import '../../models/customer/site_model.dart';
 import '../../repository/repository.dart';
 
 class NodeHourlyLogsVm extends ChangeNotifier {
   final Repository repository;
-
   final int customerId;
   final int controllerId;
   final List<NodeListModel> nodeList;
 
-  Map<String, List<ChartDataLog>> nodeDataMap = {};
+  final Map<String, List<ChartDataLog>> nodeDataMap = {};
+
   DateTime selectedDate = DateTime.now();
 
+  bool isLoading = false;
+  String errorMessage = '';
+
   bool _isDisposed = false;
+  int _requestId = 0;
 
   NodeHourlyLogsVm(
       this.repository,
@@ -24,85 +30,139 @@ class NodeHourlyLogsVm extends ChangeNotifier {
       this.nodeList,
       );
 
-  // Safe notify
   void safeNotify() {
-    if (!_isDisposed && hasListeners) {
+    if (!_isDisposed) {
       notifyListeners();
     }
   }
 
-  Future<void> getNodeLogs() async {
-    final formattedDate = DateFormat('yyyy-MM-dd').format(selectedDate);
-
-    Map<String, Object> body = {
-      "userId": customerId,
-      "controllerId": controllerId,
-      "fromDate": formattedDate,
-      "toDate": formattedDate
-    };
-
-    var response = await repository.fetchNodeHourlyData(body);
-
+  Future<void> getNodeLogs([DateTime? date]) async {
     if (_isDisposed) return;
 
-    if (response.statusCode == 200) {
-      var data = jsonDecode(response.body);
+    if (date != null) {
+      selectedDate = date;
+    }
 
-      if (data["code"] == 200) {
-        final jsonData = data["data"] as List;
+    final int currentRequestId = ++_requestId;
 
-        try {
-          nodeDataMap.clear();
+    final String formattedDate =
+    DateFormat('yyyy-MM-dd').format(selectedDate);
 
-          for (var hourEntry in jsonData[0].entries) {
-            String hour = hourEntry.key;
-            String value = hourEntry.value;
+    // Clear old data immediately so the previous date is not displayed.
+    nodeDataMap.clear();
+    errorMessage = '';
+    isLoading = true;
+    safeNotify();
 
-            if (hour != 'date' && value.isNotEmpty) {
-              List<String> nodeStrings = value.split(';');
+    try {
+      final Map<String, Object> body = {
+        'userId': customerId,
+        'controllerId': controllerId,
+        'fromDate': formattedDate,
+        'toDate': formattedDate,
+      };
 
-              for (var nodeStr in nodeStrings) {
-                List<String> parts = nodeStr.split(',');
+      final response = await repository.fetchNodeHourlyData(body);
 
-                if (parts.length == 3) {
-                  String nodeId = parts[0];
-                  double solarVoltage =
-                      double.tryParse(parts[1]) ?? 0.0;
-                  double batteryVoltage =
-                      double.tryParse(parts[2]) ?? 0.0;
+      // Ignore an old request if the selected date has changed again.
+      if (_isDisposed || currentRequestId != _requestId) return;
 
-                  var matchedNode = nodeList.firstWhere(
-                        (node) =>
-                    node.serialNumber == int.parse(nodeId),
-                  );
+      if (response.statusCode != 200) {
+        errorMessage = 'Failed to load node hourly logs.';
+        return;
+      }
 
-                  String deviceName = matchedNode.deviceName;
-                  String deviceId = matchedNode.deviceId;
+      final dynamic decoded = jsonDecode(response.body);
 
-                  nodeDataMap.putIfAbsent(deviceId, () => []);
+      if (decoded is! Map || decoded['code'] != 200) {
+        errorMessage = 'Unable to load node hourly logs.';
+        return;
+      }
 
-                  nodeDataMap[deviceId]!.add(
-                    ChartDataLog(
-                      deviceName,
-                      hour,
-                      batteryVoltage,
-                      solarVoltage,
-                    ),
-                  );
-                }
-              }
-            }
-          }
+      final dynamic responseData = decoded['data'];
 
-          safeNotify();
-        } catch (e) {
-          debugPrint('Error parsing node logs: $e');
+      if (responseData is! List || responseData.isEmpty) {
+        // No data for this date. The map remains empty.
+        return;
+      }
+
+      final dynamic firstRecord = responseData.first;
+
+      if (firstRecord is! Map) {
+        errorMessage = 'Invalid node hourly log response.';
+        return;
+      }
+
+      for (final entry in firstRecord.entries) {
+        if (_isDisposed || currentRequestId != _requestId) return;
+
+        final String hour = entry.key.toString();
+        final dynamic rawValue = entry.value;
+
+        if (hour == 'date' ||
+            rawValue == null ||
+            rawValue.toString().isEmpty) {
+          continue;
         }
+
+        final List<String> nodeStrings =
+        rawValue.toString().split(';');
+
+        for (final nodeStr in nodeStrings) {
+          final List<String> parts = nodeStr.split(',');
+
+          if (parts.length != 3) continue;
+
+          final int? serialNumber =
+          int.tryParse(parts[0].trim());
+
+          if (serialNumber == null) continue;
+
+          final double batteryVoltage =
+              double.tryParse(parts[1].trim()) ?? 0.0;
+
+          final double solarVoltage =
+              double.tryParse(parts[2].trim()) ?? 0.0;
+
+          final int matchedIndex = nodeList.indexWhere(
+                (node) => node.serialNumber == serialNumber,
+          );
+
+          // Ignore nodes that are not present in the supplied node list.
+          if (matchedIndex == -1) continue;
+
+          final matchedNode = nodeList[matchedIndex];
+          final String deviceId = matchedNode.deviceId;
+
+          nodeDataMap.putIfAbsent(deviceId, () => []);
+
+          nodeDataMap[deviceId]!.add(
+            ChartDataLog(
+              matchedNode.deviceName,
+              hour,
+              batteryVoltage,
+              solarVoltage,
+            ),
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      if (!_isDisposed && currentRequestId == _requestId) {
+        debugPrint('Error loading node hourly logs: $e');
+        debugPrintStack(stackTrace: stackTrace);
+        errorMessage = 'An error occurred while loading node logs.';
+      }
+    } finally {
+      if (!_isDisposed && currentRequestId == _requestId) {
+        isLoading = false;
+        safeNotify();
       }
     }
   }
 
   Future<void> selectDate(BuildContext context) async {
+    if (isLoading || _isDisposed) return;
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: selectedDate,
@@ -110,10 +170,19 @@ class NodeHourlyLogsVm extends ChangeNotifier {
       lastDate: DateTime.now(),
     );
 
-    if (picked != null && picked != selectedDate) {
-      selectedDate = picked;
-      await getNodeLogs();
-    }
+    if (picked == null || _isDisposed) return;
+
+    final bool sameDate =
+        picked.year == selectedDate.year &&
+            picked.month == selectedDate.month &&
+            picked.day == selectedDate.day;
+
+    if (sameDate) return;
+
+    selectedDate = picked;
+    safeNotify();
+
+    await getNodeLogs(picked);
   }
 
   @override
@@ -121,4 +190,18 @@ class NodeHourlyLogsVm extends ChangeNotifier {
     _isDisposed = true;
     super.dispose();
   }
+}
+
+class ChartDataLog {
+  final String deviceName;
+  final String hour;
+  final double batteryVoltage;
+  final double solarVoltage;
+
+  ChartDataLog(
+      this.deviceName,
+      this.hour,
+      this.batteryVoltage,
+      this.solarVoltage,
+      );
 }

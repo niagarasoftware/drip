@@ -12,6 +12,7 @@ import '../../SystemDefinitions/widgets/custom_snack_bar.dart';
 import '../repository/irrigation_repository.dart';
 import 'zone_log_exporter_stub.dart'
     if (dart.library.html) 'zone_log_exporter_web.dart';
+import '../../../utils/constants.dart';
 
 class ZoneLogEntry {
   final int no;
@@ -107,6 +108,45 @@ class SequenceRowData {
   });
 }
 
+class CumulativeDayData {
+  int durationSeconds;
+  num quantity;
+  bool hasRun;
+
+  CumulativeDayData({
+    this.durationSeconds = 0,
+    this.quantity = 0,
+    this.hasRun = false,
+  });
+
+  String get durationStr => durationSeconds > 0
+      ? SequenceDayData._formatSecondsToHMS(durationSeconds)
+      : '00:00:00';
+  String get qtyStr => quantity > 0
+      ? (quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString())
+      : '-';
+}
+
+class CumulativeRowData {
+  final String key;
+  final String channelName;
+  final String channelCategory;
+  final double channelSNo;
+  final Map<String, CumulativeDayData> dayEntries;
+  int totalDurationSeconds;
+  num totalQuantity;
+
+  CumulativeRowData({
+    required this.key,
+    required this.channelName,
+    required this.channelCategory,
+    required this.channelSNo,
+    required this.dayEntries,
+    this.totalDurationSeconds = 0,
+    this.totalQuantity = 0,
+  });
+}
+
 class ZoneLog extends StatefulWidget {
   final Map<String, dynamic> userData;
   final MasterControllerModel? masterData;
@@ -145,7 +185,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       'Duration'; // 'Duration' (Green) or 'Quantity' (Orange)
   String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
   final Set<String> _expandedBreakdownKeys = {};
-
+  int _selectedLogTypeTab = 0; // 0 = Zone Log, 1 = Cumulative Log
+  List<CumulativeRowData> _cumulativeRows = [];
+  List<String> _cumulativeDropdownOptions = ['All Channels'];
+  String _selectedCumulativeFilter = 'All Channels';
+  final Map<String, String> _channelNameMap = {};
+  final List<Map<String, dynamic>> _fertilizerChannelsFromConfig = [];
 
   @override
   void initState() {
@@ -154,6 +199,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     _pinnedLeftVerticalController = _verticalScrollGroup.addAndGet();
     _verticalScrollController = _verticalScrollGroup.addAndGet();
     _pinnedTotalVerticalController = _verticalScrollGroup.addAndGet();
+
+    if (widget.masterData?.configObjects != null &&
+        widget.masterData!.configObjects.isNotEmpty) {
+      _populateConfigNames(widget.masterData!.configObjects);
+    }
 
     fetchZoneLogApi();
   }
@@ -252,7 +302,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         "ProgramName",
         "IrrigationMethod",
         "IrrigationDuration_Quantity",
-        "IrrigationQuantityCompleted"
+        "IrrigationQuantityCompleted",
+        "SequenceData",
+        "CentralFertChannelName",
+        "CentralFertMethod",
+        "CentralFertilizerChannelDuration",
+        "CentralFertilizerChannelQuantity",
+        "CentralFertilizerChannel",
+        "LocalFertilizerChannel",
+        "LocalFertMethod",
+        "LocalFertilizerChannelDuration",
+        "LocalFertilizerChannelQuantity",
+        "LocalFertChannelName"
       ]
     };
 
@@ -261,16 +322,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     debugPrint('====================================');
 
     try {
+      await _fetchConfigNames();
       var response = await IrrigationRepository().getLogDateWise(body);
       debugPrint('ZONE LOG API RESPONSE CODE: ${response.statusCode}');
 
       Map<String, dynamic> jsonData = jsonDecode(response.body);
       if (jsonData['code'] == 200 && jsonData['data'] != null) {
         _parseZoneApiResponse(jsonData['data']);
+        _parseCumulativeApiResponse(jsonData['data']);
       } else {
         if (mounted) {
           setState(() {
             _sequenceRows = [];
+            _cumulativeRows = [];
+            _cumulativeDropdownOptions = ['All Channels'];
+            _selectedCumulativeFilter = 'All Channels';
             _dateColumns = [];
           });
         }
@@ -281,6 +347,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       if (mounted) {
         setState(() {
           _sequenceRows = [];
+          _cumulativeRows = [];
+          _cumulativeDropdownOptions = ['All Channels'];
+          _selectedCumulativeFilter = 'All Channels';
           _dateColumns = [];
         });
       }
@@ -625,6 +694,493 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         .toList();
   }
 
+  List<CumulativeRowData> _getFilteredCumulativeRows() {
+    if (_selectedCumulativeFilter == 'All Channels' ||
+        _selectedCumulativeFilter == 'All' ||
+        _selectedCumulativeFilter.isEmpty) {
+      return _cumulativeRows;
+    }
+    return _cumulativeRows.where((r) {
+      if (r.channelCategory == _selectedCumulativeFilter) return true;
+      if (r.channelName == _selectedCumulativeFilter) return true;
+      String fullName = "${r.channelCategory} - ${r.channelName}";
+      if (fullName == _selectedCumulativeFilter) return true;
+      return false;
+    }).toList();
+  }
+
+  void _populateConfigNames(List<dynamic> objs) {
+    _fertilizerChannelsFromConfig.clear();
+    for (var item in objs) {
+      if (item is Map) {
+        var sNo = item['sNo'];
+        String name = (item['name'] ?? '').toString();
+        int objectId = item['objectId'] is int
+            ? item['objectId']
+            : int.tryParse(item['objectId']?.toString() ?? '') ?? 0;
+        String objectName = (item['objectName'] ?? '').toString();
+
+        if (sNo != null && name.isNotEmpty) {
+          _channelNameMap[sNo.toString()] = name;
+          var sNum = num.tryParse(sNo.toString());
+          if (sNum != null) {
+            _channelNameMap[sNum.toInt().toString()] = name;
+            _channelNameMap[sNum.toDouble().toString()] = name;
+            _channelNameMap[sNum.toStringAsFixed(3)] = name;
+          }
+        }
+
+        if (objectId == AppConstants.channelObjectId ||
+            objectName.toLowerCase().contains('channel')) {
+          _fertilizerChannelsFromConfig.add(Map<String, dynamic>.from(item));
+        }
+      } else if (item is ConfigObject) {
+        _channelNameMap[item.sNo.toString()] = item.name;
+        _channelNameMap[item.sNo.toInt().toString()] = item.name;
+        _channelNameMap[item.sNo.toStringAsFixed(3)] = item.name;
+        if (item.objectId == AppConstants.channelObjectId ||
+            item.objectName.toLowerCase().contains('channel')) {
+          _fertilizerChannelsFromConfig.add({
+            'objectId': item.objectId,
+            'sNo': item.sNo,
+            'name': item.name,
+            'objectName': item.objectName,
+          });
+        }
+      }
+    }
+
+    _fertilizerChannelsFromConfig.sort((a, b) {
+      double sA = (a['sNo'] is num)
+          ? (a['sNo'] as num).toDouble()
+          : double.tryParse(a['sNo']?.toString() ?? '0') ?? 0;
+      double sB = (b['sNo'] is num)
+          ? (b['sNo'] as num).toDouble()
+          : double.tryParse(b['sNo']?.toString() ?? '0') ?? 0;
+      return sA.compareTo(sB);
+    });
+  }
+
+  Future<void> _fetchConfigNames() async {
+    try {
+      var body = {
+        "userId": widget.userData['customerId'] ?? 1002,
+        "controllerId": widget.userData['controllerId'] ?? 3382,
+      };
+      var response = await IrrigationRepository().getUserNames(body);
+      if (response.statusCode == 200) {
+        Map<String, dynamic> configJson = jsonDecode(response.body);
+        if (configJson['code'] == 200 && configJson['data'] != null) {
+          var objs = configJson['data']['configObject'];
+          if (objs is List) {
+            _populateConfigNames(objs);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching config names: $e");
+    }
+  }
+
+  void _parseCumulativeApiResponse(Map<String, dynamic> responseData) {
+    Map<String, CumulativeRowData> rowsMap = {};
+
+    // Parse log entries using CentralFertilizerChannel and LocalFertilizerChannel
+    if (responseData['log'] != null && responseData['log'] is List) {
+      List logs = responseData['log'];
+
+      for (var logEntry in logs) {
+        String rawLogDate = logEntry['logDate'] ?? '';
+        if (rawLogDate.isEmpty) continue;
+
+        DateTime parsedDate;
+        try {
+          parsedDate = DateFormat('yyyy-MM-dd').parse(rawLogDate);
+        } catch (_) {
+          parsedDate = DateTime.now();
+        }
+
+        var irrigation = logEntry['irrigation'];
+        if (irrigation == null) continue;
+
+        List recordDates = irrigation['Date'] ?? [];
+        List programSNos = irrigation['ProgramS_No'] ?? [];
+
+        List centralDurations = [];
+        if (irrigation['CentralFertilizerChannelDuration'] is List) {
+          centralDurations = irrigation['CentralFertilizerChannelDuration'];
+        } else if (irrigation['CentralFertilizerChannelDuration'] != null) {
+          centralDurations = [irrigation['CentralFertilizerChannelDuration']];
+        }
+
+        List centralQuantities = [];
+        if (irrigation['CentralFertilizerChannelQuantity'] is List) {
+          centralQuantities = irrigation['CentralFertilizerChannelQuantity'];
+        } else if (irrigation['CentralFertilizerChannelQuantity'] != null) {
+          centralQuantities = [irrigation['CentralFertilizerChannelQuantity']];
+        }
+
+        List centralChannels = [];
+        if (irrigation['CentralFertilizerChannel'] is List) {
+          centralChannels = irrigation['CentralFertilizerChannel'];
+        } else if (irrigation['CentralFertilizerChannel'] != null) {
+          centralChannels = [irrigation['CentralFertilizerChannel']];
+        }
+
+        List centralNames = [];
+        if (irrigation['CentralFertChannelName'] is List) {
+          centralNames = irrigation['CentralFertChannelName'];
+        } else if (irrigation['CentralFertChannelName'] != null) {
+          centralNames = [irrigation['CentralFertChannelName']];
+        }
+
+        List localDurations = [];
+        if (irrigation['LocalFertilizerChannelDuration'] is List) {
+          localDurations = irrigation['LocalFertilizerChannelDuration'];
+        } else if (irrigation['LocalFertilizerChannelDuration'] != null) {
+          localDurations = [irrigation['LocalFertilizerChannelDuration']];
+        }
+
+        List localQuantities = [];
+        if (irrigation['LocalFertilizerChannelQuantity'] is List) {
+          localQuantities = irrigation['LocalFertilizerChannelQuantity'];
+        } else if (irrigation['LocalFertilizerChannelQuantity'] != null) {
+          localQuantities = [irrigation['LocalFertilizerChannelQuantity']];
+        }
+
+        List localChannels = [];
+        if (irrigation['LocalFertilizerChannel'] is List) {
+          localChannels = irrigation['LocalFertilizerChannel'];
+        } else if (irrigation['LocalFertilizerChannel'] != null) {
+          localChannels = [irrigation['LocalFertilizerChannel']];
+        }
+
+        List localNames = [];
+        if (irrigation['LocalFertChannelName'] is List) {
+          localNames = irrigation['LocalFertChannelName'];
+        } else if (irrigation['LocalFertChannelName'] != null) {
+          localNames = [irrigation['LocalFertChannelName']];
+        }
+
+        int baseLength = [
+          recordDates.length,
+          programSNos.length,
+          centralChannels.length,
+          centralDurations.length,
+          centralQuantities.length,
+          localChannels.length,
+          localDurations.length,
+          localQuantities.length,
+        ].fold(0, (max, len) => len > max ? len : max);
+
+        if (baseLength == 0) baseLength = 1;
+
+        for (int i = 0; i < baseLength; i++) {
+          String itemDateStr = (i < recordDates.length &&
+                  recordDates[i] != null &&
+                  recordDates[i].toString().isNotEmpty)
+              ? recordDates[i].toString()
+              : rawLogDate;
+
+          DateTime itemParsedDate;
+          try {
+            itemParsedDate = DateFormat('yyyy-MM-dd').parse(itemDateStr);
+          } catch (_) {
+            itemParsedDate = parsedDate;
+          }
+          String itemDateKey = DateFormat('yyyy-MM-dd').format(itemParsedDate);
+
+          // Central Fertilizer
+          dynamic cChanVal = (i < centralChannels.length)
+              ? centralChannels[i]
+              : (centralChannels.isNotEmpty ? centralChannels[0] : null);
+          dynamic cDurVal = (i < centralDurations.length)
+              ? centralDurations[i]
+              : (centralDurations.isNotEmpty ? centralDurations[0] : null);
+          dynamic cQtyVal = (i < centralQuantities.length)
+              ? centralQuantities[i]
+              : (centralQuantities.isNotEmpty ? centralQuantities[0] : null);
+          dynamic cNameVal = (i < centralNames.length)
+              ? centralNames[i]
+              : (centralNames.isNotEmpty ? centralNames[0] : null);
+
+          _processFertilizerChannels(
+            rowsMap: rowsMap,
+            itemDateKey: itemDateKey,
+            isCentral: true,
+            chanVal: cChanVal,
+            durVal: cDurVal,
+            qtyVal: cQtyVal,
+            nameVal: cNameVal,
+          );
+
+          // Local Fertilizer
+          dynamic lChanVal = (i < localChannels.length)
+              ? localChannels[i]
+              : (localChannels.isNotEmpty ? localChannels[0] : null);
+          dynamic lDurVal = (i < localDurations.length)
+              ? localDurations[i]
+              : (localDurations.isNotEmpty ? localDurations[0] : null);
+          dynamic lQtyVal = (i < localQuantities.length)
+              ? localQuantities[i]
+              : (localQuantities.isNotEmpty ? localQuantities[0] : null);
+          dynamic lNameVal = (i < localNames.length)
+              ? localNames[i]
+              : (localNames.isNotEmpty ? localNames[0] : null);
+
+          _processFertilizerChannels(
+            rowsMap: rowsMap,
+            itemDateKey: itemDateKey,
+            isCentral: false,
+            chanVal: lChanVal,
+            durVal: lDurVal,
+            qtyVal: lQtyVal,
+            nameVal: lNameVal,
+          );
+        }
+      }
+    }
+
+    // Calculate total duration and quantity per row
+    List<CumulativeRowData> rows = rowsMap.values.toList();
+    for (var r in rows) {
+      int sumSec = 0;
+      num sumQty = 0;
+      for (var d in r.dayEntries.values) {
+        sumSec += d.durationSeconds;
+        sumQty += d.quantity;
+      }
+      r.totalDurationSeconds = sumSec;
+      r.totalQuantity = sumQty;
+    }
+
+    // Sort rows: Central Fertilizer first, then Local Fertilizer, then by channelSNo
+    rows.sort((a, b) {
+      if (a.channelCategory != b.channelCategory) {
+        return a.channelCategory.compareTo(b.channelCategory);
+      }
+      return a.channelSNo.compareTo(b.channelSNo);
+    });
+
+    // Build dropdown options for Cumulative Log
+    Set<String> options = {'All Channels'};
+    Set<String> categories = {};
+    for (var r in rows) {
+      if (r.channelCategory.isNotEmpty) {
+        categories.add(r.channelCategory);
+      }
+    }
+    if (categories.length > 1) {
+      options.addAll(categories);
+    }
+    for (var r in rows) {
+      if (categories.length > 1) {
+        options.add("${r.channelCategory} - ${r.channelName}");
+      } else {
+        options.add(r.channelName);
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _cumulativeRows = rows;
+        _cumulativeDropdownOptions = options.toList();
+        if (!_cumulativeDropdownOptions.contains(_selectedCumulativeFilter)) {
+          _selectedCumulativeFilter = 'All Channels';
+        }
+      });
+    }
+  }
+
+  void _processFertilizerChannels({
+    required Map<String, CumulativeRowData> rowsMap,
+    required String itemDateKey,
+    required bool isCentral,
+    required dynamic chanVal,
+    required dynamic durVal,
+    required dynamic qtyVal,
+    required dynamic nameVal,
+  }) {
+    // 1. Extract channel sNos from chanVal (CentralFertilizerChannel or LocalFertilizerChannel)
+    List<String> chParts = [];
+    if (chanVal != null) {
+      if (chanVal is List) {
+        for (var e in chanVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              chParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              chParts.add(s);
+            }
+          }
+        }
+      } else {
+        String cv = chanVal.toString().trim();
+        if (cv.isNotEmpty) {
+          chParts = cv.split('_');
+        }
+      }
+    }
+    chParts = chParts.map((e) => e.trim()).toList();
+
+    // 2. Extract durations from durVal (CentralFertilizerChannelDuration or LocalFertilizerChannelDuration)
+    List<String> dParts = [];
+    if (durVal != null) {
+      if (durVal is List) {
+        for (var e in durVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              dParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              dParts.add(s);
+            }
+          }
+        }
+      } else {
+        String s = durVal.toString().trim();
+        if (s.isNotEmpty) {
+          dParts = s.split('_');
+        }
+      }
+    }
+    dParts = dParts.map((e) => e.trim()).toList();
+
+    // 3. Extract quantities from qtyVal (CentralFertilizerChannelQuantity or LocalFertilizerChannelQuantity)
+    List<String> qParts = [];
+    if (qtyVal != null) {
+      if (qtyVal is List) {
+        for (var e in qtyVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              qParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              qParts.add(s);
+            }
+          }
+        }
+      } else {
+        String s = qtyVal.toString().trim();
+        if (s.isNotEmpty) {
+          qParts = s.split('_');
+        }
+      }
+    }
+    qParts = qParts.map((e) => e.trim()).toList();
+
+    // 4. Extract names if any
+    List<String> nParts = [];
+    if (nameVal != null) {
+      if (nameVal is List) {
+        for (var e in nameVal) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.contains('_')) {
+              nParts.addAll(s.split('_'));
+            } else if (s.isNotEmpty) {
+              nParts.add(s);
+            }
+          }
+        }
+      } else {
+        String s = nameVal.toString().trim();
+        if (s.isNotEmpty) {
+          nParts = s.split('_');
+        }
+      }
+    }
+    nParts = nParts.map((e) => e.trim()).toList();
+
+    if (chParts.isEmpty) return;
+
+    for (int chIdx = 0; chIdx < chParts.length; chIdx++) {
+      String explicitSNo = chParts[chIdx];
+      if (explicitSNo.isEmpty || explicitSNo == '_') continue;
+
+      double? parsedSNo = double.tryParse(explicitSNo);
+      if (parsedSNo == null) continue;
+
+      double sNoVal = parsedSNo;
+      String sNoStr = sNoVal.toStringAsFixed(3);
+
+      String d = chIdx < dParts.length ? dParts[chIdx] : '';
+      String q = chIdx < qParts.length ? qParts[chIdx] : '';
+      String explicitName = chIdx < nParts.length ? nParts[chIdx] : '';
+
+      int durSec = _parseDurationToSeconds(d);
+      num qtyValNum = num.tryParse(q) ?? 0;
+
+      // Determine display name (matching from configmaker / names)
+      String channelName = '';
+      if (explicitName.isNotEmpty && explicitName != '_') {
+        channelName = explicitName;
+      } else if (_channelNameMap.containsKey(sNoStr) &&
+          _channelNameMap[sNoStr]!.isNotEmpty) {
+        channelName = _channelNameMap[sNoStr]!;
+      } else if (_channelNameMap.containsKey(sNoVal.toString()) &&
+          _channelNameMap[sNoVal.toString()]!.isNotEmpty) {
+        channelName = _channelNameMap[sNoVal.toString()]!;
+      } else {
+        int sInt = sNoVal.toInt();
+        if (_channelNameMap.containsKey(sInt.toString()) &&
+            _channelNameMap[sInt.toString()]!.isNotEmpty) {
+          channelName = _channelNameMap[sInt.toString()]!;
+        } else {
+          // Look up in _fertilizerChannelsFromConfig
+          Map<String, dynamic>? match;
+          for (var c in _fertilizerChannelsFromConfig) {
+            if (c['sNo'] != null) {
+              String cSNo = c['sNo'].toString();
+              if (cSNo == sNoStr ||
+                  cSNo == sNoVal.toString() ||
+                  double.tryParse(cSNo) == sNoVal) {
+                match = c;
+                break;
+              }
+            }
+          }
+          if (match != null &&
+              match['name'] != null &&
+              match['name'].toString().isNotEmpty) {
+            channelName = match['name'].toString();
+          } else {
+            channelName = isCentral
+                ? "Channel ${chIdx + 1}"
+                : "Local Channel ${chIdx + 1}";
+          }
+        }
+      }
+
+      String category = isCentral ? "Central Fertilizer" : "Local Fertilizer";
+      String rowKey = "${isCentral ? 'C' : 'L'}_$sNoStr";
+
+      CumulativeRowData row = rowsMap.putIfAbsent(
+        rowKey,
+        () => CumulativeRowData(
+          key: rowKey,
+          channelName: channelName,
+          channelCategory: category,
+          channelSNo: sNoVal,
+          dayEntries: {},
+        ),
+      );
+
+      CumulativeDayData dayData = row.dayEntries.putIfAbsent(
+        itemDateKey,
+        () => CumulativeDayData(),
+      );
+
+      // Duplicate value sum for same day
+      dayData.durationSeconds += durSec;
+      dayData.quantity += qtyValNum;
+      if (durSec > 0 || qtyValNum > 0) {
+        dayData.hasRun = true;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -644,11 +1200,15 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               const SizedBox(height: 10),
               // Date Navigation Banner
               _buildDateNavigationBanner(context, primaryDark),
-              // Multi-Day Matrix Table or Graph View
+              // Multi-Day Matrix Table, Graph View, or Cumulative Log View
               Expanded(
-                child: _selectedViewTab == 0
-                    ? _buildMultiDayMatrixTable(context)
-                    : _buildZoneLogGraphView(context),
+                child: _selectedLogTypeTab == 1
+                    ? (_selectedViewTab == 0
+                        ? _buildCumulativeLogMatrixTable(context)
+                        : _buildCumulativeLogGraphView(context))
+                    : (_selectedViewTab == 0
+                        ? _buildMultiDayMatrixTable(context)
+                        : _buildZoneLogGraphView(context)),
               ),
             ],
           ),
@@ -659,6 +1219,80 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Future<void> _handleExcelExport(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    if (_selectedLogTypeTab == 1) {
+      var activeRows = _getFilteredCumulativeRows();
+      if (_dateColumns.isEmpty || activeRows.isEmpty) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "No records available to export"),
+        );
+        return;
+      }
+
+      Map<String, int> dailyTotals = {};
+      Map<String, int> dailyTotalQuantities = {};
+      int grandTotalSeconds = 0;
+      int grandTotalQuantity = 0;
+      for (var d in _dateColumns) {
+        String dKey = DateFormat('yyyy-MM-dd').format(d);
+        int daySum = 0;
+        int dayQty = 0;
+        for (var r in activeRows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            daySum += r.dayEntries[dKey]!.durationSeconds;
+            dayQty += r.dayEntries[dKey]!.quantity.toInt();
+          }
+        }
+        dailyTotals[dKey] = daySum;
+        dailyTotalQuantities[dKey] = dayQty;
+        grandTotalSeconds += daySum;
+        grandTotalQuantity += dayQty;
+      }
+
+      List<SequenceRowData> exportRows = activeRows.map((c) {
+        Map<String, SequenceDayData> dayEntries = {};
+        c.dayEntries.forEach((k, v) {
+          dayEntries[k] = SequenceDayData(
+            durationQtySeconds: v.durationSeconds,
+            quantityCompleted: v.quantity.toInt(),
+            hasRun: v.hasRun,
+          );
+        });
+        return SequenceRowData(
+          key: c.key,
+          progName: c.channelCategory,
+          progSNo: 1,
+          seqName: c.channelName,
+          dayEntries: dayEntries,
+          totalDurationSeconds: c.totalDurationSeconds,
+          totalQuantity: c.totalQuantity.toInt(),
+        );
+      }).toList();
+
+      String fileName =
+          "CHANNELLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+
+      String? res = await exportZoneLogMatrixToExcel(
+        dateColumns: _dateColumns,
+        rows: exportRows,
+        dailyTotals: dailyTotals,
+        dailyTotalQuantities: dailyTotalQuantities,
+        grandTotalSeconds: grandTotalSeconds,
+        grandTotalQuantity: grandTotalQuantity,
+        fileName: fileName,
+      );
+
+      if (res != null) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Excel downloaded successfully: $res"),
+        );
+      } else {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Failed to export Excel"),
+        );
+      }
+      return;
+    }
+
     var filteredRows = _getFilteredSequenceRows();
     if (_dateColumns.isEmpty || filteredRows.isEmpty) {
       messenger.showSnackBar(
@@ -814,14 +1448,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            border: Border.all(
-                                color: const Color(0xFFCBD5E1)),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
                             borderRadius: BorderRadius.circular(6),
                             color: Colors.white,
                           ),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
                                 child: Text(
@@ -840,59 +1472,62 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Row 2: Program Filter & Excel Button
+                // Row 2: Program Filter (only for Zone Log tab) & Excel Button
                 Row(
                   children: [
-                    // Program Dropdown
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Text("Program",
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Container(
-                              height: 36,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6),
-                              decoration: BoxDecoration(
-                                border:
-                                    Border.all(color: const Color(0xFFCBD5E1)),
-                                borderRadius: BorderRadius.circular(6),
-                                color: Colors.white,
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _programDropdownOptions
-                                          .contains(_selectedProgramFilter)
-                                      ? _selectedProgramFilter
-                                      : 'All Programs',
-                                  isDense: true,
-                                  isExpanded: true,
-                                  items: _programDropdownOptions
-                                      .map((e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                  fontSize: 11.5))))
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setState(() {
-                                        _selectedProgramFilter = val;
-                                      });
-                                    }
-                                  },
+                    if (_selectedLogTypeTab == 0) ...[
+                      // Program Dropdown
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Text("Program",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Container(
+                                height: 36,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _programDropdownOptions
+                                            .contains(_selectedProgramFilter)
+                                        ? _selectedProgramFilter
+                                        : 'All Programs',
+                                    isDense: true,
+                                    isExpanded: true,
+                                    items: _programDropdownOptions
+                                        .map((e) => DropdownMenuItem(
+                                            value: e,
+                                            child: Text(e,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                    fontSize: 11.5))))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
+                                          _selectedProgramFilter = val;
+                                        });
+                                      }
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
+                      const SizedBox(width: 6),
+                    ] else
+                      const Spacer(),
                     // Excel Button
                     OutlinedButton(
                       style: OutlinedButton.styleFrom(
@@ -965,47 +1600,48 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ),
                 ],
               ),
-              // Program Filter Dropdown
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text("Program",
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(width: 8),
-                  Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                      borderRadius: BorderRadius.circular(6),
-                      color: Colors.white,
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _programDropdownOptions
-                                .contains(_selectedProgramFilter)
-                            ? _selectedProgramFilter
-                            : 'All Programs',
-                        isDense: true,
-                        items: _programDropdownOptions
-                            .map((e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e,
-                                    style: const TextStyle(fontSize: 13))))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedProgramFilter = val;
-                            });
-                          }
-                        },
+              // Program Filter Dropdown (only for Zone Log tab)
+              if (_selectedLogTypeTab == 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Program",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.white,
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _programDropdownOptions
+                                  .contains(_selectedProgramFilter)
+                              ? _selectedProgramFilter
+                              : 'All Programs',
+                          isDense: true,
+                          items: _programDropdownOptions
+                              .map((e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(e,
+                                      style: const TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedProgramFilter = val;
+                              });
+                            }
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
               // Excel Export Button
               Row(
@@ -1070,7 +1706,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               //     ),
               //   ],
               // ),
-              // Table View & Graph View Toggle Tabs
+              // Left side: View tabs (Table View / Graph View)
               Container(
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.25),
@@ -1192,6 +1828,1792 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
               ),
+
+              // Zone Log & Cumulative Log Toggle Tabs (Right Corner)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        if (_selectedLogTypeTab != 0) {
+                          setState(() {
+                            _selectedLogTypeTab = 0;
+                          });
+                          if (_verticalScrollController.hasClients) {
+                            _verticalScrollController.jumpTo(0);
+                          }
+                          if (_horizontalScrollController.hasClients) {
+                            _horizontalScrollController.jumpTo(0);
+                          }
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedLogTypeTab == 0
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: _selectedLogTypeTab == 0
+                              ? const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          "Zone Log",
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: _selectedLogTypeTab == 0
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: _selectedLogTypeTab == 0
+                                ? const Color(0xFF00695C)
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    InkWell(
+                      onTap: () {
+                        if (_selectedLogTypeTab != 1) {
+                          setState(() {
+                            _selectedLogTypeTab = 1;
+                            _selectedCumulativeFilter = 'All Channels';
+                          });
+                          if (_verticalScrollController.hasClients) {
+                            _verticalScrollController.jumpTo(0);
+                          }
+                          if (_horizontalScrollController.hasClients) {
+                            _horizontalScrollController.jumpTo(0);
+                          }
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedLogTypeTab == 1
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: _selectedLogTypeTab == 1
+                              ? const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          "Channel Log",
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: _selectedLogTypeTab == 1
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: _selectedLogTypeTab == 1
+                                ? const Color(0xFF00695C)
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCumulativeLogMatrixTable(BuildContext context) {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(40.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    var rows = _getFilteredCumulativeRows();
+
+    if (_dateColumns.isEmpty || rows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            "No data",
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Calculate daily total durations and quantities for cumulative channels
+    Map<String, int> dailyTotals = {};
+    Map<String, num> dailyTotalQuantities = {};
+    int grandTotalSeconds = 0;
+    num grandTotalQuantity = 0;
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      int daySum = 0;
+      num dayQty = 0;
+      for (var r in rows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          daySum += r.dayEntries[dKey]!.durationSeconds;
+          dayQty += r.dayEntries[dKey]!.quantity;
+        }
+      }
+      dailyTotals[dKey] = daySum;
+      dailyTotalQuantities[dKey] = dayQty;
+      grandTotalSeconds += daySum;
+      grandTotalQuantity += dayQty;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableWidth = constraints.maxWidth;
+        final bool isMobile = availableWidth < 650;
+
+        if (isMobile) {
+          return _buildMobileCumulativeMatrixTable(
+            context,
+            rows,
+            dailyTotals,
+            dailyTotalQuantities,
+            grandTotalSeconds,
+            grandTotalQuantity,
+          );
+        }
+
+        // Base Column Widths
+        const double baseSeqWidth = 160;
+        const double baseDateColWidth = 145;
+        const double baseTotalWidth = 145;
+
+        final double naturalTableWidth = baseSeqWidth +
+            (_dateColumns.length * baseDateColWidth) +
+            baseTotalWidth;
+
+        final double scale =
+            (availableWidth > naturalTableWidth && naturalTableWidth > 0)
+                ? (availableWidth / naturalTableWidth)
+                : 1.0;
+
+        final double colSeqWidth = baseSeqWidth * scale;
+        final double colDateWidth = baseDateColWidth * scale;
+        final double colTotalWidth = baseTotalWidth * scale;
+        final double dateAreaWidth = colDateWidth * _dateColumns.length;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFCBD5E1)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 2,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // 1. PINNED LEFT CHANNEL COLUMN
+              Container(
+                width: colSeqWidth,
+                height: constraints.maxHeight,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 4,
+                      offset: Offset(2, 0),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Top Header: Fertilizer Channel
+                    Container(
+                      width: colSeqWidth,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00695C),
+                        border: Border(
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        ),
+                      ),
+                      child: const Text(
+                        "Fertilizer Channel",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    // Sub-Header
+                    _buildSubHeaderCell("Fertilizer\nChannel", colSeqWidth),
+
+                    // Middle Data Rows (Synchronized vertically)
+                    Expanded(
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          dragDevices: {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.mouse,
+                            PointerDeviceKind.trackpad,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        child: SingleChildScrollView(
+                          controller: _pinnedLeftVerticalController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            children: [
+                              for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                                _buildPinnedLeftCumulativeRow(
+                                  rows[rIdx],
+                                  rIdx,
+                                  colSeqWidth,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Footer: Total Label
+                    Container(
+                      width: colSeqWidth,
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF0FDF4),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                        ),
+                      ),
+                      child: const Text(
+                        "Total",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF166534),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // 2. DATE COLUMNS AREA
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                    },
+                  ),
+                  child: RawScrollbar(
+                    controller: _horizontalScrollController,
+                    thumbVisibility: true,
+                    trackVisibility: true,
+                    thickness: 8.0,
+                    radius: const Radius.circular(4),
+                    thumbColor: const Color(0x9900695C),
+                    trackColor: const Color(0xFFE2E8F0),
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: SingleChildScrollView(
+                      controller: _horizontalScrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      child: SizedBox(
+                        width: dateAreaWidth,
+                        height: constraints.maxHeight,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // TOP HEADER ROW (Yellow Date Headers)
+                            Row(
+                              children: [
+                                for (int dIdx = 0;
+                                    dIdx < _dateColumns.length;
+                                    dIdx++)
+                                  Container(
+                                    width: colDateWidth,
+                                    height: 38,
+                                    alignment: Alignment.center,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF5B800),
+                                      border: Border(
+                                        right: BorderSide(
+                                            color: Color(0xFFE2E8F0), width: 1),
+                                        bottom: BorderSide(
+                                            color: Color(0xFFE2E8F0), width: 1),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      DateFormat('dd/MM/yyyy (E)')
+                                          .format(_dateColumns[dIdx]),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                            // SUB-HEADER ROW: Duration / Quantity per date
+                            Row(
+                              children: [
+                                for (int dIdx = 0;
+                                    dIdx < _dateColumns.length;
+                                    dIdx++)
+                                  _buildSubHeaderCell(
+                                      "Duration /\nQuantity", colDateWidth),
+                              ],
+                            ),
+
+                            // SCROLLABLE DATE DATA ROWS
+                            Expanded(
+                              child: ScrollConfiguration(
+                                behavior:
+                                    ScrollConfiguration.of(context).copyWith(
+                                  dragDevices: {
+                                    PointerDeviceKind.touch,
+                                    PointerDeviceKind.mouse,
+                                    PointerDeviceKind.trackpad,
+                                    PointerDeviceKind.stylus,
+                                  },
+                                ),
+                                child: RawScrollbar(
+                                  controller: _verticalScrollController,
+                                  thumbVisibility: true,
+                                  trackVisibility: true,
+                                  thickness: 6.0,
+                                  radius: const Radius.circular(3),
+                                  thumbColor: const Color(0xFF94A3B8),
+                                  child: SingleChildScrollView(
+                                    controller: _verticalScrollController,
+                                    scrollDirection: Axis.vertical,
+                                    physics: const ClampingScrollPhysics(),
+                                    child: Column(
+                                      children: [
+                                        for (int rIdx = 0;
+                                            rIdx < rows.length;
+                                            rIdx++)
+                                          Container(
+                                            decoration: BoxDecoration(
+                                              color: rIdx % 2 == 0
+                                                  ? Colors.white
+                                                  : const Color(0xFFF8FAFC),
+                                              border: const Border(
+                                                bottom: BorderSide(
+                                                    color: Color(0xFFE2E8F0),
+                                                    width: 1),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                for (int dIdx = 0;
+                                                    dIdx < _dateColumns.length;
+                                                    dIdx++)
+                                                  _buildDateCumulativeBlock(
+                                                    rows[rIdx],
+                                                    _dateColumns[dIdx],
+                                                    colDateWidth,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // FOOTER / DAILY TOTAL ROW
+                            _buildDailyCumulativeFooterTotalRow(
+                              dailyTotals,
+                              dailyTotalQuantities,
+                              colDateWidth,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 3. PINNED RIGHT TOTAL COLUMN
+              Container(
+                width: colTotalWidth,
+                height: constraints.maxHeight,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    left: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 4,
+                      offset: Offset(-2, 0),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Top Header: Total
+                    Container(
+                      width: double.infinity,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF97316),
+                        border: Border(
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        ),
+                      ),
+                      child: const Text(
+                        "Total",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    // Sub-Header
+                    _buildSubHeaderCell("Duration /\nQuantity", colTotalWidth,
+                        isTotalCol: true),
+
+                    // Middle Data Rows (Synchronized vertically)
+                    Expanded(
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          dragDevices: {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.mouse,
+                            PointerDeviceKind.trackpad,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        child: SingleChildScrollView(
+                          controller: _pinnedTotalVerticalController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            children: [
+                              for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                                _buildPinnedCumulativeTotalRow(
+                                  rows[rIdx],
+                                  rIdx,
+                                  colTotalWidth,
+                                  isPinned: true,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Footer: Grand Total
+                    Container(
+                      width: colTotalWidth,
+                      height: 46,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFDCFCE7),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                        ),
+                      ),
+                      child: Text(
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF15803D),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMobileCumulativeMatrixTable(
+    BuildContext context,
+    List<CumulativeRowData> rows,
+    Map<String, int> dailyTotals,
+    Map<String, num> dailyTotalQuantities,
+    int grandTotalSeconds,
+    num grandTotalQuantity,
+  ) {
+    const double colSeqWidth = 140;
+    const double colDateWidth = 130;
+    const double colTotalWidth = 130;
+    final double totalTableWidth =
+        colSeqWidth + (_dateColumns.length * colDateWidth) + colTotalWidth;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+          },
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const ClampingScrollPhysics(),
+          child: SizedBox(
+            width: totalTableWidth,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. TOP HEADER ROW
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: colSeqWidth,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00695C),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          ),
+                        ),
+                        child: const Text(
+                          "Fertilizer Channel",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        Container(
+                          width: colDateWidth,
+                          height: 38,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF5B800),
+                            border: Border(
+                              right: BorderSide(
+                                  color: Color(0xFFE2E8F0), width: 1),
+                              bottom: BorderSide(
+                                  color: Color(0xFFE2E8F0), width: 1),
+                            ),
+                          ),
+                          child: Text(
+                            DateFormat('dd/MM/yyyy (E)')
+                                .format(_dateColumns[dIdx]),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                      Container(
+                        width: colTotalWidth,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF97316),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          ),
+                        ),
+                        child: const Text(
+                          "Total",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // 2. SUB-HEADER ROW
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildSubHeaderCell("Fertilizer\nChannel", colSeqWidth),
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        _buildSubHeaderCell(
+                            "Duration /\nQuantity", colDateWidth),
+                      _buildSubHeaderCell(
+                          "Total\nDuration /\nQuantity", colTotalWidth,
+                          isTotalCol: true),
+                    ],
+                  ),
+
+                  // 3. DATA ROWS
+                  for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                    _buildMobileCumulativeDataRow(
+                      rows[rIdx],
+                      rIdx,
+                      colSeqWidth,
+                      colDateWidth,
+                      colTotalWidth,
+                    ),
+
+                  // 4. FOOTER TOTAL ROW
+                  _buildMobileCumulativeFooterTotalRow(
+                    dailyTotals,
+                    dailyTotalQuantities,
+                    grandTotalSeconds,
+                    grandTotalQuantity,
+                    colSeqWidth,
+                    colDateWidth,
+                    colTotalWidth,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileCumulativeDataRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colSeqWidth,
+    double colDateWidth,
+    double colTotalWidth,
+  ) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPinnedLeftCumulativeRow(row, rowIndex, colSeqWidth),
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            _buildDateCumulativeBlock(
+              row,
+              _dateColumns[dIdx],
+              colDateWidth,
+            ),
+          _buildPinnedCumulativeTotalRow(
+            row,
+            rowIndex,
+            colTotalWidth,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileCumulativeFooterTotalRow(
+    Map<String, int> dailyTotals,
+    Map<String, num> dailyTotalQuantities,
+    int grandTotalSeconds,
+    num grandTotalQuantity,
+    double colSeqWidth,
+    double colDateWidth,
+    double colTotalWidth,
+  ) {
+    return Container(
+      height: 46,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0FDF4),
+        border: Border(
+          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: colSeqWidth,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              border: Border(
+                right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+              ),
+            ),
+            child: const Text(
+              "Total",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF166534),
+              ),
+            ),
+          ),
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            Builder(builder: (context) {
+              String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
+              int daySumSec = dailyTotals[dKey] ?? 0;
+              num daySumQty = dailyTotalQuantities[dKey] ?? 0;
+              String dayTotalFormatted = _formatDuration(daySumSec);
+              String qtyStr = daySumQty > 0
+                  ? (daySumQty % 1 == 0
+                      ? daySumQty.toInt().toString()
+                      : daySumQty.toString())
+                  : '-';
+
+              return Container(
+                width: colDateWidth,
+                height: 46,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                  ),
+                ),
+                child: Text(
+                  "$dayTotalFormatted /\n$qtyStr",
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF166534),
+                  ),
+                ),
+              );
+            }),
+          Container(
+            width: colTotalWidth,
+            height: 46,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: const BoxDecoration(
+              color: Color(0xFFDCFCE7),
+            ),
+            child: Text(
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF15803D),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPinnedLeftCumulativeRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colWidth,
+  ) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+    return Container(
+      width: colWidth,
+      height: 52,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            row.channelCategory,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF1E293B),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
+            ),
+            child: Text(
+              row.channelName,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateCumulativeBlock(
+    CumulativeRowData row,
+    DateTime date,
+    double colDateWidth,
+  ) {
+    String dKey = DateFormat('yyyy-MM-dd').format(date);
+    CumulativeDayData? dayData = row.dayEntries[dKey];
+
+    String cellText;
+    bool isBold = false;
+    if (dayData != null && dayData.hasRun) {
+      String dur = dayData.durationStr;
+      String qty = dayData.qtyStr;
+      cellText = "$dur /\n$qty";
+      isBold = dur != '00:00:00' || qty != '-';
+    } else {
+      cellText = "- /\n-";
+    }
+
+    return _buildDataTableCell(
+      cellText,
+      colDateWidth,
+      isBold: isBold,
+      maxLines: 2,
+    );
+  }
+
+  Widget _buildPinnedCumulativeTotalRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colTotalWidth, {
+    bool isPinned = false,
+  }) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+    String qtyStr = row.totalQuantity > 0
+        ? (row.totalQuantity % 1 == 0
+            ? row.totalQuantity.toInt().toString()
+            : row.totalQuantity.toString())
+        : '-';
+    String formattedText =
+        "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr";
+
+    return Container(
+      width: colTotalWidth,
+      height: 52,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Text(
+        formattedText,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF15803D),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyCumulativeFooterTotalRow(
+    Map<String, int> dailyTotals,
+    Map<String, num> dailyTotalQuantities,
+    double colDateWidth,
+  ) {
+    return Container(
+      height: 46,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0FDF4),
+        border: Border(
+          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            Builder(builder: (context) {
+              String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
+              int daySumSec = dailyTotals[dKey] ?? 0;
+              num daySumQty = dailyTotalQuantities[dKey] ?? 0;
+              String dayTotalFormatted = _formatDuration(daySumSec);
+              String qtyStr = daySumQty > 0
+                  ? (daySumQty % 1 == 0
+                      ? daySumQty.toInt().toString()
+                      : daySumQty.toString())
+                  : '-';
+
+              return Container(
+                width: colDateWidth,
+                height: 46,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                  ),
+                ),
+                child: Text(
+                  "$dayTotalFormatted /\n$qtyStr",
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF166534),
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCumulativeLogGraphView(BuildContext context) {
+    if (_isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(40.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    var filteredRows = _getFilteredCumulativeRows();
+
+    if (_dateColumns.isEmpty || filteredRows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            "No data available for graph",
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Totals calculation
+    int grandTotalSeconds = 0;
+    num grandTotalQuantity = 0;
+    for (var r in filteredRows) {
+      grandTotalSeconds += r.totalDurationSeconds;
+      grandTotalQuantity += r.totalQuantity;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              // 1. Metric Summary Cards
+              _buildGraphSummaryCards(
+                grandTotalSeconds: grandTotalSeconds,
+                grandTotalQuantity: grandTotalQuantity.toInt(),
+                totalSequences: filteredRows.length,
+                totalDays: _dateColumns.length,
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Chart Card with Mode / Type Selector
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Controls: Metric Selector & Type Selector
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Metric selector: Duration (mins) [Green] vs Quantity [Orange]
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildMetricTab(
+                                label: "Duration (mins)",
+                                icon: Icons.timer_outlined,
+                                activeColor: const Color(0xFF0D9488),
+                                isSelected: _selectedGraphMetric == 'Duration',
+                                onTap: () => setState(
+                                    () => _selectedGraphMetric = 'Duration'),
+                              ),
+                              _buildMetricTab(
+                                label: "Quantity",
+                                icon: Icons.water_drop_outlined,
+                                activeColor: const Color(0xFFF97316),
+                                isSelected: _selectedGraphMetric == 'Quantity',
+                                onTap: () => setState(
+                                    () => _selectedGraphMetric = 'Quantity'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Chart type selector
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildGraphTypeIcon(
+                                icon: Icons.bar_chart,
+                                tooltip: "Column Chart",
+                                isSelected: _graphChartType == 'Column',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Column'),
+                              ),
+                              _buildGraphTypeIcon(
+                                icon: Icons.show_chart,
+                                tooltip: "Line Chart",
+                                isSelected: _graphChartType == 'Spline',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Spline'),
+                              ),
+                              _buildGraphTypeIcon(
+                                icon: Icons.area_chart,
+                                tooltip: "Area Chart",
+                                isSelected: _graphChartType == 'Area',
+                                onTap: () =>
+                                    setState(() => _graphChartType = 'Area'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SfCartesianChart with horizontal scrolling for date range
+                    LayoutBuilder(
+                      builder: (context, chartConstraints) {
+                        const double minWidthPerDate = 45.0;
+                        final double totalCalculatedWidth =
+                            _dateColumns.length * minWidthPerDate;
+                        final double chartWidth = math.max(
+                            chartConstraints.maxWidth, totalCalculatedWidth);
+
+                        return ScrollConfiguration(
+                          behavior: ScrollConfiguration.of(context).copyWith(
+                            dragDevices: {
+                              PointerDeviceKind.touch,
+                              PointerDeviceKind.mouse,
+                              PointerDeviceKind.trackpad,
+                              PointerDeviceKind.stylus,
+                            },
+                          ),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: chartWidth,
+                              height: 320,
+                              child: _buildCumulativeSfChart(filteredRows),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // 3. Fertilizer Channel Breakdown Cards
+              Text(
+                "Fertilizer Channel Breakdown (${filteredRows.length})",
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              for (var row in filteredRows)
+                _buildCumulativeChannelBreakdownCard(
+                    row, grandTotalSeconds, grandTotalQuantity),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCumulativeSfChart(List<CumulativeRowData> rows) {
+    List<_ZoneChartPoint> dataPoints = [];
+
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      String label = DateFormat('dd/MM').format(d);
+      int sumSec = 0;
+      num sumQty = 0;
+      for (var r in rows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          sumSec += r.dayEntries[dKey]!.durationSeconds;
+          sumQty += r.dayEntries[dKey]!.quantity;
+        }
+      }
+      double durMinutes = sumSec / 60.0;
+      dataPoints.add(_ZoneChartPoint(
+        xLabel: label,
+        durationMinutes: durMinutes,
+        durationFormatted: _formatDuration(sumSec),
+        quantity: sumQty.toDouble(),
+      ));
+    }
+
+    final bool isDuration = _selectedGraphMetric == 'Duration';
+
+    return SfCartesianChart(
+      legend: const Legend(
+        isVisible: true,
+        toggleSeriesVisibility: false,
+        position: LegendPosition.top,
+        alignment: ChartAlignment.center,
+        textStyle: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF334155),
+        ),
+      ),
+      tooltipBehavior: TooltipBehavior(
+        enable: true,
+        shared: false,
+        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
+            int seriesIndex) {
+          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
+            return const SizedBox();
+          }
+          final p = dataPoints[pointIndex];
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.xLabel,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11.5),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isDuration
+                          ? Icons.timer_outlined
+                          : Icons.water_drop_outlined,
+                      size: 12,
+                      color: isDuration
+                          ? const Color(0xFF2DD4BF)
+                          : const Color(0xFFFB923C),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isDuration
+                          ? "Duration: ${p.durationFormatted}"
+                          : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? p.quantity.toInt().toString() : p.quantity.toString()) : '-'}",
+                      style: TextStyle(
+                        color: isDuration
+                            ? const Color(0xFF2DD4BF)
+                            : const Color(0xFFFB923C),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      primaryXAxis: CategoryAxis(
+        labelRotation: dataPoints.length > 7 ? -45 : 0,
+        labelStyle: const TextStyle(
+          fontSize: 10.5,
+          color: Color(0xFF64748B),
+          fontWeight: FontWeight.w500,
+        ),
+        majorGridLines: const MajorGridLines(width: 0),
+        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+      ),
+      primaryYAxis: NumericAxis(
+        title: AxisTitle(
+          text: isDuration ? "Duration (mins)" : "Quantity",
+          textStyle: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color:
+                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
+          ),
+        ),
+        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+        majorGridLines: const MajorGridLines(
+          color: Color(0xFFF1F5F9),
+          width: 1,
+        ),
+        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+      ),
+      series: _buildChartSeries(dataPoints, isDuration),
+    );
+  }
+
+  Widget _buildCumulativeChannelBreakdownCard(
+      CumulativeRowData row, int grandTotalSeconds, num grandTotalQuantity) {
+    bool isExpanded = _expandedBreakdownKeys.contains(row.key);
+
+    Widget toggleBtn = InkWell(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedBreakdownKeys.remove(row.key);
+          } else {
+            _expandedBreakdownKeys.add(row.key);
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+        ),
+        child: Icon(
+          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+          size: 16,
+          color: const Color(0xFFEA580C),
+        ),
+      ),
+    );
+
+    Widget durationBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0F2F1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_outlined, size: 11, color: Color(0xFF0F766E)),
+          const SizedBox(width: 3),
+          Text(
+            _formatDuration(row.totalDurationSeconds),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F766E),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    String qtyStr = row.totalQuantity > 0
+        ? (row.totalQuantity % 1 == 0
+            ? row.totalQuantity.toInt().toString()
+            : row.totalQuantity.toString())
+        : "-";
+
+    Widget quantityBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7ED),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.water_drop_outlined,
+              size: 11, color: Color(0xFFEA580C)),
+          const SizedBox(width: 3),
+          Text(
+            qtyStr,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFEA580C),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 460;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isNarrow) ...[
+                // Mobile: Row 1 = Channel Name + Category + Toggle
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: const Color(0xFFC8E6C9), width: 1),
+                      ),
+                      child: Text(
+                        row.channelName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    if (row.channelCategory.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "(${row.channelCategory})",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      const Spacer(),
+                    ],
+                    toggleBtn,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Mobile: Row 2 = Duration Badge & Quantity Badge
+                Row(
+                  children: [
+                    durationBadge,
+                    const SizedBox(width: 6),
+                    quantityBadge,
+                  ],
+                ),
+              ] else ...[
+                // Wide: Single Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: const Color(0xFFC8E6C9), width: 1),
+                            ),
+                            child: Text(
+                              row.channelName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ),
+                          if (row.channelCategory.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "(${row.channelCategory})",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        durationBadge,
+                        const SizedBox(width: 6),
+                        quantityBadge,
+                        const SizedBox(width: 6),
+                        toggleBtn,
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+
+              // Expanded Date-wise Duration, Quantity & Total breakdown
+              if (isExpanded) ...[
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F9),
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(5)),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Date",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Duration",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Quantity",
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Date Rows
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        Builder(builder: (context) {
+                          DateTime d = _dateColumns[dIdx];
+                          String dKey = DateFormat('yyyy-MM-dd').format(d);
+                          CumulativeDayData? dayData = row.dayEntries[dKey];
+
+                          bool hasRun = dayData != null && dayData.hasRun;
+                          int durSec = dayData?.durationSeconds ?? 0;
+                          num qty = dayData?.quantity ?? 0;
+
+                          String durStr = (hasRun && durSec > 0)
+                              ? _formatDuration(durSec)
+                              : (hasRun && dayData.durationStr != '00:00:00'
+                                  ? dayData.durationStr
+                                  : '-');
+                          String dayQtyStr = (hasRun && qty > 0)
+                              ? (qty % 1 == 0
+                                  ? qty.toInt().toString()
+                                  : qty.toString())
+                              : '-';
+
+                          Color rowBg = dIdx % 2 == 0
+                              ? Colors.white
+                              : const Color(0xFFF8FAFC);
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            color: rowBg,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    DateFormat('dd/MM/yyyy').format(d),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: hasRun
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: hasRun
+                                          ? const Color(0xFF1E293B)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    durStr,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: durStr != '-'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: durStr != '-'
+                                          ? const Color(0xFF0F766E)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    dayQtyStr,
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: dayQtyStr != '-'
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: dayQtyStr != '-'
+                                          ? const Color(0xFFEA580C)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      // Total Footer Row
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF0FDF4),
+                          borderRadius:
+                              BorderRadius.vertical(bottom: Radius.circular(5)),
+                          border: Border(
+                            top: BorderSide(
+                                color: Color(0xFFBBF7D0), width: 1.5),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Total",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF166534),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                _formatDuration(row.totalDurationSeconds),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                qtyStr,
+                                textAlign: TextAlign.right,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFEA580C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           );
         },
@@ -3116,7 +5538,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
               ],
-
 
               // Expanded Date-wise Duration, Quantity & Total breakdown
               if (isExpanded) ...[
