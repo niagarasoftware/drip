@@ -56,7 +56,7 @@ class FertigationSetup extends SiteSetupBase {
       final double maxWaterX = nodes.isNotEmpty
           ? nodes.map((n) => n.position.dx + n.size.width).reduce(math.max)
           : 0.0;
-      final double fertStartX = nodes.isNotEmpty ? math.max(500.0, maxWaterX + 100.0) : 40.0;
+      final double fertStartX = nodes.isNotEmpty ? math.max(550.0, maxWaterX + 110.0) : 40.0;
       const double fertStartY = 40.0;
 
       // Row 1: Main Fert Source + Pump (Left) & Air Blower (Right)
@@ -129,7 +129,7 @@ class FertigationSetup extends SiteSetupBase {
           supplyStartNode = pumpNode;
           supplyStartPort = 'output';
         }
-        mfsX += 240.0;
+        mfsX += 260.0;
       }
 
       // Calculate dynamic width allocation and X offsets for each fertilizer tank
@@ -158,7 +158,7 @@ class FertigationSetup extends SiteSetupBase {
         } else {
           final double prevAlloc = tankAllocW[t - 1];
           final double currAlloc = tankAllocW[t];
-          final double step = (prevAlloc / 2.0) + (currAlloc / 2.0) + 12.0;
+          final double step = (prevAlloc / 2.0) + (currAlloc / 2.0) + 36.0;
           currentTankOffset += step;
           tankOffsetsX.add(currentTankOffset);
         }
@@ -192,7 +192,7 @@ class FertigationSetup extends SiteSetupBase {
       final List<double> sortedAgitatorSNos = allAgitatorSNos.toList()..sort();
 
       if (sortedAgitatorSNos.isNotEmpty) {
-        final double startBlowerX = tankStartX + totalTanksSpan + 35.0;
+        final double startBlowerX = tankStartX + totalTanksSpan + 45.0;
 
         for (int a = 0; a < sortedAgitatorSNos.length; a++) {
           final double agSNo = sortedAgitatorSNos[a];

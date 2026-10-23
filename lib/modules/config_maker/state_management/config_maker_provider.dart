@@ -1184,6 +1184,20 @@ class ConfigMakerProvider extends ChangeNotifier{
     notifyListeners();
   }
 
+  DeviceObjectModel getObjectName(double sNo) {
+    return listOfGeneratedObject.firstWhere(
+      (object) => object.sNo == sNo,
+      orElse: () => DeviceObjectModel(
+        objectId: 0,
+        sNo: sNo,
+        name: '-',
+        objectName: '',
+        type: '',
+        assignObject: [],
+      ),
+    );
+  }
+
   String serialNoOrEmpty(double sNo){
     return sNo == 0.0 ? '' : sNo.toString();
   }

@@ -16,7 +16,6 @@ class FiltrationSetup extends SiteSetupBase {
   /// Returns the filter nodes (empty when nothing is configured).
   List<NodeObject> build(WaterSetupResult water) {
     final filtrations = data.filtrations;
-    final bool hasFertData = data.hasFertData;
     final double maxWaterX = water.maxX;
     final double maxWaterY = water.maxY;
     final List<SupplyNodeRef> waterSupplyNodes = water.supplyNodes;
@@ -31,59 +30,48 @@ class FiltrationSetup extends SiteSetupBase {
         final double sNo = fSite.commonDetails.sNo ?? 0.0;
         final String label = (fSite.commonDetails.name?.isNotEmpty == true)
             ? fSite.commonDetails.name!
-            : 'Multi-Filter Station';
+            : 'Multi-Filter Station ${f + 1}';
+
+        // Extract individual filter names by serial number
+        final List<String> filterNames = fSite.filters.map((filter) {
+          final deviceObj = ctx.getObjectName(filter.sNo, ctx.configPvd);
+          return (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
+              ? deviceObj.name!
+              : 'Filter ${filter.sNo.toInt()}';
+        }).toList();
+
+        final int filterCount = fSite.filters.isNotEmpty ? fSite.filters.length : 2;
+
         final filterNode = NodeObject(
           id: nextId('multi_filter_${sNo.toInt()}'),
           position: Offset.zero,
           type: NodeType.multiFilter,
           label: label,
+          outletPortCount: filterCount,
+          portLabels: filterNames,
           showJoints: !globalHideJoints,
         );
-        filterNode.size = filterNode.defaultSize;
+        filterNode.size = Size(math.max(160.0, 80.0 * filterCount + 60.0), 120);
         nodes.add(filterNode);
         filterNodes.add(filterNode);
       }
 
-      if (hasFertData) {
-        // BOTH Filtration and Fertigation exist: place Filtration UNDER the water setup
-        final double totalFilterW = filterNodes.fold<double>(0.0, (sum, fn) => sum + fn.size.width) + (filterNodes.length - 1) * 30.0;
-        for (int f = 0; f < filterNodes.length; f++) {
-          final fn = filterNodes[f];
-          final double fnX = math.max(160.0, (maxWaterX - totalFilterW) / 2.0 + f * (fn.size.width + 30.0));
-          final double fnY = math.max(180.0, maxWaterY + 45.0);
-          fn.position = Offset(fnX, fnY);
-        }
-      } else {
-        // ONLY Filtration exists (No Fertigation): place Filtration IN-LINE (Horizontal) to the right of water setup
-        double primarySupplyY = maxWaterY / 2.0;
-        if (waterSupplyNodes.isNotEmpty) {
-          final termRef = waterSupplyNodes.last;
-          final termPt = portPosition(termRef.node, termRef.portId, isInput: false);
-          primarySupplyY = termPt.dy;
-        }
-
-        final double firstFilterX = math.max(300.0, maxWaterX + 80.0);
-        final Offset sampleInletLocal = filterNodes.first.getPort('inlet', isInput: true) - filterNodes.first.position;
-
-        for (int f = 0; f < filterNodes.length; f++) {
-          final fn = filterNodes[f];
-          final double fnX = firstFilterX + f * (fn.size.width + 40.0);
-          final double fnY = math.max(30.0, primarySupplyY - sampleInletLocal.dy);
-          fn.position = Offset(fnX, fnY);
-        }
+      // Place all filtration sites sequentially one after another to the right of the water setup
+      double primarySupplyY = maxWaterY / 2.0;
+      if (waterSupplyNodes.isNotEmpty) {
+        final termRef = waterSupplyNodes.last;
+        final termPt = portPosition(termRef.node, termRef.portId, isInput: false);
+        primarySupplyY = termPt.dy;
       }
 
-      for (int f = 0; f < filterNodes.length - 1; f++) {
-        final f1 = filterNodes[f];
-        final f2 = filterNodes[f + 1];
-        pipes.add(PipeConnection(
-          id: nextId('pipe'),
-          fromNodeId: f1.id,
-          fromPortId: 'outlet',
-          toNodeId: f2.id,
-          toPortId: 'inlet',
-          waypoints: [],
-        ));
+      final Offset sampleInletLocal = filterNodes.first.getPort('inlet', isInput: true) - filterNodes.first.position;
+      final double targetY = math.max(30.0, primarySupplyY - sampleInletLocal.dy);
+
+      double currentX = math.max(350.0, maxWaterX + 80.0);
+      for (int f = 0; f < filterNodes.length; f++) {
+        final fn = filterNodes[f];
+        fn.position = Offset(currentX, targetY);
+        currentX += fn.size.width + 80.0; // 80px space between filtration sites so every site is visible
       }
     }
 

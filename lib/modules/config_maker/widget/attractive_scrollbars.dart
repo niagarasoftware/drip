@@ -14,7 +14,7 @@ class AttractiveScrollbars extends StatefulWidget {
     required this.tc,
     required this.viewportWidth,
     required this.viewportHeight,
-    this.canvasWidth = 3000,
+    this.canvasWidth = 2000,
     this.canvasHeight = 2000,
   });
 
@@ -34,19 +34,21 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
   double _startThumbTop = 0.0;
   double _startDragY = 0.0;
 
-  void _scrollToRatioX(double targetRatio, double scale, double minVisX, double spanX) {
+  static const double _margin = 100.0;
+
+  void _scrollToRatioX(double targetRatio, double maxTx, double spanTx) {
     final double clampedRatio = targetRatio.clamp(0.0, 1.0);
-    final double newVisLeft = minVisX + clampedRatio * spanX;
+    final double targetTx = maxTx - clampedRatio * spanTx;
     final Matrix4 nextM = widget.tc.value.clone();
-    nextM.storage[12] = -newVisLeft * scale;
+    nextM.storage[12] = targetTx;
     widget.tc.value = nextM;
   }
 
-  void _scrollToRatioY(double targetRatio, double scale, double minVisY, double spanY) {
+  void _scrollToRatioY(double targetRatio, double maxTy, double spanTy) {
     final double clampedRatio = targetRatio.clamp(0.0, 1.0);
-    final double newVisTop = minVisY + clampedRatio * spanY;
+    final double targetTy = maxTy - clampedRatio * spanTy;
     final Matrix4 nextM = widget.tc.value.clone();
-    nextM.storage[13] = -newVisTop * scale;
+    nextM.storage[13] = targetTy;
     widget.tc.value = nextM;
   }
 
@@ -60,38 +62,48 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
         final double tx = m.storage[12];
         final double ty = m.storage[13];
 
-        final double visW = widget.viewportWidth / scale;
-        final double visH = widget.viewportHeight / scale;
+        final double vW = widget.viewportWidth;
+        final double vH = widget.viewportHeight;
 
-        const double minVisX = -300.0;
-        final double maxVisX = widget.canvasWidth + 300.0 - visW;
-        final double spanX = math.max(1.0, maxVisX - minVisX);
+        final double contentW = widget.canvasWidth * scale;
+        final double contentH = widget.canvasHeight * scale;
 
-        const double minVisY = -300.0;
-        final double maxVisY = widget.canvasHeight + 300.0 - visH;
-        final double spanY = math.max(1.0, maxVisY - minVisY);
+        // Translation bounds matching InteractiveViewer(boundaryMargin: EdgeInsets.all(100))
+        final double minTx = math.min(0.0, vW - contentW) - _margin;
+        const double maxTx = _margin;
+        final double spanTx = math.max(0.0, maxTx - minTx);
 
-        final double visLeft = (-tx / scale).clamp(minVisX, maxVisX);
-        final double visTop = (-ty / scale).clamp(minVisY, maxVisY);
+        final double minTy = math.min(0.0, vH - contentH) - _margin;
+        const double maxTy = _margin;
+        final double spanTy = math.max(0.0, maxTy - minTy);
 
-        final double ratioX = ((visLeft - minVisX) / spanX).clamp(0.0, 1.0);
-        final double ratioY = ((visTop - minVisY) / spanY).clamp(0.0, 1.0);
+        final double currentTx = tx.clamp(minTx, maxTx);
+        final double currentTy = ty.clamp(minTy, maxTy);
+
+        final double ratioX = spanTx > 0 ? ((maxTx - currentTx) / spanTx).clamp(0.0, 1.0) : 0.0;
+        final double ratioY = spanTy > 0 ? ((maxTy - currentTy) / spanTy).clamp(0.0, 1.0) : 0.0;
 
         // Horizontal Track & Thumb
         const double padLeftH = 6.0;
         const double padRightH = 20.0;
-        final double trackW = math.max(100.0, widget.viewportWidth - padLeftH - padRightH);
-        final double totalSpanW = widget.canvasWidth + 600.0;
-        final double thumbW = (trackW * (visW / totalSpanW)).clamp(40.0, trackW * 0.85);
+        final double trackW = math.max(100.0, vW - padLeftH - padRightH);
+        final double visibleFractionX = (vW / (contentW + _margin * 2.0)).clamp(0.0, 1.0);
+        final double thumbW = (trackW * visibleFractionX).clamp(
+          math.min(30.0, trackW),
+          math.max(30.0, trackW * 0.85),
+        );
         final double availTrackW = math.max(1.0, trackW - thumbW);
         final double thumbLeft = availTrackW * ratioX;
 
         // Vertical Track & Thumb
         const double padTopV = 6.0;
         const double padBottomV = 20.0;
-        final double trackH = math.max(100.0, widget.viewportHeight - padTopV - padBottomV);
-        final double totalSpanH = widget.canvasHeight + 600.0;
-        final double thumbH = (trackH * (visH / totalSpanH)).clamp(40.0, trackH * 0.85);
+        final double trackH = math.max(100.0, vH - padTopV - padBottomV);
+        final double visibleFractionY = (vH / (contentH + _margin * 2.0)).clamp(0.0, 1.0);
+        final double thumbH = (trackH * visibleFractionY).clamp(
+          math.min(30.0, trackH),
+          math.max(30.0, trackH * 0.85),
+        );
         final double availTrackH = math.max(1.0, trackH - thumbH);
         final double thumbTop = availTrackH * ratioY;
 
@@ -109,9 +121,10 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
                 onExit: (_) => setState(() => _hoverH = false),
                 child: GestureDetector(
                   onTapDown: (details) {
+                    if (availTrackW <= 0) return;
                     final double localX = details.localPosition.dx;
                     final double targetRatio = (localX - thumbW / 2) / availTrackW;
-                    _scrollToRatioX(targetRatio, scale, minVisX, spanX);
+                    _scrollToRatioX(targetRatio, maxTx, spanTx);
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -152,7 +165,7 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
                               final double dx = details.globalPosition.dx - _startDragX;
                               final double targetThumbLeft = _startThumbLeft + dx;
                               final double targetRatio = targetThumbLeft / availTrackW;
-                              _scrollToRatioX(targetRatio, scale, minVisX, spanX);
+                              _scrollToRatioX(targetRatio, maxTx, spanTx);
                             },
                             child: Container(
                               decoration: BoxDecoration(
@@ -209,9 +222,10 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
                 onExit: (_) => setState(() => _hoverV = false),
                 child: GestureDetector(
                   onTapDown: (details) {
+                    if (availTrackH <= 0) return;
                     final double localY = details.localPosition.dy;
                     final double targetRatio = (localY - thumbH / 2) / availTrackH;
-                    _scrollToRatioY(targetRatio, scale, minVisY, spanY);
+                    _scrollToRatioY(targetRatio, maxTy, spanTy);
                   },
                   child: Container(
                     decoration: BoxDecoration(
@@ -252,7 +266,7 @@ class _AttractiveScrollbarsState extends State<AttractiveScrollbars> {
                               final double dy = details.globalPosition.dy - _startDragY;
                               final double targetThumbTop = _startThumbTop + dy;
                               final double targetRatio = targetThumbTop / availTrackH;
-                              _scrollToRatioY(targetRatio, scale, minVisY, spanY);
+                              _scrollToRatioY(targetRatio, maxTy, spanTy);
                             },
                             child: Container(
                               decoration: BoxDecoration(

@@ -327,27 +327,31 @@ class DetailedMultiFoggerPainter extends CustomPainter {
       text: TextSpan(
         text: fName,
         style: TextStyle(
-          color: const Color(0xFF0F172A),
-          fontSize: math.max(8.0, _h * 0.045),
-          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          fontSize: math.max(12.0, _h * 0.085),
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.3,
         ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    final double badgeW = math.max(tp.width + 6, _h * 0.06);
-    final double badgeH = tp.height + 2;
-    final double labelY = _h * 0.88;
+    final double badgeW = math.max(tp.width + 12, _h * 0.085);
+    final double badgeH = tp.height + 5;
+    final double labelY = _h * 0.92;
 
     final Rect badgeRect = Rect.fromCenter(
       center: Offset(xc, labelY),
       width: badgeW,
       height: badgeH,
     );
-    final RRect badgeRRect = RRect.fromRectAndRadius(badgeRect, Radius.circular(_h * 0.010));
+    final RRect badgeRRect = RRect.fromRectAndRadius(
+      badgeRect,
+      Radius.circular(math.max(4.0, _h * 0.015)),
+    );
 
-    c.drawRRect(badgeRRect, Paint()..color = Colors.white);
-    c.drawRRect(badgeRRect, _stroke(const Color(0xFF0288D1), 0.8));
+    c.drawRRect(badgeRRect, Paint()..color = const Color(0xFF0F172A));
+    c.drawRRect(badgeRRect, _stroke(const Color(0xFF0288D1), 1.2));
 
     tp.paint(
       c,

@@ -380,7 +380,7 @@ class NodeObject {
       case NodeType.multiFilter:
         return const Size(220, 132);
       case NodeType.multiValve:
-        return Size(math.max(120.0, 70.0 * outletPortCount + 40.0), 190);
+        return Size(math.max(180.0, 60.0 * outletPortCount + 60.0), 180);
       case NodeType.mainValve:
       case NodeType.multiMainValve:
         return const Size(116, 105);

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../model/filtration_model.dart';
 import '../state_management/config_maker_provider.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/blower_painter.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/ec_sensor_painter.dart';
@@ -374,8 +375,8 @@ class NodeWidget extends StatelessWidget {
               node.type != NodeType.lineHeader)
             Positioned(
               bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
-                  ? -22
-                  : -16,
+                  ? -26
+                  : -20,
               left: -20,
               right: -20,
               child: Center(
@@ -384,10 +385,10 @@ class NodeWidget extends StatelessWidget {
                   onTap: onTap,
                   onLongPress: onLongPress,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                     decoration: BoxDecoration(
                       color: const Color(0xEE0F172A),
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: isSelected
                             ? Colors.blue.shade400
@@ -408,8 +409,8 @@ class NodeWidget extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 3.5,
-                          height: 3.5,
+                          width: 4.5,
+                          height: 4.5,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: node.isOn
@@ -417,7 +418,7 @@ class NodeWidget extends StatelessWidget {
                                 : Colors.grey.shade400,
                           ),
                         ),
-                        const SizedBox(width: 3.5),
+                        const SizedBox(width: 4.5),
                         Flexible(
                           child: Text(
                             node.label,
@@ -425,8 +426,8 @@ class NodeWidget extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: 0.1,
                               height: 1.1,
                             ),
@@ -442,8 +443,8 @@ class NodeWidget extends StatelessWidget {
             Positioned(
               right: -10,
               bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
-                  ? -22
-                  : -16,
+                  ? -26
+                  : -20,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onPanStart: onResizeStart,
@@ -619,18 +620,63 @@ class NodeWidget extends StatelessWidget {
     }
 
     if (node.type == NodeType.multiFilter) {
+      int effectiveFilterCount = node.outletPortCount;
+      List<String> filterNames = [];
+      try {
+        final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+
+        if (node.portLabels != null && node.portLabels!.isNotEmpty) {
+          filterNames = node.portLabels!;
+          effectiveFilterCount = filterNames.length;
+        } else {
+          FiltrationModel? matchedSite;
+          for (final fSite in configPvd.filtration) {
+            final double sNo = fSite.commonDetails.sNo ?? 0.0;
+            if (node.id.contains('multi_filter_${sNo.toInt()}')) {
+              matchedSite = fSite;
+              break;
+            }
+          }
+          if (matchedSite == null && configPvd.filtration.isNotEmpty) {
+            matchedSite = configPvd.filtration.first;
+          }
+          if (matchedSite != null && matchedSite.filters.isNotEmpty) {
+            effectiveFilterCount = matchedSite.filters.length;
+            for (final f in matchedSite.filters) {
+              final deviceObj = configPvd.getObjectName(f.sNo);
+              final String name = (deviceObj.name?.isNotEmpty == true && deviceObj.name != '-')
+                  ? deviceObj.name!
+                  : 'Filter ${f.sNo.toInt()}';
+              filterNames.add(name);
+            }
+          }
+        }
+        node.outletPortCount = effectiveFilterCount > 0 ? effectiveFilterCount : 2;
+        if (filterNames.isNotEmpty) {
+          node.portLabels = filterNames;
+        }
+      } catch (_) {}
+
+      final String fNamesKey = filterNames.join('_');
+      final double targetW = math.max(160.0, 80.0 * node.outletPortCount + 60.0);
+      if (node.size.width != targetW) {
+        node.size = Size(targetW, node.size.height);
+      }
+
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_filter_${node.isOn}_${node.showJoints}_$szKey',
+          cacheKey: 'multi_filter_${node.id}_${node.isOn}_${node.isBackwash}_${node.showJoints}_${node.outletPortCount}_${fNamesKey}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiFilterPainter(
             isOn: node.isOn,
             filter1IsBackwash: false,
-            filter2IsBackwash: true,
+            filter2IsBackwash: node.isBackwash,
             phase: 0.0,
             showJoints: node.showJoints,
+            filterNames: filterNames,
+            filterCount: node.outletPortCount,
           ),
         ),
       );
@@ -728,9 +774,9 @@ class NodeWidget extends StatelessWidget {
         }
 
         node.outletPortCount = effectiveValves;
-        final double targetW = math.max(120.0, 70.0 * effectiveValves + 40.0);
+        final double targetW = math.max(180.0, 60.0 * effectiveValves + 60.0);
         if (node.size.width != targetW) {
-          node.size = Size(targetW, 200);
+          node.size = Size(targetW, 180);
         }
       } catch (_) {}
 

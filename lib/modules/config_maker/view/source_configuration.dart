@@ -91,9 +91,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     final slots = <bool>[
       if (!isBoreOrPond) source.inletPump.isNotEmpty,
       source.outletPump.isNotEmpty,
-      if (!isBoreOrPond && source.valves.isNotEmpty) true,
       if (!isBoreOrPond && source.inletTankValve.isNotEmpty) true,
-      if (source.outletValves.isNotEmpty) true,
       if (source.outletTankValve.isNotEmpty) true,
       if (showSensors) ...sensorSlots,
       if (isFertilizerSource && hasAgitators) source.agitator.isNotEmpty,
@@ -595,7 +593,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
             accent: _inletColor,
             children: [
               _buildParameterTileForPump(source, 1, _inletColor),
-              _buildParameterTileForValve(source, true, _inletColor),
               _buildParameterTileForTankValve(source, true, _inletColor),
             ],
           ),
@@ -607,7 +604,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           accent: _outletColor,
           children: [
             _buildParameterTileForPump(source, 2, _outletColor),
-            _buildParameterTileForValve(source, false, _outletColor),
             _buildParameterTileForTankValve(source, false, _outletColor),
           ],
         ),
@@ -998,63 +994,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               widget.configPvd.listOfSelectedSno.clear();
             });
             Navigator.pop(context);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildParameterTileForValve(SourceModel source, bool isInlet, Color accent) {
-    List<double> currentList = isInlet ? source.valves : source.outletValves;
-
-    return _buildComponentTile(
-      title: isInlet ? 'Inlet valve' : 'Outlet valve',
-      imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.valveObjectId}.svg',
-      names: _namesOf(currentList),
-      isAssigned: currentList.isNotEmpty,
-      accent: accent,
-      onTap: () {
-        setState(() {
-          widget.configPvd.listOfSelectedSno.clear();
-          widget.configPvd.listOfSelectedSno.addAll(currentList);
-        });
-        selectionDialogBox(
-          context: context,
-          title: isInlet ? 'Select Inlet Valve' : 'Select Outlet Valve',
-          singleSelection: false,
-          listOfObject: widget.configPvd.listOfGeneratedObject.where((object) {
-            if (object.objectId != AppConstants.valveObjectId) return false;
-            if (isInlet) {
-              return !widget.configPvd.source.any((src) => src.outletValves.contains(object.sNo));
-            } else {
-              return !widget.configPvd.source.any((src) => src.valves.contains(object.sNo));
-            }
-          }).toList(),
-          onPressed: () {
-            if (!isInlet && widget.configPvd.listOfSelectedSno.length > 1) {
-              simpleDialogBox(
-                context: context,
-                title: 'Alert',
-                message: 'Only single valve can be selected for outlet valve.',
-              );
-            } else {
-              setState(() {
-                if (isInlet) {
-                  source.valves.clear();
-                  source.valves.addAll(widget.configPvd.listOfSelectedSno);
-                } else {
-                  source.outletValves.clear();
-                  source.outletValves.addAll(widget.configPvd.listOfSelectedSno);
-                }
-                widget.configPvd.updateAssignObject(
-                  sNo: source.commonDetails.sNo!,
-                  objectId: AppConstants.valveObjectId,
-                  listOfSerialNo: widget.configPvd.listOfSelectedSno,
-                );
-                widget.configPvd.listOfSelectedSno.clear();
-              });
-              Navigator.pop(context);
-            }
           },
         );
       },

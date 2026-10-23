@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Coordinate scaling helper for the reference canvas (1536 x 1024, 3:2).
@@ -39,25 +40,14 @@ class _Flow {
 
 /// Dual Disc Filter station with top ordinary inlet pipe, common dirty water
 /// backwash drain line, and grooved disc filter elements.
-///
-/// Features:
-///   - Top ordinary incoming water pipe that turns down and joints into the main blue header.
-///   - Common dirty water backwash drain line shared across all filters.
-///   - Grooved Disc Filter cartridges inside sight windows for all filters.
-///
-/// Water paths:
-///   FILTRATION: raw water (blue main) enters the TOP of the vessel, flows
-///               THROUGH the compressed disc stack into the central core spine,
-///               and leaves through the BOTTOM nozzles into the collector.
-///   BACKWASH  : clean water from the collector enters the BOTTOM, flows UP,
-///               decompresses the disc stack, and dirty water sprays out
-///               into the COMMON dirty water drain line.
 class DetailedMultiFilterPainter extends CustomPainter {
   final bool isOn;
   final bool filter1IsBackwash;
   final bool filter2IsBackwash;
   final double phase;
   final bool showJoints;
+  final List<String>? filterNames;
+  final int filterCount;
 
   DetailedMultiFilterPainter({
     required this.isOn,
@@ -65,6 +55,8 @@ class DetailedMultiFilterPainter extends CustomPainter {
     this.filter2IsBackwash = true,
     this.phase = 0,
     this.showJoints = true,
+    this.filterNames,
+    this.filterCount = 2,
   });
 
   // ---------------------------------------------------------------- palette
@@ -164,6 +156,49 @@ class DetailedMultiFilterPainter extends CustomPainter {
     _drawFlows(canvas, s, 2);
 
     _drawHardware(canvas, s);
+
+    // Render filter names by serial number on vessels
+    final int effectiveCount = math.max(1, filterCount);
+    for (int i = 0; i < effectiveCount; i++) {
+      final double cx = effectiveCount <= 2
+          ? (i == 0 ? _cx1 : _cx2)
+          : (350.0 + i * (1300.0 - 350.0) / (effectiveCount - 1));
+
+      final String fName = (filterNames != null && i < filterNames!.length && filterNames![i].isNotEmpty)
+          ? filterNames![i]
+          : 'Filter ${i + 1}';
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text: fName,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: math.max(10.0, size.height * 0.038),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final double badgeX = s.x(cx);
+      final double badgeY = s.y(438.0);
+      final Rect badgeRect = Rect.fromCenter(
+        center: Offset(badgeX, badgeY),
+        width: math.max(tp.width + 12, s.x(85)),
+        height: tp.height + 4,
+      );
+      final RRect badgeRRect = RRect.fromRectAndRadius(badgeRect, const Radius.circular(5));
+      canvas.drawRRect(badgeRRect, Paint()..color = const Color(0xEE0F172A));
+      canvas.drawRRect(
+        badgeRRect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = s.x(1.2)
+          ..color = const Color(0xFF38BDF8),
+      );
+      tp.paint(canvas, Offset(badgeX - tp.width / 2, badgeY - tp.height / 2));
+    }
 
     canvas.restore();
   }
@@ -968,7 +1003,9 @@ class DetailedMultiFilterPainter extends CustomPainter {
         old.filter1IsBackwash != filter1IsBackwash ||
         old.filter2IsBackwash != filter2IsBackwash ||
         old.phase != phase ||
-        old.showJoints != showJoints;
+        old.showJoints != showJoints ||
+        old.filterCount != filterCount ||
+        !listEquals(old.filterNames, filterNames);
   }
 }
 
@@ -981,6 +1018,8 @@ class MultiFilterView extends StatefulWidget {
   final bool filter2IsBackwash;
   final bool showJoints;
   final Size size;
+  final List<String>? filterNames;
+  final int filterCount;
 
   const MultiFilterView({
     super.key,
@@ -989,6 +1028,8 @@ class MultiFilterView extends StatefulWidget {
     this.filter2IsBackwash = true,
     this.showJoints = true,
     required this.size,
+    this.filterNames,
+    this.filterCount = 2,
   });
 
   @override
@@ -1034,6 +1075,8 @@ class _MultiFilterViewState extends State<MultiFilterView> with SingleTickerProv
             filter2IsBackwash: widget.filter2IsBackwash,
             phase: _controller.value,
             showJoints: widget.showJoints,
+            filterNames: widget.filterNames,
+            filterCount: widget.filterCount,
           ),
         ),
       ),

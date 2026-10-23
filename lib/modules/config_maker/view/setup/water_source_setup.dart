@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../model/node_type_model.dart';
+import '../../model/source_model.dart';
 import '../../widget/painter/pipe_painter.dart';
 import 'site_layout_context.dart';
 
@@ -52,6 +53,47 @@ class _Route {
   _Route(this.edge);
 }
 
+// ---------------------------------------------------------------------------
+// Helper classes for the horizontal tree layout (waterSources.length > 8)
+// ---------------------------------------------------------------------------
+
+/// Where a horizontal run leaves an outlet port.
+class _HExit {
+  final Offset point; // where the horizontal run starts
+  final List<Offset> stem; // waypoints needed to reach it (drop below a tank)
+  _HExit(this.point, this.stem);
+}
+
+/// A target that an incoming pipe must connect to.
+class _HFeed {
+  final NodeObject node;
+  final String? port;
+  final Offset inPt;
+  _HFeed(this.node, this.port, this.inPt);
+}
+
+/// [inlet valve] + tank + [outlet valve] placed as one horizontal chain.
+class _HUnit {
+  final _HFeed feed; // where the incoming pipe must connect
+  final NodeObject outNode;
+  final String outPort;
+  final double right, bottom;
+  _HUnit(this.feed, this.outNode, this.outPort, this.right, this.bottom);
+}
+
+/// Shared state while the horizontal layout is being built.
+class _HState {
+  final Map<double, NodeObject> sourceMap = {};
+  final Map<double, NodeObject> pumpMap = {};
+  final Map<double, NodeObject> valveMap = {};
+  final Map<double, List<SourceModel>> pumpToTanks = {};
+  final Set<String> positioned = {};
+  final Set<double> donePumps = {};
+  final Set<double> doneSources = {};
+  final Map<double, double> placedBy = {}; // source sNo -> pump that placed it
+  final Map<double, _HFeed> feedOf = {}; // source sNo -> where its inlet pipe connects
+}
+
 /// WATER SOURCE SETUP
 /// Sources (sump / well / tank / natural source), water pumps, tank valves and
 /// the pipes between them, laid out in clean layers (top section of the canvas).
@@ -60,6 +102,12 @@ class WaterSourceSetup extends SiteSetupBase {
 
   WaterSetupResult build() {
     final waterSources = data.waterSources;
+
+    // Use horizontal tree layout when waterSources.length > 8
+    if (waterSources.length > 8) {
+      return _buildHorizontalLayout();
+    }
+
     final waterPumps = data.waterPumps;
     final List<_LayoutEdge> edges = [];
     final Map<double, NodeObject> pumpMap = {};
@@ -423,6 +471,662 @@ class WaterSourceSetup extends SiteSetupBase {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // HORIZONTAL TREE LAYOUT (used when waterSources.length > 8)
+  // source -> pumps (column) -> tank rows -> (tank with outlet pumps -> ...)
+  // -------------------------------------------------------------------------
+  static const double _hPumpGap = 130;
+  static const double _hTankGap = 110;
+  static const double _hUnitGap = 60;
+  static const double _hBusReserve = 40; // space above a row for its bus pipe
+  static const double _hBusAbove = 30; // bus sits this far above tank inlets
+  static const double _hRowTail = 60; // label + outlet drop below a row
+  static const double _hTrunkOff = 30;
+  static const int _hMaxPerRow = 4;
+  static const int _hMaxColRows = 3; // tank rows per pump column before a new column starts (wider, shorter layout)
+
+  WaterSetupResult _buildHorizontalLayout() {
+    final waterSources = data.waterSources;
+    final waterPumps = data.waterPumps;
+    final s = _HState();
+
+    // 1. nodes ---------------------------------------------------------------
+    for (final src in waterSources) {
+      final double sNo = src.commonDetails.sNo ?? 0.0;
+      final NodeType type = _getNodeTypeForSource(src.sourceType);
+      final String label = (src.commonDetails.name?.isNotEmpty == true)
+          ? src.commonDetails.name!
+          : defaultLabelFor(type);
+      final node = NodeObject(
+        id: nextId('source_${sNo.toInt()}'),
+        position: Offset.zero,
+        type: type,
+        size: const Size(68, 47),
+        label: label,
+        showJoints: !globalHideJoints,
+      );
+      node.size = node.defaultSize;
+      nodes.add(node);
+      s.sourceMap[sNo] = node;
+    }
+
+    for (final p in waterPumps) {
+      final double sNo = p.commonDetails.sNo ?? 0.0;
+      final String label = (p.commonDetails.name?.isNotEmpty == true)
+          ? p.commonDetails.name!
+          : 'Pump ${sNo.toInt()}';
+      final node = NodeObject(
+        id: nextId('pump_${sNo.toInt()}'),
+        position: Offset.zero,
+        type: NodeType.pump,
+        label: label,
+        isOn: true,
+        showJoints: !globalHideJoints,
+      );
+      node.size = node.defaultSize;
+      nodes.add(node);
+      s.pumpMap[sNo] = node;
+    }
+
+    NodeObject makeValve(double vSNo, SourceModel src, bool inlet) {
+      final bool isMulti =
+      inlet ? src.isMultiInletTankValve : src.isMultiOutletTankValve;
+      final v = NodeObject(
+        id: nextId('${inlet ? 'inlet' : 'outlet'}_valve_${vSNo.toString().replaceAll('.', '_')}'),
+        position: Offset.zero,
+        type: isMulti ? NodeType.multiOutletTankValve : NodeType.singleTankValve,
+        label: '${src.commonDetails.name ?? 'Source'} ${inlet ? 'Inlet' : 'Outlet'} Valve',
+        outletPortCount: inlet ? src.inletTankValvePortCount : src.outletTankValvePortCount,
+        isHorizontal: true,
+        showJoints: !globalHideJoints,
+      );
+      v.size = v.defaultSize;
+      nodes.add(v);
+      return v;
+    }
+
+    for (final src in waterSources) {
+      if (src.inletTankValve.isNotEmpty) {
+        final v = src.inletTankValve.first;
+        s.valveMap.putIfAbsent(v, () => makeValve(v, src, true));
+      }
+      if (src.outletTankValve.isNotEmpty) {
+        final v = src.outletTankValve.first;
+        s.valveMap.putIfAbsent(v, () => makeValve(v, src, false));
+      }
+    }
+
+    for (final src in waterSources) {
+      for (final pNo in src.inletPump) {
+        s.pumpToTanks.putIfAbsent(pNo, () => []).add(src);
+      }
+    }
+
+    // 2. tree layout from every root source (no inlet pump) -------------------
+    final roots = waterSources.where((x) => x.inletPump.isEmpty).toList();
+    if (roots.isEmpty && waterSources.isNotEmpty) roots.add(waterSources.first);
+
+    double cursorY = 40.0;
+    for (final root in roots) {
+      final double sNo = root.commonDetails.sNo ?? 0.0;
+      final node = s.sourceMap[sNo];
+      if (node == null || !s.doneSources.add(sNo)) continue;
+      node.position = Offset(70.0, cursorY);
+      s.positioned.add(node.id);
+      final double h = _hLayoutPumps(
+          s, root, node, 'outlet', node.position.dx + node.size.width, cursorY);
+      cursorY += math.max(h, node.size.height + _hRowTail) + 40.0;
+    }
+
+    // pumps that fill tanks but are not listed as an outlet pump of any placed
+    // source: lay them out on their own so that no tank is ever lost
+    for (final entry in s.pumpToTanks.entries.toList()) {
+      final double pNo = entry.key;
+      final pump = s.pumpMap[pNo];
+      if (pump == null || s.donePumps.contains(pNo)) continue;
+      final bool allPlaced =
+      entry.value.every((t) => s.doneSources.contains(t.commonDetails.sNo ?? 0.0));
+      if (allPlaced) continue;
+      s.donePumps.add(pNo);
+      final double h = _hLayoutPumpRow(s, pNo, pump, 70.0, cursorY);
+      s.positioned.add(pump.id);
+      cursorY += h + 40.0;
+    }
+
+    // anything not reachable from a root goes on a tidy row at the bottom
+    final leftovers = [
+      ...s.sourceMap.values,
+      ...s.pumpMap.values,
+      ...s.valveMap.values,
+    ].where((n) => !s.positioned.contains(n.id)).toList();
+    double cleanX = 70.0;
+    for (final n in leftovers) {
+      n.position = Offset(cleanX, cursorY);
+      cleanX += n.size.width + 40.0;
+    }
+
+    if (leftovers.isNotEmpty) {
+      debugPrint('WaterSourceSetup: ${leftovers.length} nodes are not linked to '
+          'the tree: ${leftovers.map((n) => n.label).join(', ')}');
+    }
+
+    // a tank fed by several pumps: the pump that placed it has its pipe,
+    // every other inlet pump gets its own pipe to the same inlet
+    for (final src in waterSources) {
+      final double sNo = src.commonDetails.sNo ?? 0.0;
+      final feed = s.feedOf[sNo];
+      if (feed == null) continue;
+      for (final pNo in src.inletPump) {
+        final pump = s.pumpMap[pNo];
+        if (pump == null || pNo == s.placedBy[sNo]) continue;
+        pipes.add(_createOrthogonalPipe(
+          fromNode: pump,
+          toNode: feed.node,
+          fromPortId: 'output',
+          toPortId: feed.port,
+        ));
+      }
+    }
+
+    // 3. bounds ----------------------------------------------------------------
+    double maxWaterX = 0.0, maxWaterY = 0.0;
+    for (final n in nodes) {
+      maxWaterX = math.max(maxWaterX, n.position.dx + n.size.width);
+      maxWaterY = math.max(maxWaterY, n.position.dy + n.size.height);
+    }
+
+    // 4. supply nodes (same rules as the vertical layout) ----------------------
+    final List<SupplyNodeRef> supply = [];
+    for (final p in waterPumps) {
+      if (p.pumpType == 2) {
+        final n = s.pumpMap[p.commonDetails.sNo ?? 0.0];
+        if (n != null) supply.add(SupplyNodeRef(n, 'output'));
+      }
+    }
+    if (supply.isEmpty) {
+      // pumps that feed no tank = the irrigation pumps
+      for (final p in waterPumps) {
+        final double pNo = p.commonDetails.sNo ?? 0.0;
+        final n = s.pumpMap[pNo];
+        if (n != null && (s.pumpToTanks[pNo] ?? const []).isEmpty) {
+          supply.add(SupplyNodeRef(n, 'output'));
+        }
+      }
+    }
+    if (supply.isEmpty) {
+      // last tanks of the chain (outlet valve if they have one)
+      for (final src in waterSources) {
+        if (_hHasChildren(s, src)) continue;
+        final tank = s.sourceMap[src.commonDetails.sNo ?? 0.0];
+        if (tank == null) continue;
+        final ov = src.outletTankValve.isNotEmpty ? s.valveMap[src.outletTankValve.first] : null;
+        if (ov != null) {
+          supply.add(SupplyNodeRef(
+              ov, ov.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet'));
+        } else {
+          supply.add(SupplyNodeRef(tank, 'outlet'));
+        }
+      }
+    }
+
+    return WaterSetupResult(supplyNodes: supply, maxX: maxWaterX, maxY: maxWaterY);
+  }
+
+  bool _hHasChildren(_HState s, SourceModel src) =>
+      src.outletPump.any((p) => s.pumpMap.containsKey(p));
+
+  /// Estimated number of tank rows a pump's group needs (used to decide when
+  /// to start a new pump column).
+  int _hPumpRows(_HState s, double pNo, [Set<double>? seen]) {
+    final visited = seen ?? <double>{};
+    if (!visited.add(pNo)) return 1;
+    final tanks = (s.pumpToTanks[pNo] ?? const <SourceModel>[])
+        .where((t) => !s.doneSources.contains(t.commonDetails.sNo ?? 0.0))
+        .toList();
+    final int normals = tanks.where((t) => !_hHasChildren(s, t)).length;
+    int rows = (normals / _hMaxPerRow).ceil();
+    for (final t in tanks.where((t) => _hHasChildren(s, t))) {
+      int child = 0;
+      for (final p in t.outletPump) {
+        if (s.pumpMap.containsKey(p)) child += _hPumpRows(s, p, visited);
+      }
+      rows += math.max(1, child);
+    }
+    return math.max(1, rows);
+  }
+
+  /// Lays out all pumps taking water from [outNode] to the right of [rightX].
+  /// Pumps are split into several columns placed side by side (instead of one
+  /// tall column), so the whole formation is wide and short. Columns after the
+  /// first are fed from a bus line running above the whole formation.
+  /// Returns the height used by the tallest column.
+  double _hLayoutPumps(_HState s, SourceModel src, NodeObject outNode,
+      String outPort, double rightX, double top) {
+    final pumpNos = src.outletPump
+        .where((p) => s.pumpMap.containsKey(p) && !s.donePumps.contains(p))
+        .toList();
+    if (pumpNos.isEmpty) return 0.0;
+
+    // split pumps into columns
+    final cols = <List<double>>[];
+    int curRows = 0;
+    for (final pNo in pumpNos) {
+      final int w = _hPumpRows(s, pNo);
+      if (cols.isEmpty || (curRows > 0 && curRows + w > _hMaxColRows)) {
+        cols.add(<double>[]);
+        curRows = 0;
+      }
+      cols.last.add(pNo);
+      curRows += w;
+    }
+
+    final nodeById = {for (final n in nodes) n.id: n};
+    final double busY = top - 20.0;
+    double colX = rightX + _hPumpGap;
+    double maxH = 0.0;
+    final colTrunkX = <double>[];
+    final colFeeds = <List<_HFeed>>[];
+
+    for (final col in cols) {
+      final int startCount = s.positioned.length;
+      double y = top;
+      final feeds = <_HFeed>[];
+      for (final pNo in col) {
+        if (!s.donePumps.add(pNo)) continue;
+        final pump = s.pumpMap[pNo]!;
+        final double h = _hLayoutPumpRow(s, pNo, pump, colX, y);
+        s.positioned.add(pump.id);
+        feeds.add(_HFeed(pump, 'input', portPosition(pump, 'input', isInput: true)));
+        y += h;
+      }
+      maxH = math.max(maxH, y - top);
+
+      // right edge of everything placed in this column (incl. nested pumps)
+      double colRight = colX;
+      for (final id in s.positioned.skip(startCount)) {
+        final n = nodeById[id];
+        if (n != null) colRight = math.max(colRight, n.position.dx + n.size.width);
+      }
+      colTrunkX.add(colX - _hTrunkOff);
+      colFeeds.add(feeds);
+      colX = colRight + _hPumpGap;
+    }
+
+    if (colFeeds.length == 1) {
+      _hFan(outNode, outPort, colFeeds.first, colTrunkX.first);
+      return maxH;
+    }
+
+    // extra columns: junction on the top bus above each column's trunk
+    final junctions = <NodeObject>[];
+    final junctionPts = <Offset>[];
+    for (int k = 1; k < colFeeds.length; k++) {
+      final pt = Offset(colTrunkX[k], busY);
+      junctions.add(newJunction(pt));
+      junctionPts.add(pt);
+    }
+
+    // source -> column 0 pumps + the top bus (its last target)
+    _hFan(
+      outNode,
+      outPort,
+      [...colFeeds.first, _HFeed(junctions.first, null, junctionPts.first)],
+      colTrunkX.first,
+    );
+
+    for (int k = 0; k < junctions.length; k++) {
+      if (k + 1 < junctions.length) {
+        pipes.add(PipeConnection(
+          id: nextId('pipe'),
+          fromNodeId: junctions[k].id,
+          toNodeId: junctions[k + 1].id,
+          waypoints: cleanWaypoints(junctionPts[k], [], junctionPts[k + 1]),
+          flowActive: true,
+        ));
+      }
+      _hFanCore(junctions[k].id, null, junctionPts[k],
+          _HExit(junctionPts[k], const []), colFeeds[k + 1], colTrunkX[k + 1]);
+    }
+    return maxH;
+  }
+
+  /// One pump + the tank rows it fills. Returns the height used.
+  double _hLayoutPumpRow(
+      _HState s, double pNo, NodeObject pump, double pumpX, double top) {
+    pump.position = Offset(pumpX, top + _hBusReserve);
+
+    final tanks = (s.pumpToTanks[pNo] ?? const <SourceModel>[])
+        .where((t) => !s.doneSources.contains(t.commonDetails.sNo ?? 0.0))
+        .toList();
+    final normals = tanks.where((t) => !_hHasChildren(s, t)).toList();
+    final hubs = tanks.where((t) => _hHasChildren(s, t)).toList();
+
+    // rows: normal tanks in chunks, every "hub" tank (feeds more pumps) alone
+    final rows = <List<SourceModel>>[];
+    for (int i = 0; i < normals.length; i += _hMaxPerRow) {
+      rows.add(normals.sublist(i, math.min(i + _hMaxPerRow, normals.length)));
+    }
+    for (final h in hubs) {
+      rows.add([h]);
+    }
+
+    final double tankX0 = pumpX + pump.size.width + _hTankGap;
+    final double trunkX = pumpX + pump.size.width + _hTrunkOff;
+    double cursor = top;
+    final rowUnits = <List<_HUnit>>[];
+
+    for (final row in rows) {
+      final double rowTop = cursor + _hBusReserve;
+      double x = tankX0;
+      double bottom = rowTop;
+      final units = <_HUnit>[];
+      for (final t in row) {
+        s.doneSources.add(t.commonDetails.sNo ?? 0.0);
+        final u = _hPlaceUnit(s, t, pNo, x, rowTop);
+        units.add(u);
+        x = u.right + _hUnitGap;
+        bottom = math.max(bottom, u.bottom);
+      }
+      double rowH = bottom - cursor + _hRowTail;
+      if (row.length == 1 && _hHasChildren(s, row.first)) {
+        final u = units.first;
+        final double childH =
+        _hLayoutPumps(s, row.first, u.outNode, u.outPort, u.right, cursor);
+        rowH = math.max(rowH, childH);
+      }
+      rowUnits.add(units);
+      cursor += rowH;
+    }
+
+    final allUnits = rowUnits.expand((e) => e).toList();
+    if (allUnits.length == 1) {
+      _hFan(pump, 'output', [allUnits.first.feed], trunkX);
+    } else if (allUnits.isNotEmpty) {
+      // pump -> vertical trunk -> one bus start per row -> tees into tanks
+      final busFeeds = <_HFeed>[];
+      final busJunctions = <NodeObject>[];
+      final busPts = <Offset>[];
+      for (final units in rowUnits) {
+        final double minY = units.map((u) => u.feed.inPt.dy).reduce(math.min);
+        final p = Offset(trunkX + 14.0, minY - _hBusAbove);
+        final jn = newJunction(p);
+        busJunctions.add(jn);
+        busPts.add(p);
+        busFeeds.add(_HFeed(jn, null, p));
+      }
+      _hFan(pump, 'output', busFeeds, trunkX);
+      for (int i = 0; i < rowUnits.length; i++) {
+        _hBus(busJunctions[i], busPts[i], rowUnits[i]);
+      }
+    }
+
+    return math.max(cursor - top, pump.size.height + _hBusReserve + _hRowTail);
+  }
+
+  /// Places [inlet valve] + tank + [outlet valve] in one horizontal chain.
+  _HUnit _hPlaceUnit(_HState s, SourceModel src, double pNo, double x, double y) {
+    final tank = s.sourceMap[src.commonDetails.sNo ?? 0.0]!;
+    final NodeObject? inV =
+    src.inletTankValve.isNotEmpty ? s.valveMap[src.inletTankValve.first] : null;
+    final NodeObject? outV =
+    src.outletTankValve.isNotEmpty ? s.valveMap[src.outletTankValve.first] : null;
+
+    double cx = x;
+    final bool placeIn = inV != null && !s.positioned.contains(inV.id);
+    if (placeIn) {
+      inV.position = Offset(cx, y);
+      cx += inV.size.width + 45.0;
+    }
+    tank.position = Offset(cx, y);
+    s.positioned.add(tank.id);
+    final Offset tankIn = portPosition(tank, 'inlet', isInput: true);
+
+    if (placeIn) {
+      s.positioned.add(inV.id);
+      final bool multi = inV.type == NodeType.multiOutletTankValve;
+      final String p0 = multi ? 'channel_0' : 'outlet';
+      // align so valve -> tank is a straight line
+      final Offset v0 = portPosition(inV, p0, isInput: false);
+      inV.position = inV.position + Offset(0, tankIn.dy - v0.dy);
+
+      final int channels = multi ? math.max(1, inV.outletPortCount) : 1;
+      final double mergeX = tank.position.dx - 22.0;
+      for (int c = 0; c < channels; c++) {
+        final String port = multi ? 'channel_$c' : 'outlet';
+        final Offset vo = portPosition(inV, port, isInput: false);
+        pipes.add(PipeConnection(
+          id: nextId('pipe'),
+          fromNodeId: inV.id,
+          fromPortId: port,
+          toNodeId: tank.id,
+          toPortId: 'inlet',
+          waypoints: (vo.dy - tankIn.dy).abs() < 0.5
+              ? cleanWaypoints(vo, [], tankIn)
+              : cleanWaypoints(vo, [Offset(mergeX, vo.dy), Offset(mergeX, tankIn.dy)], tankIn),
+          flowActive: true,
+        ));
+      }
+    }
+
+    double right = tank.position.dx + tank.size.width;
+    double bottom = tank.position.dy + tank.size.height;
+    if (placeIn) bottom = math.max(bottom, inV.position.dy + inV.size.height);
+
+    NodeObject outNode = tank;
+    String outPort = 'outlet';
+    if (outV != null && !s.positioned.contains(outV.id)) {
+      final Offset tankOut = portPosition(tank, 'outlet', isInput: false);
+      final double dropY =
+      math.max(tankOut.dy + 30.0, tank.position.dy + tank.size.height + 20.0);
+      outV.position = Offset(right + 50.0, y);
+      final Offset vin0 = portPosition(outV, 'inlet', isInput: true);
+      outV.position = outV.position + Offset(0, dropY - vin0.dy);
+      final Offset vin = portPosition(outV, 'inlet', isInput: true);
+      s.positioned.add(outV.id);
+
+      pipes.add(PipeConnection(
+        id: nextId('pipe'),
+        fromNodeId: tank.id,
+        fromPortId: 'outlet',
+        toNodeId: outV.id,
+        toPortId: 'inlet',
+        waypoints: cleanWaypoints(tankOut, [Offset(tankOut.dx, dropY)], vin),
+        flowActive: true,
+      ));
+
+      outNode = outV;
+      outPort = outV.type == NodeType.multiOutletTankValve ? 'channel_0' : 'outlet';
+      right = outV.position.dx + outV.size.width;
+      bottom = math.max(bottom, outV.position.dy + outV.size.height);
+    }
+
+    final feed = placeIn
+        ? _HFeed(inV, 'inlet', portPosition(inV, 'inlet', isInput: true))
+        : _HFeed(tank, 'inlet', tankIn);
+    final double srcNo = src.commonDetails.sNo ?? 0.0;
+    s.placedBy[srcNo] = pNo;
+    s.feedOf[srcNo] = feed;
+    return _HUnit(feed, outNode, outPort, right, bottom);
+  }
+
+  /// Exit point of an outlet port. Bottom outlets (tanks) drop first, so the
+  /// pipe never runs through the node itself.
+  _HExit _hExit(NodeObject n, String port) {
+    final p = portPosition(n, port, isInput: false);
+    final bool bottomOutlet = p.dy > n.position.dy + n.size.height * 0.7;
+    if (!bottomOutlet) return _HExit(p, const []);
+    final double dropY = math.max(p.dy + 30.0, n.position.dy + n.size.height + 20.0);
+    final d = Offset(p.dx, dropY);
+    return _HExit(d, [d]);
+  }
+
+  /// One output -> many inputs through a single vertical trunk at [trunkX]
+  /// with a tee at each branch (all pipes orthogonal).
+  void _hFan(NodeObject from, String fromPort, List<_HFeed> targets, double trunkX) {
+    if (targets.isEmpty) return;
+    _hFanCore(from.id, fromPort, portPosition(from, fromPort, isInput: false),
+        _hExit(from, fromPort), targets, trunkX);
+  }
+
+  /// Removes duplicate / zero-length waypoints.
+  List<Offset> _hDedupe(Offset start, List<Offset> wps, Offset end) {
+    final out = <Offset>[];
+    Offset prev = start;
+    for (final w in wps) {
+      if ((w - prev).distance < 0.5) continue;
+      out.add(w);
+      prev = w;
+    }
+    while (out.isNotEmpty && (out.last - end).distance < 0.5) {
+      out.removeLast();
+    }
+    return out;
+  }
+
+  void _hFanCore(String fromId, String? fromPort, Offset start, _HExit ex,
+      List<_HFeed> targets, double trunkX) {
+    if (targets.isEmpty) return;
+    final double ey = ex.point.dy;
+
+    if (targets.length == 1) {
+      final t = targets.first;
+      pipes.add(PipeConnection(
+        id: nextId('pipe'),
+        fromNodeId: fromId,
+        fromPortId: fromPort,
+        toNodeId: t.node.id,
+        toPortId: t.port,
+        waypoints: cleanWaypoints(
+          start,
+          _hDedupe(
+              start,
+              [...ex.stem, Offset(trunkX, ey), Offset(trunkX, t.inPt.dy)],
+              t.inPt),
+          t.inPt,
+        ),
+        flowActive: true,
+      ));
+      return;
+    }
+
+    final rootPt = Offset(trunkX, ey);
+    final String rootId;
+    if (ex.stem.isEmpty && (start - rootPt).distance < 0.5) {
+      // the source point already is the trunk start (e.g. a bus junction)
+      rootId = fromId;
+    } else {
+      final root = newJunction(rootPt);
+      rootId = root.id;
+      pipes.add(PipeConnection(
+        id: nextId('pipe'),
+        fromNodeId: fromId,
+        fromPortId: fromPort,
+        toNodeId: root.id,
+        waypoints: cleanWaypoints(start, _hDedupe(start, ex.stem, rootPt), rootPt),
+        flowActive: true,
+      ));
+    }
+
+    final sorted = [...targets]..sort((a, b) => a.inPt.dy.compareTo(b.inPt.dy));
+    final up = sorted.where((t) => t.inPt.dy < ey - 0.5).toList().reversed.toList();
+    final down = sorted.where((t) => t.inPt.dy >= ey - 0.5).toList();
+
+    void chain(List<_HFeed> group) {
+      String prevId = rootId;
+      Offset prevPt = rootPt;
+      for (int i = 0; i < group.length; i++) {
+        final t = group[i];
+        final p = Offset(trunkX, t.inPt.dy);
+        if ((t.inPt.dy - ey).abs() < 0.5) {
+          // already level with the trunk start: straight run from the root
+          pipes.add(PipeConnection(
+            id: nextId('pipe'),
+            fromNodeId: rootId,
+            toNodeId: t.node.id,
+            toPortId: t.port,
+            waypoints: cleanWaypoints(rootPt, [], t.inPt),
+            flowActive: true,
+          ));
+          continue;
+        }
+        if (i == group.length - 1) {
+          pipes.add(PipeConnection(
+            id: nextId('pipe'),
+            fromNodeId: prevId,
+            toNodeId: t.node.id,
+            toPortId: t.port,
+            waypoints: cleanWaypoints(prevPt, _hDedupe(prevPt, [p], t.inPt), t.inPt),
+            flowActive: true,
+          ));
+        } else {
+          final j = newJunction(p);
+          pipes.add(PipeConnection(
+            id: nextId('pipe'),
+            fromNodeId: prevId,
+            toNodeId: j.id,
+            waypoints: cleanWaypoints(prevPt, [], p),
+            flowActive: true,
+          ));
+          pipes.add(PipeConnection(
+            id: nextId('pipe'),
+            fromNodeId: j.id,
+            toNodeId: t.node.id,
+            toPortId: t.port,
+            waypoints: cleanWaypoints(p, [], t.inPt),
+            flowActive: true,
+          ));
+          prevId = j.id;
+          prevPt = p;
+        }
+      }
+    }
+
+    chain(up);
+    chain(down);
+  }
+
+  /// Horizontal bus above a row of tanks: tee at each tank, then a short drop
+  /// into its inlet. The bus never touches a tank body.
+  void _hBus(NodeObject startJn, Offset startPt, List<_HUnit> units) {
+    String prevId = startJn.id;
+    Offset prevPt = startPt;
+    final double busY = startPt.dy;
+    for (int i = 0; i < units.length; i++) {
+      final f = units[i].feed;
+      final double x = f.inPt.dx - 16.0;
+      final p = Offset(x, busY);
+      if (i == units.length - 1) {
+        pipes.add(PipeConnection(
+          id: nextId('pipe'),
+          fromNodeId: prevId,
+          toNodeId: f.node.id,
+          toPortId: f.port,
+          waypoints: cleanWaypoints(prevPt, [p, Offset(x, f.inPt.dy)], f.inPt),
+          flowActive: true,
+        ));
+      } else {
+        final j = newJunction(p);
+        pipes.add(PipeConnection(
+          id: nextId('pipe'),
+          fromNodeId: prevId,
+          toNodeId: j.id,
+          waypoints: cleanWaypoints(prevPt, [], p),
+          flowActive: true,
+        ));
+        pipes.add(PipeConnection(
+          id: nextId('pipe'),
+          fromNodeId: j.id,
+          toNodeId: f.node.id,
+          toPortId: f.port,
+          waypoints: cleanWaypoints(p, [Offset(x, f.inPt.dy)], f.inPt),
+          flowActive: true,
+        ));
+        prevId = j.id;
+        prevPt = p;
+      }
+    }
+  }
+
   NodeType _getNodeTypeForSource(int sourceType) {
     switch (sourceType) {
       case 1:
@@ -444,7 +1148,7 @@ class WaterSourceSetup extends SiteSetupBase {
   }
 
   // ---------------------------------------------------------------------
-  // Clean pipe routing
+  // Clean pipe routing (vertical / layered layout)
   // ---------------------------------------------------------------------
 
   /// A port that is only a few px off its partner (e.g. valve outlet vs tank
@@ -697,8 +1401,9 @@ class WaterSourceSetup extends SiteSetupBase {
     final double midX = laneX ?? (start.dx + end.dx) / 2.0;
 
     if (fromNode.type == NodeType.overheadTank || fromNode.type == NodeType.fertilizerTank) {
-      final double dropY = math.max(start.dy + 30.0, fromNode.position.dy + fromNode.size.height + 20.0) +
-          indexOffset * 10.0;
+      final double dropY =
+          math.max(start.dy + 30.0, fromNode.position.dy + fromNode.size.height + 20.0) +
+              indexOffset * 10.0;
       waypoints.add(Offset(start.dx, dropY));
       waypoints.add(Offset(midX, dropY));
       waypoints.add(Offset(midX, end.dy));

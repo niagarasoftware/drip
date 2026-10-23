@@ -1,17 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// A high-fidelity Natural Source painter — RIVER edition:
-/// rocky, mossy banks on either side, a flowing current with rapids/foam
-/// near the rocks, drifting leaves, wispy reeds, dragonflies overhead, and
-/// a submerged intake strainer on a pipe rising up out of frame — the
-/// pump's suction point in a natural source.
+/// Simple, clear Natural Source painter (pond / lake).
 ///
-/// Same public API as the pond edition, so it is a drop-in replacement:
-/// [isOn]   – true while the pump is drawing water: bubbles and inward-flow
-///            chevrons animate near the strainer, and the water gets a
-///            soft "active" glow.
-/// [phase]  – 0..1 looping animation driver (current, foam, leaves, flight).
+/// Reads instantly as "natural water": green hills and trees, a calm pond with
+/// ripples, cattails and rocks on the shore, and a blue intake pipe with a
+/// strainer under the surface.
+///
+/// [isOn]  – pump is drawing: bubbles rise and inward arcs pulse at the strainer.
+/// [phase] – 0..1 looping animation driver.
 class DetailedNaturalSourcePainter extends CustomPainter {
   final bool isOn;
   final double phase;
@@ -24,37 +21,33 @@ class DetailedNaturalSourcePainter extends CustomPainter {
   });
 
   // ---------------------------------------------------------------- palette
-  static const Color _skyTop = Color(0xFFCBE8F6);
-  static const Color _skyBottom = Color(0xFFEFF7EA);
+  static const Color _skyTop = Color(0xFF9ED8F2);
+  static const Color _skyBottom = Color(0xFFE6F5FB);
 
-  static const Color _mossLight = Color(0xFF8FB84A);
-  static const Color _mossMid = Color(0xFF5D8F33);
-  static const Color _mossDark = Color(0xFF355A1E);
+  static const Color _hillFar = Color(0xFF9CCB6B);
+  static const Color _hillNear = Color(0xFF6BAA45);
+  static const Color _grassDark = Color(0xFF3F7D2C);
 
-  static const Color _rockLight = Color(0xFFB9AFA0);
-  static const Color _rockMid = Color(0xFF8A8072);
-  static const Color _rockDark = Color(0xFF5A5246);
-  static const Color _soil = Color(0xFF5A4128);
+  static const Color _trunk = Color(0xFF6B4A2B);
+  static const Color _canopy = Color(0xFF3E8E3A);
+  static const Color _canopyLight = Color(0xFF58A94A);
 
-  static const Color _waterTop = Color(0xCC79D6E8);
-  static const Color _waterMid = Color(0xCC1E93B8);
-  static const Color _waterDeep = Color(0xE60A4E6E);
-  static const Color _waterGlow = Color(0xFF7FE3FF);
-  static const Color _foam = Color(0xFFF3FBFD);
+  static const Color _waterTop = Color(0xFF6FD0E6);
+  static const Color _waterMid = Color(0xFF2A9CC2);
+  static const Color _waterDeep = Color(0xFF0E5F86);
 
-  static const Color _reed = Color(0xFF4C7A2E);
-  static const Color _reedDark = Color(0xFF2F5A1C);
-  static const Color _leaf = Color(0xFFB5651D);
-  static const Color _leaf2 = Color(0xFFD98C2B);
+  static const Color _rockLight = Color(0xFFC4BBAD);
+  static const Color _rockDark = Color(0xFF7D7466);
+
+  static const Color _reed = Color(0xFF3F7D2C);
+  static const Color _cattail = Color(0xFF6D4C41);
+  static const Color _pad = Color(0xFF4FA64A);
 
   static const Color _steelLight = Color(0xFFECEFF1);
   static const Color _steelMid = Color(0xFF8FA0A8);
   static const Color _steelDark = Color(0xFF37464E);
 
-  static const Color _edge = Color(0xFF262622);
-
-  double _waterTopY(double h) => h * 0.26;
-  double _waterBottomY(double h) => h * 0.95;
+  double _waterTopY(double h) => h * 0.34;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -62,432 +55,349 @@ class DetailedNaturalSourcePainter extends CustomPainter {
     final double h = size.height;
 
     _drawSky(canvas, w, h);
-    _drawBanks(canvas, w, h);
-    if (isOn) _activeGlow(canvas, w, h);
+    _drawHills(canvas, w, h);
+    _drawTrees(canvas, w, h);
     _drawWater(canvas, w, h);
-    _drawLeaves(canvas, w, h);
-    _drawReeds(canvas, w, h);
-    _drawIntakePipe(canvas, w, h);
-    if (isOn) _drawDragonflies(canvas, w, h);
+    _drawShore(canvas, w, h);
+    _drawLilyPads(canvas, w, h);
+    _drawCattails(canvas, w, h);
+    _drawIntake(canvas, w, h);
   }
-
-  // -------------------------------------------------------------- helpers
-
-  Paint _fillV(Rect r, List<Color> colors, {List<double>? stops}) {
-    return Paint()
-      ..isAntiAlias = true
-      ..shader = LinearGradient(colors: colors, stops: stops, begin: Alignment.topCenter, end: Alignment.bottomCenter).createShader(r);
-  }
-
-  math.Random _seed(int n) => math.Random(n);
 
   // -------------------------------------------------------------------- sky
 
   void _drawSky(Canvas canvas, double w, double h) {
-    final double waterTop = _waterTopY(h);
-    final Rect sky = Rect.fromLTWH(0, 0, w, waterTop);
-    canvas.drawRect(sky, _fillV(sky, const [_skyTop, _skyBottom]));
-
-    canvas.drawCircle(
-      Offset(w * 0.80, h * 0.07),
-      w * 0.09,
+    final Rect sky = Rect.fromLTWH(0, 0, w, _waterTopY(h) + 2);
+    canvas.drawRect(
+      sky,
       Paint()
-        ..color = Colors.white.withOpacity(0.55)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+        ..shader = const LinearGradient(
+          colors: [_skyTop, _skyBottom],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(sky),
     );
 
-    final math.Random cRnd = _seed(3);
-    for (int i = 0; i < 3; i++) {
-      final double cx = w * (0.10 + cRnd.nextDouble() * 0.5);
-      final double cy = h * (0.04 + cRnd.nextDouble() * 0.07);
-      _drawCloud(canvas, Offset(cx, cy), w * (0.08 + cRnd.nextDouble() * 0.04));
-    }
+    // Two simple clouds.
+    final Paint cloud = Paint()..color = Colors.white.withOpacity(0.85);
+    _cloud(canvas, Offset(w * 0.20, h * 0.08), w * 0.07, cloud);
+    _cloud(canvas, Offset(w * 0.82, h * 0.13), w * 0.055, cloud);
   }
 
-  void _drawCloud(Canvas canvas, Offset center, double size) {
-    final Paint p = Paint()..color = Colors.white.withOpacity(0.75);
-    canvas.drawCircle(center, size * 0.5, p);
-    canvas.drawCircle(center + Offset(size * 0.5, size * 0.05), size * 0.38, p);
-    canvas.drawCircle(center - Offset(size * 0.45, -size * 0.08), size * 0.32, p);
+  void _cloud(Canvas canvas, Offset c, double s, Paint p) {
+    canvas.drawCircle(c, s, p);
+    canvas.drawCircle(c + Offset(s * 1.1, s * 0.25), s * 0.75, p);
+    canvas.drawCircle(c + Offset(-s * 1.0, s * 0.35), s * 0.65, p);
+    canvas.drawRect(
+      Rect.fromLTRB(c.dx - s * 1.0, c.dy + s * 0.35, c.dx + s * 1.1, c.dy + s * 0.95),
+      p,
+    );
   }
 
-  // ------------------------------------------------------------ rocky banks
+  // ------------------------------------------------------------------ hills
 
-  void _drawBanks(Canvas canvas, double w, double h) {
-    final double waterTop = _waterTopY(h);
+  void _drawHills(Canvas canvas, double w, double h) {
+    final double wt = _waterTopY(h);
 
-    // Soil base behind the moss, for depth.
-    canvas.drawPath(
-      Path()
-        ..moveTo(0, 0)
-        ..lineTo(w * 0.36, 0)
-        ..lineTo(w * 0.12, waterTop + h * 0.10)
-        ..lineTo(0, waterTop + h * 0.02)
-        ..close(),
-      Paint()..color = _soil.withOpacity(0.7),
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(w, 0)
-        ..lineTo(w * 0.62, 0)
-        ..lineTo(w * 0.86, waterTop + h * 0.08)
-        ..lineTo(w, waterTop + h * 0.02)
-        ..close(),
-      Paint()..color = _soil.withOpacity(0.7),
-    );
-
-    // Mossy grass slope, left.
-    final Path leftBank = Path()
-      ..moveTo(0, 0)
-      ..lineTo(w * 0.30, 0)
-      ..lineTo(w * 0.11, waterTop + h * 0.06)
-      ..lineTo(0, waterTop)
+    final Path far = Path()
+      ..moveTo(0, wt)
+      ..lineTo(0, h * 0.20)
+      ..quadraticBezierTo(w * 0.22, h * 0.10, w * 0.45, h * 0.21)
+      ..quadraticBezierTo(w * 0.72, h * 0.30, w, h * 0.17)
+      ..lineTo(w, wt)
       ..close();
-    canvas.drawPath(leftBank, _fillV(leftBank.getBounds(), const [_mossLight, _mossMid, _mossDark]));
+    canvas.drawPath(far, Paint()..color = _hillFar);
 
-    // Mossy grass slope, right.
-    final Path rightBank = Path()
-      ..moveTo(w, 0)
-      ..lineTo(w * 0.70, 0)
-      ..lineTo(w * 0.90, waterTop + h * 0.04)
-      ..lineTo(w, waterTop)
+    final Path near = Path()
+      ..moveTo(0, wt)
+      ..lineTo(0, h * 0.26)
+      ..quadraticBezierTo(w * 0.30, h * 0.20, w * 0.58, h * 0.29)
+      ..quadraticBezierTo(w * 0.82, h * 0.34, w, h * 0.27)
+      ..lineTo(w, wt)
       ..close();
-    canvas.drawPath(rightBank, _fillV(rightBank.getBounds(), const [_mossLight, _mossMid, _mossDark]));
-
-    // Rocks lining the water's edge, both sides.
-    final math.Random rockRnd = _seed(11);
-    _drawRockCluster(canvas, Offset(w * 0.02, waterTop + h * 0.005), w * 0.16, rockRnd);
-    _drawRockCluster(canvas, Offset(w * 0.80, waterTop - h * 0.005), w * 0.20, rockRnd);
-
-    // A few loose boulders poking out of the current itself.
-    _drawBoulder(canvas, Offset(w * 0.46, waterTop + h * 0.10), w * 0.045);
-    _drawBoulder(canvas, Offset(w * 0.53, waterTop + h * 0.16), w * 0.03);
-
-    // Grass tufts along the tops of the banks.
-    final math.Random rnd = _seed(17);
-    for (int i = 0; i < 46; i++) {
-      final bool left = i.isEven;
-      final double t = rnd.nextDouble();
-      final double bx = left ? w * (0.01 + t * 0.27) : w * (0.72 + t * 0.27);
-      final double by = h * (0.01 + rnd.nextDouble() * (waterTop / h + 0.01));
-      _drawGrassTuft(canvas, Offset(bx, by), 4 + rnd.nextDouble() * 6, rnd);
-    }
+    canvas.drawPath(near, Paint()..color = _hillNear);
   }
 
-  void _drawRockCluster(Canvas canvas, Offset origin, double spread, math.Random rnd) {
-    for (int i = 0; i < 6; i++) {
-      final double rx = origin.dx + rnd.nextDouble() * spread;
-      final double ry = origin.dy + (rnd.nextDouble() - 0.5) * spread * 0.35;
-      final double r = spread * (0.10 + rnd.nextDouble() * 0.10);
-      _drawBoulder(canvas, Offset(rx, ry), r);
-    }
+  void _drawTrees(Canvas canvas, double w, double h) {
+    _tree(canvas, Offset(w * 0.12, h * 0.31), h * 0.15);
+    _tree(canvas, Offset(w * 0.25, h * 0.32), h * 0.11);
+    _tree(canvas, Offset(w * 0.90, h * 0.30), h * 0.13);
   }
 
-  void _drawBoulder(Canvas canvas, Offset center, double r) {
-    final Rect rect = Rect.fromCenter(center: center, width: r * 2.2, height: r * 1.6);
-    final RRect rr = RRect.fromRectAndRadius(rect, Radius.circular(r * 0.7));
-    canvas.drawRRect(rr, _fillV(rect, const [_rockLight, _rockMid, _rockDark]));
-    canvas.drawRRect(rr, Paint()..style = PaintingStyle.stroke..strokeWidth = 0.8..color = _rockDark.withOpacity(0.6));
-    // A little moss cap on top.
-    canvas.drawArc(
-      Rect.fromCenter(center: center - Offset(0, r * 0.5), width: r * 1.6, height: r * 0.9),
-      math.pi, math.pi, false,
-      Paint()..style = PaintingStyle.stroke..strokeWidth = r * 0.35..color = _mossMid.withOpacity(0.7),
+  void _tree(Canvas canvas, Offset base, double height) {
+    final double tw = height * 0.12;
+    canvas.drawRect(
+      Rect.fromLTWH(base.dx - tw / 2, base.dy - height * 0.40, tw, height * 0.40),
+      Paint()..color = _trunk,
     );
+    final Offset c = base - Offset(0, height * 0.62);
+    canvas.drawCircle(c, height * 0.34, Paint()..color = _canopy);
+    canvas.drawCircle(c + Offset(-height * 0.10, -height * 0.10), height * 0.18,
+        Paint()..color = _canopyLight);
   }
 
-  void _drawGrassTuft(Canvas canvas, Offset base, double size, math.Random rnd) {
-    for (int i = 0; i < 4; i++) {
-      final double height = size * (0.7 + rnd.nextDouble() * 0.8);
-      final double curve = (rnd.nextDouble() - 0.5) * size * 1.5;
-      final double width = 0.6 + rnd.nextDouble() * 1.4;
-
-      final Paint blade = Paint()
-        ..color = Color.lerp(_mossDark, _mossMid, rnd.nextDouble())!.withOpacity(0.9)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = width
-        ..strokeCap = StrokeCap.round;
-
-      final Path path = Path()
-        ..moveTo(base.dx, base.dy)
-        ..quadraticBezierTo(
-            base.dx + curve * 0.3, base.dy - height * 0.6,
-            base.dx + curve, base.dy - height
-        );
-      canvas.drawPath(path, blade);
-    }
-  }
-
-  void _activeGlow(Canvas canvas, double w, double h) {
-    final double pulse = 0.6 + 0.4 * (0.5 + 0.5 * math.sin(phase * 2 * math.pi));
-    final Rect water = Rect.fromLTRB(w * 0.02, _waterTopY(h), w * 0.98, _waterBottomY(h));
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(water, const Radius.circular(8)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3 + 2 * pulse
-        ..color = _waterGlow.withOpacity(0.20 * pulse)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10 + 5 * pulse),
-    );
-  }
-
-  // --------------------------------------------------------------- water
+  // ------------------------------------------------------------------ water
 
   void _drawWater(Canvas canvas, double w, double h) {
-    final Rect waterRect = Rect.fromLTRB(0, _waterTopY(h), w, _waterBottomY(h));
+    final Rect water = Rect.fromLTRB(0, _waterTopY(h), w, h);
+
+    canvas.drawRect(
+      water,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [_waterTop, _waterMid, _waterDeep],
+          stops: [0.0, 0.45, 1.0],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(water),
+    );
 
     canvas.save();
-    canvas.clipRect(waterRect);
+    canvas.clipRect(water);
 
-    canvas.drawRect(waterRect, _fillV(waterRect, const [_waterTop, _waterMid, _waterDeep], stops: const [0.0, 0.4, 1.0]));
-
-    // Sun glints, angled — subtler than caustics since current keeps the
-    // surface broken up.
-    final Paint glint = Paint()
-      ..color = Colors.white.withOpacity(0.10)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    for (int i = 0; i < 5; i++) {
-      final double t = (phase + i / 5) % 1.0;
-      final double x = waterRect.left + t * waterRect.width;
-      final Path shaft = Path()
-        ..moveTo(x, waterRect.top)
-        ..lineTo(x + waterRect.width * 0.04, waterRect.top)
-        ..lineTo(x - waterRect.width * 0.10, waterRect.bottom)
-        ..lineTo(x - waterRect.width * 0.14, waterRect.bottom)
-        ..close();
-      canvas.drawPath(shaft, glint);
+    // Calm horizontal ripple lines, gently drifting.
+    final Paint ripple = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.3;
+    const List<double> rows = [0.10, 0.28, 0.46, 0.64, 0.82];
+    for (int i = 0; i < rows.length; i++) {
+      final double y = water.top + water.height * rows[i];
+      final double drift = math.sin((phase + i * 0.2) * 2 * math.pi) * w * 0.012;
+      final double x0 = w * (0.08 + (i.isEven ? 0.0 : 0.30)) + drift;
+      final double len = w * (0.16 - i * 0.012);
+      ripple.color = Colors.white.withOpacity(0.35 - i * 0.04);
+      canvas.drawPath(
+        Path()
+          ..moveTo(x0, y)
+          ..quadraticBezierTo(x0 + len * 0.25, y - 2.5, x0 + len * 0.5, y)
+          ..quadraticBezierTo(x0 + len * 0.75, y + 2.5, x0 + len, y),
+        ripple,
+      );
+      final double x1 = x0 + w * 0.46;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x1, y + 5)
+          ..quadraticBezierTo(x1 + len * 0.25, y + 2.5, x1 + len * 0.5, y + 5)
+          ..quadraticBezierTo(x1 + len * 0.75, y + 7.5, x1 + len, y + 5),
+        ripple,
+      );
     }
 
-    // Flowing current: streaked, elongated chevrons drifting continuously
-    // left-to-right (a river's downstream flow), unlike still-pond ripples.
-    for (int layer = 0; layer < 4; layer++) {
-      final Paint flow = Paint()
-        ..color = Colors.white.withOpacity(0.22 - layer * 0.04)
+    // Soft light reflection near the surface.
+    final Rect shine = Rect.fromLTWH(0, water.top, w, water.height * 0.14);
+    canvas.drawRect(
+      shine,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [Colors.white.withOpacity(0.30), Colors.white.withOpacity(0.0)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(shine),
+    );
+
+    canvas.restore();
+  }
+
+  // ------------------------------------------------------------------ shore
+
+  void _drawShore(Canvas canvas, double w, double h) {
+    final double wt = _waterTopY(h);
+
+    // Narrow grassy lip along the far shoreline.
+    final Path lip = Path()
+      ..moveTo(0, wt - h * 0.01)
+      ..quadraticBezierTo(w * 0.25, wt + h * 0.025, w * 0.5, wt + h * 0.005)
+      ..quadraticBezierTo(w * 0.75, wt + h * 0.025, w, wt - h * 0.01)
+      ..lineTo(w, wt - h * 0.03)
+      ..lineTo(0, wt - h * 0.03)
+      ..close();
+    canvas.drawPath(lip, Paint()..color = _grassDark);
+
+    // Rocks at the water's edge, left and right.
+    _rock(canvas, Offset(w * 0.07, wt + h * 0.015), w * 0.045);
+    _rock(canvas, Offset(w * 0.14, wt + h * 0.025), w * 0.03);
+    _rock(canvas, Offset(w * 0.86, wt + h * 0.02), w * 0.04);
+    _rock(canvas, Offset(w * 0.94, wt + h * 0.012), w * 0.05);
+  }
+
+  void _rock(Canvas canvas, Offset c, double r) {
+    final Rect rect = Rect.fromCenter(center: c, width: r * 2.2, height: r * 1.5);
+    final RRect rr = RRect.fromRectAndRadius(rect, Radius.circular(r * 0.7));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [_rockLight, _rockDark],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ).createShader(rect),
+    );
+  }
+
+  // ------------------------------------------------------------- lily pads
+
+  void _drawLilyPads(Canvas canvas, double w, double h) {
+    final double wt = _waterTopY(h);
+    final Paint pad = Paint()..color = _pad;
+    final Paint flower = Paint()..color = const Color(0xFFFFB7D5);
+
+    void padAt(Offset c, double r) {
+      canvas.drawOval(Rect.fromCenter(center: c, width: r * 2, height: r * 0.8), pad);
+    }
+
+    padAt(Offset(w * 0.26, wt + h * 0.18), w * 0.035);
+    padAt(Offset(w * 0.34, wt + h * 0.24), w * 0.026);
+    final Offset f = Offset(w * 0.26, wt + h * 0.17);
+    canvas.drawCircle(f, w * 0.009, flower);
+  }
+
+  // --------------------------------------------------------------- cattails
+
+  void _drawCattails(Canvas canvas, double w, double h) {
+    final double wt = _waterTopY(h);
+    const List<double> xs = [0.03, 0.08, 0.92, 0.97];
+    const List<double> hs = [0.22, 0.17, 0.19, 0.24];
+
+    for (int i = 0; i < xs.length; i++) {
+      final double bx = w * xs[i];
+      final double by = wt + h * 0.05;
+      final double sh = h * hs[i];
+      final double sway = math.sin(phase * 2 * math.pi + i) * w * 0.008;
+      final double tipX = bx + sway;
+      final double tipY = by - sh;
+
+      canvas.drawPath(
+        Path()
+          ..moveTo(bx, by)
+          ..quadraticBezierTo(bx + sway * 0.5, by - sh * 0.5, tipX, tipY),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round
+          ..color = _reed,
+      );
+      // Cattail head.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset(tipX, tipY + 5), width: 4.5, height: 13),
+          const Radius.circular(2.5),
+        ),
+        Paint()..color = _cattail,
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------- intake
+
+  void _drawIntake(Canvas canvas, double w, double h) {
+    final double wt = _waterTopY(h);
+    final double px = w * 0.60;
+    final double pw = w * 0.07;
+
+    // Riser pipe coming from the top of the tile.
+    final double riserBottom = h * 0.70;
+    final Rect riser = Rect.fromLTRB(px, 0, px + pw, riserBottom);
+    canvas.drawRect(
+      riser,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0xFF4FC3F7), Color(0xFF0288D1), Color(0xFF014B7A)],
+          stops: [0, 0.4, 1],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ).createShader(riser),
+    );
+    canvas.drawRect(
+      riser,
+      Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4 - layer * 0.2
-        ..strokeCap = StrokeCap.round;
-      final double yBase = waterRect.top + h * (0.06 + layer * 0.16);
-      final double speed = (phase + layer * 0.17) % 1.0;
-      for (int i = 0; i < 4; i++) {
-        final double t = (speed + i / 4) % 1.0;
-        final double startX = waterRect.left - waterRect.width * 0.15 + t * waterRect.width * 1.3;
-        final double len = waterRect.width * (0.10 + layer * 0.015);
-        final Path streak = Path()
-          ..moveTo(startX, yBase)
-          ..quadraticBezierTo(startX + len * 0.5, yBase + h * 0.01, startX + len, yBase - h * 0.005);
-        canvas.drawPath(streak, flow);
-      }
+        ..strokeWidth = 0.8
+        ..color = const Color(0xFF014B7A),
+    );
+
+    // Strainer body (cylinder with slots).
+    final Rect body = Rect.fromLTWH(px - pw * 0.45, riserBottom, pw * 1.9, h * 0.17);
+    final RRect bodyR = RRect.fromRectAndRadius(body, const Radius.circular(6));
+    canvas.drawRRect(
+      bodyR,
+      Paint()
+        ..shader = const LinearGradient(
+          colors: [_steelLight, _steelMid, _steelDark],
+          stops: [0, 0.5, 1],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ).createShader(body),
+    );
+    canvas.drawRRect(
+      bodyR,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9
+        ..color = _steelDark,
+    );
+
+    final Paint slot = Paint()..color = const Color(0xFF1B2226);
+    const int slots = 4;
+    final double slotArea = body.width * 0.70;
+    final double slotW = slotArea / (slots * 2 - 1);
+    final double sx0 = body.left + body.width * 0.15;
+    for (int i = 0; i < slots; i++) {
+      final double x = sx0 + i * slotW * 2;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(x, body.top + body.height * 0.22, x + slotW, body.bottom - body.height * 0.18),
+          Radius.circular(slotW * 0.4),
+        ),
+        slot,
+      );
     }
 
-    // Rapids / whitewater fanning out from the in-current boulders.
-    final Paint foamPaint = Paint()
-      ..color = _foam.withOpacity(0.55)
+    // Light water tint over the submerged part so it reads as underwater.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTRB(0, wt, w, h));
+    canvas.drawRect(
+      Rect.fromLTRB(px - pw, wt, px + pw * 2.4, body.bottom + 4),
+      Paint()..color = _waterMid.withOpacity(0.22),
+    );
+    canvas.restore();
+
+    // Surface ripple rings where the pipe enters the water.
+    final Paint ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withOpacity(0.65);
+    final double pcx = px + pw / 2;
+    canvas.drawOval(Rect.fromCenter(center: Offset(pcx, wt + 3), width: pw * 2.0, height: pw * 0.5), ring);
+    canvas.drawOval(
+        Rect.fromCenter(center: Offset(pcx, wt + 3), width: pw * 3.0, height: pw * 0.8),
+        ring..color = Colors.white.withOpacity(0.30));
+
+    if (isOn) _drawSuction(canvas, w, h, body);
+  }
+
+  void _drawSuction(Canvas canvas, double w, double h, Rect body) {
+    // Bubbles rising from the strainer toward the surface.
+    final math.Random rnd = math.Random(5);
+    for (int i = 0; i < 8; i++) {
+      final double t = (phase + rnd.nextDouble()) % 1.0;
+      final double bx = body.center.dx + (rnd.nextDouble() - 0.5) * body.width * 1.6;
+      final double by = body.top - t * (body.top - _waterTopY(h));
+      final double r = 1.2 + rnd.nextDouble() * 1.8;
+      canvas.drawCircle(Offset(bx, by), r, Paint()..color = Colors.white.withOpacity(0.6 * (1 - t)));
+    }
+
+    // Arcs pulling water inward toward the strainer.
+    final Paint arc = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
       ..strokeCap = StrokeCap.round;
-    final List<Offset> boulderTips = [
-      Offset(w * 0.46, waterRect.top + h * 0.10),
-      Offset(w * 0.53, waterRect.top + h * 0.16),
-    ];
-    for (final Offset b in boulderTips) {
-      for (int i = 0; i < 3; i++) {
-        final double t = (phase + i / 3) % 1.0;
-        final double spread = w * (0.02 + t * 0.05);
-        final double fade = (1 - t);
-        canvas.drawArc(
-          Rect.fromCenter(center: b, width: spread * 2, height: spread * 1.1),
-          math.pi * 0.9, math.pi * 1.1, false,
-          foamPaint..color = _foam.withOpacity(0.5 * fade),
-        );
-      }
-    }
-
-    if (isOn) {
-      final math.Random bubbleRnd = _seed(5);
-      for (int i = 0; i < 10; i++) {
-        final double seedT = bubbleRnd.nextDouble();
-        final double t = (phase + seedT) % 1.0;
-        final double bx = w * 0.72 + (bubbleRnd.nextDouble() - 0.5) * w * 0.10;
-        final double by = waterRect.bottom - t * waterRect.height * 0.7;
-        final double r = 1.0 + bubbleRnd.nextDouble() * 1.7;
-        final double fade = (1 - t).clamp(0.0, 1.0);
-        canvas.drawCircle(Offset(bx, by), r, Paint()..color = Colors.white.withOpacity(0.5 * fade));
-      }
-    }
-
-    canvas.restore();
-
-    canvas.drawLine(
-      Offset(waterRect.left, waterRect.top),
-      Offset(waterRect.right, waterRect.top),
-      Paint()..color = Colors.white.withOpacity(0.38)..strokeWidth = 1.0,
-    );
-  }
-
-  // -------------------------------------------------------- floating leaves
-
-  void _drawLeaves(Canvas canvas, double w, double h) {
-    final double waterTop = _waterTopY(h);
-    final math.Random rnd = _seed(42);
-    // Leaves drift downstream with the current instead of sitting fixed
-    // like lily pads would.
-    for (int i = 0; i < 5; i++) {
-      final double seedT = rnd.nextDouble();
-      final double t = (phase * 0.5 + seedT) % 1.0;
-      final double lx = w * (-0.05 + t * 1.1);
-      final double ly = waterTop + h * (0.05 + 0.09 * math.sin(seedT * 10));
-      final double r = w * (0.015 + rnd.nextDouble() * 0.008);
-      final double rotation = t * 2 * math.pi * 3 + seedT * 5;
-      final Color leafColor = i.isEven ? _leaf : _leaf2;
-
-      canvas.save();
-      canvas.translate(lx, ly);
-      canvas.rotate(rotation);
-      final Path leaf = Path()
-        ..moveTo(0, -r)
-        ..quadraticBezierTo(r, 0, 0, r)
-        ..quadraticBezierTo(-r, 0, 0, -r)
-        ..close();
-      canvas.drawPath(leaf, Paint()..color = leafColor.withOpacity(0.9));
-      canvas.drawLine(Offset(0, -r * 0.8), Offset(0, r * 0.8),
-          Paint()..color = _reedDark.withOpacity(0.5)..strokeWidth = 0.6);
-      canvas.restore();
-    }
-  }
-
-  // ------------------------------------------------------------------ reeds
-
-  void _drawReeds(Canvas canvas, double w, double h) {
-    final double waterTop = _waterTopY(h);
-    final math.Random rnd = _seed(23);
-    final List<double> clusterX = [w * 0.05, w * 0.11, w * 0.91, w * 0.96];
-    for (final double cx in clusterX) {
-      final int stalks = 4 + rnd.nextInt(3);
-      for (int i = 0; i < stalks; i++) {
-        final double baseX = cx + (rnd.nextDouble() - 0.5) * w * 0.04;
-        final double baseY = waterTop + h * (0.01 + rnd.nextDouble() * 0.03);
-        final double stalkH = h * (0.14 + rnd.nextDouble() * 0.09);
-        final double sway = math.sin(phase * 2 * math.pi + i) * w * 0.01;
-
-        final Paint stalk = Paint()
-          ..color = Color.lerp(_reed, _reedDark, rnd.nextDouble())!
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..strokeCap = StrokeCap.round;
-
-        final Path path = Path()
-          ..moveTo(baseX, baseY)
-          ..quadraticBezierTo(baseX + sway, baseY - stalkH * 0.5, baseX + sway * 1.8, baseY - stalkH);
-        canvas.drawPath(path, stalk);
-
-        final double headX = baseX + sway * 1.8;
-        final double headY = baseY - stalkH;
-        final Rect headRect = Rect.fromCenter(center: Offset(headX, headY - 4), width: 4, height: 12);
-        canvas.drawRRect(
-            RRect.fromRectAndRadius(headRect, const Radius.circular(2)),
-            Paint()..color = const Color(0xFF5D4037)
-        );
-        canvas.drawRRect(
-            RRect.fromRectAndRadius(Rect.fromLTWH(headRect.left + 1, headRect.top + 2, 1.2, 5), const Radius.circular(0.5)),
-            Paint()..color = Colors.white.withOpacity(0.1)
-        );
-      }
-    }
-  }
-
-  // ----------------------------------------------------------- intake pipe
-
-  void _drawIntakePipe(Canvas canvas, double w, double h) {
-    final double waterTop = _waterTopY(h);
-    // Riser coming down from off the top of the canvas into the water,
-    // positioned toward the right so it reads distinct from the reeds.
-    final Rect riser = Rect.fromLTWH(w * 0.66, 0, w * 0.06, h * 0.66);
-    final Paint pipePaint = Paint()
-      ..isAntiAlias = true
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF4FC3F7), Color(0xFF0288D1), Color(0xFF014B7A)],
-        stops: [0, 0.4, 1],
-        begin: Alignment.centerLeft,
-        end: Alignment.centerRight,
-      ).createShader(riser);
-    canvas.drawRect(riser, pipePaint);
-    canvas.drawRect(riser, Paint()..style = PaintingStyle.stroke..strokeWidth = 0.8..color = const Color(0xFF014B7A));
-
-    // Pipe support post driven into the bank, holding it steady.
-    final Rect post = Rect.fromLTWH(w * 0.635, waterTop - h * 0.02, w * 0.01, h * 0.10);
-    canvas.drawRect(post, Paint()..color = _steelDark);
-
-    // Foot-valve body underwater.
-    final Rect valveBody = Rect.fromLTWH(w * 0.635, waterTop + h * 0.30, w * 0.13, h * 0.14);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(valveBody, const Radius.circular(6)),
-      _fillV(valveBody, const [_steelLight, _steelMid, _steelDark], stops: const [0, 0.5, 1]),
-    );
-    canvas.drawRRect(RRect.fromRectAndRadius(valveBody, const Radius.circular(6)),
-        Paint()..style = PaintingStyle.stroke..strokeWidth = 0.9..color = _steelDark);
-
-    final Rect strainerArea = Rect.fromLTRB(
-      valveBody.left + valveBody.width * 0.12,
-      valveBody.top + valveBody.height * 0.28,
-      valveBody.right - valveBody.width * 0.12,
-      valveBody.bottom - valveBody.height * 0.10,
-    );
-    final Paint slot = Paint()..color = const Color(0xFF1B2226);
-    final int slotCount = 4;
-    final double slotW = strainerArea.width / (slotCount * 2 - 1);
-    for (int i = 0; i < slotCount; i++) {
-      final double x = strainerArea.left + i * slotW * 2;
-      final RRect r = RRect.fromRectAndRadius(
-        Rect.fromLTRB(x, strainerArea.top, x + slotW, strainerArea.bottom),
-        Radius.circular(slotW * 0.4),
-      );
-      canvas.drawRRect(r, slot);
-      canvas.drawRRect(r, Paint()..style = PaintingStyle.stroke..strokeWidth = 0.6..color = Colors.white.withOpacity(0.15));
-    }
-
-    // A float/buoy near the surface marking the intake, for character.
-    final double bob = math.sin(phase * 2 * math.pi) * h * 0.006;
-    final Offset buoyCenter = Offset(w * 0.60, waterTop + h * 0.035 + bob);
-    canvas.drawCircle(buoyCenter, w * 0.018, Paint()..color = const Color(0xFFE53935));
-    canvas.drawCircle(buoyCenter, w * 0.018, Paint()..style = PaintingStyle.stroke..strokeWidth = 0.8..color = Colors.black26);
-    canvas.drawLine(buoyCenter, Offset(valveBody.center.dx, valveBody.top), Paint()..color = Colors.black26..strokeWidth = 0.7);
-
-    if (isOn) {
-      final Paint chevron = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..strokeCap = StrokeCap.round
-        ..color = Colors.white.withOpacity(0.55);
-      for (int i = 0; i < 3; i++) {
-        final double t = (phase + i / 3) % 1.0;
-        final double r = w * (0.085 - t * 0.05);
-        final Offset c = Offset(valveBody.center.dx, valveBody.center.dy);
-        canvas.drawArc(Rect.fromCircle(center: c, radius: r), math.pi * 0.15, math.pi * 0.7, false, chevron);
-      }
-    }
-  }
-
-  // ------------------------------------------------------------ dragonflies
-
-  void _drawDragonflies(Canvas canvas, double w, double h) {
-    final Paint body = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..strokeCap = StrokeCap.round
-      ..color = _edge.withOpacity(0.55);
-    for (int i = 0; i < 2; i++) {
-      final double t = (phase * 0.6 + i / 2) % 1.0;
-      final double bx = w * (0.12 + t * 0.30) + math.sin(phase * 12 + i) * 4;
-      final double by = h * (0.10 + i * 0.05) + math.cos(phase * 9 + i) * 3;
-      final double flap = math.sin(phase * 20 + i) * 3;
-
-      canvas.drawLine(Offset(bx - 4, by), Offset(bx + 4, by), body);
-      final Paint wing = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.8
-        ..color = Colors.white.withOpacity(0.5);
-      canvas.drawLine(Offset(bx - 1, by), Offset(bx - 4, by - 3 - flap), wing);
-      canvas.drawLine(Offset(bx + 1, by), Offset(bx + 4, by - 3 - flap), wing);
+    for (int i = 0; i < 3; i++) {
+      final double t = (phase + i / 3) % 1.0;
+      final double r = w * (0.13 - t * 0.07);
+      arc.color = Colors.white.withOpacity(0.55 * t);
+      canvas.drawArc(Rect.fromCircle(center: body.center, radius: r), math.pi * 0.65, math.pi * 0.7, false, arc);
+      canvas.drawArc(Rect.fromCircle(center: body.center, radius: r), -math.pi * 0.35, math.pi * 0.7, false, arc);
     }
   }
 
@@ -496,7 +406,7 @@ class DetailedNaturalSourcePainter extends CustomPainter {
       old.isOn != isOn || old.phase != phase || old.showJoints != showJoints;
 }
 
-/// Drop-in widget: keeps current, foam, leaves, reeds and flow cues animating.
+/// Drop-in widget (same API as before).
 class NaturalSourceView extends StatefulWidget {
   final bool isOn;
   final bool showJoints;

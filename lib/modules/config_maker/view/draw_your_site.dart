@@ -330,6 +330,36 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     super.dispose();
   }
 
+  double get _canvasWidth {
+    double maxX = 0.0;
+    for (final n in _nodes) {
+      final double r = n.position.dx + n.size.width + 600.0;
+      if (r > maxX) maxX = r;
+    }
+    for (final p in _pipes) {
+      for (final wp in p.waypoints) {
+        final double r = wp.dx + 600.0;
+        if (r > maxX) maxX = r;
+      }
+    }
+    return math.max(kCanvasWidth, maxX);
+  }
+
+  double get _canvasHeight {
+    double maxY = 0.0;
+    for (final n in _nodes) {
+      final double b = n.position.dy + n.size.height + 600.0;
+      if (b > maxY) maxY = b;
+    }
+    for (final p in _pipes) {
+      for (final wp in p.waypoints) {
+        final double b = wp.dy + 600.0;
+        if (b > maxY) maxY = b;
+      }
+    }
+    return math.max(kCanvasHeight, maxY);
+  }
+
   String _nextId(String prefix) => '${prefix}_${_idCounter++}';
 
   void _onCanvasPointerSignal(PointerSignalEvent event) {
@@ -339,8 +369,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final double dy = _isShiftPressed ? 0.0 : d.dy;
     final Matrix4 m = _tc.value.clone()..leftTranslate(-dx, -dy);
     final double s = m.getMaxScaleOnAxis();
-    final double tx = m.storage[12].clamp(-(kCanvasWidth * s) + 100.0, 0.0).toDouble();
-    final double ty = m.storage[13].clamp(-(kCanvasHeight * s) + 100.0, 0.0).toDouble();
+    final double tx = m.storage[12].clamp(-(_canvasWidth * s) + 100.0, 0.0).toDouble();
+    final double ty = m.storage[13].clamp(-(_canvasHeight * s) + 100.0, 0.0).toDouble();
     m.storage[12] = tx;
     m.storage[13] = ty;
     _tc.value = m;
@@ -352,28 +382,61 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _tc.value = _tc.value.clone()..scale(k, k, 1.0);
   }
 
-  void _focusOnRect(Rect targetRect, {double padding = 140.0}) {
-    final Size viewportSize = MediaQuery.of(context).size;
-    final double vW = math.max(300.0, viewportSize.width - 60.0);
-    final double vH = math.max(300.0, viewportSize.height - 180.0);
+  void _focusOnRect(
+      Rect targetRect, {
+        double padding = 140.0,
+        double? paddingX,
+        double? paddingY,
+        double? maxScale,
+        double minScale = 0.3,
+        double? targetScale,
+        bool alignTopLeft = false,
+        bool fitWidth = false,
+      }) {
+    final ctx = _viewKey.currentContext;
+    final ro = ctx?.findRenderObject();
+    final Size viewportSize = (ro is RenderBox && ro.hasSize)
+        ? ro.size
+        : MediaQuery.of(context).size;
 
-    final double rectW = math.max(120.0, targetRect.width + padding * 2.0);
-    final double rectH = math.max(120.0, targetRect.height + padding * 2.0);
+    final double pX = paddingX ?? padding;
+    final double pY = paddingY ?? padding;
+
+    final double vW = math.max(200.0, viewportSize.width - pX - 80.0);
+    final double vH = math.max(200.0, viewportSize.height - pY - 180.0);
+
+    final double rectW = math.max(50.0, targetRect.width);
+    final double rectH = math.max(50.0, targetRect.height);
 
     final double scaleX = vW / rectW;
     final double scaleY = vH / rectH;
-    final double targetScale = math.min(scaleX, scaleY).clamp(0.5, 1.4).toDouble();
+    final double upperLimit = maxScale ?? 1.4;
+    final double lowerLimit = math.min(minScale, upperLimit);
 
-    final Offset center = targetRect.center;
-    double tx = (vW / 2.0) - (center.dx * targetScale);
-    double ty = (vH / 2.0) - (center.dy * targetScale);
+    final double computedScale;
+    if (targetScale != null) {
+      computedScale = targetScale;
+    } else if (fitWidth) {
+      computedScale = math.min(scaleX, upperLimit).clamp(lowerLimit, upperLimit).toDouble();
+    } else {
+      computedScale = math.min(scaleX, scaleY).clamp(lowerLimit, upperLimit).toDouble();
+    }
 
-    tx = math.min(0.0, tx);
-    ty = math.min(0.0, ty);
+    final double tx;
+    final double ty;
+
+    if (alignTopLeft) {
+      tx = pX - (targetRect.left * computedScale);
+      ty = pY - (targetRect.top * computedScale);
+    } else {
+      final Offset center = targetRect.center;
+      tx = (viewportSize.width / 2.0) - (center.dx * computedScale);
+      ty = (vH / 2.0) - (center.dy * computedScale);
+    }
 
     final Matrix4 endM = Matrix4.identity()
       ..translate(tx, ty)
-      ..scale(targetScale);
+      ..scale(computedScale);
 
     final Matrix4 startM = _tc.value.clone();
     final controller = AnimationController(
@@ -426,29 +489,88 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
 
     if (minX.isFinite) {
-      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+      const double marginLeft = 50.0;
+      const double marginRight = 20.0;
+      const double marginTop = 50.0;
+      const double marginBottom = 30.0;
+
+      final Rect target = Rect.fromLTRB(
+        math.max(0.0, minX - marginLeft),
+        math.max(0.0, minY - marginTop),
+        maxX + marginRight,
+        maxY + marginBottom,
+      );
+
+      _focusOnRect(
+        target,
+        paddingX: 12.0,
+        paddingY: 12.0,
+        fitWidth: true,
+        alignTopLeft: true,
+        maxScale: 1.0,
+        minScale: 0.15,
+      );
     }
   }
 
+  /// Focuses on an irrigation line and fits the line's full width into the
+  /// current viewport, so the zoom depends on the screen size and all valves
+  /// of a row are visible without horizontal scrolling.
   void _focusOnLine(int lineIdx) {
+    final String headerId = 'line_header_$lineIdx';
+    final String bankPrefix = 'multi_valve_line_${lineIdx}_bank_';
+
     double minX = double.infinity, minY = double.infinity;
     double maxX = -double.infinity, maxY = -double.infinity;
 
-    for (final n in _nodes) {
-      final bool matchesLine = n.id.contains('line_header_$lineIdx') ||
-          n.id.contains('multi_valve_line_${lineIdx}_') ||
-          n.id.contains('multi_fogger_line_$lineIdx');
-      if (matchesLine) {
-        minX = math.min(minX, n.position.dx);
-        minY = math.min(minY, n.position.dy);
-        maxX = math.max(maxX, n.position.dx + n.size.width);
-        maxY = math.max(maxY, n.position.dy + n.size.height);
-      }
+    void include(Rect r) {
+      minX = math.min(minX, r.left);
+      minY = math.min(minY, r.top);
+      maxX = math.max(maxX, r.right);
+      maxY = math.max(maxY, r.bottom);
     }
 
-    if (minX.isFinite) {
-      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+    for (final n in _nodes) {
+      final bool isLineNode = n.id == headerId ||
+          n.id.startsWith(bankPrefix) ||
+          (n.type == NodeType.multiValve && n.id.contains('line_${lineIdx}_'));
+      if (!isLineNode) continue;
+
+      double w = n.size.width;
+      if (n.type == NodeType.multiValve) {
+        // node width = 60 * valves + 60  ->  recover the valve count
+        final int valves = math.max(1, ((n.size.width - 60.0) / 75.0).round());
+        // painted spacing is ~157px per valve for a 180px-high node
+        final double spacing = n.size.height * 0.875;
+        w = valves * spacing;
+      }
+      include(Rect.fromLTWH(n.position.dx, n.position.dy, w, n.size.height));
     }
+
+    if (!minX.isFinite) return;
+
+    // Margins (reduce these to zoom in a little more)
+    const double marginLeft = 50.0;  // main header pipe on the left
+    const double marginRight = 20.0;
+    const double marginTop = 50.0;   // room for the "Irrigation Line" badge
+    const double marginBottom = 30.0;
+
+    final Rect target = Rect.fromLTRB(
+      math.max(0.0, minX - marginLeft),
+      math.max(0.0, minY - marginTop),
+      maxX + marginRight,
+      maxY + marginBottom,
+    );
+
+    _focusOnRect(
+      target,
+      paddingX: 12.0,
+      paddingY: 12.0,
+      fitWidth: true,
+      alignTopLeft: true,
+      maxScale: 1.0,
+      minScale: 0.15,
+    );
   }
 
   void _focusOnFilterSite(int filterIdx) {
@@ -636,10 +758,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   void _onNodePanUpdate(NodeObject node, DragUpdateDetails details) {
     final double dx = (node.position.dx + details.delta.dx / _scale)
-        .clamp(0.0, kCanvasWidth - node.size.width)
+        .clamp(0.0, _canvasWidth - node.size.width)
         .toDouble();
     final double dy = (node.position.dy + details.delta.dy / _scale)
-        .clamp(0.0, kCanvasHeight - node.size.height)
+        .clamp(0.0, _canvasHeight - node.size.height)
         .toDouble();
     node.position = Offset(dx, dy);
     _markInteracting();
@@ -651,8 +773,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final double deltaX = details.delta.dx / _scale;
     final double deltaY = details.delta.dy / _scale;
 
-    double maxW = (kCanvasWidth - node.position.dx).clamp(30.0, 800.0);
-    double maxH = (kCanvasHeight - node.position.dy).clamp(30.0, 800.0);
+    double maxW = (_canvasWidth - node.position.dx).clamp(30.0, 800.0);
+    double maxH = (_canvasHeight - node.position.dy).clamp(30.0, 800.0);
 
     if (_isShiftPressed && node.size.width > 0) {
       final double aspectRatio = node.size.width / node.size.height;
@@ -676,8 +798,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     if (node == null || node.type == NodeType.junction) return;
     _saveToHistory();
     setState(() {
-      final double maxW = (kCanvasWidth - node.position.dx).clamp(30.0, 800.0);
-      final double maxH = (kCanvasHeight - node.position.dy).clamp(30.0, 800.0);
+      final double maxW = (_canvasWidth - node.position.dx).clamp(30.0, 800.0);
+      final double maxH = (_canvasHeight - node.position.dy).clamp(30.0, 800.0);
       final newW = (node.size.width * factor).clamp(30.0, maxW);
       final newH = (node.size.height * factor).clamp(30.0, maxH);
       node.size = Size(newW, newH);
@@ -980,8 +1102,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   void _onWaypointPanUpdate(PipeConnection pipe, int index, DragUpdateDetails details) {
     final current = pipe.waypoints[index];
-    double nx = (current.dx + details.delta.dx / _scale).clamp(0.0, kCanvasWidth).toDouble();
-    double ny = (current.dy + details.delta.dy / _scale).clamp(0.0, kCanvasHeight).toDouble();
+    double nx = (current.dx + details.delta.dx / _scale).clamp(0.0, _canvasWidth).toDouble();
+    double ny = (current.dy + details.delta.dy / _scale).clamp(0.0, _canvasHeight).toDouble();
 
     if (_isShiftPressed) {
       final fromNode = _findNode(pipe.fromNodeId);
@@ -1822,8 +1944,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                               maxScale: 2.0,
                               boundaryMargin: const EdgeInsets.all(100),
                               child: SizedBox(
-                                width: kCanvasWidth,
-                                height: kCanvasHeight,
+                                width: _canvasWidth,
+                                height: _canvasHeight,
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onTapUp: _onCanvasTapUp,
@@ -1916,6 +2038,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                             tc: _tc,
                             viewportWidth: constraints.maxWidth,
                             viewportHeight: constraints.maxHeight - 36,
+                            canvasWidth: _canvasWidth,
+                            canvasHeight: _canvasHeight,
                           ),
                         ),
                         Positioned(

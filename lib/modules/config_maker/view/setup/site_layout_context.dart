@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../model/device_object_model.dart';
@@ -133,7 +132,19 @@ class SiteSetupData {
     return fertPumpSNos;
   })();
 
-  late final waterPumps = pumps.where((p) => !fertPumpSNos.contains(p.commonDetails.sNo)).toList();
+  /// sNos of pumps linked to water sources (inletPump or outletPump).
+  late final Set<double> waterSourcePumpSNos = (() {
+    final set = <double>{};
+    for (final src in waterSources) {
+      set.addAll(src.inletPump);
+      set.addAll(src.outletPump);
+    }
+    return set;
+  })();
+
+  late final waterPumps = pumps
+      .where((p) => !fertPumpSNos.contains(p.commonDetails.sNo) && waterSourcePumpSNos.contains(p.commonDetails.sNo))
+      .toList();
   late final fertPumps = pumps.where((p) => fertPumpSNos.contains(p.commonDetails.sNo)).toList();
 
   late final bool hasFertData = mainFertSources.isNotEmpty ||
