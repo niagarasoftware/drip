@@ -701,8 +701,10 @@ class IrrigationLogModel {
                 filterParameterLoop : for(var parameter in filterParameterList){
                   if(parameter.payloadKey == 'CentralFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyValve < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyValve] : '';
-                      var filterDuration = howManyValve < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyValve] : '';
+                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
+                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
+                      var filterName = howManyValve < cfNames.length ? cfNames[howManyValve] : '';
+                      var filterDuration = howManyValve < cfDurs.length ? cfDurs[howManyValve] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -718,8 +720,10 @@ class IrrigationLogModel {
                   }
                   if(parameter.payloadKey == 'LocalFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyValve < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyValve] : '';
-                      var filterDuration = howManyValve < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyValve] : '';
+                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
+                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
+                      var filterName = howManyValve < lfNames.length ? lfNames[howManyValve] : '';
+                      var filterDuration = howManyValve < lfDurs.length ? lfDurs[howManyValve] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -1179,8 +1183,10 @@ class IrrigationLogModel {
                 filterParameterLoop : for(var parameter in filterParameterList){
                   if(parameter.payloadKey == 'CentralFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyLine < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyLine] : '';
-                      var filterDuration = howManyLine < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyLine] : '';
+                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
+                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
+                      var filterName = howManyLine < cfNames.length ? cfNames[howManyLine] : '';
+                      var filterDuration = howManyLine < cfDurs.length ? cfDurs[howManyLine] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -1196,8 +1202,10 @@ class IrrigationLogModel {
                   }
                   if(parameter.payloadKey == 'LocalFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyLine < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyLine] : '';
-                      var filterDuration = howManyLine < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyLine] : '';
+                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
+                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
+                      var filterName = howManyLine < lfNames.length ? lfNames[howManyLine] : '';
+                      var filterDuration = howManyLine < lfDurs.length ? lfDurs[howManyLine] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -1663,8 +1671,10 @@ class IrrigationLogModel {
                 filterParameterLoop : for(var parameter in filterParameterList){
                   if(parameter.payloadKey == 'CentralFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyProgram < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyProgram] : '';
-                      var filterDuration = howManyProgram < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyProgram] : '';
+                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
+                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
+                      var filterName = howManyProgram < cfNames.length ? cfNames[howManyProgram] : '';
+                      var filterDuration = howManyProgram < cfDurs.length ? cfDurs[howManyProgram] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -1680,8 +1690,10 @@ class IrrigationLogModel {
                   }
                   if(parameter.payloadKey == 'LocalFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyProgram < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyProgram] : '';
-                      var filterDuration = howManyProgram < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyProgram] : '';
+                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
+                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
+                      var filterName = howManyProgram < lfNames.length ? lfNames[howManyProgram] : '';
+                      var filterDuration = howManyProgram < lfDurs.length ? lfDurs[howManyProgram] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -2143,8 +2155,10 @@ class IrrigationLogModel {
                 filterParameterLoop : for(var parameter in filterParameterList){
                   if(parameter.payloadKey == 'CentralFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyDate < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyDate] : '';
-                      var filterDuration = howManyDate < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyDate] : '';
+                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
+                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
+                      var filterName = howManyDate < cfNames.length ? cfNames[howManyDate] : '';
+                      var filterDuration = howManyDate < cfDurs.length ? cfDurs[howManyDate] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -2160,8 +2174,10 @@ class IrrigationLogModel {
                   }
                   if(parameter.payloadKey == 'LocalFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyDate < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyDate] : '';
-                      var filterDuration = howManyDate < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyDate] : '';
+                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
+                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
+                      var filterName = howManyDate < lfNames.length ? lfNames[howManyDate] : '';
+                      var filterDuration = howManyDate < lfDurs.length ? lfDurs[howManyDate] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -2625,8 +2641,10 @@ class IrrigationLogModel {
                 filterParameterLoop : for(var parameter in filterParameterList){
                   if(parameter.payloadKey == 'CentralFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyStatus < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyStatus] : '';
-                      var filterDuration = howManyStatus < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyStatus] : '';
+                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
+                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
+                      var filterName = howManyStatus < cfNames.length ? cfNames[howManyStatus] : '';
+                      var filterDuration = howManyStatus < cfDurs.length ? cfDurs[howManyStatus] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
@@ -2642,8 +2660,10 @@ class IrrigationLogModel {
                   }
                   if(parameter.payloadKey == 'LocalFilterName') {
                     if(parameter.show == true){
-                      var filterName = howManyStatus < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyStatus] : '';
-                      var filterDuration = howManyStatus < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyStatus] : '';
+                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
+                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
+                      var filterName = howManyStatus < lfNames.length ? lfNames[howManyStatus] : '';
+                      var filterDuration = howManyStatus < lfDurs.length ? lfDurs[howManyStatus] : '';
                       var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
                       var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
                       var listOfNameAndDuration = [];
