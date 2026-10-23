@@ -28,6 +28,9 @@ class IrrigationLineSetup extends SiteSetupBase {
     final int totalValves = lines.fold<int>(0, (sum, l) => sum + l.valve.length + l.mainValve.length + l.flowControlValve.length);
     final int totalFoggers = lines.fold<int>(0, (sum, l) => sum + l.fogger.length);
 
+    // If no irrigation line has any valves or foggers configured, do not draw irrigation lines
+    if (totalValves == 0 && totalFoggers == 0) return;
+
     // Calculate actual maximum right edge across all irrigation line equipment
     double maxLineEquipmentX = math.max(300.0, skidRightX);
     for (int i = 0; i < lines.length; i++) {
@@ -37,10 +40,6 @@ class IrrigationLineSetup extends SiteSetupBase {
         lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
       }
       int lFoggers = lineSpec.fogger.length;
-      if (totalValves == 0 && totalFoggers == 0 && i == 0) {
-        lValves = 6;
-        lFoggers = 4;
-      }
       if (lValves > 0) {
         final int bankValves = math.min(lValves, kMaxValvesPerRow);
         final double bankWidth = math.max(120.0, 70.0 * bankValves + 40.0);
@@ -78,12 +77,6 @@ class IrrigationLineSetup extends SiteSetupBase {
         lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
       }
       int lFoggers = lineSpec.fogger.length;
-
-      // Fallback for Line 0 if no line has assigned valves or foggers yet
-      if (totalValves == 0 && totalFoggers == 0 && i == 0) {
-        lValves = 6;
-        lFoggers = 4;
-      }
 
       // If this specific line has 0 valves and 0 foggers, skip creating nodes for it
       if (lValves == 0 && lFoggers == 0) continue;

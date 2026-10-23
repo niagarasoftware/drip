@@ -4,30 +4,29 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/setup/fertigation_Setup.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/setup/filtration_setup.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/setup/main_pipe_line_setup.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/setup/site_layout_context.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/setup/water_source_setup.dart';
 import 'package:provider/provider.dart';
 
-import '../../../utils/constants.dart';
-import '../model/channel_config_model.dart';
-import '../model/device_object_model.dart';
-import '../model/node_type_model.dart';
-import '../model/pump_model.dart';
-import '../state_management/config_maker_provider.dart';
-import '../widget/node_widget.dart';
-import '../widget/painter/pipe_painter.dart';
+import 'setup/fertigation_Setup.dart';
+import 'setup/filtration_setup.dart';
+import 'setup/main_pipe_line_setup.dart';
+import 'setup/site_layout_context.dart';
+import 'setup/water_source_setup.dart';
 
+import '../model/canvas_helpers.dart';
+import '../model/node_type_model.dart';
+import '../state_management/config_maker_provider.dart';
+import '../widget/attractive_scrollbars.dart';
+import '../widget/draw_site_controls.dart';
+import '../widget/draw_site_toolbar.dart';
+import '../widget/node_editor_bottom_sheet.dart';
+import '../widget/node_widget.dart';
+import '../widget/painter/grid_painter.dart';
+import '../widget/painter/pipe_painter.dart';
+import '../widget/site_tab_bar.dart';
 
 const double kCanvasWidth = 3000;
 const double kCanvasHeight = 2000;
 const double kPipeHitTolerance = 14;
-
-class CanvasNotifier extends ChangeNotifier {
-  void notify() => notifyListeners();
-}
 
 class DrawYourSiteScreen extends StatefulWidget {
   const DrawYourSiteScreen({super.key});
@@ -42,10 +41,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   String _activeTabId = 'all';
 
   // ---- Render / performance infrastructure ------------------------------
-  // _canvasNotifier : STRUCTURE changes (add/delete node, new pipe, select...)
-  // _dragNotifier   : PER-FRAME changes while dragging (pipes repaint + handles move)
-  // _nodeTicks      : one tiny notifier per node so only the moved node rebuilds
-  // _tc             : camera matrix (pan / zoom) handled by InteractiveViewer
   final CanvasNotifier _canvasNotifier = CanvasNotifier();
   final CanvasNotifier _dragNotifier = CanvasNotifier();
   final Map<String, ValueNotifier<int>> _nodeTicks = {};
@@ -57,8 +52,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   Timer? _simplifyTimer;
 
   // ---- viewport culling -------------------------------------------------
-  // Only nodes / pipes that touch (viewport + margin) are built and painted.
-  // The built area is rebuilt (debounced) only when the camera leaves it.
   final GlobalKey _viewKey = GlobalKey();
   Rect? _builtRect;
   Timer? _cullTimer;
@@ -115,8 +108,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   ValueNotifier<int> _nodeTick(String id) =>
       _nodeTicks.putIfAbsent(id, () => ValueNotifier<int>(0));
 
-  // _posTicks: position-only changes (a drag). They move the node's Positioned
-  // but never rebuild / repaint the node artwork itself.
   final Map<String, ValueNotifier<int>> _posTicks = {};
   ValueNotifier<int> _posTick(String id) =>
       _posTicks.putIfAbsent(id, () => ValueNotifier<int>(0));
@@ -148,7 +139,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     return ListenableBuilder(
       key: ValueKey('host_${node.id}'),
       listenable: _posTick(node.id),
-      child: content, // same instance every frame -> not rebuilt on a move
+      child: content,
       builder: (context, child) => Positioned(
         left: node.position.dx,
         top: node.position.dy,
@@ -192,16 +183,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Auto arrange (layered, compact, non-overlapping)
-  //
-  // The layout logic lives in separate files:
-  //   water_source_setup.dart     sources + water pumps + tank valves
-  //   filtration_setup.dart       multi-filter stations
-  //   fertigation_setup.dart      fert source / tanks / blowers / injector skid
-  //   main_pipeline_setup.dart    water supply -> filter -> skid -> lines
-  //   irrigation_line_setup.dart  line headers, valve banks, foggers
-  // ---------------------------------------------------------------------
   void _generateFromSourceConfig({bool showSnackBar = true}) {
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
 
@@ -229,20 +210,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       globalHideJoints: _globalHideJoints,
     );
 
-    final water = WaterSourceSetup(ctx).build(); // sources + pumps (top section)
-    final filterNodes = FiltrationSetup(ctx).build(water); // filter stations
-    final skidNodes = FertigationSetup(ctx).build(); // fertigation (right side)
+    final water = WaterSourceSetup(ctx).build();
+    final filterNodes = FiltrationSetup(ctx).build(water);
+    final skidNodes = FertigationSetup(ctx).build();
     MainPipelineSetup(ctx).build(
       water: water,
       filterNodes: filterNodes,
       skidNodes: skidNodes,
-    ); // supply -> filter -> skid -> irrigation lines
+    );
 
     _idCounter = ctx.idCounter;
 
-    // Every node object is brand new: refresh all per-node notifiers lazily
-    // (they are created on demand) and rebuild the structure layer once.
-    _builtRect = null; // new layout: build everything, re-cull on next scroll
+    _builtRect = null;
     setState(() {
       _selectedNodeId = null;
       _selectedPipeId = null;
@@ -341,6 +320,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _dragNotifier.dispose();
     _tc.dispose();
     _focus.dispose();
+    _sheetTabScrollController.dispose();
     for (final t in _nodeTicks.values) {
       t.dispose();
     }
@@ -352,10 +332,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   String _nextId(String prefix) => '${prefix}_${_idCounter++}';
 
-  // ---------------------------------------------------------------------
-  // Zoom (camera matrix only - nothing is rebuilt or re-laid-out)
-  // ---------------------------------------------------------------------
-  /// Mouse wheel / trackpad scroll moves the canvas (Shift + wheel = sideways).
   void _onCanvasPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     final Offset d = event.scrollDelta;
@@ -363,7 +339,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final double dy = _isShiftPressed ? 0.0 : d.dy;
     final Matrix4 m = _tc.value.clone()..leftTranslate(-dx, -dy);
     final double s = m.getMaxScaleOnAxis();
-    // keep the canvas from being scrolled completely out of view
     final double tx = m.storage[12].clamp(-(kCanvasWidth * s) + 100.0, 0.0).toDouble();
     final double ty = m.storage[13].clamp(-(kCanvasHeight * s) + 100.0, 0.0).toDouble();
     m.storage[12] = tx;
@@ -377,9 +352,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _tc.value = _tc.value.clone()..scale(k, k, 1.0);
   }
 
-  // ---------------------------------------------------------------------
-  // Smooth Camera Focus & Google Sheets Tabs Navigation
-  // ---------------------------------------------------------------------
   void _focusOnRect(Rect targetRect, {double padding = 140.0}) {
     final Size viewportSize = MediaQuery.of(context).size;
     final double vW = math.max(300.0, viewportSize.width - 60.0);
@@ -529,10 +501,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final filtrations = configPvd.filtration;
     final fertilizations = configPvd.fertilization;
 
-    final List<_SiteTabItem> tabs = [];
+    final List<SiteTabItem> tabs = [];
 
     // 1. All Tab
-    tabs.add(_SiteTabItem(
+    tabs.add(SiteTabItem(
       id: 'all',
       title: 'All',
       icon: Icons.grid_view_rounded,
@@ -544,7 +516,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     ));
 
     // 2. Water Source Tab
-    tabs.add(_SiteTabItem(
+    tabs.add(SiteTabItem(
       id: 'water_source',
       title: 'Water Source',
       icon: Icons.water_drop_outlined,
@@ -555,7 +527,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       },
     ));
 
-    // 2. Irrigation Line Tabs
+    // 3. Irrigation Line Tabs
     const List<Color> lineColors = [
       Color(0xFF10B981),
       Color(0xFF3B82F6),
@@ -572,7 +544,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           : 'Irrigation Line ${i + 1}';
       final Color color = lineColors[i % lineColors.length];
 
-      tabs.add(_SiteTabItem(
+      tabs.add(SiteTabItem(
         id: 'line_$i',
         title: lName,
         icon: Icons.alt_route_rounded,
@@ -584,14 +556,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       ));
     }
 
-    // 3. Filtration Site Tabs
+    // 4. Filtration Site Tabs
     for (int f = 0; f < filtrations.length; f++) {
       final fSite = filtrations[f];
       final String fName = (fSite.commonDetails.name?.isNotEmpty == true)
           ? fSite.commonDetails.name!
           : 'Filtration Site ${f + 1}';
 
-      tabs.add(_SiteTabItem(
+      tabs.add(SiteTabItem(
         id: 'filter_$f',
         title: fName,
         icon: Icons.filter_alt_outlined,
@@ -603,14 +575,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       ));
     }
 
-    // 4. Fertigation Site Tabs
+    // 5. Fertigation Site Tabs
     for (int s = 0; s < fertilizations.length; s++) {
       final fSite = fertilizations[s];
       final String sName = (fSite.commonDetails.name?.isNotEmpty == true)
           ? fSite.commonDetails.name!
           : 'Fertilization Site ${s + 1}';
 
-      tabs.add(_SiteTabItem(
+      tabs.add(SiteTabItem(
         id: 'fert_$s',
         title: sName,
         icon: Icons.science_outlined,
@@ -622,145 +594,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       ));
     }
 
-    return Container(
-      height: 38,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        border: Border(
-          top: BorderSide(color: Color(0xFF334155), width: 1.0),
-          bottom: BorderSide(color: Color(0xFF0F172A), width: 1.0),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Google Sheets style Left Scroll Action Buttons
-          Container(
-            height: 38,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E293B),
-              border: Border(right: BorderSide(color: Color(0xFF334155), width: 1)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    _sheetTabScrollController.animateTo(
-                      math.max(0.0, _sheetTabScrollController.offset - 150),
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_left, size: 20, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    _sheetTabScrollController.animateTo(
-                      math.min(_sheetTabScrollController.position.maxScrollExtent, _sheetTabScrollController.offset + 150),
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_right, size: 20, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Scrollable Google Sheets Tabs
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _sheetTabScrollController,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 6, right: 16, top: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: tabs.map((tab) {
-                  final bool isActive = tab.id == _activeTabId;
-
-                  return GestureDetector(
-                    onTap: tab.onTap,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? const Color(0xFF1E293B)
-                            : const Color(0xFF334155),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8),
-                          topRight: Radius.circular(8),
-                        ),
-                        border: Border.all(
-                          color: isActive
-                              ? tab.accentColor
-                              : const Color(0xFF475569),
-                          width: isActive ? 1.8 : 1.0,
-                        ),
-                        boxShadow: isActive
-                            ? [
-                          BoxShadow(
-                            color: tab.accentColor.withValues(alpha: 0.35),
-                            blurRadius: 6,
-                            offset: const Offset(0, -1),
-                          ),
-                        ]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: tab.accentColor,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            tab.icon,
-                            size: 14,
-                            color: isActive ? Colors.white : Colors.white70,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            tab.title,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ],
-      ),
+    return SiteTabBar(
+      activeTabId: _activeTabId,
+      tabs: tabs,
+      scrollController: _sheetTabScrollController,
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Node operations
-  // ---------------------------------------------------------------------
   void _addNode(NodeType type) {
     _saveToHistory();
     final rnd = math.Random();
@@ -785,8 +625,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   String _defaultLabelFor(NodeType type) => defaultLabelFor(type);
 
-  /// Drag start: save undo state and make the dragged node the selected one
-  /// (its port handles only exist while it is selected).
   void _onNodePanStart(NodeObject node) {
     _saveToHistory();
     if (_selectedNodeId != node.id) {
@@ -805,8 +643,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         .toDouble();
     node.position = Offset(dx, dy);
     _markInteracting();
-    _posTick(node.id).value++; // move ONLY this node (no repaint of its artwork)
-    _dragNotifier.notify(); // repaint pipes + move handles
+    _posTick(node.id).value++;
+    _dragNotifier.notify();
   }
 
   void _onNodeResizeUpdate(NodeObject node, DragUpdateDetails details) {
@@ -877,11 +715,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     return _getAirNodeIds().contains(node.id);
   }
 
-  /// Common "connect mode" logic: the first tap (on a node OR on a pipe,
-  /// which auto-creates a junction) sets the source endpoint; the second
-  /// tap sets the target endpoint and draws the pipe between them. This is
-  /// what lets a new pipe originate from, or land on, an existing pipe
-  /// instead of only ever a pump/tank/source node.
   void _handleConnectPick(String endpointNodeId) {
     setState(() {
       if (_connectFromId == null) {
@@ -919,7 +752,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           toPortId: toPortId,
         ));
         _connectFromId = null;
-        _connectMode = false; // Turn off connect mode after successful connection
+        _connectMode = false;
       }
     });
     _canvasNotifier.notify();
@@ -955,385 +788,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   }
 
   void _showNodeEditor(NodeObject node) {
-    final controller = TextEditingController(text: node.label);
-    showModalBottomSheet(
+    NodeEditorBottomSheet.show(
       context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        bool lockAspectRatio = true;
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            void updateSize(double newW, double newH) {
-              _saveToHistory();
-              setSheetState(() {
-                node.size = Size(
-                  newW.clamp(30.0, 600.0),
-                  newH.clamp(30.0, 600.0),
-                );
-              });
-              setState(() {});
-              _canvasNotifier.notify();
-            }
-
-            void scaleBy(double factor) {
-              updateSize(node.size.width * factor, node.size.height * factor);
-            }
-
-            void resetSize() {
-              final def = node.defaultSize;
-              updateSize(def.width, def.height);
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text('Edit ${node.type.name}', style: Theme.of(ctx).textTheme.titleMedium),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(labelText: 'Label', border: OutlineInputBorder()),
-                    ),
-                    if (node.type == NodeType.pump ||
-                        node.type == NodeType.sump ||
-                        node.type == NodeType.well ||
-                        node.type == NodeType.overheadTank ||
-                        node.type == NodeType.naturalSource ||
-                        node.type == NodeType.mainFertilizerSource ||
-                        node.type == NodeType.fertilizerTank ||
-                        node.type == NodeType.multiInjector ||
-                        node.type == NodeType.multiFilter ||
-                        node.type == NodeType.multiValve ||
-                        node.type == NodeType.mainValve ||
-                        node.type == NodeType.multiMainValve ||
-                        node.type == NodeType.singleMainValve ||
-                        node.type == NodeType.singleTankValve ||
-                        node.type == NodeType.multiOutletTankValve ||
-                        node.type == NodeType.multiAgitator ||
-                        node.type == NodeType.singleAgitator ||
-                        node.type == NodeType.pressureSensor ||
-                        node.type == NodeType.moistureSensor ||
-                        node.type == NodeType.ecSensor ||
-                        node.type == NodeType.phSensor ||
-                        node.type == NodeType.soilTemperatureSensor ||
-                        node.type == NodeType.waterMeter ||
-                        node.type == NodeType.blower ||
-                        node.type == NodeType.multiFogger) ...[
-                      const SizedBox(height: 8),
-                      SwitchListTile(
-                        title: Text(node.type == NodeType.pump ? 'Pump running' : 'Active / Flowing'),
-                        value: node.isOn,
-                        onChanged: (v) {
-                          _saveToHistory();
-                          setSheetState(() => node.isOn = v);
-                          setState(() {});
-                          _canvasNotifier.notify();
-                        },
-                      ),
-                      if (node.type == NodeType.multiFilter)
-                        SwitchListTile(
-                          title: const Text('Filter 2 Backwash Mode'),
-                          subtitle: const Text('Filter 1: Filtration | Filter 2: Backwash Flushing'),
-                          value: node.isBackwash,
-                          onChanged: (v) {
-                            _saveToHistory();
-                            setSheetState(() => node.isBackwash = v);
-                            setState(() {});
-                            _canvasNotifier.notify();
-                          },
-                        ),
-                      SwitchListTile(
-                        title: const Text('Show joints / bolts'),
-                        subtitle: const Text('Hide flange bolts and assembly joints'),
-                        value: node.showJoints,
-                        onChanged: (v) {
-                          _saveToHistory();
-                          setSheetState(() => node.showJoints = v);
-                          setState(() {});
-                          _canvasNotifier.notify();
-                        },
-                      ),
-                      if (node.type == NodeType.waterMeter ||
-                          node.type == NodeType.singleTankValve ||
-                          node.type == NodeType.multiOutletTankValve ||
-                          node.type == NodeType.singleMainValve ||
-                          node.type == NodeType.mainValve ||
-                          node.type == NodeType.multiMainValve)
-                        SwitchListTile(
-                          title: const Text('Horizontal orientation'),
-                          subtitle: Text(node.isHorizontal
-                              ? 'Horizontal (Inlet left, Outlet right)'
-                              : 'Vertical (Inlet top, Outlet bottom)'),
-                          value: node.isHorizontal,
-                          onChanged: (v) {
-                            _saveToHistory();
-                            setSheetState(() {
-                              node.isHorizontal = v;
-                              if ((v && node.size.width < node.size.height) ||
-                                  (!v && node.size.width > node.size.height)) {
-                                node.size = Size(node.size.height, node.size.width);
-                              }
-                            });
-                            setState(() {});
-                            _canvasNotifier.notify();
-                          },
-                        ),
-                      if (node.type == NodeType.multiAgitator) ...[
-                        const Divider(height: 24),
-                        Text(
-                          'Outlet Spacing (${((node.outletSpacing - 1.0) * 100).round() >= 0 ? "+" : ""}${((node.outletSpacing - 1.0) * 100).round()}%)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Text('Compact', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            Expanded(
-                              child: Slider(
-                                value: node.outletSpacing.clamp(0.6, 2.0),
-                                min: 0.6,
-                                max: 2.0,
-                                divisions: 28,
-                                label: '${(node.outletSpacing * 100).round()}%',
-                                onChanged: (v) {
-                                  _saveToHistory();
-                                  setSheetState(() => node.outletSpacing = v);
-                                  setState(() {});
-                                  _canvasNotifier.notify();
-                                },
-                              ),
-                            ),
-                            const Text('Wide', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Outlet Vertical Pipe Extension (${node.outletPipeLength.round()} px)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Text('0', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            Expanded(
-                              child: Slider(
-                                value: node.outletPipeLength.clamp(0.0, 300.0),
-                                min: 0.0,
-                                max: 300.0,
-                                divisions: 30,
-                                label: '${node.outletPipeLength.round()} px',
-                                onChanged: (v) {
-                                  _saveToHistory();
-                                  setSheetState(() => node.outletPipeLength = v);
-                                  setState(() {});
-                                  _canvasNotifier.notify();
-                                },
-                              ),
-                            ),
-                            const Text('300', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                      ],
-                      if (node.type == NodeType.multiFogger) ...[
-                        const Divider(height: 24),
-                        Text(
-                          'Fogger Nozzle Count (${node.outletPortCount})',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Text('1', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            Expanded(
-                              child: Slider(
-                                value: node.outletPortCount.toDouble().clamp(1.0, 12.0),
-                                min: 1.0,
-                                max: 12.0,
-                                divisions: 11,
-                                label: '${node.outletPortCount}',
-                                onChanged: (v) {
-                                  _saveToHistory();
-                                  setSheetState(() => node.outletPortCount = v.round());
-                                  setState(() {});
-                                  _canvasNotifier.notify();
-                                },
-                              ),
-                            ),
-                            const Text('12', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          ],
-                        ),
-                      ],
-                    ],
-                    const Divider(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Node Size (${node.size.width.round()} × ${node.size.height.round()} px)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        TextButton.icon(
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Reset', style: TextStyle(fontSize: 12)),
-                          onPressed: resetSize,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    // Quick Preset Buttons
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onPressed: () => scaleBy(0.9),
-                          child: const Text('-10%'),
-                        ),
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onPressed: () => scaleBy(1.1),
-                          child: const Text('+10%'),
-                        ),
-                        ActionChip(
-                          label: const Text('0.5x', style: TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final def = node.defaultSize;
-                            updateSize(def.width * 0.5, def.height * 0.5);
-                          },
-                        ),
-                        ActionChip(
-                          label: const Text('0.75x', style: TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final def = node.defaultSize;
-                            updateSize(def.width * 0.75, def.height * 0.75);
-                          },
-                        ),
-                        ActionChip(
-                          label: const Text('1.0x', style: TextStyle(fontSize: 11)),
-                          onPressed: resetSize,
-                        ),
-                        ActionChip(
-                          label: const Text('1.25x', style: TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final def = node.defaultSize;
-                            updateSize(def.width * 1.25, def.height * 1.25);
-                          },
-                        ),
-                        ActionChip(
-                          label: const Text('1.5x', style: TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final def = node.defaultSize;
-                            updateSize(def.width * 1.5, def.height * 1.5);
-                          },
-                        ),
-                        ActionChip(
-                          label: const Text('2.0x', style: TextStyle(fontSize: 11)),
-                          onPressed: () {
-                            final def = node.defaultSize;
-                            updateSize(def.width * 2.0, def.height * 2.0);
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Width & Height Sliders with Lock Aspect Ratio
-                    Row(
-                      children: [
-                        const SizedBox(width: 50, child: Text('Width', style: TextStyle(fontSize: 12))),
-                        Expanded(
-                          child: Slider(
-                            value: node.size.width.clamp(30.0, 500.0),
-                            min: 30,
-                            max: 500,
-                            label: '${node.size.width.round()} px',
-                            onChanged: (val) {
-                              final ratio = node.size.height / node.size.width;
-                              final newH = lockAspectRatio ? val * ratio : node.size.height;
-                              updateSize(val, newH);
-                            },
-                          ),
-                        ),
-                        SizedBox(width: 35, child: Text('${node.size.width.round()}', style: const TextStyle(fontSize: 12))),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const SizedBox(width: 50, child: Text('Height', style: TextStyle(fontSize: 12))),
-                        Expanded(
-                          child: Slider(
-                            value: node.size.height.clamp(30.0, 500.0),
-                            min: 30,
-                            max: 500,
-                            label: '${node.size.height.round()} px',
-                            onChanged: (val) {
-                              final ratio = node.size.width / node.size.height;
-                              final newW = lockAspectRatio ? val * ratio : node.size.width;
-                              updateSize(newW, val);
-                            },
-                          ),
-                        ),
-                        SizedBox(width: 35, child: Text('${node.size.height.round()}', style: const TextStyle(fontSize: 12))),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: lockAspectRatio,
-                          onChanged: (v) => setSheetState(() => lockAspectRatio = v ?? true),
-                        ),
-                        const Text('Lock Aspect Ratio', style: TextStyle(fontSize: 12)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            label: const Text('Delete', style: TextStyle(color: Colors.red)),
-                            onPressed: () {
-                              Navigator.pop(ctx);
-                              _deleteNode(node.id);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              _saveToHistory();
-                              setState(() => node.label = controller.text);
-                              _canvasNotifier.notify();
-                              Navigator.pop(ctx);
-                            },
-                            child: const Text('Save'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
+      node: node,
+      onSaveHistory: _saveToHistory,
+      onNotifyCanvas: _canvasNotifier.notify,
+      onDelete: () => _deleteNode(node.id),
+      onSaveLabel: (label) {
+        setState(() => node.label = label);
       },
     );
   }
@@ -1342,9 +804,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _saveToHistory();
     final node = _findNode(nodeId);
 
-    // A junction with exactly two pipes attached is just a pass-through
-    // point on what was originally one pipe: deleting it reconnects the two
-    // halves into a single pipe instead of breaking the run.
     if (node != null && node.type == NodeType.junction) {
       final attached =
       _pipes.where((p) => p.fromNodeId == nodeId || p.toNodeId == nodeId).toList();
@@ -1386,8 +845,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _canvasNotifier.notify();
   }
 
-  /// Drops junctions that no longer have any pipe attached (e.g. after the
-  /// pipe or node they were tee'd onto was deleted).
   void _removeOrphanJunctions() {
     final used = <String>{};
     for (final p in _pipes) {
@@ -1400,9 +857,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Pipe operations
-  // ---------------------------------------------------------------------
   NodeObject? _findNode(String id) {
     for (final n in _nodes) {
       if (n.id == id) return n;
@@ -1415,9 +869,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final hit = _locateNearestPipeSegment(pos, tolerance: kPipeSnapTolerance);
 
     if (_connectMode) {
-      // Tapping a pipe in connect mode drops a joint exactly on the pipe at
-      // that spot, so a new pipe can start from / end on ANY point of an
-      // existing pipe, not just on a node.
       if (hit != null) {
         final junctionId = _splitPipeAtPoint(hit.pipe, hit.segmentIndex, hit.point);
         _handleConnectPick(junctionId);
@@ -1432,9 +883,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _canvasNotifier.notify();
   }
 
-  /// Finds the pipe segment nearest to [pos], if any is within [tolerance].
-  /// Used for selecting a pipe by tap and adding a bend point by double-tap.
-  _PipeHit? _locateNearestPipeSegment(Offset pos, {required double tolerance}) {
+  PipeHit? _locateNearestPipeSegment(Offset pos, {required double tolerance}) {
     PipeConnection? bestPipe;
     int bestSegment = -1;
     double bestDist = tolerance;
@@ -1459,7 +908,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
 
     if (bestPipe == null || bestPoint == null) return null;
-    return _PipeHit(
+    return PipeHit(
       pipe: bestPipe,
       segmentIndex: bestSegment,
       distance: bestDist,
@@ -1467,12 +916,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     );
   }
 
-  /// Splits [pipe] into two pipes joined by a new small junction node placed
-  /// at [point] (which must lie on the segment at [segmentIndex]). Returns the
-  /// new junction's node id so it can immediately be used as a connect
-  /// endpoint. This is how a new pipe joins onto an existing pipe at any
-  /// point along its length (T-joint), and joining again at the same spot
-  /// gives a 4-way cross.
   String _splitPipeAtPoint(
       PipeConnection pipe,
       int segmentIndex,
@@ -1541,7 +984,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     double ny = (current.dy + details.delta.dy / _scale).clamp(0.0, kCanvasHeight).toDouble();
 
     if (_isShiftPressed) {
-      // Find reference points before and after this waypoint to align to
       final fromNode = _findNode(pipe.fromNodeId);
       final toNode = _findNode(pipe.toNodeId);
       if (fromNode != null && toNode != null) {
@@ -1550,12 +992,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           ...pipe.waypoints,
           portPosition(toNode, pipe.toPortId, isInput: true),
         ];
-        // index in pipe.waypoints corresponds to index + 1 in points
         final refIndex = index + 1;
         final prevPoint = points[refIndex - 1];
         final nextPoint = points[refIndex + 1];
 
-        // Determine closer reference point
         final refPoint = (nx - prevPoint.dx).abs() + (ny - prevPoint.dy).abs() <
             (nx - nextPoint.dx).abs() + (ny - nextPoint.dy).abs()
             ? prevPoint
@@ -1614,13 +1054,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     if (_pendingDragConnectionPos == null || _connectFromId == null) return;
     final pos = _pendingDragConnectionPos!;
 
-    // Check if dropped on a node
     String? targetNodeId;
     String? targetPortId;
     for (final node in _nodes) {
       if (node.id == _connectFromId) continue;
 
-      // Dropped on an existing joint: join it directly (T -> 4-way cross).
       if (node.type == NodeType.junction) {
         final c = portPosition(node, null, isInput: false);
         if ((c - pos).distance < 14) {
@@ -1630,7 +1068,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         continue;
       }
 
-      // Check if dropped near a specific port of a pump
       if (node.type == NodeType.pump) {
         if ((node.inputPort - pos).distance < 20) {
           targetNodeId = node.id;
@@ -1644,7 +1081,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of a sump
       if (node.type == NodeType.sump) {
         if ((node.inputPort - pos).distance < 20) {
           targetNodeId = node.id;
@@ -1658,7 +1094,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of an overhead tank
       if (node.type == NodeType.overheadTank) {
         if ((node.inputPort - pos).distance < 20) {
           targetNodeId = node.id;
@@ -1672,7 +1107,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of a well
       if (node.type == NodeType.well) {
         if ((node.outputPort - pos).distance < 20) {
           targetNodeId = node.id;
@@ -1681,7 +1115,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of a natural source
       if (node.type == NodeType.naturalSource) {
         if ((node.outputPort - pos).distance < 20) {
           targetNodeId = node.id;
@@ -1690,9 +1123,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-
-
-      // Check if dropped near a specific port of a main fertilizer source
       if (node.type == NodeType.mainFertilizerSource) {
         final inlet = node.getPort('inlet', isInput: true);
         final waterOutlet = node.getPort('water_outlet', isInput: false);
@@ -1710,14 +1140,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of a fertilizer tank
       if (node.type == NodeType.fertilizerTank) {
         final leftInlet = node.getPort('inlet', isInput: true);
         final topInlet = node.getPort('top_inlet', isInput: true);
         final outlet = node.getPort('outlet', isInput: false);
-        // The top port is AIR ONLY; the side inlet / bottom outlet are LIQUID
-        // ONLY. Offer just the ports that match the pipe being dragged, so an
-        // air hose can never land on a fertilizer port (or the reverse).
         final dragFrom = _connectFromId != null ? _findNode(_connectFromId!) : null;
         final bool dragIsAir = _connectFromPortId == 'top_inlet' ||
             (dragFrom != null && _isAirSource(dragFrom));
@@ -1735,7 +1161,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         }
       }
 
-      // Check if dropped near a specific port of a multi-injector skid
       if (node.type == NodeType.multiInjector) {
         for (int i = 0; i < 4; i++) {
           final p = node.getPort('channel_$i', isInput: true);
@@ -1757,7 +1182,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near a specific port of a multi-filter station
       if (node.type == NodeType.multiFilter) {
         final backwashPort = node.getPort('backwash', isInput: true);
         if ((backwashPort - pos).distance < 35) {
@@ -1773,7 +1197,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near the inlet or outlet port of a main valve or single tank valve
       if (node.type == NodeType.mainValve || node.type == NodeType.multiMainValve || node.type == NodeType.singleMainValve || node.type == NodeType.singleTankValve) {
         if ((node.inputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1785,7 +1208,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near a port of a multi-outlet tank valve manifold
       if (node.type == NodeType.multiOutletTankValve) {
         if ((node.inputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1803,7 +1225,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near the inlet port of a multi-valve bank
       if (node.type == NodeType.multiValve) {
         if ((node.inputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1812,7 +1233,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near a port of a multi-agitator station
       if (node.type == NodeType.multiAgitator) {
         if ((node.inputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1824,7 +1244,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near a port of a blower
       if (node.type == NodeType.blower) {
         if ((node.outputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1833,7 +1252,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         if (targetNodeId != null) break;
       }
 
-      // Check if dropped near a port of a multi-fogger system
       if (node.type == NodeType.multiFogger) {
         if ((node.inputPort - pos).distance < 35) {
           targetNodeId = node.id;
@@ -1874,8 +1292,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         _pipes.add(newPipe);
       });
     } else {
-      // Not on a node: dropped on the side of an existing pipe? Then branch
-      // off it at that exact point with a T-joint.
       final srcNode = _connectFromId != null ? _findNode(_connectFromId!) : null;
       final bool onSourceNode = srcNode != null &&
           Rect.fromLTWH(srcNode.position.dx, srcNode.position.dy, srcNode.size.width,
@@ -1885,7 +1301,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           ? null
           : _locateNearestPipeSegment(pos, tolerance: kPipeSnapTolerance);
       if (hit != null) {
-        // History was already saved when the port drag started.
         final junctionId =
         _splitPipeAtPoint(hit.pipe, hit.segmentIndex, hit.point, saveHistory: false);
         setState(() {
@@ -1928,9 +1343,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     _canvasNotifier.notify();
   }
 
-  // ---------------------------------------------------------------------
-  // Export / Import
-  // ---------------------------------------------------------------------
   void _showExportDialog() {
     final data = {
       'nodes': _nodes.map((n) => n.toJson()).toList(),
@@ -1954,9 +1366,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     );
   }
 
-  /// Tiny hit area for a pipe joint. The fitting itself (elbow / tee / cross)
-  /// is painted by [PipePainter]; this only makes the joint tappable (select,
-  /// or pick as a connect endpoint), draggable and removable.
   Widget _buildJunctionDot(NodeObject node) {
     final bool selected = node.id == _selectedNodeId;
     final bool source = node.id == _connectFromId;
@@ -2330,7 +1739,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
             color: Colors.blue.withValues(alpha: 0.85),
           ),
         );
-
       } else if (node.type == NodeType.multiFogger) {
         handles.add(
           WaypointHandle(
@@ -2359,9 +1767,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     return handles;
   }
 
-  // ---------------------------------------------------------------------
-  // Build
-  // ---------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2383,7 +1788,21 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         },
         child: Column(
           children: [
-            RepaintBoundary(child: _buildToolbar()),
+            RepaintBoundary(
+              child: DrawSiteToolbar(
+                onAddNode: _addNode,
+                onAutoArrange: () => _generateFromSourceConfig(showSnackBar: true),
+                onToggleConnectMode: _toggleConnectMode,
+                onDeleteSelected: _deleteSelected,
+                onScaleSelectedNode: _scaleSelectedNode,
+                onResetSelectedNodeSize: _resetSelectedNodeSize,
+                connectMode: _connectMode,
+                isNodeSelected: _selectedNodeId != null,
+                isPipeSelected: _selectedPipeId != null,
+                isJunctionSelected: _selectedNodeId != null &&
+                    _findNode(_selectedNodeId!)?.type == NodeType.junction,
+              ),
+            ),
             Expanded(
               child: Container(
                 color: Colors.white,
@@ -2392,14 +1811,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                     return Stack(
                       children: [
                         Positioned.fill(
-                          // Camera: pan / zoom is just a matrix change, no rebuilds.
                           child: Listener(
                             key: _viewKey,
                             onPointerSignal: _onCanvasPointerSignal,
                             child: InteractiveViewer(
                               transformationController: _tc,
                               constrained: false,
-                              scaleEnabled: false, // no wheel / pinch zoom (buttons only)
+                              scaleEnabled: false,
                               minScale: 0.4,
                               maxScale: 2.0,
                               boundaryMargin: const EdgeInsets.all(100),
@@ -2410,25 +1828,19 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                   behavior: HitTestBehavior.opaque,
                                   onTapUp: _onCanvasTapUp,
                                   onDoubleTapDown: _onCanvasDoubleTapDown,
-                                  onDoubleTap: () {}, // required so onDoubleTapDown fires
+                                  onDoubleTap: () {},
                                   child: Stack(
                                     children: [
-                                      // grid background (static, painted once)
                                       Positioned.fill(
                                         child: RepaintBoundary(
-                                          child: CustomPaint(painter: _GridPainter()),
+                                          child: CustomPaint(painter: const GridPainter()),
                                         ),
                                       ),
-
-                                      // LAYER 1: pipes + nodes.
-                                      // Rebuilds on structure changes only; while dragging,
-                                      // only the moved node's own host rebuilds.
                                       ListenableBuilder(
                                         listenable: _canvasNotifier,
                                         builder: (context, _) {
                                           return Stack(
                                             children: [
-                                              // pipes
                                               Positioned.fill(
                                                 child: RepaintBoundary(
                                                   child: ListenableBuilder(
@@ -2453,7 +1865,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                                   ),
                                                 ),
                                               ),
-                                              // nodes (each one rebuilds on its own tick)
                                               for (final node in _nodes)
                                                 if (_isBuilt(node))
                                                   if (node.type == NodeType.junction)
@@ -2468,9 +1879,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                           );
                                         },
                                       ),
-
-                                      // LAYER 2: interaction handles (waypoints + ports of
-                                      // the selected node only). Follows drag updates.
                                       ListenableBuilder(
                                         listenable: Listenable.merge([_canvasNotifier, _dragNotifier]),
                                         builder: (context, _) {
@@ -2502,16 +1910,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                             ),
                           ),
                         ),
-                        // Custom attractive scrollbars overlay
                         Positioned.fill(
                           bottom: 36,
-                          child: _AttractiveScrollbars(
+                          child: AttractiveScrollbars(
                             tc: _tc,
                             viewportWidth: constraints.maxWidth,
                             viewportHeight: constraints.maxHeight - 36,
                           ),
                         ),
-                        // Google Sheets Style Tab Bar
                         Positioned(
                           left: 0,
                           right: 0,
@@ -2519,94 +1925,39 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                           height: 36,
                           child: _buildGoogleSheetTabBar(),
                         ),
-                        // Right side vertical floating action buttons (placed to the left of the vertical scrollbar)
                         Positioned(
                           top: 16,
                           right: 22,
-                          child: Material(
-                            elevation: 4,
-                            borderRadius: BorderRadius.circular(12),
-                            color: Colors.white,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Undo',
-                                    icon: const Icon(Icons.undo),
-                                    onPressed: _undoStack.isNotEmpty ? _undo : null,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Redo',
-                                    icon: const Icon(Icons.redo),
-                                    onPressed: _redoStack.isNotEmpty ? _redo : null,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(width: 24, height: 1, color: Colors.black12),
-                                  const SizedBox(height: 4),
-                                  IconButton(
-                                    tooltip: _globalHideJoints ? 'Disable Hide Joints' : 'Enable Hide Joints',
-                                    icon: Icon(_globalHideJoints ? Icons.layers_clear : Icons.layers),
-                                    onPressed: () {
-                                      setState(() {
-                                        _globalHideJoints = !_globalHideJoints;
-                                        for (final node in _nodes) {
-                                          node.showJoints = !_globalHideJoints;
-                                        }
-                                      });
-                                      _canvasNotifier.notify();
-                                    },
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(width: 24, height: 1, color: Colors.black12),
-                                  const SizedBox(height: 4),
-                                  IconButton(
-                                    tooltip: 'Zoom in',
-                                    icon: const Icon(Icons.zoom_in),
-                                    onPressed: () => _zoomBy(1.1),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 2),
-                                    child: ListenableBuilder(
-                                      listenable: _tc,
-                                      builder: (_, __) => Text(
-                                        '${(_scale * 100).round()}%',
-                                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Zoom out',
-                                    icon: const Icon(Icons.zoom_out),
-                                    onPressed: () => _zoomBy(0.9),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(width: 24, height: 1, color: Colors.black12),
-                                  const SizedBox(height: 4),
-                                  IconButton(
-                                    tooltip: 'Export configuration (JSON)',
-                                    icon: const Icon(Icons.file_download),
-                                    onPressed: _showExportDialog,
-                                  ),
-                                  IconButton(
-                                    tooltip: 'Clear canvas',
-                                    icon: const Icon(Icons.delete_sweep),
-                                    onPressed: () {
-                                      _saveToHistory();
-                                      setState(() {
-                                        _nodes.clear();
-                                        _pipes.clear();
-                                        _selectedNodeId = null;
-                                        _selectedPipeId = null;
-                                        _connectFromId = null;
-                                      });
-                                      _canvasNotifier.notify();
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
+                          child: DrawSiteControlsOverlay(
+                            onUndo: _undo,
+                            onRedo: _redo,
+                            canUndo: _undoStack.isNotEmpty,
+                            canRedo: _redoStack.isNotEmpty,
+                            globalHideJoints: _globalHideJoints,
+                            transformationController: _tc,
+                            onToggleHideJoints: () {
+                              setState(() {
+                                _globalHideJoints = !_globalHideJoints;
+                                for (final node in _nodes) {
+                                  node.showJoints = !_globalHideJoints;
+                                }
+                              });
+                              _canvasNotifier.notify();
+                            },
+                            onZoomIn: () => _zoomBy(1.1),
+                            onZoomOut: () => _zoomBy(0.9),
+                            onExportJson: _showExportDialog,
+                            onClearCanvas: () {
+                              _saveToHistory();
+                              setState(() {
+                                _nodes.clear();
+                                _pipes.clear();
+                                _selectedNodeId = null;
+                                _selectedPipeId = null;
+                                _connectFromId = null;
+                              });
+                              _canvasNotifier.notify();
+                            },
                           ),
                         ),
                       ],
@@ -2620,456 +1971,4 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       ),
     );
   }
-
-  Widget _buildToolbar() {
-    return Material(
-      elevation: 2,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Row(
-          children: [
-            _toolButton(Icons.settings_input_component, 'Pump', () => _addNode(NodeType.pump)),
-            _toolButton(Icons.inbox, 'Sump', () => _addNode(NodeType.sump)),
-            _toolButton(Icons.waves, 'Well', () => _addNode(NodeType.well)),
-            _toolButton(Icons.architecture, 'OH Tank', () => _addNode(NodeType.overheadTank)),
-            _toolButton(Icons.landscape, 'Natural Src', () => _addNode(NodeType.naturalSource)),
-            _toolButton(Icons.science, 'Main Fert Src', () => _addNode(NodeType.mainFertilizerSource)),
-            _toolButton(Icons.biotech, 'Fert Tank', () => _addNode(NodeType.fertilizerTank)),
-            _toolButton(Icons.tune, 'Multi-Injector', () => _addNode(NodeType.multiInjector)),
-            _toolButton(Icons.filter_alt_outlined, 'Multi-Filter', () => _addNode(NodeType.multiFilter)),
-            _toolButton(Icons.alt_route, 'Multi-Valve', () => _addNode(NodeType.multiValve)),
-            _toolButton(Icons.alt_route, 'Multi Main Valve', () => _addNode(NodeType.multiMainValve)),
-            _toolButton(Icons.toggle_on, 'Single Main Valve', () => _addNode(NodeType.singleMainValve)),
-            _toolButton(Icons.adjust, 'Single Tank Valve', () => _addNode(NodeType.singleTankValve)),
-            _toolButton(Icons.view_array, 'Multi Outlet Tank Valve', () => _addNode(NodeType.multiOutletTankValve)),
-            _toolButton(Icons.cyclone, 'Multi-Agitator', () => _addNode(NodeType.multiAgitator)),
-            _toolButton(Icons.cyclone, 'Single Agitator', () => _addNode(NodeType.singleAgitator)),
-            _toolButton(Icons.speed, 'Pressure Sensor', () => _addNode(NodeType.pressureSensor)),
-            _toolButton(Icons.grass, 'Moisture Sensor', () => _addNode(NodeType.moistureSensor)),
-            _toolButton(Icons.bolt, 'EC Sensor', () => _addNode(NodeType.ecSensor)),
-            _toolButton(Icons.science, 'pH Sensor', () => _addNode(NodeType.phSensor)),
-            _toolButton(Icons.thermostat, 'Soil Temp', () => _addNode(NodeType.soilTemperatureSensor)),
-            _toolButton(Icons.water_drop, 'Water Meter', () => _addNode(NodeType.waterMeter)),
-            _toolButton(Icons.air, 'Air Blower', () => _addNode(NodeType.blower)),
-            _toolButton(Icons.cloud, 'Multi-Fogger', () => _addNode(NodeType.multiFogger)),
-            const SizedBox(width: 12),
-            const VerticalDivider(width: 1),
-            const SizedBox(width: 12),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Auto Arrange from Config', style: TextStyle(fontWeight: FontWeight.bold)),
-              onPressed: () => _generateFromSourceConfig(showSnackBar: true),
-            ),
-            const SizedBox(width: 12),
-            const VerticalDivider(width: 1),
-            const SizedBox(width: 12),
-            FilterChip(
-              label: const Text('Connect pipe'),
-              avatar: const Icon(Icons.timeline, size: 18),
-              selected: _connectMode,
-              onSelected: (_) => _toggleConnectMode(),
-            ),
-            const SizedBox(width: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              label: const Text('Delete selected', style: TextStyle(color: Colors.red)),
-              onPressed: (_selectedNodeId != null || _selectedPipeId != null) ? _deleteSelected : null,
-            ),
-            if (_selectedNodeId != null &&
-                _findNode(_selectedNodeId!)?.type != NodeType.junction) ...[
-              const SizedBox(width: 8),
-              const VerticalDivider(width: 1),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Reduce node size (-10%)',
-                icon: const Icon(Icons.remove_circle_outline),
-                onPressed: () => _scaleSelectedNode(0.9),
-              ),
-              IconButton(
-                tooltip: 'Increase node size (+10%)',
-                icon: const Icon(Icons.add_circle_outline),
-                onPressed: () => _scaleSelectedNode(1.1),
-              ),
-              IconButton(
-                tooltip: 'Reset node size',
-                icon: const Icon(Icons.aspect_ratio),
-                onPressed: _resetSelectedNodeSize,
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _toolButton(IconData icon, String label, VoidCallback onPressed) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-      ),
-    );
-  }
-}
-
-/// Result of a nearest-pipe-segment lookup: which pipe, which segment
-/// (0-based, between points[i] and points[i+1] of that pipe's full path),
-/// and how far the query point was from it.
-class _PipeHit {
-  final PipeConnection pipe;
-  final int segmentIndex;
-  final double distance;
-
-  /// Closest point on that segment to the query point (where a joint goes).
-  final Offset point;
-
-  _PipeHit({
-    required this.pipe,
-    required this.segmentIndex,
-    required this.distance,
-    required this.point,
-  });
-}
-
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.grey.withValues(alpha: 0.15)
-      ..strokeWidth = 1;
-    const step = 40.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _AttractiveScrollbars extends StatefulWidget {
-  final TransformationController tc;
-  final double viewportWidth;
-  final double viewportHeight;
-
-  const _AttractiveScrollbars({
-    required this.tc,
-    required this.viewportWidth,
-    required this.viewportHeight,
-  });
-
-  @override
-  State<_AttractiveScrollbars> createState() => _AttractiveScrollbarsState();
-}
-
-class _AttractiveScrollbarsState extends State<_AttractiveScrollbars> {
-  bool _hoverH = false;
-  bool _hoverV = false;
-  bool _dragH = false;
-  bool _dragV = false;
-
-  double _startThumbLeft = 0.0;
-  double _startDragX = 0.0;
-
-  double _startThumbTop = 0.0;
-  double _startDragY = 0.0;
-
-  void _scrollToRatioX(double targetRatio, double scale, double minVisX, double spanX) {
-    final double clampedRatio = targetRatio.clamp(0.0, 1.0);
-    final double newVisLeft = minVisX + clampedRatio * spanX;
-    final Matrix4 nextM = widget.tc.value.clone();
-    nextM.storage[12] = -newVisLeft * scale;
-    widget.tc.value = nextM;
-  }
-
-  void _scrollToRatioY(double targetRatio, double scale, double minVisY, double spanY) {
-    final double clampedRatio = targetRatio.clamp(0.0, 1.0);
-    final double newVisTop = minVisY + clampedRatio * spanY;
-    final Matrix4 nextM = widget.tc.value.clone();
-    nextM.storage[13] = -newVisTop * scale;
-    widget.tc.value = nextM;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.tc,
-      builder: (context, _) {
-        final Matrix4 m = widget.tc.value;
-        final double scale = m.getMaxScaleOnAxis();
-        final double tx = m.storage[12];
-        final double ty = m.storage[13];
-
-        final double visW = widget.viewportWidth / scale;
-        final double visH = widget.viewportHeight / scale;
-
-        const double minVisX = -300.0;
-        final double maxVisX = kCanvasWidth + 300.0 - visW;
-        final double spanX = math.max(1.0, maxVisX - minVisX);
-
-        const double minVisY = -300.0;
-        final double maxVisY = kCanvasHeight + 300.0 - visH;
-        final double spanY = math.max(1.0, maxVisY - minVisY);
-
-        final double visLeft = (-tx / scale).clamp(minVisX, maxVisX);
-        final double visTop = (-ty / scale).clamp(minVisY, maxVisY);
-
-        final double ratioX = ((visLeft - minVisX) / spanX).clamp(0.0, 1.0);
-        final double ratioY = ((visTop - minVisY) / spanY).clamp(0.0, 1.0);
-
-        // Horizontal Track & Thumb (placed at the very bottom edge)
-        const double padLeftH = 6.0;
-        const double padRightH = 20.0;
-        final double trackW = math.max(100.0, widget.viewportWidth - padLeftH - padRightH);
-        final double totalSpanW = kCanvasWidth + 600.0;
-        final double thumbW = (trackW * (visW / totalSpanW)).clamp(40.0, trackW * 0.85);
-        final double availTrackW = math.max(1.0, trackW - thumbW);
-        final double thumbLeft = availTrackW * ratioX;
-
-        // Vertical Track & Thumb (placed at the very right edge, after floating action buttons)
-        const double padTopV = 6.0;
-        const double padBottomV = 20.0;
-        final double trackH = math.max(100.0, widget.viewportHeight - padTopV - padBottomV);
-        final double totalSpanH = kCanvasHeight + 600.0;
-        final double thumbH = (trackH * (visH / totalSpanH)).clamp(40.0, trackH * 0.85);
-        final double availTrackH = math.max(1.0, trackH - thumbH);
-        final double thumbTop = availTrackH * ratioY;
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // ── HORIZONTAL SCROLLBAR (At the very bottom edge) ──
-            Positioned(
-              left: padLeftH,
-              bottom: 4,
-              width: trackW,
-              height: 12,
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _hoverH = true),
-                onExit: (_) => setState(() => _hoverH = false),
-                child: GestureDetector(
-                  onTapDown: (details) {
-                    final double localX = details.localPosition.dx;
-                    final double targetRatio = (localX - thumbW / 2) / availTrackW;
-                    _scrollToRatioX(targetRatio, scale, minVisX, spanX);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: _hoverH || _dragH ? 0.90 : 0.65),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: (_hoverH || _dragH ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1))
-                            .withValues(alpha: 0.7),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.10),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          left: thumbLeft,
-                          top: 1,
-                          bottom: 1,
-                          width: thumbW,
-                          child: GestureDetector(
-                            onPanStart: (details) {
-                              setState(() {
-                                _dragH = true;
-                                _startThumbLeft = thumbLeft;
-                                _startDragX = details.globalPosition.dx;
-                              });
-                            },
-                            onPanEnd: (_) => setState(() => _dragH = false),
-                            onPanCancel: () => setState(() => _dragH = false),
-                            onPanUpdate: (details) {
-                              if (availTrackW <= 0) return;
-                              final double dx = details.globalPosition.dx - _startDragX;
-                              final double targetThumbLeft = _startThumbLeft + dx;
-                              final double targetRatio = targetThumbLeft / availTrackW;
-                              _scrollToRatioX(targetRatio, scale, minVisX, spanX);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: (_dragH || _hoverH)
-                                      ? const [Color(0xFF06B6D4), Color(0xFF0284C7)]
-                                      : const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-                                ),
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF0284C7)
-                                        .withValues(alpha: _dragH || _hoverH ? 0.55 : 0.30),
-                                    blurRadius: _dragH || _hoverH ? 8 : 4,
-                                    spreadRadius: _dragH || _hoverH ? 1 : 0,
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    for (int i = 0; i < 3; i++)
-                                      Container(
-                                        width: 2,
-                                        height: 5,
-                                        margin: const EdgeInsets.symmetric(horizontal: 1.2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.85),
-                                          borderRadius: BorderRadius.circular(1),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // ── VERTICAL SCROLLBAR (At the very right edge, after floating action buttons) ──
-            Positioned(
-              right: 4,
-              top: padTopV,
-              width: 12,
-              height: trackH,
-              child: MouseRegion(
-                onEnter: (_) => setState(() => _hoverV = true),
-                onExit: (_) => setState(() => _hoverV = false),
-                child: GestureDetector(
-                  onTapDown: (details) {
-                    final double localY = details.localPosition.dy;
-                    final double targetRatio = (localY - thumbH / 2) / availTrackH;
-                    _scrollToRatioY(targetRatio, scale, minVisY, spanY);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: _hoverV || _dragV ? 0.90 : 0.65),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: (_hoverV || _dragV ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1))
-                            .withValues(alpha: 0.7),
-                        width: 1,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.10),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Positioned(
-                          top: thumbTop,
-                          left: 1,
-                          right: 1,
-                          height: thumbH,
-                          child: GestureDetector(
-                            onPanStart: (details) {
-                              setState(() {
-                                _dragV = true;
-                                _startThumbTop = thumbTop;
-                                _startDragY = details.globalPosition.dy;
-                              });
-                            },
-                            onPanEnd: (_) => setState(() => _dragV = false),
-                            onPanCancel: () => setState(() => _dragV = false),
-                            onPanUpdate: (details) {
-                              if (availTrackH <= 0) return;
-                              final double dy = details.globalPosition.dy - _startDragY;
-                              final double targetThumbTop = _startThumbTop + dy;
-                              final double targetRatio = targetThumbTop / availTrackH;
-                              _scrollToRatioY(targetRatio, scale, minVisY, spanY);
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: (_dragV || _hoverV)
-                                      ? const [Color(0xFF06B6D4), Color(0xFF0284C7)]
-                                      : const [Color(0xFF0EA5E9), Color(0xFF0284C7)],
-                                ),
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF0284C7)
-                                        .withValues(alpha: _dragV || _hoverV ? 0.55 : 0.30),
-                                    blurRadius: _dragV || _hoverV ? 8 : 4,
-                                    spreadRadius: _dragV || _hoverV ? 1 : 0,
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    for (int i = 0; i < 3; i++)
-                                      Container(
-                                        width: 5,
-                                        height: 2,
-                                        margin: const EdgeInsets.symmetric(vertical: 1.2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.85),
-                                          borderRadius: BorderRadius.circular(1),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _SiteTabItem {
-  final String id;
-  final String title;
-  final IconData icon;
-  final Color accentColor;
-  final VoidCallback onTap;
-
-  _SiteTabItem({
-    required this.id,
-    required this.title,
-    required this.icon,
-    required this.accentColor,
-    required this.onTap,
-  });
 }
