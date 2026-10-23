@@ -90,7 +90,7 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
   Widget build(BuildContext context) {
 
     // return AlarmListItems(alarm : alarmPayload, deviceID:deviceID, customerId: customerId, controllerId: controllerId, irrigationLine: [],);
-   /* if(_selectedSegment == 0){
+    /* if(_selectedSegment == 0){
       if (_serviceDealerModel.data == null) {
         return Scaffold(
           backgroundColor: Colors.grey.shade100,
@@ -147,15 +147,15 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
                     style: TextStyle(fontWeight: FontWeight.normal, color: Colors.black),
                   ),
                 ) : DataTable2(
-                  minWidth: 1200,
+                  minWidth: 1600,
                   showBottomBorder: true,
                   headingRowColor: WidgetStateProperty.resolveWith<Color>(
                         (Set<WidgetState> states) {
                       return Theme.of(context).primaryColorDark; // default color
                     },
                   ),
-                  headingRowHeight: 29,
-                  dataRowHeight: 45,
+                  headingRowHeight: 48,
+                  dataRowHeight: 100,
                   columns: const [
                     DataColumn2(
                       fixedWidth: 50,
@@ -179,14 +179,14 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
                       ),
                     ),
                     DataColumn2(
-                      size: ColumnSize.L,
+                      fixedWidth: 240,
                       label: Text(
                         'Issue', softWrap: true,
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
                     DataColumn2(
-                      size: ColumnSize.L,
+                      fixedWidth: 400,
                       label: Text(
                         'Description',
                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -237,15 +237,69 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
                           DataCell(Text(_serviceDealerModel.data![index].requestId.toString())),
                           // DataCell(Text(_serviceDealerModel.data![index].groupName ?? '')),
                           DataCell(Text(_serviceDealerModel.data![index].groupName ?? '')),
-                          DataCell(Text(_serviceDealerModel.data![index].requestType ?? '')),
-                          DataCell(SizedBox(
-                            height: 60,
-                            width: double.infinity,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: Text(_serviceDealerModel.data![index].requestDescription ?? ''),
+                          DataCell(
+                            Text(
+                              _serviceDealerModel.data![index].requestType ?? '',
+                              softWrap: true,
+                              maxLines: 4,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),),
+                          ),
+                          DataCell(
+                            InkWell(
+                              onTap: () {
+                                final description = _serviceDealerModel
+                                    .data![index].requestDescription ??
+                                    '';
+                                showDialog<void>(
+                                  context: context,
+                                  builder: (dialogContext) => AlertDialog(
+                                    title: const Text('Issue Description'),
+                                    content: ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 500,
+                                        maxHeight: 400,
+                                      ),
+                                      child: SingleChildScrollView(
+                                        child: SelectableText(
+                                          description.isEmpty
+                                              ? 'No description available'
+                                              : description,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            height: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(dialogContext),
+                                        child: const Text('Close'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                _serviceDealerModel.data![index]
+                                    .requestDescription ??
+                                    '',
+                                softWrap: true,
+                                maxLines: 4,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
                           DataCell(Text(DateFormat('yyyy-MM-dd').format(_serviceDealerModel.data![index].requestDate!).toString())),
                           DataCell(
                             InkWell(
@@ -406,16 +460,16 @@ class CriticalAlarmList extends StatelessWidget {
                     ...[
                       Text(
                           '${criticalAlarmData['data'][group]['master'][master]['deviceName']}',
-                        style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Colors.grey, fontWeight: FontWeight.normal)
+                          style: Theme.of(context).textTheme.bodySmall!.copyWith(color: Colors.grey, fontWeight: FontWeight.normal)
                       ),
                       Flexible(
                         child: AlarmListItems(
-                            show: false,
-                            alarm: List<String>.from(criticalAlarmData['data'][group]['master'][master]['criticalAlarm']),
-                            deviceID: criticalAlarmData['data'][group]['master'][master]['deviceName'],
-                            customerId: userId,
-                            controllerId: criticalAlarmData['data'][group]['master'][master]['controllerId'],
-                            irrigationLine: (criticalAlarmData['data'][group]['master'][master]['irrigationLine'] as List).map((item) => IrrigationLineModel.fromJson(item, [], [], [],[])).toList(),
+                          show: false,
+                          alarm: List<String>.from(criticalAlarmData['data'][group]['master'][master]['criticalAlarm']),
+                          deviceID: criticalAlarmData['data'][group]['master'][master]['deviceName'],
+                          customerId: userId,
+                          controllerId: criticalAlarmData['data'][group]['master'][master]['controllerId'],
+                          irrigationLine: (criticalAlarmData['data'][group]['master'][master]['irrigationLine'] as List).map((item) => IrrigationLineModel.fromJson(item, [], [], [],[])).toList(),
                           isNarrow: !kIsWeb,
                           isOMS: false,
                         ),
@@ -430,5 +484,3 @@ class CriticalAlarmList extends StatelessWidget {
     );
   }
 }
-
-
