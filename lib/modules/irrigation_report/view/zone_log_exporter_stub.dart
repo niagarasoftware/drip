@@ -193,7 +193,7 @@ Future<String?> exportZoneLogMatrixToExcel({
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? 0);
           int qtyVal = (dayData.quantityCompleted as int? ?? 0);
-          String qtyStr = qtyVal > 0 ? qtyVal.toString() : '-';
+          String qtyStr = qtyVal > 0 ? "$qtyVal L" : '-';
           dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
@@ -202,7 +202,7 @@ Future<String?> exportZoneLogMatrixToExcel({
         }
       }
       String totalDur = _formatDurationHelper(rowTotalSec);
-      String totalQty = rowTotalQty > 0 ? rowTotalQty.toString() : '-';
+      String totalQty = rowTotalQty > 0 ? "$rowTotalQty L" : '-';
       dataRow.add(TextCellValue("$totalDur / $totalQty"));
       sheet.appendRow(dataRow);
     }
@@ -214,11 +214,11 @@ Future<String?> exportZoneLogMatrixToExcel({
       int daySec = dailyTotals[dKey] ?? 0;
       int dayQty = dailyTotalQuantities?[dKey] ?? 0;
       String dayDur = _formatDurationHelper(daySec);
-      String dayQtyStr = dayQty > 0 ? dayQty.toString() : '-';
+      String dayQtyStr = dayQty > 0 ? "$dayQty L" : '-';
       footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
     }
     String gDur = _formatDurationHelper(grandTotalSeconds);
-    String gQty = grandTotalQuantity > 0 ? grandTotalQuantity.toString() : '-';
+    String gQty = grandTotalQuantity > 0 ? "$grandTotalQuantity L" : '-';
     footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 

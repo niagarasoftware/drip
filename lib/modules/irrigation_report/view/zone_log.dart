@@ -123,7 +123,7 @@ class CumulativeDayData {
       ? SequenceDayData._formatSecondsToHMS(durationSeconds)
       : '00:00:00';
   String get qtyStr => quantity > 0
-      ? (quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString())
+      ? (quantity % 1 == 0 ? "${quantity.toInt()} L" : "$quantity L")
       : '-';
 }
 
@@ -2315,7 +2315,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       height: 38,
                       alignment: Alignment.center,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFF97316),
+                        color: Color(0xFF00695C),
                         border: Border(
                           bottom:
                               BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -2378,7 +2378,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -2492,7 +2492,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         height: 38,
                         alignment: Alignment.center,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFF97316),
+                          color: Color(0xFF00695C),
                           border: Border(
                             bottom:
                                 BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -2635,8 +2635,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               String dayTotalFormatted = _formatDuration(daySumSec);
               String qtyStr = daySumQty > 0
                   ? (daySumQty % 1 == 0
-                      ? daySumQty.toInt().toString()
-                      : daySumQty.toString())
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
                   : '-';
 
               return Container(
@@ -2671,7 +2671,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -2782,8 +2782,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     String qtyStr = row.totalQuantity > 0
         ? (row.totalQuantity % 1 == 0
-            ? row.totalQuantity.toInt().toString()
-            : row.totalQuantity.toString())
+            ? "${row.totalQuantity.toInt()} L"
+            : "${row.totalQuantity} L")
         : '-';
     String formattedText =
         "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr";
@@ -2836,8 +2836,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               String dayTotalFormatted = _formatDuration(daySumSec);
               String qtyStr = daySumQty > 0
                   ? (daySumQty % 1 == 0
-                      ? daySumQty.toInt().toString()
-                      : daySumQty.toString())
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
                   : '-';
 
               return Container(
@@ -2971,7 +2971,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               _buildMetricTab(
                                 label: "Quantity",
                                 icon: Icons.water_drop_outlined,
-                                activeColor: const Color(0xFFF97316),
+                                activeColor: const Color(0xFF16A34A),
                                 isSelected: _selectedGraphMetric == 'Quantity',
                                 onTap: () => setState(
                                     () => _selectedGraphMetric = 'Quantity'),
@@ -3148,17 +3148,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       size: 12,
                       color: isDuration
                           ? const Color(0xFF2DD4BF)
-                          : const Color(0xFFFB923C),
+                          : const Color(0xFF4ADE80),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       isDuration
                           ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? p.quantity.toInt().toString() : p.quantity.toString()) : '-'}",
+                          : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
                       style: TextStyle(
                         color: isDuration
                             ? const Color(0xFF2DD4BF)
-                            : const Color(0xFFFB923C),
+                            : const Color(0xFF4ADE80),
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -3187,7 +3187,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             fontSize: 11,
             fontWeight: FontWeight.bold,
             color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
+                isDuration ? const Color(0xFF0F766E) : const Color(0xFF166534),
           ),
         ),
         axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
@@ -3219,14 +3219,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
+          color: const Color(0xFFE0F2F1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
         ),
         child: Icon(
           isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
           size: 16,
-          color: const Color(0xFFEA580C),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -3256,28 +3256,28 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     String qtyStr = row.totalQuantity > 0
         ? (row.totalQuantity % 1 == 0
-            ? row.totalQuantity.toInt().toString()
-            : row.totalQuantity.toString())
+            ? "${row.totalQuantity.toInt()} L"
+            : "${row.totalQuantity} L")
         : "-";
 
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.water_drop_outlined,
-              size: 11, color: Color(0xFFEA580C)),
+              size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
             qtyStr,
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFEA580C),
+              color: Color(0xFF166534),
             ),
           ),
         ],
@@ -3467,7 +3467,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -3492,8 +3492,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   : '-');
                           String dayQtyStr = (hasRun && qty > 0)
                               ? (qty % 1 == 0
-                                  ? qty.toInt().toString()
-                                  : qty.toString())
+                                  ? "${qty.toInt()} L"
+                                  : "$qty L")
                               : '-';
 
                           Color rowBg = dIdx % 2 == 0
@@ -3548,7 +3548,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           ? FontWeight.bold
                                           : FontWeight.normal,
                                       color: dayQtyStr != '-'
-                                          ? const Color(0xFFEA580C)
+                                          ? const Color(0xFF166534)
                                           : const Color(0xFF94A3B8),
                                     ),
                                   ),
@@ -3603,7 +3603,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -3974,7 +3974,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       height: 38,
                       alignment: Alignment.center,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFF97316),
+                        color: Color(0xFF00695C),
                         border: Border(
                           bottom:
                               BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -4039,7 +4039,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -4161,7 +4161,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         height: 38,
                         alignment: Alignment.center,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFF97316),
+                          color: Color(0xFF00695C),
                           border: Border(
                             bottom:
                                 BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -4302,7 +4302,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
+              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
 
               return Container(
                 width: colDateWidth,
@@ -4336,7 +4336,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -4359,9 +4359,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       height: 40,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: isTotalCol ? const Color(0xFFFFF7ED) : const Color(0xFFE0F2F1),
-        border: const Border(
+      decoration: const BoxDecoration(
+        color: Color(0xFFE0F2F1),
+        border: Border(
           right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
           bottom: BorderSide(color: Color(0xFFCBD5E1), width: 1),
         ),
@@ -4486,7 +4486,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
 
     String formattedText =
-        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? rowTotalQuantity : '-'}";
+        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? '$rowTotalQuantity L' : '-'}";
 
     if (isPinned) {
       return Container(
@@ -4552,7 +4552,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (dayData != null && dayData.hasRun) {
       String dur = dayData.durationQtyStr;
       String qty = dayData.quantityCompleted > 0
-          ? dayData.quantityCompleted.toString()
+          ? "${dayData.quantityCompleted} L"
           : '-';
       cellText = "$dur /\n$qty";
       isBold = dur != '00:00:00' || qty != '-';
@@ -4624,7 +4624,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
+              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
 
               return Container(
                 width: colDateWidth,
@@ -4760,7 +4760,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               _buildMetricTab(
                                 label: "Quantity",
                                 icon: Icons.water_drop_outlined,
-                                activeColor: const Color(0xFFF97316),
+                                activeColor: const Color(0xFF16A34A),
                                 isSelected: _selectedGraphMetric == 'Quantity',
                                 onTap: () => setState(
                                     () => _selectedGraphMetric = 'Quantity'),
@@ -4891,11 +4891,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       child: _buildSummaryCard(
                         title: "Total Quantity",
                         value: grandTotalQuantity > 0
-                            ? "$grandTotalQuantity"
+                            ? "$grandTotalQuantity L"
                             : "-",
                         icon: Icons.water_drop_outlined,
-                        color: const Color(0xFFF97316),
-                        bgColor: const Color(0xFFFFF7ED),
+                        color: const Color(0xFF16A34A),
+                        bgColor: const Color(0xFFF0FDF4),
                       ),
                     ),
                   ],
@@ -4941,10 +4941,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 Expanded(
                   child: _buildSummaryCard(
                     title: "Total Quantity",
-                    value: grandTotalQuantity > 0 ? "$grandTotalQuantity" : "-",
+                    value: grandTotalQuantity > 0 ? "$grandTotalQuantity L" : "-",
                     icon: Icons.water_drop_outlined,
-                    color: const Color(0xFFF97316),
-                    bgColor: const Color(0xFFFFF7ED),
+                    color: const Color(0xFF16A34A),
+                    bgColor: const Color(0xFFF0FDF4),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -5196,17 +5196,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       size: 12,
                       color: isDuration
                           ? const Color(0xFF2DD4BF)
-                          : const Color(0xFFFB923C),
+                          : const Color(0xFF4ADE80),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       isDuration
                           ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? p.quantity.toInt().toString() : '-'}",
+                          : "Quantity: ${p.quantity > 0 ? '${p.quantity.toInt()} L' : '-'}",
                       style: TextStyle(
                         color: isDuration
                             ? const Color(0xFF2DD4BF)
-                            : const Color(0xFFFB923C),
+                            : const Color(0xFF4ADE80),
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -5235,7 +5235,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             fontSize: 11,
             fontWeight: FontWeight.bold,
             color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
+                isDuration ? const Color(0xFF0F766E) : const Color(0xFF166534),
           ),
         ),
         axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
@@ -5292,7 +5292,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         ),
       ];
     } else {
-      // Quantity: Orange
+      // Quantity: Green
       if (_graphChartType == 'Spline') {
         return [
           SplineSeries<_ZoneChartPoint, String>(
@@ -5300,7 +5300,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             dataSource: data,
             xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
             yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFFF97316),
+            color: const Color(0xFF16A34A),
             width: 3,
             markerSettings: const MarkerSettings(isVisible: true),
           ),
@@ -5312,21 +5312,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             dataSource: data,
             xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
             yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFFF97316).withValues(alpha: 0.25),
-            borderColor: const Color(0xFFF97316),
+            color: const Color(0xFF16A34A).withValues(alpha: 0.25),
+            borderColor: const Color(0xFF16A34A),
             borderWidth: 2,
           ),
         ];
       }
 
-      // Default: Column series in Orange
+      // Default: Column series in Green
       return [
         ColumnSeries<_ZoneChartPoint, String>(
           name: 'Quantity',
           dataSource: data,
           xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
           yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-          color: const Color(0xFFF97316),
+          color: const Color(0xFF16A34A),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           width: 0.4,
         ),
@@ -5352,14 +5352,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
+          color: const Color(0xFFE0F2F1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
         ),
         child: Icon(
           isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
           size: 16,
-          color: const Color(0xFFEA580C),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -5390,21 +5390,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.water_drop_outlined,
-              size: 11, color: Color(0xFFEA580C)),
+              size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
-            row.totalQuantity > 0 ? "${row.totalQuantity}" : "-",
+            row.totalQuantity > 0 ? "${row.totalQuantity} L" : "-",
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFEA580C),
+              color: Color(0xFF166534),
             ),
           ),
         ],
@@ -5596,7 +5596,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -5620,7 +5620,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   ? dayData.durationQtyStr
                                   : '-');
                           String qtyStr =
-                              (hasRun && qty > 0) ? qty.toString() : '-';
+                              (hasRun && qty > 0) ? "$qty L" : '-';
 
                           Color rowBg = dIdx % 2 == 0
                               ? Colors.white
@@ -5674,7 +5674,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           ? FontWeight.bold
                                           : FontWeight.normal,
                                       color: qtyStr != '-'
-                                          ? const Color(0xFFEA580C)
+                                          ? const Color(0xFF166534)
                                           : const Color(0xFF94A3B8),
                                     ),
                                   ),
@@ -5725,13 +5725,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               flex: 3,
                               child: Text(
                                 row.totalQuantity > 0
-                                    ? "${row.totalQuantity}"
+                                    ? "${row.totalQuantity} L"
                                     : "-",
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
