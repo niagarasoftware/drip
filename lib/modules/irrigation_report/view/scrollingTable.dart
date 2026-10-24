@@ -1061,7 +1061,7 @@ class _ScrollingTableState extends State<ScrollingTable> {
     add('General', widget.generalColumn, widget.generalColumnData, 0,
         isGeneral: true);
     add('Water', widget.waterColumn, widget.waterColumnData, 100);
-    add('Filter', widget.filterColumn, widget.filterColumnData, 200);
+    add('Central Filter', widget.filterColumn, widget.filterColumnData, 200);
     add('Pre Post', widget.prePostColumn, widget.prePostColumnData, 100);
 
     add('<C-EC-PH>', widget.centralEcPhColumn, widget.centralEcPhColumnData,

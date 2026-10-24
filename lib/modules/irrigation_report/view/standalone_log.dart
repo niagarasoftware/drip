@@ -781,25 +781,53 @@ class _StandaloneLogState extends State<StandaloneLog> {
                               final success = await generateExcelForStandAlone(standaloneData, cleanName);
 
                               if (context.mounted) {
-                                Navigator.pop(context); // dismiss progress indicator
-                                showDialog(
-                                  context: context,
-                                  builder: (resCtx) => AlertDialog(
-                                    title: Text(success ? 'Download Successful' : 'Download Failed'),
-                                    content: Text(success
-                                        ? '$cleanName.xlsx downloaded successfully to Downloads.'
-                                        : 'Failed to save $cleanName.xlsx. Please try again.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(resCtx),
-                                        child: const Text('OK'),
-                                      ),
-                                    ],
-                                  ),
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(success ? '$cleanName.xlsx downloaded successfully.' : 'Failed to download Excel.')),
                                 );
                               }
                             },
-                            child: const Text('Click to download'),
+                            child: const Text('Download Excel'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF006573),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(dialogCtx);
+
+                              final fixedData = standaloneData['fixedColumnData'] as List?;
+                              if (fixedData == null || fixedData.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No standalone data available to download.')),
+                                );
+                                return;
+                              }
+
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Generating PDF...'),
+                                  content: SizedBox(
+                                    height: 50,
+                                    child: Center(child: CircularProgressIndicator()),
+                                  ),
+                                ),
+                              );
+
+                              final cleanName = fileName.trim().isEmpty ? 'file' : fileName.trim();
+                              final success = await generatePdfForStandAlone(standaloneData, cleanName);
+
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(success ? '$cleanName.pdf downloaded successfully.' : 'Failed to generate PDF.')),
+                                );
+                              }
+                            },
+                            child: const Text('Download PDF'),
                           ),
                         ],
                       );
@@ -816,6 +844,10 @@ class _StandaloneLogState extends State<StandaloneLog> {
 
   Future<bool> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
     return await exportStandaloneExcel(data, standaloneColumn, name);
+  }
+
+  Future<bool> generatePdfForStandAlone(Map<String, dynamic> data, String name) async {
+    return await exportStandalonePdf(data, standaloneColumn, name);
   }
 
   List<dynamic> filterDataByPages({required data}){

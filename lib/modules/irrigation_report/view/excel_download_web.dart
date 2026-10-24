@@ -1,14 +1,10 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'excel_builder.dart';
+import 'irrigation_log_pdf_builder.dart';
 
-/// This file is selected by the conditional import in log_home.dart when
-/// `dart.library.html` is available (i.e. Flutter web builds). It must stay
-/// in sync with excel_download_stub.dart's non-web counterpart.
-///
-/// IMPORTANT: both header row and data rows are built by buildLogsExcel()
-/// from the SAME column-group list, so they can never drift out of sync.
 Future<bool> generateExcel(dynamic data, String name) async {
   try {
     final Excel excel;
@@ -46,6 +42,25 @@ Future<bool> generateExcel(dynamic data, String name) async {
   } catch (e, stackTrace) {
     print('Error generating Excel: $e');
     print('stackTrace generating Excel: $stackTrace');
+    return false;
+  }
+}
+
+Future<bool> generatePdf(dynamic data, String name) async {
+  try {
+    final Uint8List bytes = generateIrrigationLogPdfBytes(data, name);
+    final content = base64Encode(bytes);
+
+    html.AnchorElement(
+      href: 'data:application/pdf;base64,$content',
+    )
+      ..setAttribute('download', '$name.pdf')
+      ..click();
+
+    return true;
+  } catch (e, stackTrace) {
+    print('Error generating PDF Web: $e');
+    print('stackTrace generating PDF Web: $stackTrace');
     return false;
   }
 }

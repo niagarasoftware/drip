@@ -159,7 +159,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     final String defaultSheet = excel.getDefaultSheet() ?? 'Sheet1';
     final Sheet sheet = excel[defaultSheet];
 
-    // Header 1: Date Headers
     List<CellValue> header1 = [TextCellValue('')];
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
@@ -168,7 +167,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
 
-    // Header 2: Sub-headers
     List<CellValue> header2 = [TextCellValue('Program / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
@@ -176,7 +174,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
 
-    // Data rows
     for (var row in rows) {
       List<CellValue> dataRow = [];
       String displayName =
@@ -207,7 +204,6 @@ Future<String?> exportZoneLogMatrixToExcel({
       sheet.appendRow(dataRow);
     }
 
-    // Footer Total Row
     List<CellValue> footerRow = [TextCellValue('Total')];
     for (var d in dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
@@ -224,13 +220,11 @@ Future<String?> exportZoneLogMatrixToExcel({
 
     final fileBytes = excel.encode();
     if (fileBytes == null) {
-      debugPrint("Excel encode returned null");
       return null;
     }
 
     final Uint8List bytes = Uint8List.fromList(fileBytes);
 
-    // 1. Try BetterDownloadSaver for mobile downloads
     try {
       final saver = BetterDownloadSaver();
       final String? savedPath = await saver.saveToDownloads(
@@ -240,22 +234,18 @@ Future<String?> exportZoneLogMatrixToExcel({
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
       if (savedPath != null && savedPath.isNotEmpty) {
-        debugPrint(
-            'Excel saved successfully via BetterDownloadSaver: $savedPath');
         return "$fileName.xlsx";
       }
     } catch (e, st) {
       debugPrint("BetterDownloadSaver error: $e\n$st");
     }
 
-    // 2. Fallback to path_provider download directory
     try {
       Directory downloadDir = await _resolveDownloadDirectory();
       String xlsxPath = "${downloadDir.path}/$fileName.xlsx";
       File xlsxFile = File(xlsxPath);
       await xlsxFile.create(recursive: true);
       await xlsxFile.writeAsBytes(bytes);
-      debugPrint('Excel saved successfully via File fallback: $xlsxPath');
       return "$fileName.xlsx";
     } catch (e, st) {
       debugPrint("File fallback error: $e\n$st");
@@ -264,6 +254,55 @@ Future<String?> exportZoneLogMatrixToExcel({
     return null;
   } catch (e, st) {
     debugPrint("Error exporting Zone Log matrix to Excel: $e\n$st");
+    return null;
+  }
+}
+
+Future<String?> exportZoneLogMatrixToPdf({
+  required List<DateTime> dateColumns,
+  required List<dynamic> rows,
+  required Map<String, int> dailyTotals,
+  Map<String, int>? dailyTotalQuantities,
+  required int grandTotalSeconds,
+  int grandTotalQuantity = 0,
+  required String fileName,
+}) async {
+  try {
+    final pdfBytes = generateZoneLogMatrixPdfBytes(
+      dateColumns: dateColumns,
+      rows: rows,
+      dailyTotals: dailyTotals,
+      dailyTotalQuantities: dailyTotalQuantities,
+      grandTotalSeconds: grandTotalSeconds,
+      grandTotalQuantity: grandTotalQuantity,
+      fileName: fileName,
+    );
+
+    final Uint8List bytes = Uint8List.fromList(pdfBytes);
+
+    try {
+      final saver = BetterDownloadSaver();
+      final String? savedPath = await saver.saveToDownloads(
+        fileName: '$fileName.pdf',
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+      if (savedPath != null && savedPath.isNotEmpty) {
+        return "$fileName.pdf";
+      }
+    } catch (e) {
+      debugPrint("BetterDownloadSaver error in exportZoneLogMatrixToPdf: $e");
+    }
+
+    Directory downloadDir = await _resolveDownloadDirectory();
+    String pdfPath = "${downloadDir.path}/$fileName.pdf";
+    File pdfFile = File(pdfPath);
+    await pdfFile.create(recursive: true);
+    await pdfFile.writeAsBytes(bytes);
+
+    return "$fileName.pdf";
+  } catch (e) {
+    debugPrint("Error exporting Zone Log matrix PDF: $e");
     return null;
   }
 }

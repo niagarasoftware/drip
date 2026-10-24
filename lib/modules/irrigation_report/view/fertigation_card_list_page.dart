@@ -467,6 +467,26 @@ class _FertigationCardListPageState
     }
   }
 
+  Future<void> _downloadPdf() async {
+    if (allCards.isEmpty) return;
+
+    final multiSheetData = _buildMultiSheetData(allCards);
+    final fileName = 'Fertigation_Report_${DateFormat('yyyy-MM-dd').format(_toDate)}';
+
+    final result = await generatePdf(multiSheetData, fileName);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result ? 'PDF report downloaded successfully' : 'Failed to download PDF report',
+          ),
+          backgroundColor: result ? const Color(0xFF006573) : Colors.red,
+        ),
+      );
+    }
+  }
+
   Map<String, Map<String, dynamic>> _buildMultiSheetData(List<FertigationCardModel> cards) {
     final sheetNames = ['Program Wise', 'Sequence Wise', 'Line Wise', 'Status Wise'];
     final fixedColumns = ['Program', 'Sequence', 'Line', 'Status'];
@@ -755,13 +775,39 @@ class _FertigationCardListPageState
             tooltip: 'Select Date Range',
             onPressed: _showDatePickerDialog,
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(
               Icons.download,
               color: Colors.white,
             ),
-            tooltip: 'Download Excel Report',
-            onPressed: (_isLoading || allCards.isEmpty) ? null : _downloadExcel,
+            tooltip: 'Download Report',
+            enabled: !_isLoading && allCards.isNotEmpty,
+            onSelected: (value) {
+              if (value == 'excel') _downloadExcel();
+              if (value == 'pdf') _downloadPdf();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'excel',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, color: Color(0xFF006573)),
+                    SizedBox(width: 8),
+                    Text('Download Excel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Download PDF'),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(

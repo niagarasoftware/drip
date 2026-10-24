@@ -66,12 +66,6 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
     Color(0xFF1E88E5), // Blue Phase (B)
   ];
 
-  static const List<Color> phaseBgColors3 = [
-    Color(0xFFFFEBEE), // Light Red tint
-    Color(0xFFFFF8E1), // Light Yellow tint
-    Color(0xFFE3F2FD), // Light Blue tint
-  ];
-
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -155,40 +149,59 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
   void _parseData(Map<String, dynamic> configJson, Map<String, dynamic> logJson) {
     // 3. Mapping sNo to Sensor Metadata from Config
     Map<String, Map<String, String>> sNoMetadata = {};
-    if (configJson['data'] != null && configJson['data']['configObject'] != null) {
-      for (var obj in configJson['data']['configObject']) {
-        String sNo = obj['sNo'].toString();
-        sNoMetadata[sNo] = {
-          'name': obj['name']?.toString() ?? 'Unknown Sensor',
-          'objectName': obj['objectName']?.toString() ?? 'Unknown',
-        };
+    if (configJson['data'] != null && configJson['data'] is Map) {
+      final configList = configJson['data']['configObject'] ??
+          configJson['data']['default'] ??
+          configJson['data'];
+      if (configList is List) {
+        for (var obj in configList) {
+          if (obj == null || obj is! Map) continue;
+          String sNo = obj['sNo']?.toString() ?? obj['id']?.toString() ?? obj['objectId']?.toString() ?? '';
+          if (sNo.isNotEmpty) {
+            sNoMetadata[sNo] = {
+              'name': obj['name']?.toString() ?? 'Sensor $sNo',
+              'objectName': obj['objectName']?.toString() ?? '',
+            };
+          }
+        }
       }
     }
 
     // 4. Parsing the Logs and populating _sensors
     List<SensorDataInfo> parsedSensors = [];
-    if (logJson['data'] != null && logJson['data']['log'] != null) {
+    if (logJson['data'] != null &&
+        logJson['data'] is Map &&
+        logJson['data']['log'] != null &&
+        logJson['data']['log'] is List) {
       for (var logEntry in logJson['data']['log']) {
-        
+        if (logEntry == null || logEntry is! Map) continue;
+
         // Handle both "scheduleSensor" (new API format) and "irrigation" (old mock format)
         Map<String, dynamic>? dataGroup;
-        if (logEntry['scheduleSensor'] != null) {
-          dataGroup = logEntry['scheduleSensor'];
-        } else if (logEntry['irrigation'] != null) {
-          dataGroup = logEntry['irrigation'];
+        if (logEntry['scheduleSensor'] != null && logEntry['scheduleSensor'] is Map) {
+          dataGroup = Map<String, dynamic>.from(logEntry['scheduleSensor']);
+        } else if (logEntry['irrigation'] != null && logEntry['irrigation'] is Map) {
+          dataGroup = Map<String, dynamic>.from(logEntry['irrigation']);
         }
 
         if (dataGroup != null && dataGroup.isNotEmpty) {
-          // Aggregate all sensor data across multiple schedule IDs (410, 411, 412, etc.)
+          // Aggregate all sensor data across multiple schedule IDs
           Map<String, List<String>> aggregatedSensorsLog = {};
-          
+
           dataGroup.forEach((scheduleId, sensorsLog) {
+            if (sensorsLog == null || sensorsLog is! Map) return;
+
             sensorsLog.forEach((sensorKey, valuesList) {
-              if (!aggregatedSensorsLog.containsKey(sensorKey)) {
-                aggregatedSensorsLog[sensorKey] = [];
+              if (sensorKey == null || valuesList == null || valuesList is! List) return;
+
+              String keyStr = sensorKey.toString();
+              if (!aggregatedSensorsLog.containsKey(keyStr)) {
+                aggregatedSensorsLog[keyStr] = [];
               }
-              // Add all timestamps from this schedule segment to the master list for this sensor
-              aggregatedSensorsLog[sensorKey]!.addAll(List<String>.from(valuesList));
+              final targetList = aggregatedSensorsLog[keyStr];
+              if (targetList != null) {
+                targetList.addAll(valuesList.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty));
+              }
             });
           });
 
@@ -197,141 +210,173 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
             List<String> keyParts = sensorKey.split('_');
             String sNo = keyParts[0];
             String subParam = keyParts.length > 1 ? keyParts[1] : '';
-              
-              var meta = sNoMetadata[sNo] ?? {'name': 'Sensor $sNo', 'objectName': ''};
-              String sensorName = meta['name']!;
-              String objectType = meta['objectName']!;
-              
-              String unit = '';
-              IconData icon = Icons.sensors_rounded;
 
-              // Assign properties based on the STRICT objectName from the backend
-              switch (objectType) {
-                case 'Moisture Sensor':
-                  unit = '%';
-                  icon = Icons.water_drop_rounded;
-                  break;
-                case 'Soil Temperature Sensor':
-                case 'Temperature Sensor':
-                  unit = '°C';
-                  icon = Icons.thermostat_rounded;
-                  break;
-                case 'Level Sensor':
-                  unit = '%';
-                  icon = Icons.waves_rounded;
-                  break;
-                case 'Pressure Sensor':
-                  unit = 'bar';
-                  icon = Icons.speed_rounded;
-                  break;
-                case 'EC Sensor':
-                  unit = 'dS/m';
-                  icon = Icons.science_rounded;
-                  break;
-                case 'PH Sensor':
-                  unit = 'pH';
-                  icon = Icons.opacity_rounded;
-                  break;
-                case 'Pump':
-                  if (subParam == '-1') {
-                    sensorName += ' (Voltage)';
-                    unit = 'V';
-                    icon = Icons.bolt_rounded;
-                  } else if (subParam == '-2') {
-                    sensorName += ' (Current)';
-                    unit = 'A';
-                    icon = Icons.electric_meter_rounded;
-                  } else {
-                    icon = Icons.water_damage_rounded;
-                  }
-                  break;
-                default:
-                  unit = '';
-                  icon = Icons.analytics_rounded;
+            var meta = sNoMetadata[sNo] ??
+                sNoMetadata[sNo.split('.').first] ??
+                {'name': '', 'objectName': ''};
+
+            String objectType = meta['objectName'] ?? '';
+            String sensorName = meta['name'] ?? '';
+
+            String unit = '';
+            IconData icon = Icons.sensors_rounded;
+
+            // Infer objectType & default name from subParam if metadata is missing
+            if (objectType.isEmpty) {
+              if (subParam == '-1' || subParam == '-2') {
+                objectType = 'Pump';
+              } else if (subParam == '22') {
+                objectType = 'Moisture Sensor';
+              } else if (subParam == '23') {
+                objectType = 'Soil Temperature Sensor';
+              } else if (subParam == '24') {
+                objectType = 'Pressure Sensor';
+              } else if (subParam == '25') {
+                objectType = 'EC Sensor';
+              } else if (subParam == '26') {
+                objectType = 'PH Sensor';
               }
+            }
 
-              List<List<ChartData>> multiData = [[], [], []];
-              int phaseCount = 1;
+            if (sensorName.isEmpty) {
+              if (objectType.isNotEmpty) {
+                sensorName = '$objectType $sNo';
+              } else {
+                sensorName = 'Sensor $sNo';
+              }
+            }
 
-              for (String valStr in valuesList) {
-                List<String> parts = valStr.split(',');
-                if (parts.length >= 2) {
-                  String time = parts[0].substring(0, 5); // Extract "08:15"
-                  String dataPart = parts[1];
-                  
-                  List<String> phaseStrings = dataPart.split('_');
-                  phaseCount = phaseStrings.length;
-                  
-                  for (int i = 0; i < phaseStrings.length; i++) {
-                     double parsedValue = 0.0;
-                     if (phaseStrings[i].contains(':')) {
-                       parsedValue = double.tryParse(phaseStrings[i].split(':').last) ?? 0.0;
-                     } else {
-                       parsedValue = double.tryParse(phaseStrings[i]) ?? 0.0;
-                     }
-                     if (i < 3) {
-                       multiData[i].add(ChartData(time, parsedValue));
-                     }
+            // Assign properties based on objectName
+            switch (objectType) {
+              case 'Moisture Sensor':
+                unit = '%';
+                icon = Icons.water_drop_rounded;
+                break;
+              case 'Soil Temperature Sensor':
+              case 'Temperature Sensor':
+                unit = '°C';
+                icon = Icons.thermostat_rounded;
+                break;
+              case 'Level Sensor':
+                unit = '%';
+                icon = Icons.waves_rounded;
+                break;
+              case 'Pressure Sensor':
+                unit = 'bar';
+                icon = Icons.speed_rounded;
+                break;
+              case 'EC Sensor':
+                unit = 'dS/m';
+                icon = Icons.science_rounded;
+                break;
+              case 'PH Sensor':
+                unit = 'pH';
+                icon = Icons.opacity_rounded;
+                break;
+              case 'Pump':
+                if (subParam == '-1') {
+                  if (!sensorName.contains('(Voltage)')) sensorName += ' (Voltage)';
+                  unit = 'V';
+                  icon = Icons.bolt_rounded;
+                } else if (subParam == '-2') {
+                  if (!sensorName.contains('(Current)')) sensorName += ' (Current)';
+                  unit = 'A';
+                  icon = Icons.electric_meter_rounded;
+                } else {
+                  icon = Icons.water_damage_rounded;
+                }
+                break;
+              default:
+                unit = '';
+                icon = Icons.analytics_rounded;
+            }
+
+            List<List<ChartData>> multiData = [[], [], []];
+            int maxPhaseCountFound = 1;
+
+            for (String valStr in valuesList) {
+              if (valStr.isEmpty) continue;
+              List<String> parts = valStr.split(',');
+              if (parts.length >= 2) {
+                String rawTime = parts[0];
+                String time = rawTime.length >= 5 ? rawTime.substring(0, 5) : rawTime;
+                String dataPart = parts[1];
+
+                List<String> phaseStrings = dataPart.split('_');
+                int currentPhases = phaseStrings.length.clamp(1, 3);
+                if (currentPhases > maxPhaseCountFound) {
+                  maxPhaseCountFound = currentPhases;
+                }
+
+                for (int i = 0; i < currentPhases && i < 3; i++) {
+                  double parsedValue = 0.0;
+                  if (phaseStrings[i].contains(':')) {
+                    parsedValue = double.tryParse(phaseStrings[i].split(':').last) ?? 0.0;
+                  } else {
+                    parsedValue = double.tryParse(phaseStrings[i]) ?? 0.0;
                   }
+                  multiData[i].add(ChartData(time, parsedValue));
                 }
               }
+            }
 
-              multiData = multiData.take(phaseCount).toList();
+            int phaseCount = maxPhaseCountFound.clamp(1, 3);
+            multiData = multiData.take(phaseCount).toList();
 
-              // Compute phase statistics
-              List<double> latestValues = [];
-              List<double> maxValues = [];
-              List<double> minValues = [];
-              List<double> lastActiveValues = [];
+            // Compute phase statistics
+            List<double> latestValues = [];
+            List<double> maxValues = [];
+            List<double> minValues = [];
+            List<double> lastActiveValues = [];
 
-              for (int i = 0; i < phaseCount; i++) {
-                var series = multiData[i];
-                if (series.isNotEmpty) {
-                  latestValues.add(series.last.value);
-                  
-                  double mx = series.map((e) => e.value).reduce((a, b) => a > b ? a : b);
-                  maxValues.add(mx);
-                  
-                  double mn = series.map((e) => e.value).reduce((a, b) => a < b ? a : b);
-                  minValues.add(mn);
+            for (int i = 0; i < phaseCount; i++) {
+              var series = multiData[i];
+              if (series.isNotEmpty) {
+                latestValues.add(series.last.value);
 
-                  var nonZeroSeries = series.where((e) => e.value > 0).toList();
-                  if (nonZeroSeries.isNotEmpty) {
-                    lastActiveValues.add(nonZeroSeries.last.value);
-                  } else {
-                    lastActiveValues.add(0.0);
-                  }
+                double mx = series.map((e) => e.value).reduce((a, b) => a > b ? a : b);
+                maxValues.add(mx);
+
+                double mn = series.map((e) => e.value).reduce((a, b) => a < b ? a : b);
+                minValues.add(mn);
+
+                var nonZeroSeries = series.where((e) => e.value > 0).toList();
+                if (nonZeroSeries.isNotEmpty) {
+                  lastActiveValues.add(nonZeroSeries.last.value);
                 } else {
-                  latestValues.add(0.0);
-                  maxValues.add(0.0);
-                  minValues.add(0.0);
                   lastActiveValues.add(0.0);
                 }
-              }
-
-              List<String> phaseNames = [];
-              if (phaseCount == 3) {
-                phaseNames = ['R Phase (Red)', 'Y Phase (Yellow)', 'B Phase (Blue)'];
               } else {
-                phaseNames = List.generate(phaseCount, (i) => 'Phase ${i + 1}');
+                latestValues.add(0.0);
+                maxValues.add(0.0);
+                minValues.add(0.0);
+                lastActiveValues.add(0.0);
               }
+            }
 
-              parsedSensors.add(
-                SensorDataInfo(
-                  name: sensorName,
-                  unit: unit,
-                  icon: icon,
-                  multiData: multiData,
-                  phaseNames: phaseNames,
-                  phaseLatestValues: latestValues,
-                  phaseMaxValues: maxValues,
-                  phaseMinValues: minValues,
-                  phaseLastActiveValues: lastActiveValues,
-                )
-              );
-            });
-          }
+            List<String> phaseNames = [];
+            if (phaseCount == 3) {
+              phaseNames = ['R Phase (Red)', 'Y Phase (Yellow)', 'B Phase (Blue)'];
+            } else {
+              phaseNames = List.generate(phaseCount, (i) => 'Phase ${i + 1}');
+            }
+
+            parsedSensors.add(
+              SensorDataInfo(
+                name: sensorName,
+                unit: unit,
+                icon: icon,
+                multiData: multiData,
+                phaseNames: phaseNames,
+                phaseLatestValues: latestValues,
+                phaseMaxValues: maxValues,
+                phaseMinValues: minValues,
+                phaseLastActiveValues: lastActiveValues,
+              ),
+            );
+          });
         }
+      }
     }
 
     setState(() {
@@ -772,7 +817,6 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
             children: List.generate(3, (i) {
               final isVisible = _visiblePhases.contains(i);
               final phaseColor = phaseColors3[i];
-              final phaseBg = phaseBgColors3[i];
               final phaseName = sensor.phaseNames[i];
               final latestVal = sensor.phaseLatestValues[i];
               final lastActiveVal = sensor.phaseLastActiveValues[i];
@@ -1119,10 +1163,15 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
     if (maxVal == -double.infinity) maxVal = 10;
     if (minVal == double.infinity) minVal = 0;
 
-    double rangePadding = (maxVal - minVal) == 0 ? (maxVal == 0 ? 10 : maxVal * 0.2) : (maxVal - minVal) * 0.25;
+    double rangePadding = (maxVal - minVal) == 0
+        ? (maxVal == 0 ? 10 : maxVal * 0.15)
+        : (maxVal - minVal) * 0.2;
     double yMax = maxVal + rangePadding;
     double yMin = (minVal - rangePadding) < 0 ? 0 : (minVal - rangePadding);
-    if (yMax == 0) yMax = 10;
+    if (yMax == yMin) {
+      yMax += 10;
+      yMin = (yMin - 10) < 0 ? 0 : yMin - 10;
+    }
 
     int maxDataPoints = 0;
     for (var series in sensor.multiData) {
@@ -1130,6 +1179,22 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
     }
 
     return SfCartesianChart(
+      trackballBehavior: TrackballBehavior(
+        enable: true,
+        activationMode: ActivationMode.singleTap,
+        lineType: TrackballLineType.vertical,
+        lineDashArray: const <double>[4, 4],
+        lineColor: primaryColor.withValues(alpha: 0.5),
+        tooltipSettings: InteractiveTooltip(
+          enable: true,
+          color: textColor.withValues(alpha: 0.9),
+          textStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
       zoomPanBehavior: ZoomPanBehavior(
         enablePanning: true,
         enablePinching: true,
@@ -1150,20 +1215,6 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
         iconHeight: 12,
         iconWidth: 12,
         padding: 8,
-      ),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        header: '',
-        canShowMarker: true,
-        shared: true,
-        format: 'series.name: point.y ${sensor.unit}',
-        color: textColor.withValues(alpha: 0.95),
-        textStyle: TextStyle(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).scaffoldBackgroundColor,
-          fontSize: 12,
-        ),
-        elevation: 8,
       ),
       primaryXAxis: CategoryAxis(
         initialVisibleMinimum: maxDataPoints > 8 
@@ -1202,221 +1253,102 @@ class _SensorGraphLogState extends State<SensorGraphLog> with SingleTickerProvid
     );
   }
 
+  List<ChartData> _prepareStockData(List<ChartData> rawData) {
+    if (rawData.isEmpty) return [];
+    List<ChartData> list = List.from(rawData);
+
+    // If there is only 1 entry or sparse entries, extend the step line across 00:00 and 24:00
+    // so it renders a continuous stock market chart instead of a lone dot.
+    if (list.first.time != '00:00') {
+      list.insert(0, ChartData('00:00', list.first.value));
+    }
+    if (list.last.time != '24:00') {
+      list.add(ChartData('24:00', list.last.value));
+    }
+
+    return list;
+  }
+
   List<CartesianSeries<ChartData, String>> _getChartSeries(Color primaryColor, SensorDataInfo sensor) {
     List<CartesianSeries<ChartData, String>> seriesList = [];
-    
-    List<Color> phaseColors = sensor.multiData.length == 3 
-        ? phaseColors3 
+
+    List<Color> phaseColors = sensor.multiData.length == 3
+        ? phaseColors3
         : [primaryColor, Colors.orange, Colors.green];
 
     for (int i = 0; i < sensor.multiData.length; i++) {
-       if (!_visiblePhases.contains(i)) continue;
+      if (!_visiblePhases.contains(i)) continue;
 
-       Color seriesColor = sensor.multiData.length == 1 ? primaryColor : phaseColors[i];
-       String seriesName = sensor.phaseNames.length > i ? sensor.phaseNames[i] : 'Phase ${i + 1}';
+      Color seriesColor = sensor.multiData.length == 1 ? primaryColor : phaseColors[i];
+      String seriesName = sensor.phaseNames.length > i ? sensor.phaseNames[i] : 'Phase ${i + 1}';
 
-       if (_selectedGraphType == GraphType.area) {
-          seriesList.add(SplineAreaSeries<ChartData, String>(
-            name: seriesName,
-            dataSource: sensor.multiData[i],
-            xValueMapper: (ChartData data, _) => data.time,
-            yValueMapper: (ChartData data, _) => data.value,
-            gradient: LinearGradient(
-              colors: [
-                seriesColor.withValues(alpha: 0.3),
-                seriesColor.withValues(alpha: 0.02),
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-            borderColor: seriesColor,
-            borderWidth: 3.5,
-            markerSettings: const MarkerSettings(
-              isVisible: true,
-              height: 6,
-              width: 6,
-              shape: DataMarkerType.circle,
-            ),
-            animationDuration: 800,
-          ));
-       } else if (_selectedGraphType == GraphType.line) {
-          seriesList.add(SplineSeries<ChartData, String>(
-            name: seriesName,
-            dataSource: sensor.multiData[i],
-            xValueMapper: (ChartData data, _) => data.time,
-            yValueMapper: (ChartData data, _) => data.value,
+      List<ChartData> rawData = sensor.multiData[i];
+      if (rawData.isEmpty) continue;
+
+      List<ChartData> stockData = _prepareStockData(rawData);
+
+      if (_selectedGraphType == GraphType.area) {
+        seriesList.add(StepAreaSeries<ChartData, String>(
+          name: seriesName,
+          dataSource: stockData,
+          xValueMapper: (ChartData data, _) => data.time,
+          yValueMapper: (ChartData data, _) => data.value,
+          gradient: LinearGradient(
+            colors: [
+              seriesColor.withValues(alpha: 0.35),
+              seriesColor.withValues(alpha: 0.02),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderColor: seriesColor,
+          borderWidth: 2.5,
+          markerSettings: MarkerSettings(
+            isVisible: true,
+            height: 6,
+            width: 6,
+            shape: DataMarkerType.circle,
             color: seriesColor,
-            width: 3.5,
-            markerSettings: const MarkerSettings(
-              isVisible: true,
-              height: 6,
-              width: 6,
-              shape: DataMarkerType.circle,
-            ),
-            animationDuration: 800,
-          ));
-       } else {
-          seriesList.add(ColumnSeries<ChartData, String>(
-            name: seriesName,
-            dataSource: sensor.multiData[i],
-            xValueMapper: (ChartData data, _) => data.time,
-            yValueMapper: (ChartData data, _) => data.value,
-            color: seriesColor.withValues(alpha: 0.85),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(6),
-              topRight: Radius.circular(6),
-            ),
-            width: sensor.multiData.length == 1 ? 0.4 : 0.6,
-            animationDuration: 800,
-          ));
-       }
+            borderColor: Colors.white,
+            borderWidth: 1.5,
+          ),
+          animationDuration: 600,
+        ));
+      } else if (_selectedGraphType == GraphType.line) {
+        seriesList.add(StepLineSeries<ChartData, String>(
+          name: seriesName,
+          dataSource: stockData,
+          xValueMapper: (ChartData data, _) => data.time,
+          yValueMapper: (ChartData data, _) => data.value,
+          color: seriesColor,
+          width: 2.5,
+          markerSettings: MarkerSettings(
+            isVisible: true,
+            height: 6,
+            width: 6,
+            shape: DataMarkerType.circle,
+            color: seriesColor,
+            borderColor: Colors.white,
+            borderWidth: 1.5,
+          ),
+          animationDuration: 600,
+        ));
+      } else {
+        seriesList.add(ColumnSeries<ChartData, String>(
+          name: seriesName,
+          dataSource: rawData,
+          xValueMapper: (ChartData data, _) => data.time,
+          yValueMapper: (ChartData data, _) => data.value,
+          color: seriesColor.withValues(alpha: 0.85),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(6),
+            topRight: Radius.circular(6),
+          ),
+          width: sensor.multiData.length == 1 ? 0.4 : 0.6,
+          animationDuration: 600,
+        ));
+      }
     }
     return seriesList;
-  }
-
-  // Widget _buildDualInsights(Color primaryColor, Color textColor, SensorDataInfo sensor) {
-  //   return Column(
-  //     children: [
-  //       // 1. Simple Farmer Friendly Card (Easy for uneducated users)
-  //       Container(
-  //         padding: const EdgeInsets.all(16),
-  //         decoration: BoxDecoration(
-  //           color: const Color(0xFFE8F5E9), // Light green farmer theme
-  //           borderRadius: BorderRadius.circular(16),
-  //           border: Border.all(color: const Color(0xFFA5D6A7), width: 1.5),
-  //         ),
-  //         child: Row(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Container(
-  //               padding: const EdgeInsets.all(8),
-  //               decoration: const BoxDecoration(
-  //                 color: Color(0xFF2E7D32),
-  //                 shape: BoxShape.circle,
-  //               ),
-  //               child: const Icon(
-  //                 Icons.eco_rounded,
-  //                 color: Colors.white,
-  //                 size: 20,
-  //               ),
-  //             ),
-  //             const SizedBox(width: 12),
-  //             Expanded(
-  //               child: Column(
-  //                 crossAxisAlignment: CrossAxisAlignment.start,
-  //                 children: [
-  //                   const Text(
-  //                     'Farmer Simple Summary',
-  //                     style: TextStyle(
-  //                       fontSize: 14,
-  //                       fontWeight: FontWeight.bold,
-  //                       color: Color(0xFF1B5E20),
-  //                     ),
-  //                   ),
-  //                   const SizedBox(height: 4),
-  //                   Text(
-  //                     sensor.farmerTip,
-  //                     style: const TextStyle(
-  //                       fontSize: 13,
-  //                       color: Color(0xFF2E7D32),
-  //                       height: 1.4,
-  //                       fontWeight: FontWeight.w600,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ),
-  //       const SizedBox(height: 12),
-  //
-  //       // 2. Technical Diagnostics Card (For educated users / engineers)
-  //       Container(
-  //         padding: const EdgeInsets.all(16),
-  //         decoration: BoxDecoration(
-  //           color: Theme.of(context).cardColor,
-  //           borderRadius: BorderRadius.circular(16),
-  //           border: Border.all(color: textColor.withValues(alpha: 0.08), width: 1),
-  //           boxShadow: [
-  //             BoxShadow(
-  //               color: Colors.black.withValues(alpha: 0.03),
-  //               blurRadius: 8,
-  //               offset: const Offset(0, 3),
-  //             ),
-  //           ],
-  //         ),
-  //         child: Column(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Row(
-  //               children: [
-  //                 Icon(
-  //                   Icons.analytics_rounded,
-  //                   color: primaryColor,
-  //                   size: 20,
-  //                 ),
-  //                 const SizedBox(width: 8),
-  //                 Text(
-  //                   'Technical Diagnostics & Metrics',
-  //                   style: TextStyle(
-  //                     fontSize: 14,
-  //                     fontWeight: FontWeight.bold,
-  //                     color: textColor,
-  //                   ),
-  //                 ),
-  //               ],
-  //             ),
-  //             const SizedBox(height: 10),
-  //             Text(
-  //               sensor.insightOptimal,
-  //               style: TextStyle(
-  //                 fontSize: 13,
-  //                 color: textColor.withValues(alpha: 0.75),
-  //                 height: 1.4,
-  //                 fontWeight: FontWeight.w400,
-  //               ),
-  //             ),
-  //             if (sensor.multiData.length == 3) ...[
-  //               const Divider(height: 20),
-  //               Row(
-  //                 mainAxisAlignment: MainAxisAlignment.spaceAround,
-  //                 children: [
-  //                   _buildTechStat('R Peak', '${sensor.phaseMaxValues[0].toStringAsFixed(0)} ${sensor.unit}', phaseColors3[0]),
-  //                   _buildTechStat('Y Peak', '${sensor.phaseMaxValues[1].toStringAsFixed(0)} ${sensor.unit}', phaseColors3[1]),
-  //                   _buildTechStat('B Peak', '${sensor.phaseMaxValues[2].toStringAsFixed(0)} ${sensor.unit}', phaseColors3[2]),
-  //                   _buildTechStat('Variance', '< 2%', primaryColor),
-  //                 ],
-  //               ),
-  //             ],
-  //           ],
-  //         ),
-  //       ),
-  //     ],
-  //   );
-  // }
-
-  Widget _buildTechStat(String label, String val, Color color) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          val,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
   }
 }

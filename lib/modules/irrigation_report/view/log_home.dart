@@ -21,6 +21,7 @@ import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'dart:html' as html;
 import 'dart:async';
+import '../model/data_parsing_and_sorting_model.dart';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
@@ -119,8 +120,8 @@ class _LogHomeState extends State<LogHome> {
       'overAll' : ['over all',true,1]
     },
     'filter' : {
-      'CentralFilterName' : ['Central Filter',true,2],
-      'LocalFilterName' : ['Local Filter',true,2],
+      'CentralFilterSite' : ['Central Filter',true,2],
+      'CentralFilterOnDuration' : ['Duration',true,2],
       'overAll' : ['over all',true,1]
     },
     'prePost' : {
@@ -488,6 +489,15 @@ class _LogHomeState extends State<LogHome> {
     }
   }
 
+  bool _isValidIndex(dynamic listObj, int index) {
+    if (listObj == null) return true;
+    if (listObj is List) {
+      if (listObj.isEmpty) return true;
+      return index < listObj.length;
+    }
+    return true;
+  }
+
   void _reprocessAndFilterData() {
     if (!mounted) return;
     if (dataSource == null || dataSource is! Map || dataSource['log'] == null) return;
@@ -511,8 +521,7 @@ class _LogHomeState extends State<LogHome> {
           //Todo date
           try {
             for (var howManyDate = 0; howManyDate < data['irrigation']['Date'].length; howManyDate++) {
-              if (data['irrigation']['HeadUnit'] == null ||
-                  howManyDate < data['irrigation']['HeadUnit'].length) {
+              if (_isValidIndex(data['irrigation']['HeadUnit'], howManyDate)) {
                 setState(() {
                   if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
                     date.add({
@@ -536,8 +545,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['Status'] != null) {
               for (var howManyStatus = 0; howManyStatus < data['irrigation']['Status'].length; howManyStatus++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyStatus < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyStatus)) {
                   setState(() {
                     if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
                       status.add({
@@ -562,8 +570,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['ProgramS_No'] != null) {
               for (var howManyProgram = 0; howManyProgram < data['irrigation']['ProgramS_No'].length; howManyProgram++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyProgram < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyProgram)) {
                   setState(() {
                     if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
                       program.add({
@@ -595,10 +602,11 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['ProgramCategory'] != null) {
               for (var howManyLine = 0; howManyLine < data['irrigation']['ProgramCategory'].length; howManyLine++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyLine < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyLine)) {
                   for (var splitLine in data['irrigation']['ProgramCategory'][howManyLine].toString().split('_')) {
-                    var lineName = (data['irrigation']['HeadUnit'] != null && howManyLine < data['irrigation']['HeadUnit'].length)
+                    var lineName = (data['irrigation']['HeadUnit'] != null &&
+                            data['irrigation']['HeadUnit'] is List &&
+                            howManyLine < data['irrigation']['HeadUnit'].length)
                         ? data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
                         : [splitLine];
                     setState(() {
@@ -628,8 +636,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['SequenceData'] != null) {
               for (var howManyValve = 0; howManyValve < data['irrigation']['SequenceData'].length; howManyValve++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyValve < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyValve)) {
                   for (var splitValve in data['irrigation']['SequenceData'][howManyValve].toString().split('_')) {
                     setState(() {
                       if (splitValve.contains('13')) {
@@ -1363,45 +1370,54 @@ class _LogHomeState extends State<LogHome> {
                                                       // title: AxisTitle(text: "Dur/Qty"),
                                                       minimum: 0,
                                                     ),
+                                                    legend: Legend(
+                                                      isVisible: true,
+                                                      position: LegendPosition.bottom,
+                                                      overflowMode: LegendItemOverflowMode.wrap,
+                                                    ),
                                                     zoomPanBehavior: ZoomPanBehavior(
                                                       enablePanning: true,
                                                     ),
                                                     series: <CartesianSeries>[
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Pre',
                                                           borderRadius: BorderRadius.zero,
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade200,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.preFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.preTo
+                                                          lowValueMapper: (dynamic data, _) => data.preFrom,
+                                                          highValueMapper: (dynamic data, _) => data.preTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Actual',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.greenAccent,
+                                                          color: Colors.green,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.actualFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.actualTo
+                                                          lowValueMapper: (dynamic data, _) => data.actualFrom,
+                                                          highValueMapper: (dynamic data, _) => data.actualTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Post',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade400,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.postFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.postTo
+                                                          lowValueMapper: (dynamic data, _) => data.postFrom,
+                                                          highValueMapper: (dynamic data, _) => data.postTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Planned',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.grey.shade300,
+                                                          color: Colors.amber.shade700,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.plannedFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.plannedTo
+                                                          lowValueMapper: (dynamic data, _) => data.plannedFrom,
+                                                          highValueMapper: (dynamic data, _) => data.plannedTo
                                                       ),
                                                     ],
                                                   )
@@ -1549,7 +1565,6 @@ class _LogHomeState extends State<LogHome> {
                                         onPressed: () async {
                                           Navigator.pop(context); // Close the name dialog
 
-                                          // Optionally show a progress dialog
                                           showDialog(
                                             context: context,
                                             barrierDismissible: false,
@@ -1564,37 +1579,51 @@ class _LogHomeState extends State<LogHome> {
                                             },
                                           );
 
-                                          // Run the function and await result
                                           bool result = await generateExcel(dataToShow, fileName);
 
-                                          // Close progress dialog
                                           if (context.mounted) Navigator.pop(context);
 
-                                          // Show result dialog
                                           if (context.mounted) {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) {
-                                                return AlertDialog(
-                                                  title: Text(result
-                                                      ? '$fileName saved successfully'
-                                                      : 'Failed to save $fileName'),
-                                                  content: Text(result
-                                                      ? '/storage/emulated/0/Download/$fileName.xlsx'
-                                                      : ''),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context),
-                                                      child: const Text('Ok'),
-                                                    ),
-                                                  ],
-                                                );
-                                              },
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(result ? '$fileName.xlsx downloaded successfully' : 'Failed to save $fileName.xlsx')),
                                             );
                                           }
                                         },
+                                        child: const Text('Download Excel')
+                                    ),
+                                    ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF006573),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          Navigator.pop(context);
 
-                                        child: const Text('Click to download')
+                                          showDialog(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (context) {
+                                              return const AlertDialog(
+                                                title: Text('Generating PDF...'),
+                                                content: SizedBox(
+                                                  height: 50,
+                                                  child: Center(child: CircularProgressIndicator()),
+                                                ),
+                                              );
+                                            },
+                                          );
+
+                                          bool result = await generatePdf(dataToShow, fileName);
+
+                                          if (context.mounted) Navigator.pop(context);
+
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(result ? '$fileName.pdf downloaded successfully' : 'Failed to generate PDF')),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('Download PDF')
                                     )
                                   ],
                                 );

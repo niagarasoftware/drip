@@ -14,7 +14,7 @@ import 'package:oro_drip_irrigation/modules/Logs/model/motor_data_hourly.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/widgets/custom_segmented_control.dart';
 import 'pump_log_excel_builder.dart';
 import 'pump_log_excel_download_stub.dart'
-    if (dart.library.html) 'pump_log_excel_download_web.dart';
+if (dart.library.html) 'pump_log_excel_download_web.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -357,6 +357,40 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (p.length >= 3) return p[0] * 3600 + p[1] * 60 + p[2];
     if (p.length == 2) return p[0] * 3600 + p[1] * 60;
     return 0;
+  }
+
+  /// Safely parses a numeric string coming from the API ("1,234", "-", "", null).
+  double? _parseNumber(String? v) {
+    if (v == null) return null;
+    final cleaned = v.trim().replaceAll(',', '');
+    if (cleaned.isEmpty || cleaned == '-' || cleaned.toLowerCase() == 'null') return null;
+    return double.tryParse(cleaned);
+  }
+
+  /// Flow rate resolution:
+  ///  1. If the device gives a valid live flow rate (> 0) -> show it as real time.
+  ///  2. Otherwise -> average flow rate = total flow (litres) / motor run time (seconds).
+  /// Works the same for Daily / Weekly / Monthly because [totalFlow] and
+  /// [motorRunTime] already belong to the selected period.
+  ({String value, bool isAverage}) _resolveFlowRate({
+    required String? liveFlowRate,
+    required String totalFlow,
+    required String motorRunTime,
+  }) {
+    final live = _parseNumber(liveFlowRate);
+    if (live != null && live > 0) {
+      return (value: live.toString(), isAverage: false);
+    }
+
+    final totalLitres = _parseNumber(totalFlow) ?? 0.0;
+    final runSeconds = _toSeconds(motorRunTime);
+
+    if (runSeconds <= 0 || totalLitres <= 0) {
+      return (value: '0.0', isAverage: true);
+    }
+
+    final avg = totalLitres / runSeconds; // litres per second (Lps)
+    return (value: avg.toStringAsFixed(2), isAverage: true);
   }
 
   String _pick(int key, String m1, String m2, String m3) => key == 1 ? m2 : (key == 2 ? m3 : m1);
@@ -981,8 +1015,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final int maxSeconds = _powerPeriodIndex == 1
         ? (7 * 24 * 3600)
         : (_powerPeriodIndex == 2
-            ? (daysInMonth * 24 * 3600)
-            : (24 * 3600));
+        ? (daysInMonth * 24 * 3600)
+        : (24 * 3600));
 
     final double totalPowerRatio = (_toSeconds(totalPowerOnTime) / maxSeconds).clamp(0.0, 1.0);
     final double motorRatio = (_toSeconds(motorRunTime) / maxSeconds).clamp(0.0, 1.0);
@@ -1002,6 +1036,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       motorData: motorData,
       totalPowerOnTime: totalPowerOnTime,
       totalPowerOffTime: totalPowerOffTime,
+      motorRunTime: motorRunTime,
+      totalFlow: totalFlowToday,
     );
     final right = _buildPowerGraphRightTable(
       provider: provider,
@@ -1065,8 +1101,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final List<String> tickLabels = _powerPeriodIndex == 1
         ? const ['Day 1', 'Day 3', 'Day 5', 'Day 7']
         : (_powerPeriodIndex == 2
-            ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
-            : const ['00:00', '08:00', '16:00', '24:00']);
+        ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
+        : const ['00:00', '08:00', '16:00', '24:00']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1105,8 +1141,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
             _powerPeriodIndex == 1
                 ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
                 : (_powerPeriodIndex == 2
-                    ? DateFormat('MMMM yyyy').format(_selectedDate)
-                    : DateFormat('MMM d yyyy').format(_selectedDate)),
+                ? DateFormat('MMMM yyyy').format(_selectedDate)
+                : DateFormat('MMM d yyyy').format(_selectedDate)),
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F4C5C)),
           ),
         ),
@@ -1176,8 +1212,17 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required MotorDataHourly? motorData,
     required String totalPowerOnTime,
     required String totalPowerOffTime,
+    required String motorRunTime,
+    required String totalFlow,
   }) {
     String clean(String? v) => (v != null && v != "-" && v.isNotEmpty) ? v : "0.0";
+
+    // Live flow rate if available, else average = total flow / run time (seconds).
+    final flow = _resolveFlowRate(
+      liveFlowRate: motorData?.flowRate,
+      totalFlow: totalFlow,
+      motorRunTime: motorRunTime,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1186,7 +1231,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         const SizedBox(height: 14),
         _buildMetricItem('Pressure', '${clean(motorData?.pressure)} bar'),
         const SizedBox(height: 14),
-        _buildMetricItem('Flow rate', '${clean(motorData?.flowRate)} Lps'),
+        _buildMetricItem(
+          flow.isAverage ? 'Avg flow rate' : 'Flow rate',
+          '${flow.value} Lps',
+        ),
         const SizedBox(height: 14),
         _buildMetricItem('Level', '${clean(motorData?.level)} feet'),
         const SizedBox(height: 14),

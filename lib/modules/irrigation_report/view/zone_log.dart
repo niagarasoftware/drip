@@ -1350,6 +1350,138 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
   }
 
+  Future<void> _handlePdfExport(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (_selectedLogTypeTab == 1) {
+      var activeRows = _getFilteredCumulativeRows();
+      if (_dateColumns.isEmpty || activeRows.isEmpty) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "No records available to export"),
+        );
+        return;
+      }
+
+      Map<String, int> dailyTotals = {};
+      Map<String, int> dailyTotalQuantities = {};
+      int grandTotalSeconds = 0;
+      int grandTotalQuantity = 0;
+      for (var d in _dateColumns) {
+        String dKey = DateFormat('yyyy-MM-dd').format(d);
+        int daySum = 0;
+        int dayQty = 0;
+        for (var r in activeRows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            daySum += r.dayEntries[dKey]!.durationSeconds;
+            dayQty += r.dayEntries[dKey]!.quantity.toInt();
+          }
+        }
+        dailyTotals[dKey] = daySum;
+        dailyTotalQuantities[dKey] = dayQty;
+        grandTotalSeconds += daySum;
+        grandTotalQuantity += dayQty;
+      }
+
+      List<SequenceRowData> exportRows = activeRows.map((c) {
+        Map<String, SequenceDayData> dayEntries = {};
+        c.dayEntries.forEach((k, v) {
+          dayEntries[k] = SequenceDayData(
+            durationQtySeconds: v.durationSeconds,
+            quantityCompleted: v.quantity.toInt(),
+            hasRun: v.hasRun,
+          );
+        });
+        return SequenceRowData(
+          key: c.key,
+          progName: c.channelCategory,
+          progSNo: 1,
+          seqName: c.channelName,
+          dayEntries: dayEntries,
+          totalDurationSeconds: c.totalDurationSeconds,
+          totalQuantity: c.totalQuantity.toInt(),
+        );
+      }).toList();
+
+      String fileName =
+          "CumulativeLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}";
+
+      String? res = await exportZoneLogMatrixToPdf(
+        dateColumns: _dateColumns,
+        rows: exportRows,
+        dailyTotals: dailyTotals,
+        dailyTotalQuantities: dailyTotalQuantities,
+        grandTotalSeconds: grandTotalSeconds,
+        grandTotalQuantity: grandTotalQuantity,
+        fileName: fileName,
+      );
+
+      if (res != null) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "PDF downloaded successfully: $res"),
+        );
+      } else {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Failed to export PDF"),
+        );
+      }
+      return;
+    }
+
+    var filteredRows = _getFilteredSequenceRows();
+    if (_dateColumns.isEmpty || filteredRows.isEmpty) {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "No records available to export"),
+      );
+      return;
+    }
+
+    Map<String, int> dailyTotals = {};
+    Map<String, int> dailyTotalQuantities = {};
+    int grandTotalSeconds = 0;
+    int grandTotalQuantity = 0;
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      int daySum = 0;
+      int dayQty = 0;
+      for (var r in filteredRows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          daySum += r.dayEntries[dKey]!.durationQtySeconds;
+          dayQty += r.dayEntries[dKey]!.quantityCompleted;
+        }
+      }
+      dailyTotals[dKey] = daySum;
+      dailyTotalQuantities[dKey] = dayQty;
+      grandTotalSeconds += daySum;
+      grandTotalQuantity += dayQty;
+    }
+
+    String sanitizeName = (_selectedProgramFilter != 'All Programs'
+            ? _selectedProgramFilter
+            : 'ZoneLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}')
+        .replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    String fileName =
+        "${sanitizeName}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+
+    String? res = await exportZoneLogMatrixToPdf(
+      dateColumns: _dateColumns,
+      rows: filteredRows,
+      dailyTotals: dailyTotals,
+      dailyTotalQuantities: dailyTotalQuantities,
+      grandTotalSeconds: grandTotalSeconds,
+      grandTotalQuantity: grandTotalQuantity,
+      fileName: fileName,
+    );
+
+    if (res != null) {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "PDF downloaded successfully: $res"),
+      );
+    } else {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "Failed to export PDF"),
+      );
+    }
+  }
+
   Future<void> _selectDateRange(BuildContext context) async {
     DateTime tempStart = _fromDate;
     DateTime tempEnd = _toDate;
@@ -1554,6 +1686,33 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ],
                       ),
                     ),
+                    const SizedBox(width: 4),
+                    // PDF Button
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 0),
+                        minimumSize: const Size(0, 36),
+                        side: const BorderSide(color: Color(0xFFC62828)),
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                      ),
+                      onPressed: () => _handlePdfExport(context),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.picture_as_pdf,
+                              size: 13, color: Color(0xFFC62828)),
+                          SizedBox(width: 3),
+                          Text("PDF",
+                              style: TextStyle(
+                                  color: Color(0xFFC62828),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -1643,7 +1802,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ],
                 ),
 
-              // Excel Export Button
+              // Export Buttons
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1660,6 +1819,23 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     label: const Text("Excel",
                         style: TextStyle(
                             color: Color(0xFF2E7D32),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      side: const BorderSide(color: Color(0xFFC62828)),
+                      backgroundColor: Colors.white,
+                    ),
+                    onPressed: () => _handlePdfExport(context),
+                    icon: const Icon(Icons.picture_as_pdf,
+                        size: 14, color: Color(0xFFC62828)),
+                    label: const Text("PDF",
+                        style: TextStyle(
+                            color: Color(0xFFC62828),
                             fontSize: 11,
                             fontWeight: FontWeight.bold)),
                   ),

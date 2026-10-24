@@ -75,7 +75,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     final String defaultSheet = excel.getDefaultSheet() ?? 'Sheet1';
     final Sheet sheet = excel[defaultSheet];
 
-    // Header 1: Date Headers
     List<CellValue> header1 = [TextCellValue('')];
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
@@ -84,7 +83,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
 
-    // Header 2: Sub-headers
     List<CellValue> header2 = [TextCellValue('Program / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
@@ -92,7 +90,6 @@ Future<String?> exportZoneLogMatrixToExcel({
     header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
 
-    // Data rows
     for (var row in rows) {
       List<CellValue> dataRow = [];
       String displayName =
@@ -123,7 +120,6 @@ Future<String?> exportZoneLogMatrixToExcel({
       sheet.appendRow(dataRow);
     }
 
-    // Footer Total Row
     List<CellValue> footerRow = [TextCellValue('Total')];
     for (var d in dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
@@ -152,6 +148,40 @@ Future<String?> exportZoneLogMatrixToExcel({
     return "$fileName.xlsx";
   } catch (e) {
     debugPrint("Error exporting Zone Log matrix to Excel Web: $e");
+    return null;
+  }
+}
+
+Future<String?> exportZoneLogMatrixToPdf({
+  required List<DateTime> dateColumns,
+  required List<dynamic> rows,
+  required Map<String, int> dailyTotals,
+  Map<String, int>? dailyTotalQuantities,
+  required int grandTotalSeconds,
+  int grandTotalQuantity = 0,
+  required String fileName,
+}) async {
+  try {
+    final pdfBytes = generateZoneLogMatrixPdfBytes(
+      dateColumns: dateColumns,
+      rows: rows,
+      dailyTotals: dailyTotals,
+      dailyTotalQuantities: dailyTotalQuantities,
+      grandTotalSeconds: grandTotalSeconds,
+      grandTotalQuantity: grandTotalQuantity,
+      fileName: fileName,
+    );
+
+    final content = base64Encode(pdfBytes);
+    html.AnchorElement(
+      href: 'data:application/pdf;base64,$content',
+    )
+      ..setAttribute('download', '$fileName.pdf')
+      ..click();
+
+    return "$fileName.pdf";
+  } catch (e) {
+    debugPrint("Error exporting Zone Log matrix PDF Web: $e");
     return null;
   }
 }

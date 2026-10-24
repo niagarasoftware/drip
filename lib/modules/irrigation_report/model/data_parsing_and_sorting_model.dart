@@ -68,6 +68,11 @@ Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
       'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
       'overAll' : ['over all',true,1]
     },
+    'filter' : {
+      'CentralFilterSite' : ['Central Filter',true,2],
+      // 'CentralFilterOnDuration' : ['Duration',true,2],
+      'overAll' : ['over all',true,1]
+    },
     'prePost' : {
       'PrePostMethod' : ['Method',true,2],
       'Pretime/PreQty' : ['Pre',true,2],
@@ -390,6 +395,41 @@ class IrrigationLogModel {
     return serverData;
   }
 
+  String _getFilterSiteValue(Map<String, dynamic> irrigationData, int index) {
+    var cfSites = irrigationData['CentralFilterSite'] is List
+        ? irrigationData['CentralFilterSite']
+        : (irrigationData['CentralFilterName'] is List
+            ? irrigationData['CentralFilterName']
+            : []);
+
+    var filterName = index < cfSites.length && cfSites[index] != null ? '${cfSites[index]}' : '';
+
+    if (filterName.isEmpty || filterName == '-' || filterName == 'null') {
+      return '-';
+    }
+
+    var listOfSites = filterName.split('_').where((s) => s.trim().isNotEmpty).toList();
+    var listOfNames = listOfSites.map((s) => getName(s.trim())).toList();
+    return listOfNames.isEmpty ? '-' : listOfNames.join('\n');
+  }
+
+  String _getFilterDurationValue(Map<String, dynamic> irrigationData, int index) {
+    var cfDurs = irrigationData['CentralFilterOnDuration'] is List
+        ? irrigationData['CentralFilterOnDuration']
+        : (irrigationData['LocalFilterOnDuration'] is List
+            ? irrigationData['LocalFilterOnDuration']
+            : []);
+
+    var filterDuration = index < cfDurs.length && cfDurs[index] != null ? '${cfDurs[index]}' : '';
+
+    if (filterDuration.isEmpty || filterDuration == '-' || filterDuration == 'null') {
+      return '-';
+    }
+
+    var listOfDurs = filterDuration.split('_').where((d) => d.trim().isNotEmpty).toList();
+    return listOfDurs.isEmpty ? '-' : listOfDurs.join('\n');
+  }
+
   String calculateTime(double quantity, double flowRate) {
     // Convert flowRate from liters per hour (L/hr) to liters per second (L/s)
     double flowRatePerSecond = flowRate / 3600;
@@ -699,42 +739,18 @@ class IrrigationLogModel {
                   }
                 }
                 filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterSite' ||
+                      parameter.payloadKey == 'CentralFilterName' ||
+                      parameter.payloadKey == 'CentralFilterOnOff') {
                     if(parameter.show == true){
-                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
-                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
-                      var filterName = howManyValve < cfNames.length ? cfNames[howManyValve] : '';
-                      var filterDuration = howManyValve < cfDurs.length ? cfDurs[howManyValve] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterSiteValue(date['irrigation'], howManyValve));
                     }
                   }
-                  if(parameter.payloadKey == 'LocalFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterOnDuration' ||
+                      parameter.payloadKey == 'LocalFilterName' ||
+                      parameter.payloadKey == 'LocalFilterOnDuration') {
                     if(parameter.show == true){
-                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
-                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
-                      var filterName = howManyValve < lfNames.length ? lfNames[howManyValve] : '';
-                      var filterDuration = howManyValve < lfDurs.length ? lfDurs[howManyValve] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterDurationValue(date['irrigation'], howManyValve));
                     }
                   }
                 }
@@ -1181,42 +1197,18 @@ class IrrigationLogModel {
                   }
                 }
                 filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterSite' ||
+                      parameter.payloadKey == 'CentralFilterName' ||
+                      parameter.payloadKey == 'CentralFilterOnOff') {
                     if(parameter.show == true){
-                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
-                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
-                      var filterName = howManyLine < cfNames.length ? cfNames[howManyLine] : '';
-                      var filterDuration = howManyLine < cfDurs.length ? cfDurs[howManyLine] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterSiteValue(date['irrigation'], howManyLine));
                     }
                   }
-                  if(parameter.payloadKey == 'LocalFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterOnDuration' ||
+                      parameter.payloadKey == 'LocalFilterName' ||
+                      parameter.payloadKey == 'LocalFilterOnDuration') {
                     if(parameter.show == true){
-                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
-                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
-                      var filterName = howManyLine < lfNames.length ? lfNames[howManyLine] : '';
-                      var filterDuration = howManyLine < lfDurs.length ? lfDurs[howManyLine] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterDurationValue(date['irrigation'], howManyLine));
                     }
                   }
                 }
@@ -1376,14 +1368,12 @@ class IrrigationLogModel {
                 localChannel8ColumnData.add(getChannelData(channelNo: 7, channelParameterList: localChannel8ParameterList, date: date, howMany: howManyLine, central: false));
 
               }
-
             }
           }
-
         }
       }
     }
-    return {
+    var sendingData = {
       'fixedColumn' : fixedColumn,
       'fixedColumnData': fixedColumnData,
       'generalColumn' : generalColumn,
@@ -1432,7 +1422,7 @@ class IrrigationLogModel {
       'localChannel8ColumnData' : localChannel8ColumnData,
       'graphData' : graphData
     };
-
+    return sendingData;
   }
 
   Map<String,dynamic> editProgramWise(dynamic dataSource,List<dynamic> noOfProgram){
@@ -1669,42 +1659,18 @@ class IrrigationLogModel {
                   }
                 }
                 filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterSite' ||
+                      parameter.payloadKey == 'CentralFilterName' ||
+                      parameter.payloadKey == 'CentralFilterOnOff') {
                     if(parameter.show == true){
-                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
-                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
-                      var filterName = howManyProgram < cfNames.length ? cfNames[howManyProgram] : '';
-                      var filterDuration = howManyProgram < cfDurs.length ? cfDurs[howManyProgram] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterSiteValue(date['irrigation'], howManyProgram));
                     }
                   }
-                  if(parameter.payloadKey == 'LocalFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterOnDuration' ||
+                      parameter.payloadKey == 'LocalFilterName' ||
+                      parameter.payloadKey == 'LocalFilterOnDuration') {
                     if(parameter.show == true){
-                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
-                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
-                      var filterName = howManyProgram < lfNames.length ? lfNames[howManyProgram] : '';
-                      var filterDuration = howManyProgram < lfDurs.length ? lfDurs[howManyProgram] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterDurationValue(date['irrigation'], howManyProgram));
                     }
                   }
                 }
@@ -2153,42 +2119,18 @@ class IrrigationLogModel {
                   }
                 }
                 filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterSite' ||
+                      parameter.payloadKey == 'CentralFilterName' ||
+                      parameter.payloadKey == 'CentralFilterOnOff') {
                     if(parameter.show == true){
-                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
-                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
-                      var filterName = howManyDate < cfNames.length ? cfNames[howManyDate] : '';
-                      var filterDuration = howManyDate < cfDurs.length ? cfDurs[howManyDate] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(name < listOfFilterDuration.length){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterSiteValue(date['irrigation'], howManyDate));
                     }
                   }
-                  if(parameter.payloadKey == 'LocalFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterOnDuration' ||
+                      parameter.payloadKey == 'LocalFilterName' ||
+                      parameter.payloadKey == 'LocalFilterOnDuration') {
                     if(parameter.show == true){
-                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
-                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
-                      var filterName = howManyDate < lfNames.length ? lfNames[howManyDate] : '';
-                      var filterDuration = howManyDate < lfDurs.length ? lfDurs[howManyDate] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterDurationValue(date['irrigation'], howManyDate));
                     }
                   }
                 }
@@ -2639,42 +2581,18 @@ class IrrigationLogModel {
                   }
                 }
                 filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterSite' ||
+                      parameter.payloadKey == 'CentralFilterName' ||
+                      parameter.payloadKey == 'CentralFilterOnOff') {
                     if(parameter.show == true){
-                      var cfNames = date['irrigation']['CentralFilterName'] is List ? date['irrigation']['CentralFilterName'] : [];
-                      var cfDurs = date['irrigation']['CentralFilterOnDuration'] is List ? date['irrigation']['CentralFilterOnDuration'] : [];
-                      var filterName = howManyStatus < cfNames.length ? cfNames[howManyStatus] : '';
-                      var filterDuration = howManyStatus < cfDurs.length ? cfDurs[howManyStatus] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterSiteValue(date['irrigation'], howManyStatus));
                     }
                   }
-                  if(parameter.payloadKey == 'LocalFilterName') {
+                  if(parameter.payloadKey == 'CentralFilterOnDuration' ||
+                      parameter.payloadKey == 'LocalFilterName' ||
+                      parameter.payloadKey == 'LocalFilterOnDuration') {
                     if(parameter.show == true){
-                      var lfNames = date['irrigation']['LocalFilterName'] is List ? date['irrigation']['LocalFilterName'] : [];
-                      var lfDurs = date['irrigation']['LocalFilterOnDuration'] is List ? date['irrigation']['LocalFilterOnDuration'] : [];
-                      var filterName = howManyStatus < lfNames.length ? lfNames[howManyStatus] : '';
-                      var filterDuration = howManyStatus < lfDurs.length ? lfDurs[howManyStatus] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
+                      filterList.add(_getFilterDurationValue(date['irrigation'], howManyStatus));
                     }
                   }
                 }
@@ -2931,8 +2849,18 @@ class IrrigationLogModel {
     for(var parameter in parameterList){
       if(parameter.show == true){
         if(parameter.payloadKey != 'overAll'){
-          if (!list.contains(parameter.uiKey)) {
-            list.add(parameter.uiKey);
+          String uiLabel = parameter.uiKey;
+          if (parameter.payloadKey == 'CentralFilterOnDuration' ||
+              parameter.payloadKey == 'LocalFilterOnDuration' ||
+              parameter.payloadKey == 'LocalFilterName') {
+            uiLabel = 'Duration';
+          } else if (parameter.payloadKey == 'CentralFilterSite' ||
+                     parameter.payloadKey == 'CentralFilterName' ||
+                     parameter.payloadKey == 'CentralFilterOnOff') {
+            uiLabel = 'Central Filter';
+          }
+          if (!list.contains(uiLabel)) {
+            list.add(uiLabel);
           }
         }
       }
