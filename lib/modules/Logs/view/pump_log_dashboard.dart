@@ -12,6 +12,9 @@ import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump
 import 'package:oro_drip_irrigation/modules/Logs/model/event_log_model.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/motor_data_hourly.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/widgets/custom_segmented_control.dart';
+import 'pump_log_excel_builder.dart';
+import 'pump_log_excel_download_stub.dart'
+    if (dart.library.html) 'pump_log_excel_download_web.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -257,9 +260,96 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     }
   }
 
+  Future<void> _exportReport(String format) async {
+    final provider = context.read<PumpControllerProvider>();
+
+    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final periodStr = _powerPeriodIndex == 1
+        ? 'Weekly'
+        : (_powerPeriodIndex == 2 ? 'Monthly' : 'Daily');
+
+    final segments = getEffectiveSegments(provider);
+
+    List<EventLog> motor1Events = [];
+    List<EventLog> motor2Events = [];
+    List<EventLog> motor3Events = [];
+
+    if (provider.pumpLogData.isNotEmpty) {
+      final logData = provider.pumpLogData[0];
+      motor1Events = logData.motor1;
+      motor2Events = logData.motor2;
+      motor3Events = logData.motor3;
+    }
+
+    final exportData = PumpLogExportData(
+      deviceName: currentDeviceName,
+      deviceId: currentDeviceId,
+      dateStr: dateStr,
+      periodStr: periodStr,
+      segments: segments,
+      motor1Events: motor1Events,
+      motor2Events: motor2Events,
+      motor3Events: motor3Events,
+      voltageData: provider.voltageData,
+      motorData: provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null,
+    );
+
+    final String sanitizedDeviceName = currentDeviceName.replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    final String fileName = 'Pump_Log_${sanitizedDeviceName}_$dateStr';
+
+    final label = format == 'pdf' ? 'PDF' : (format == 'csv' ? 'CSV' : 'Excel');
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Generating $label report...'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+    bool success = false;
+    if (format == 'pdf') {
+      success = await generatePumpLogPDF(exportData, fileName);
+    } else if (format == 'csv') {
+      success = await generatePumpLogCSV(exportData, fileName);
+    } else {
+      success = await generatePumpLogExcel(exportData, fileName);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? '$label report downloaded successfully!'
+                  : 'Failed to download $label report.',
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: success ? _kTeal : _kRed,
+          ),
+        );
+    }
+  }
+
   // ==========================================
   // HELPERS
   // ==========================================
+
+  String _formatTime(String? rawTime) {
+    if (rawTime == null || rawTime.isEmpty || rawTime == '-' || rawTime == '0' || rawTime == 'null') {
+      return '00:00';
+    }
+    final parts = rawTime.trim().split(':');
+    if (parts.length >= 3) {
+      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+    } else if (parts.length == 2) {
+      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+    }
+    return rawTime;
+  }
 
   /// Parses "HH:MM" or "HH:MM:SS" into seconds.
   int _toSeconds(String t) {
@@ -566,6 +656,64 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           onPressed: _canGoNextWeek ? () => _changeWeek(1) : null,
           visualDensity: VisualDensity.compact,
         ),
+        const SizedBox(width: 6),
+        PopupMenuButton<String>(
+          tooltip: 'Download Report',
+          onSelected: (val) => _exportReport(val),
+          offset: const Offset(0, 32),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'excel',
+              child: Row(
+                children: [
+                  Icon(Icons.table_chart_outlined, color: _kTeal, size: 18),
+                  SizedBox(width: 8),
+                  Text('Excel (.xlsx)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'csv',
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, color: _kTeal, size: 18),
+                  SizedBox(width: 8),
+                  Text('CSV (.csv)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'pdf',
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_outlined, color: _kRed, size: 18),
+                  SizedBox(width: 8),
+                  Text('PDF (.pdf)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ],
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _kTeal,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.download_rounded, color: Colors.white, size: 14),
+                SizedBox(width: 4),
+                Text(
+                  'Download',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                ),
+                Icon(Icons.arrow_drop_down, color: Colors.white, size: 14),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -829,9 +977,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final String totalPowerOnTime = motorData?.totalPowerOnTime ?? "00:00:00";
     final String totalPowerOffTime = motorData?.totalPowerOffTime ?? "00:00:00";
 
-    const int daySeconds = 24 * 3600;
-    final double totalPowerRatio = (_toSeconds(totalPowerOnTime) / daySeconds).clamp(0.0, 1.0);
-    final double motorRatio = (_toSeconds(motorRunTime) / daySeconds).clamp(0.0, 1.0);
+    final int daysInMonth = DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
+    final int maxSeconds = _powerPeriodIndex == 1
+        ? (7 * 24 * 3600)
+        : (_powerPeriodIndex == 2
+            ? (daysInMonth * 24 * 3600)
+            : (24 * 3600));
+
+    final double totalPowerRatio = (_toSeconds(totalPowerOnTime) / maxSeconds).clamp(0.0, 1.0);
+    final double motorRatio = (_toSeconds(motorRunTime) / maxSeconds).clamp(0.0, 1.0);
 
     final String activeMotorName =
         segments[activeKey] ?? _pick(activeKey, "Motor 1", "Motor 2", "Motor 3");
@@ -842,6 +996,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       totalPowerRatio: totalPowerRatio,
       motorRatio: motorRatio,
       activeMotorName: activeMotorName,
+      daysInMonth: daysInMonth,
     );
     final center = _buildPowerGraphCenterColumn(
       motorData: motorData,
@@ -900,11 +1055,18 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required double totalPowerRatio,
     required double motorRatio,
     required String activeMotorName,
+    required int daysInMonth,
   }) {
     final now = DateTime.now();
     final isToday = _selectedDate.year == now.year &&
         _selectedDate.month == now.month &&
         _selectedDate.day == now.day;
+
+    final List<String> tickLabels = _powerPeriodIndex == 1
+        ? const ['Day 1', 'Day 3', 'Day 5', 'Day 7']
+        : (_powerPeriodIndex == 2
+            ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
+            : const ['00:00', '08:00', '16:00', '24:00']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -950,26 +1112,23 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         ),
         const SizedBox(height: 10),
 
-        const Row(
+        Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('00:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-            Text('08:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-            Text('16:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-            Text('24:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-          ],
+          children: tickLabels
+              .map((t) => Text(t, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))))
+              .toList(),
         ),
         const SizedBox(height: 4),
 
         _buildProgressBar(
           ratio: totalPowerRatio,
-          label: 'Total Power - ${Constants.changeFormat(totalPowerOnTime)}',
+          label: 'Total Power - ${_formatTime(totalPowerOnTime)}',
           barColor: const Color(0xFF14BFE8),
         ),
         const SizedBox(height: 4),
         _buildProgressBar(
           ratio: motorRatio,
-          label: '$activeMotorName consumed ${Constants.changeFormat(motorRunTime)}',
+          label: '$activeMotorName run time ${_formatTime(motorRunTime)}',
           barColor: const Color(0xFFB8E3EE),
         ),
       ],
@@ -1031,9 +1190,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         const SizedBox(height: 14),
         _buildMetricItem('Level', '${clean(motorData?.level)} feet'),
         const SizedBox(height: 14),
-        _buildMetricItem('Total power on time', '${Constants.changeFormat(totalPowerOnTime)} (HH:MM)'),
+        _buildMetricItem('Total power on time', '${_formatTime(totalPowerOnTime)} (HH:MM)'),
         const SizedBox(height: 14),
-        _buildMetricItem('Total power off time', '${Constants.changeFormat(totalPowerOffTime)} (HH:MM)'),
+        _buildMetricItem('Total power off time', '${_formatTime(totalPowerOffTime)} (HH:MM)'),
       ],
     );
   }
@@ -1121,11 +1280,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         ),
         const Divider(color: Color(0xFFE2E8F0), height: 1),
 
-        _buildTableRow('Motor run time', Constants.changeFormat(runTime), 'HH:MM', _kTeal),
-        _buildTableRow('Motor idle time', Constants.changeFormat(idleTime), 'HH:MM', _kRed, unitColor: _kRed),
-        _buildTableRow('Dry run trip time', Constants.changeFormat(dryRunTime), 'HH:MM', _kTeal),
-        _buildTableRow('Cyclic trip time', Constants.changeFormat(cyclicTime), 'HH:MM', _kTeal),
-        _buildTableRow('Other trip time', Constants.changeFormat(otherTime), 'HH:MM', _kTeal),
+        _buildTableRow('Motor run time', _formatTime(runTime), 'HH:MM', _kTeal),
+        _buildTableRow('Motor idle time', _formatTime(idleTime), 'HH:MM', _kRed, unitColor: _kRed),
+        _buildTableRow('Dry run trip time', _formatTime(dryRunTime), 'HH:MM', _kTeal),
+        _buildTableRow('Cyclic trip time', _formatTime(cyclicTime), 'HH:MM', _kTeal),
+        _buildTableRow('Other trip time', _formatTime(otherTime), 'HH:MM', _kTeal),
         _buildTableRow(totalFlowLabel, totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
       ],
     );
@@ -1219,7 +1378,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
               const SizedBox(width: 8),
               Expanded(child: _buildSummaryBox('Dry run trips', '$dryRunTrips', _kRed)),
               const SizedBox(width: 8),
-              Expanded(child: _buildSummaryBox('Listed duration', formattedDuration, _kInk)),
+
             ],
           ),
           const SizedBox(height: 16),
