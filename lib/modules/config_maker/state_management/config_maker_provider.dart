@@ -13,6 +13,7 @@ import '../model/fertigation_model.dart';
 import '../model/filtration_model.dart';
 import '../model/irrigation_line_model.dart';
 import '../model/moisture_model.dart';
+import '../model/nutrient_model.dart';
 import '../model/ph_model.dart';
 import '../model/pressure_model.dart';
 import '../model/pump_model.dart';
@@ -83,6 +84,7 @@ class ConfigMakerProvider extends ChangeNotifier{
   List<EcModel> ec = [];
   List<PhModel> ph = [];
   List<IrrigationLineModel> line = [];
+  List<NutrientCategoryModel> nutrients = [];
   List<dynamic> productStock = [];
 
   void updateRangeMode(bool value){
@@ -122,6 +124,7 @@ class ConfigMakerProvider extends ChangeNotifier{
     ec.clear();
     ph.clear();
     line.clear();
+    nutrients.clear();
     selectedSelectionMode = SelectionMode.auto;
     selectedConnectionNo = 0;
     selectedType = '';
@@ -152,6 +155,7 @@ class ConfigMakerProvider extends ChangeNotifier{
     ec.clear();
     ph.clear();
     line.clear();
+    nutrients.clear();
     selectedSelectionMode = SelectionMode.auto;
     selectedConnectionNo = 0;
     selectedType = '';
@@ -297,6 +301,12 @@ class ConfigMakerProvider extends ChangeNotifier{
       configMakerDataFromHttp = configMakerData;
       defaultDataFromHttp = defaultData;
       masterData = masterDataFromSiteConfigure;
+
+      if (defaultData.containsKey('nutrients') && defaultData['nutrients'] != null) {
+        nutrients = (defaultData['nutrients'] as List<dynamic>)
+            .map((e) => NutrientCategoryModel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
 
       /* hardcoded for pushing master to deviceList*/
       if(![...AppConstants.gemModelList, ...AppConstants.omsGemList].contains(masterDataFromSiteConfigure['modelId'])){
@@ -1923,6 +1933,17 @@ class ConfigMakerProvider extends ChangeNotifier{
     return listOfSampleObjectModel.every(
       (object) => object.count == null || object.count == '' || object.count == '0',
     );
+  }
+
+  NutrientModel? getNutrientBySNo(double sNo) {
+    for (var category in nutrients) {
+      for (var nutrient in category.list) {
+        if (nutrient.sNo == sNo) {
+          return nutrient;
+        }
+      }
+    }
+    return null;
   }
 
   String? validateGemConfiguration() {
