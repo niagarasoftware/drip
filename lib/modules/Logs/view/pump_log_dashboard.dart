@@ -1,8 +1,5 @@
 import 'dart:developer';
-import 'dart:io';
 
-import 'package:excel/excel.dart' as xls;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -44,7 +41,8 @@ class PumpLogDashboardScreen extends StatefulWidget {
     this.nodeControllerId = 0,
     required this.masterData,
     this.pumpList = const [],
-    this.userData = const {}, required bool showMobileCalendar,
+    this.userData = const {},
+    required bool showMobileCalendar,
   });
 
   @override
@@ -52,9 +50,7 @@ class PumpLogDashboardScreen extends StatefulWidget {
 }
 
 class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
-  /// The target design has no device/MAC bar for a single device.
-  /// Set to true if you want the MAC address bar back.
-  static const bool _showSingleDeviceHeader = false;
+  static const bool _showSingleDeviceHeader = true;
 
   late DateTime _selectedDate;
   late DateTime _weekStartDate;
@@ -86,8 +82,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceId;
     }
-    if (widget.pumpList.isNotEmpty && _selectedPumpIndex < widget.pumpList.length) {
-      final item = widget.pumpList[_selectedPumpIndex];
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty && _selectedPumpIndex < devices.length) {
+      final item = devices[_selectedPumpIndex];
       final deviceId = item['deviceId']?.toString();
       if (deviceId != null && deviceId.isNotEmpty) return deviceId;
     }
@@ -98,8 +95,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceName;
     }
-    if (widget.pumpList.isNotEmpty && _selectedPumpIndex < widget.pumpList.length) {
-      final item = widget.pumpList[_selectedPumpIndex];
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty && _selectedPumpIndex < devices.length) {
+      final item = devices[_selectedPumpIndex];
       final deviceName = item['deviceName']?.toString();
       if (deviceName != null && deviceName.isNotEmpty) return deviceName;
     }
@@ -112,9 +110,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     _selectedDate = DateTime.now();
     _alignWeekStartDate(_selectedDate);
 
-    if (widget.pumpList.isNotEmpty) {
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty) {
       final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
-      _activeNodeControllerId = isEcoGem ? 0 : (widget.pumpList[0]['controllerId'] ?? widget.nodeControllerId);
+      _activeNodeControllerId = isEcoGem ? 0 : (devices[0]['controllerId'] ?? widget.nodeControllerId);
     } else {
       _activeNodeControllerId = widget.nodeControllerId;
     }
@@ -127,17 +126,20 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   @override
   void didUpdateWidget(covariant PumpLogDashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.pumpList != oldWidget.pumpList && widget.pumpList.isNotEmpty) {
-      if (_selectedPumpIndex >= widget.pumpList.length) {
-        _selectedPumpIndex = 0;
+    final controllerChanged = widget.controllerId != oldWidget.controllerId ||
+        widget.masterData.controllerId != oldWidget.masterData.controllerId;
+    final pumpListChanged = widget.pumpList != oldWidget.pumpList;
+
+    if (controllerChanged || pumpListChanged) {
+      _selectedPumpIndex = 0;
+      final devices = effectiveDeviceList;
+      if (devices.isNotEmpty) {
+        final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
+        _activeNodeControllerId = isEcoGem ? 0 : (devices[0]['controllerId'] ?? widget.nodeControllerId);
+      } else {
+        _activeNodeControllerId = widget.nodeControllerId;
       }
-      final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
-      final newControllerId =
-      isEcoGem ? 0 : (widget.pumpList[_selectedPumpIndex]['controllerId'] ?? widget.nodeControllerId);
-      if (newControllerId != _activeNodeControllerId) {
-        _activeNodeControllerId = newControllerId;
-        _fetchAllData();
-      }
+      _fetchAllData();
     }
   }
 
@@ -217,7 +219,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
   void _changeWeek(int deltaWeeks) {
     final newStart = _weekStartDate.add(Duration(days: deltaWeeks * 7));
-    if (_isFuture(newStart)) return; // never move into a week that is fully in the future
+    if (_isFuture(newStart)) return;
 
     final today = DateTime.now();
     final newEnd = newStart.add(const Duration(days: 6));
@@ -248,85 +250,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       context: context,
       initialDate: _isFuture(_selectedDate) ? now : _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: now, // future dates cannot be picked
+      lastDate: now,
     );
     if (picked != null) {
       _onDateSelected(picked);
-    }
-  }
-
-  void _exportExcel() async {
-    final provider = context.read<PumpControllerProvider>();
-    if (provider.motorDataList.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No data available to export.')),
-      );
-      return;
-    }
-
-    final excel = xls.Excel.createExcel();
-    final xls.Sheet sheet = excel['Sheet1'];
-
-    sheet.appendRow([
-      xls.TextCellValue('Date'),
-      xls.TextCellValue('Total Power On Time'),
-      xls.TextCellValue('Total Power Off Time'),
-      xls.TextCellValue('Cumulative Flow'),
-      xls.TextCellValue('Flow Rate'),
-      xls.TextCellValue('Pressure'),
-      xls.TextCellValue('Level'),
-      xls.TextCellValue('Motor 1 Run Time'),
-      xls.TextCellValue('Motor 1 Idle Time'),
-      xls.TextCellValue('Motor 1 Dry Run Trip'),
-      xls.TextCellValue('Motor 1 Cyclic Trip'),
-      xls.TextCellValue('Motor 1 Other Trip'),
-      xls.TextCellValue('Motor 1 Total Flow'),
-    ]);
-
-    for (final data in provider.motorDataList) {
-      sheet.appendRow([
-        xls.TextCellValue(data.date),
-        xls.TextCellValue(data.totalPowerOnTime),
-        xls.TextCellValue(data.totalPowerOffTime),
-        xls.TextCellValue(data.overAllCumulativeFlow),
-        xls.TextCellValue(data.flowRate),
-        xls.TextCellValue(data.pressure),
-        xls.TextCellValue(data.level),
-        xls.TextCellValue(data.motorRunTime1),
-        xls.TextCellValue(data.motorIdleTime1),
-        xls.TextCellValue(data.dryRunTripTime1),
-        xls.TextCellValue(data.cyclicTripTime1),
-        xls.TextCellValue(data.otherTripTime1),
-        xls.TextCellValue(data.totalFlowToday1),
-      ]);
-    }
-
-    final fileBytes = excel.encode();
-    if (fileBytes != null) {
-      try {
-        if (!kIsWeb) {
-          const downloadsDirectoryPath = "/storage/emulated/0/Download";
-          final filePath =
-              "$downloadsDirectoryPath/Power_Graph_${DateFormat('yyyyMMdd').format(_selectedDate)}.xlsx";
-          final file = File(filePath);
-          await file.create(recursive: true);
-          await file.writeAsBytes(fileBytes);
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Report saved to $filePath')),
-            );
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Report generated.')),
-            );
-          }
-        }
-      } catch (e) {
-        log("Export error: $e");
-      }
     }
   }
 
@@ -430,65 +357,68 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<PumpControllerProvider>();
 
-    return Scaffold(
-      backgroundColor: _kBg,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 900;
-            return Column(
-              children: [
-                // Edge-to-edge calendar bar
-                _buildCalendarHeader(isWide),
+    return KeyedSubtree(
+      key: ValueKey(widget.controllerId),
+      child: Scaffold(
+        backgroundColor: _kBg,
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 900;
+              return Column(
+                children: [
+                  // Edge-to-edge calendar bar
+                  _buildCalendarHeader(isWide),
 
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _fetchAllData,
-                    color: _kTeal,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildDeviceHeader(),
-                          _buildPumpSegmentControl(provider),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _fetchAllData,
+                      color: _kTeal,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _buildDeviceHeader(),
+                            _buildPumpSegmentControl(provider),
 
-                          if (_isLoading)
-                            const Padding(
-                              padding: EdgeInsets.only(bottom: 10),
-                              child: LinearProgressIndicator(
-                                color: _kTeal,
-                                backgroundColor: Color(0xFFE0F4F7),
+                            if (_isLoading)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 10),
+                                child: LinearProgressIndicator(
+                                  color: _kTeal,
+                                  backgroundColor: Color(0xFFE0F4F7),
+                                ),
                               ),
-                            ),
 
-                          _buildPowerGraphCard(provider, isWide),
-                          const SizedBox(height: 12),
-
-                          if (isWide)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: _buildPumpLogCard(provider)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildVoltageLogCard(provider)),
-                              ],
-                            )
-                          else ...[
-                            _buildPumpLogCard(provider),
+                            _buildPowerGraphCard(provider, isWide),
                             const SizedBox(height: 12),
-                            _buildVoltageLogCard(provider),
+
+                            if (isWide)
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(child: _buildPumpLogCard(provider)),
+                                  const SizedBox(width: 12),
+                                  Expanded(child: _buildVoltageLogCard(provider)),
+                                ],
+                              )
+                            else ...[
+                              _buildPumpLogCard(provider),
+                              const SizedBox(height: 12),
+                              _buildVoltageLogCard(provider),
+                            ],
+                            const SizedBox(height: 24),
                           ],
-                          const SizedBox(height: 24),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -506,6 +436,20 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     }
     if (widget.pumpList.isNotEmpty) {
       return widget.pumpList.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+    if (widget.masterData.nodeList.isNotEmpty) {
+      final pumpNodes = widget.masterData.nodeList.where((n) {
+        return AppConstants.pumpList.contains(n.modelId) ||
+            n.categoryId == 1 ||
+            n.categoryName.toLowerCase().contains('pump');
+      }).toList();
+
+      final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+      return nodesToUse.map((n) => {
+        'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        'deviceId': n.deviceId,
+        'controllerId': n.controllerId,
+      }).toList();
     }
     return [
       {
@@ -921,22 +865,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _cardTitle('POWER GRAPH'),
-              InkWell(
-                onTap: _exportExcel,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(color: _kTeal, shape: BoxShape.circle),
-                  child: const Icon(Icons.arrow_downward, color: Colors.white, size: 18),
-                ),
-              ),
-            ],
-          ),
+          _cardTitle('POWER GRAPH'),
           const SizedBox(height: 14),
           if (isWide)
             Row(
@@ -1011,7 +940,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           ),
           alignment: Alignment.center,
           child: Text(
-            DateFormat('MMM d yyyy').format(_selectedDate),
+            _powerPeriodIndex == 1
+                ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
+                : (_powerPeriodIndex == 2
+                    ? DateFormat('MMMM yyyy').format(_selectedDate)
+                    : DateFormat('MMM d yyyy').format(_selectedDate)),
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F4C5C)),
           ),
         ),
@@ -1131,10 +1064,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required int activeKey,
     required String activeMotorName,
   }) {
+    final String totalFlowLabel = _powerPeriodIndex == 1
+        ? 'Total flow this week'
+        : (_powerPeriodIndex == 2 ? 'Total flow this month' : 'Total flow today');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header: motor name (dropdown if several motors) + Unit
         SizedBox(
           height: 30,
           child: Row(
@@ -1190,7 +1126,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         _buildTableRow('Dry run trip time', Constants.changeFormat(dryRunTime), 'HH:MM', _kTeal),
         _buildTableRow('Cyclic trip time', Constants.changeFormat(cyclicTime), 'HH:MM', _kTeal),
         _buildTableRow('Other trip time', Constants.changeFormat(otherTime), 'HH:MM', _kTeal),
-        _buildTableRow('Total flow today', totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
+        _buildTableRow(totalFlowLabel, totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
       ],
     );
   }
@@ -1369,9 +1305,29 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           return Stack(
             children: events.map((event) {
               final startSec = _toSeconds(event.onTime).toDouble();
-              double endSec = event.offTime.trim().isNotEmpty
-                  ? _toSeconds(event.offTime).toDouble()
-                  : startSec + _toSeconds(event.duration);
+              double endSec = 0;
+
+              final cleanOff = event.offTime.trim();
+              final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
+
+              if (hasOffTime) {
+                endSec = _toSeconds(cleanOff).toDouble();
+              } else {
+                final durSec = _toSeconds(event.duration).toDouble();
+                if (durSec > 0) {
+                  endSec = startSec + durSec;
+                } else {
+                  final now = DateTime.now();
+                  final isToday = _selectedDate.year == now.year &&
+                      _selectedDate.month == now.month &&
+                      _selectedDate.day == now.day;
+                  if (isToday) {
+                    endSec = (now.hour * 3600 + now.minute * 60 + now.second).toDouble();
+                  } else {
+                    endSec = startSec + 300;
+                  }
+                }
+              }
 
               if (endSec < startSec) endSec = totalSeconds;
 
@@ -1424,9 +1380,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       return Constants.capitalizeFirstLetter(formatted);
     }
 
-    final hasOffTime = event.offTime.trim().isNotEmpty;
+    final cleanOff = event.offTime.trim();
+    final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
     final hasOnReason = event.onReason.trim().isNotEmpty;
-    final hasOffReason = event.offReason.trim().isNotEmpty;
+    final hasOffReason = event.offReason.trim().isNotEmpty && event.offReason.trim() != '-';
+    final isRunningNow = !hasOffTime && !hasOffReason;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1434,7 +1392,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 64,
+            width: 68,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1447,6 +1405,19 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   Text(
                     event.offTime,
                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _kTeal),
+                  ),
+                ] else if (isRunningNow) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'RUNNING',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: _kGreen),
+                    ),
                   ),
                 ],
               ],
@@ -1488,8 +1459,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   ),
                 if (hasOnReason || hasOffReason) const SizedBox(height: 4),
                 Text(
-                  'Duration: ${event.duration}',
-                  style: const TextStyle(fontSize: 11, color: _kMuted),
+                  isRunningNow ? 'Duration: Running...' : 'Duration: ${event.duration}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isRunningNow ? _kGreen : _kMuted,
+                    fontWeight: isRunningNow ? FontWeight.w600 : FontWeight.normal,
+                  ),
                 ),
               ],
             ),

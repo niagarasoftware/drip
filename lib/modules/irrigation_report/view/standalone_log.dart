@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_date_range_picker/flutter_date_range_picker.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +12,7 @@ import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import '../repository/irrigation_repository.dart';
 import 'log_home.dart';
 import 'package:excel/excel.dart' hide Border;
+import 'standalone_exporter_stub.dart' if (dart.library.html) 'standalone_exporter_web.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design tokens (same palette as the new ScrollingTable)
@@ -729,38 +731,79 @@ class _StandaloneLogState extends State<StandaloneLog> {
                 ),
                 icon: const Icon(Icons.download_rounded, size: 18),
                 label: const Text('Download'),
-                onPressed: (){
+                onPressed: () {
                   showDialog(
-                      context: context,
-                      builder: (context){
-                        var fileName = 'file';
-                        return AlertDialog(
-                          title: Text('Give Name For Your File'),
-                          content: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              TextFormField(
-                                initialValue: fileName,
-                                onChanged: (value){
-                                  fileName = value;
-                                },
-                                decoration: InputDecoration(
-                                    border: OutlineInputBorder()
-                                ),
+                    context: context,
+                    builder: (dialogCtx) {
+                      var fileName = 'file';
+                      return AlertDialog(
+                        title: const Text('Give Name For Your File'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextFormField(
+                              initialValue: fileName,
+                              onChanged: (value) {
+                                fileName = value;
+                              },
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
                               ),
-                            ],
-                          ),
-                          actions: [
-                            TextButton(
-                                onPressed: (){
-                                  generateExcelForStandAlone(standaloneData,fileName);
-                                  Navigator.pop(context);
-                                },
-                                child: Text('Click to download')
-                            )
+                            ),
                           ],
-                        );
-                      }
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () async {
+                              Navigator.pop(dialogCtx);
+
+                              final fixedData = standaloneData['fixedColumnData'] as List?;
+                              if (fixedData == null || fixedData.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No standalone data available to download.')),
+                                );
+                                return;
+                              }
+
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Generating Excel...'),
+                                  content: SizedBox(
+                                    height: 50,
+                                    child: Center(child: CircularProgressIndicator()),
+                                  ),
+                                ),
+                              );
+
+                              final cleanName = fileName.trim().isEmpty ? 'file' : fileName.trim();
+                              final success = await generateExcelForStandAlone(standaloneData, cleanName);
+
+                              if (context.mounted) {
+                                Navigator.pop(context); // dismiss progress indicator
+                                showDialog(
+                                  context: context,
+                                  builder: (resCtx) => AlertDialog(
+                                    title: Text(success ? 'Download Successful' : 'Download Failed'),
+                                    content: Text(success
+                                        ? '$cleanName.xlsx downloaded successfully to Downloads.'
+                                        : 'Failed to save $cleanName.xlsx. Please try again.'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(resCtx),
+                                        child: const Text('OK'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+                            },
+                            child: const Text('Click to download'),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 },
               ),
@@ -771,87 +814,8 @@ class _StandaloneLogState extends State<StandaloneLog> {
     );
   }
 
-  Future<void> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
-    // Create a new workbook
-    var excel = Excel.createExcel();
-    Sheet sheetObject = excel['Logs'];
-// final sheet = workbook.worksheets[0];
-    // sheet.name = 'Logs';
-
-    // Create header row
-    List<String> headerRow = [
-      'Date',
-      ...standaloneColumn
-    ];
-    sheetObject.appendRow([for(var i in headerRow) TextCellValue(i)]);
-
-    for (var i = 0; i < data['fixedColumnData'].length; i++) {
-      List<String> eachRow = [data['fixedColumnData'][i]];
-      List<String> columnDataKeys = [
-        'standaloneColumnData',
-      ];
-
-      for (var columnData in columnDataKeys) {
-        if (data[columnData][0] != null) {
-          for (var j = 0; j < data[columnData][i].length; j++) {
-            eachRow.add('${data[columnData][i][j]}');
-          }
-        }
-      }
-
-      for (int j = 0; j < eachRow.length; j++) {
-        sheetObject.appendRow([for(var cell in eachRow) TextCellValue(cell)]);
-      }
-    }
-
-    // Save the file
-    var fileBytes = excel.encode();
-    if (fileBytes != null) {
-      try {
-        String downloadsDirectoryPath = "/storage/emulated/0/Download";
-        String filePath = "$downloadsDirectoryPath/$name.xlsx";
-        File file = File(filePath);
-        await file.create(recursive: true);
-        await file.writeAsBytes(fileBytes);
-        // Check if file exists
-        if (await file.exists()) {
-          showDialog(context: context, builder: (context){
-            return AlertDialog(
-              title: Text('$name Download Successfully at'),
-              content: Text('$filePath'),
-              actions: [
-                TextButton(
-                    onPressed: (){
-                      Navigator.pop(context);
-                    },
-                    child: Text('Ok')
-                )
-              ],
-            );
-          });
-          print("Excel file saved successfully at $filePath");
-        } else {
-          showDialog(context: context, builder: (context){
-            return AlertDialog(
-              title: Text('$name Download failed..'),
-              actions: [
-                TextButton(
-                    onPressed: (){
-                      Navigator.pop(context);
-                    },
-                    child: Text('Ok')
-                )
-              ],
-            );
-          });
-          log("Failed to save the Excel file.");
-        }
-      } catch (e) {
-        log("Error saving the Excel file: $e");
-      }
-    } else {
-      log("Error encoding the Excel file.");
-    }
+  Future<bool> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
+    return await exportStandaloneExcel(data, standaloneColumn, name);
   }
 
   List<dynamic> filterDataByPages({required data}){

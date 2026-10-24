@@ -10,10 +10,10 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../StateManagement/customer_provider.dart';
 import '../../models/customer/site_model.dart';
 import '../../modules/Logs/repository/log_repos.dart';
-import '../../modules/Logs/view/pump_list.dart';
 
 import '../../modules/irrigation_report/view/channel_log_page.dart';
 import '../../modules/irrigation_report/view/list_of_log_config.dart';
+import '../../modules/irrigation_report/view/fertigation_card_list_page.dart';
 import '../../modules/irrigation_report/view/standalone_log.dart';
 import '../../modules/irrigation_report/view/zone_log.dart';
 import '../../modules/irrigation_report/view/zone_cyclic_log.dart';
@@ -66,7 +66,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       return 3; // Motor + Zone Cyclic + Pump
     }
 
-    // Irrigation + Zone + Standalone + Channel
+    // Irrigation + Zone + Fertilizer + Standalone
     // + optional Pump
     return 4 + (showPumpLog ? 1 : 0);
   }
@@ -81,6 +81,19 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     );
 
     getUserNodePumpList();
+  }
+
+  @override
+  void didUpdateWidget(covariant IrrigationAndPumpLog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldCtrlId =
+        oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
+    final newCtrlId =
+        widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    if (oldCtrlId != newCtrlId ||
+        oldWidget.userData['customerId'] != widget.userData['customerId']) {
+      getUserNodePumpList();
+    }
   }
 
   void _updateTabController() {
@@ -115,22 +128,65 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
       final response = jsonDecode(result.body);
 
-      setState(() {
-        if (result.statusCode == 200 && response['data'] is List) {
-          pumpList = response['data'];
-          message = '';
-        } else {
-          pumpList = [];
-          message = response['message']?.toString() ?? '';
-        }
+      List fetchedList = [];
+      if (result.statusCode == 200 &&
+          response['data'] is List &&
+          (response['data'] as List).isNotEmpty) {
+        fetchedList = response['data'];
+      } else if (widget.masterData.nodeList.isNotEmpty) {
+        final pumpNodes = widget.masterData.nodeList.where((n) {
+          return AppConstants.pumpList.contains(n.modelId) ||
+              n.categoryId == 1 ||
+              n.categoryName.toLowerCase().contains('pump');
+        }).toList();
 
+        final nodesToUse =
+            pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fetchedList = nodesToUse
+            .map((n) => {
+                  'controllerId': n.controllerId,
+                  'deviceId': n.deviceId,
+                  'deviceName': n.deviceName.isNotEmpty
+                      ? n.deviceName
+                      : 'Node ${n.serialNumber}',
+                })
+            .toList();
+      }
+
+      setState(() {
+        pumpList = fetchedList;
+        message =
+            fetchedList.isEmpty ? (response['message']?.toString() ?? '') : '';
         _updateTabController();
       });
     } catch (e) {
       if (!mounted) return;
 
+      List fallbackList = [];
+      if (widget.masterData.nodeList.isNotEmpty) {
+        final pumpNodes = widget.masterData.nodeList.where((n) {
+          return AppConstants.pumpList.contains(n.modelId) ||
+              n.categoryId == 1 ||
+              n.categoryName.toLowerCase().contains('pump');
+        }).toList();
+
+        final nodesToUse =
+            pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+        fallbackList = nodesToUse
+            .map((n) => {
+                  'controllerId': n.controllerId,
+                  'deviceId': n.deviceId,
+                  'deviceName': n.deviceName.isNotEmpty
+                      ? n.deviceName
+                      : 'Node ${n.serialNumber}',
+                })
+            .toList();
+      }
+
       setState(() {
-        message = e.toString();
+        pumpList = fallbackList;
+        message = fallbackList.isEmpty ? e.toString() : '';
+        _updateTabController();
       });
 
       debugPrint('Pump list error: $e');
@@ -146,16 +202,21 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
   void _openLogDetail(BuildContext context, _LogCardItem card) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(card.title),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
+        builder: (context) {
+          if (card.page is FertigationCardListPage) {
+            return card.page;
+          }
+          return Scaffold(
+            appBar: AppBar(
+              title: Text(card.title),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
-          ),
-          body: card.page,
-        ),
+            body: card.page,
+          );
+        },
       ),
     );
   }
@@ -191,7 +252,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     return _LogCardItem(
       title: 'Irrigation Log',
       subtitle:
-      'View detailed records of irrigation cycles, water usage and duration for each zone.',
+          'View detailed records of irrigation cycles, water usage and duration for each zone.',
       iconWidget: const Icon(
         Icons.water_drop_outlined,
         color: Color(0xFF0284C7),
@@ -231,9 +292,9 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
   _LogCardItem _zoneLogCard() {
     return _LogCardItem(
-      title: 'Zone Log',
+      title: 'Cumulative Log',
       subtitle:
-      'Review zone-wise irrigation history, valve activity and runtime details.',
+          'Review cumulative irrigation history, valve activity and runtime details.',
       iconWidget: const Icon(
         Icons.grid_view_rounded,
         color: Color(0xFF7C3AED),
@@ -245,7 +306,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       features: const [
         _FeatureBullet(
           icon: Icons.grid_view_rounded,
-          text: 'Zone-wise irrigation records',
+          text: 'cumulative irrigation records',
           iconColor: Color(0xFF7C3AED),
         ),
         _FeatureBullet(
@@ -271,11 +332,54 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     );
   }
 
+  _LogCardItem _fertilizerLogCard() {
+    return _LogCardItem(
+      title: 'Fertilizer Log',
+      subtitle:
+          'Track fertigation recipes, fertilizer channel runtime and EC/pH details.',
+      iconWidget: const Icon(
+        Icons.science_outlined,
+        color: Color(0xFF0D9488),
+        size: 28,
+      ),
+      accentColor: const Color(0xFF0D9488),
+      iconBgColor: const Color(0xFFCCFBF1),
+      buttonColor: const Color(0xFF006573),
+      features: const [
+        _FeatureBullet(
+          icon: Icons.science_outlined,
+          text: 'Fertigation recipes',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.water_drop_outlined,
+          text: 'Channel duration & quantity',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.speed_rounded,
+          text: 'EC & pH monitoring',
+          iconColor: Color(0xFF0D9488),
+        ),
+        _FeatureBullet(
+          icon: Icons.bar_chart_rounded,
+          text: 'Program & sequence views',
+          iconColor: Color(0xFF0D9488),
+        ),
+      ],
+      page: FertigationCardListPage(
+        serverData: const {'logName': 'Fertilizer'},
+        userData: widget.userData,
+        nameData: const [],
+      ),
+    );
+  }
+
   _LogCardItem _standaloneLogCard() {
     return _LogCardItem(
       title: 'Standalone Log',
       subtitle:
-      'Track standalone (manual) operations with their start and stop history.',
+          'Track standalone (manual) operations with their start and stop history.',
       iconWidget: const Icon(
         Icons.touch_app_outlined,
         color: Color(0xFFDB2777),
@@ -316,13 +420,12 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     return _LogCardItem(
       title: 'Pump Log',
       subtitle:
-      'Track pump operations, start/stop events, runtime and fault history.',
+          'Track pump operations, start/stop events, runtime and fault history.',
       iconWidget: SvgPicture.asset(
         'assets/svg_images/pump.svg',
         width: 26,
         height: 26,
-        colorFilter:
-        const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
+        colorFilter: const ColorFilter.mode(Color(0xFFEA580C), BlendMode.srcIn),
       ),
       accentColor: const Color(0xFFEA580C),
       iconBgColor: const Color(0xFFFFEDD5),
@@ -354,7 +457,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         userId: widget.userData['customerId'],
         controllerId: widget.masterData.controllerId,
         masterData: widget.masterData,
-        userData: widget.userData, showMobileCalendar: true,
+        userData: widget.userData,
+        showMobileCalendar: true,
       ),
     );
   }
@@ -369,7 +473,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         _LogCardItem(
           title: 'Motor Cyclic Log',
           subtitle:
-          'Track cyclic motor operations, runtime intervals and status logs.',
+              'Track cyclic motor operations, runtime intervals and status logs.',
           iconWidget: const Icon(
             Icons.sync_rounded,
             color: Color(0xFF0284C7),
@@ -405,7 +509,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         _LogCardItem(
           title: 'Zone Cyclic Log',
           subtitle:
-          'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
+              'Monitor zone-wise cyclic irrigation status, flow and runtime information.',
           iconWidget: const Icon(
             Icons.pin_drop_outlined,
             color: Color(0xFF16A34A),
@@ -444,6 +548,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       cards.addAll([
         _irrigationCard(),
         _zoneLogCard(),
+        _fertilizerLogCard(),
         _standaloneLogCard(),
         // Matches _calculateTabLength(): pump log only when it applies
         if (showPumpLog) _pumpLogCard(),
@@ -458,11 +563,11 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
   // ---------------------------------------------------------------------------
 
   Widget _buildOverviewDashboard(
-      BuildContext context,
-      List<_LogCardItem> cards,
-      bool isOffline,
-      CustomerScreenControllerViewModel? customerVM,
-      ) {
+    BuildContext context,
+    List<_LogCardItem> cards,
+    bool isOffline,
+    CustomerScreenControllerViewModel? customerVM,
+  ) {
     return LayoutBuilder(
       builder: (context, screenConstraints) {
         final bool isCompact = screenConstraints.maxWidth < 620;
@@ -481,8 +586,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFFE2E8F0).withOpacity(0.4),
-                        const Color(0xFFE2E8F0).withOpacity(0.0),
+                        const Color(0xFFE2E8F0).withValues(alpha: 0.4),
+                        const Color(0xFFE2E8F0).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -500,8 +605,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        const Color(0xFFE0F2FE).withOpacity(0.45),
-                        const Color(0xFFE0F2FE).withOpacity(0.0),
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.45),
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -526,7 +631,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                     builder: (context, constraints) {
                       final double width = constraints.maxWidth;
 
-                      if (width >= 1050) {
+                      if (width >= 1150) {
                         // All cards in a single row
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +659,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                                 if (hasNext)
                                   Expanded(
                                       child:
-                                      _buildLogCard(context, cards[i + 1]))
+                                          _buildLogCard(context, cards[i + 1]))
                                 else
                                   const Spacer(),
                               ],
@@ -594,7 +699,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: const Color(0xFF006775).withOpacity(0.08),
+            color: const Color(0xFF006775).withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(
@@ -640,7 +745,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
         border: Border.all(color: const Color(0xFFF1F5F9), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.04),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -661,8 +766,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      card.accentColor.withOpacity(0.12),
-                      card.accentColor.withOpacity(0.0),
+                      card.accentColor.withValues(alpha: 0.12),
+                      card.accentColor.withValues(alpha: 0.0),
                     ],
                   ),
                 ),

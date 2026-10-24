@@ -4,11 +4,6 @@ import 'package:flutter/material.dart';
 
 /// Translates the numeric "Start Stop Reason" / "Pause Resume Reason" codes
 /// coming from the device payload into their display string.
-///
-/// This is shared by scrollingTable.dart (on-screen table) and
-/// excel_builder.dart (Excel export) so the two can never show different
-/// text for the same code - previously the Excel export skipped this
-/// mapping entirely and just wrote the raw numeric code.
 String programStartStopReason({required code}) {
   switch (code) {
     case (1):
@@ -84,81 +79,81 @@ String programStartStopReason({required code}) {
 
 
 dynamic getStatus(code){
-  String statusString = '';
-  Color innerCircleColor = Colors.grey;
-  switch (code.toString()) {
-    case "0":
-      innerCircleColor = Colors.grey;
-      statusString = "Pending";
-      break;
-    case "1":
-      innerCircleColor = Colors.orange;
-      statusString = "Running";
-      break;
-    case "2":
-      innerCircleColor = Colors.green;
-      statusString = "Completed";
-      break;
-    case "3":
-      innerCircleColor = Colors.yellow;
-      statusString = "Skipped by user";
-      break;
-    case "4":
-      innerCircleColor = Colors.orangeAccent;
-      statusString = "Day schedule pending";
-      break;
-    case "5":
-      innerCircleColor = const Color(0xFF0D5D9A);
-      statusString = "Day schedule running";
-      break;
-    case "6":
-      innerCircleColor = Colors.yellowAccent;
-      statusString = "Day schedule completed";
-      break;
-    case "7":
-      innerCircleColor = Colors.red;
-      statusString = "Day schedule skipped";
-      break;
-    case "8":
-      innerCircleColor = Colors.redAccent;
-      statusString = "Postponed partially to tomorrow";
-      break;
-    case "9":
-      innerCircleColor = Colors.green;
-      statusString = "Postponed fully to tomorrow";
-      break;
-    case "10":
-      innerCircleColor = Colors.amberAccent;
-      statusString = "RTC off time reached";
-      break;
-    case "11":
-      innerCircleColor = Colors.blueGrey;
-      statusString = "RTC max time reached";
-      break;
-    case "12":
-      innerCircleColor = Colors.redAccent;
-      statusString = "High Flow";
-      break;
-    case "13":
-      innerCircleColor = Colors.orangeAccent;
-      statusString = "Low Flow";
-      break;
-    case "14":
-      innerCircleColor = Colors.purple;
-      statusString = "No Flow";
-      break;
-    case "15":
-      innerCircleColor = Colors.blue;
-      statusString = "Skipped by Global Limit";
-      break;
-    case "16":
-      innerCircleColor = Colors.black;
-      statusString = "Stopped Manually";
-      break;
-    default:
-      innerCircleColor = Colors.amber;
-      statusString = "RTC max time reached";
-      break;
+  if (code == null) {
+    return {'status': 'Running', 'color': Colors.orange};
   }
-  return {'status' : statusString,'color':innerCircleColor};
+
+  String codeStr = code.toString().trim();
+  
+  // If it's a numeric code, map it via switch
+  if (int.tryParse(codeStr) != null) {
+    Color innerCircleColor = Colors.grey;
+    String statusString = codeStr;
+    switch (codeStr) {
+      case "0":
+        innerCircleColor = Colors.grey;
+        statusString = "Pending";
+        break;
+      case "1":
+        innerCircleColor = Colors.orange;
+        statusString = "Running";
+        break;
+      case "2":
+        innerCircleColor = Colors.green;
+        statusString = "Completed";
+        break;
+      case "3":
+        innerCircleColor = Colors.yellow.shade700;
+        statusString = "Skipped";
+        break;
+      case "4":
+        innerCircleColor = Colors.orangeAccent;
+        statusString = "Day schedule pending";
+        break;
+      case "5":
+        innerCircleColor = const Color(0xFF0D5D9A);
+        statusString = "Day schedule running";
+        break;
+      case "6":
+        innerCircleColor = Colors.yellowAccent;
+        statusString = "Day schedule completed";
+        break;
+      case "7":
+        innerCircleColor = Colors.red;
+        statusString = "Day schedule skipped";
+        break;
+      case "8":
+        innerCircleColor = Colors.redAccent;
+        statusString = "Postponed partially";
+        break;
+      case "9":
+        innerCircleColor = Colors.green;
+        statusString = "Postponed fully";
+        break;
+      case "16":
+        innerCircleColor = Colors.red;
+        statusString = "Stopped";
+        break;
+      default:
+        innerCircleColor = Colors.amber;
+        statusString = codeStr;
+        break;
+    }
+    return {'status' : statusString, 'color': innerCircleColor};
+  }
+
+  // If it's already a text status (e.g. "Completed", "Postponed partially", etc.), use it directly!
+  Color color = Colors.blueGrey;
+  String l = codeStr.toLowerCase();
+  if (l.contains('complet') || l.contains('success')) {
+    color = Colors.green;
+  } else if (l.contains('run') || l.contains('progress') || l.contains('active')) {
+    color = Colors.orange;
+  } else if (l.contains('stop') || l.contains('skip') || l.contains('fail') || l.contains('error') || l.contains('abort')) {
+    color = Colors.red;
+  } else if (l.contains('postpon') || l.contains('pend') || l.contains('wait') || l.contains('pause')) {
+    color = Colors.amber.shade800;
+  }
+
+  return {'status' : codeStr, 'color': color};
 }

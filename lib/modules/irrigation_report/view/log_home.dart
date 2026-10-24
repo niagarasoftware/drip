@@ -89,7 +89,7 @@ class _LogHomeState extends State<LogHome> {
     'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
-    'CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
+    'CentralFilterName','LocalFilterName','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
   ];
 
   int httpError = 0;
@@ -118,11 +118,11 @@ class _LogHomeState extends State<LogHome> {
       'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
       'overAll' : ['over all',true,1]
     },
-    // 'filter' : {
-    //   'CentralFilterName' : ['Central Filter',true,2],
-    //   'LocalFilterName' : ['Local Filter',true,2],
-    //   'overAll' : ['over all',true,1]
-    // },
+    'filter' : {
+      'CentralFilterName' : ['Central Filter',true,2],
+      'LocalFilterName' : ['Local Filter',true,2],
+      'overAll' : ['over all',true,1]
+    },
     'prePost' : {
       'PrePostMethod' : ['Method',true,2],
       'Pretime/PreQty' : ['Pre',true,2],
@@ -241,12 +241,11 @@ class _LogHomeState extends State<LogHome> {
           }
         }
         getData();
-        _requestLiveSync(silent: true);
       }
     });
 
     _rawScheduleSubscription = MqttService().rawSchedulePayloadStream.listen((rawPayload) {
-      if (rawPayload != null && mounted) {
+      if (rawPayload != null && mounted && isLiveSyncing) {
         _mergeLivePayload(rawPayload);
       }
     });
@@ -410,20 +409,38 @@ class _LogHomeState extends State<LogHome> {
     );
   }
 
-  void getData()async{
+  Future<void> getData() async {
     loadingDialog();
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd/MM/yyyy').format(now);
     _selectedDate = _selectedDate == '' ? '$formattedDate - $formattedDate' : _selectedDate;
-    String dateString1 = _selectedDate.split(' - ')[0];
-    String dateString2 = _selectedDate.split(' - ')[1];
+    String dateString1;
+    String dateString2;
+    if (_selectedDate.contains(' - ')) {
+      final parts = _selectedDate.split(' - ');
+      dateString1 = parts[0].trim();
+      dateString2 = parts[1].trim();
+    } else {
+      dateString1 = _selectedDate.trim();
+      dateString2 = _selectedDate.trim();
+    }
 
-    List<String> parts1 = dateString1.split('/');
-    List<String> parts2 = dateString2.split('/');
+    DateTime date1;
+    DateTime date2;
 
-    // Create DateTime objects
-    DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
-    DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+    if (dateString1.contains('/')) {
+      List<String> parts1 = dateString1.split('/');
+      date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+    } else {
+      date1 = DateTime.tryParse(dateString1) ?? now;
+    }
+
+    if (dateString2.contains('/')) {
+      List<String> parts2 = dateString2.split('/');
+      date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+    } else {
+      date2 = DateTime.tryParse(dateString2) ?? now;
+    }
 
     // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
@@ -494,9 +511,8 @@ class _LogHomeState extends State<LogHome> {
           //Todo date
           try {
             for (var howManyDate = 0; howManyDate < data['irrigation']['Date'].length; howManyDate++) {
-              if (data['irrigation']['HeadUnit'] != null &&
-                  howManyDate < data['irrigation']['HeadUnit'].length &&
-                  data['irrigation']['HeadUnit'][howManyDate].toString().contains('2.')) {
+              if (data['irrigation']['HeadUnit'] == null ||
+                  howManyDate < data['irrigation']['HeadUnit'].length) {
                 setState(() {
                   if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
                     date.add({
@@ -520,9 +536,8 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['Status'] != null) {
               for (var howManyStatus = 0; howManyStatus < data['irrigation']['Status'].length; howManyStatus++) {
-                if (data['irrigation']['HeadUnit'] != null &&
-                    howManyStatus < data['irrigation']['HeadUnit'].length &&
-                    data['irrigation']['HeadUnit'][howManyStatus].toString().contains('2.')) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyStatus < data['irrigation']['HeadUnit'].length) {
                   setState(() {
                     if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
                       status.add({
@@ -547,9 +562,8 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['ProgramS_No'] != null) {
               for (var howManyProgram = 0; howManyProgram < data['irrigation']['ProgramS_No'].length; howManyProgram++) {
-                if (data['irrigation']['HeadUnit'] != null &&
-                    howManyProgram < data['irrigation']['HeadUnit'].length &&
-                    data['irrigation']['HeadUnit'][howManyProgram].toString().contains('2.')) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyProgram < data['irrigation']['HeadUnit'].length) {
                   setState(() {
                     if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
                       program.add({
@@ -579,22 +593,25 @@ class _LogHomeState extends State<LogHome> {
 
           //Todo ProgramCategory && ProgramCategoryName
           try {
-            if (data['irrigation']['ProgramCategory'] != null && data['irrigation']['HeadUnit'] != null) {
+            if (data['irrigation']['ProgramCategory'] != null) {
               for (var howManyLine = 0; howManyLine < data['irrigation']['ProgramCategory'].length; howManyLine++) {
-                if (howManyLine < data['irrigation']['HeadUnit'].length &&
-                    data['irrigation']['HeadUnit'][howManyLine].toString().contains('2.')) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyLine < data['irrigation']['HeadUnit'].length) {
                   for (var splitLine in data['irrigation']['ProgramCategory'][howManyLine].toString().split('_')) {
+                    var lineName = (data['irrigation']['HeadUnit'] != null && howManyLine < data['irrigation']['HeadUnit'].length)
+                        ? data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
+                        : [splitLine];
                     setState(() {
                       if (!line.any((element) => element['name'] == splitLine)) {
                         line.add({
                           'name': splitLine,
                           'show': true,
-                          'lineName': data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
+                          'lineName': lineName
                         });
                         lineDuplicate.add({
                           'name': splitLine,
                           'show': true,
-                          'lineName': data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
+                          'lineName': lineName
                         });
                       }
                     });
@@ -611,9 +628,8 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['SequenceData'] != null) {
               for (var howManyValve = 0; howManyValve < data['irrigation']['SequenceData'].length; howManyValve++) {
-                if (data['irrigation']['HeadUnit'] != null &&
-                    howManyValve < data['irrigation']['HeadUnit'].length &&
-                    data['irrigation']['HeadUnit'][howManyValve].toString().contains('2.')) {
+                if (data['irrigation']['HeadUnit'] == null ||
+                    howManyValve < data['irrigation']['HeadUnit'].length) {
                   for (var splitValve in data['irrigation']['SequenceData'][howManyValve].toString().split('_')) {
                     setState(() {
                       if (splitValve.contains('13')) {
@@ -750,6 +766,9 @@ class _LogHomeState extends State<LogHome> {
     }
 
     final keysToEnsure = [
+      'Status',
+      'ProgramS_No',
+      'SequenceData',
       'ActualStartTime',
       'ActualEndTime',
       'ActualStartReason',
@@ -757,6 +776,8 @@ class _LogHomeState extends State<LogHome> {
       'ValveFlowrate',
       'Pretime',
       'PostTime',
+      'CentralFilterName',
+      'LocalFilterName',
       'CentralFilterOnDuration',
       'LocalFilterOnDuration',
       'CentralFertOnOff',
@@ -1001,8 +1022,8 @@ class _LogHomeState extends State<LogHome> {
             actions: [
               IconButton(
                 tooltip: 'Live Refresh from Controller',
-                onPressed: isLiveSyncing ? null : () {
-                  getData();
+                onPressed: isLiveSyncing ? null : () async {
+                  await getData();
                   _requestLiveSync(silent: false);
                 },
                 icon: isLiveSyncing
