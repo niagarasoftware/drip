@@ -77,12 +77,16 @@ class _StandaloneLogState extends State<StandaloneLog> {
   late LinkedScrollControllerGroup _scrollable2;
   late ScrollController _horizontalScroll1;
   late ScrollController _horizontalScroll2;
-  List<String> standaloneColumn = ['Program','Method','Start Time','Zone Name','Device Id','Others'];
+  List<String> standaloneColumn = ['Program','Method','Start Time',
+    // 'Zone Name',
+    'Device Id','Others'];
   String _selectedDate = '';
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
   List<dynamic> parameters = [
-    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No','ZoneName','IrrigationMethod','MacAddress'
+    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No',
+    'ZoneName',
+    'IrrigationMethod','MacAddress'
   ];
   dynamic standaloneData = {
     'fixedColumnData' : [],
@@ -184,7 +188,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
             var method = standaloneDataFromHttp[date]['standalone']['IrrigationMethod'][schedule];
             list.add(method == 1 ? 'Time' : method == 2 ? 'Flow' : 'TimeLess');
             list.add(standaloneDataFromHttp[date]['standalone']['ScheduledStartTime'][schedule]);
-            list.add(standaloneDataFromHttp[date]['standalone']['ZoneName'][schedule]);
+            // list.add(standaloneDataFromHttp[date]['standalone']['ZoneName'][schedule]);
             list.add(standaloneDataFromHttp[date]['standalone']['MacAddress'][schedule]);
             var valveName = '';
             for(var valve in standaloneDataFromHttp[date]['standalone']['SequenceData'][schedule].split('_')){
