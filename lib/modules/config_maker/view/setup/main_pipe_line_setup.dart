@@ -562,7 +562,8 @@ class MainPipelineSetup extends SiteSetupBase {
         }
       } else {
         final double mainPipeY = math.max(200.0, maxWaterY + 60.0);
-        final Offset targetPt = Offset(30.0, mainPipeY);
+        final double mainLineX = math.max(400.0, maxWaterX + 150.0);
+        final Offset targetPt = Offset(mainLineX, mainPipeY);
         final NodeObject jnEnd = newJunction(targetPt);
 
         connectWaterSupplyTo(
@@ -578,7 +579,7 @@ class MainPipelineSetup extends SiteSetupBase {
           startJunction: jnEnd,
           startPt: targetPt,
           mainPipeY: mainPipeY,
-          skidRightX: 30.0,
+          skidRightX: mainLineX,
           configPvd: configPvd,
         );
       }

@@ -51,30 +51,33 @@ class IrrigationLineSetup extends SiteSetupBase {
       }
     }
 
-    // Equipment and manifold positions on left
-    const double headerX = 70.0;
+    // Equipment and manifold positions:
+    // Valve bank starts at X = 70.0
+    // Far left elbow joint at X = 30.0 (where the top horizontal pipe turns down)
+    // Single right distribution riser header at X = rightRiserX
     const double valveBankX = 70.0;
-    const double lineDropX = 30.0; // Left manifold line
+    const double lineLeftX = 30.0;
+    final double rightRiserX = math.max(skidRightX, maxLineEquipmentX + 40.0);
 
-    double currentY = math.max(mainPipeY + 70.0, startPt.dy + 70.0);
+    double currentY = math.max(mainPipeY + 40.0, startPt.dy + 40.0);
 
-    // Direct main supply pipe: startJunction -> left distribution manifold top
-    final Offset topHeaderPt = Offset(lineDropX, startPt.dy);
-    final NodeObject topHeaderJn;
-    if ((startPt.dx - lineDropX).abs() > 1.0) {
-      topHeaderJn = newJunction(topHeaderPt);
+    // Direct main supply pipe: startJunction -> right distribution riser header top
+    final NodeObject topRiserJn;
+    if ((startPt.dx - rightRiserX).abs() > 1.0) {
+      final Offset topRiserPt = Offset(rightRiserX, startPt.dy);
+      topRiserJn = newJunction(topRiserPt);
       pipes.add(PipeConnection(
         id: nextId('pipe'),
         fromNodeId: startJunction.id,
-        toNodeId: topHeaderJn.id,
-        waypoints: cleanWaypoints(startPt, [], topHeaderPt),
+        toNodeId: topRiserJn.id,
+        waypoints: cleanWaypoints(startPt, [], topRiserPt),
       ));
     } else {
-      topHeaderJn = startJunction;
+      topRiserJn = startJunction;
     }
 
-    NodeObject prevJn = topHeaderJn;
-    Offset prevPt = topHeaderPt;
+    NodeObject prevRightRiserJn = topRiserJn;
+    Offset prevRightRiserPt = startPt;
 
     for (int i = 0; i < lines.length; i++) {
       final lineSpec = lines[i];
@@ -110,11 +113,15 @@ class IrrigationLineSetup extends SiteSetupBase {
         }
       }
 
-      final double headerY = currentY;
+      // Vertical Y positions for Line i:
+      // topPipeY: Y position of top horizontal supply pipe running across Line i
+      // valveBankStartY: Y position of multiValve bank
+      final double topPipeY = currentY + 30.0;
 
+      // 1. Line Header Badge Node ("Irrigation Line X") placed above top pipe on the left
       final lineHeaderNode = NodeObject(
         id: nextId('line_header_$i'),
-        position: Offset(headerX, headerY),
+        position: Offset(40.0, topPipeY - 36.0),
         type: NodeType.lineHeader,
         label: lineName,
         showJoints: false,
@@ -122,7 +129,7 @@ class IrrigationLineSetup extends SiteSetupBase {
       lineHeaderNode.size = Size(math.max(120.0, 9.0 * lineName.length + 32.0), 30);
       nodes.add(lineHeaderNode);
 
-      final double valveBankStartY = headerY + 45.0;
+      final double valveBankStartY = topPipeY + 45.0;
 
       // Split lValves into rows/banks of at most kMaxValvesPerRow (15) valves
       final int bankCount = lValves > 0 ? (lValves / kMaxValvesPerRow).ceil() : 0;
@@ -176,47 +183,73 @@ class IrrigationLineSetup extends SiteSetupBase {
         nodes.add(foggerSystemNode);
       }
 
-      // First inlet port that feeds Line i
+      // First inlet port that feeds Line i (Bank 0 or fogger)
       final NodeObject targetFirstNode = lineValveBanks.isNotEmpty
           ? lineValveBanks.first
           : foggerSystemNode!;
       final Offset firstInlet = targetFirstNode.inputPort;
 
-      final Offset lineJnPt = Offset(lineDropX, firstInlet.dy);
-      final NodeObject lineJn = newJunction(lineJnPt);
+      // --- PIPE FORMATION FOR LINE i ---
+      // 1. Right riser junction at rightRiserX, topPipeY
+      final Offset rightRiserJnPt = Offset(rightRiserX, topPipeY);
+      final NodeObject rightRiserJn = newJunction(rightRiserJnPt);
 
-      // Connect along left manifold riser
+      // Connect down along the right vertical riser
       pipes.add(PipeConnection(
         id: nextId('pipe'),
-        fromNodeId: prevJn.id,
-        toNodeId: lineJn.id,
-        waypoints: cleanWaypoints(prevPt, [], lineJnPt),
+        fromNodeId: prevRightRiserJn.id,
+        toNodeId: rightRiserJn.id,
+        waypoints: cleanWaypoints(prevRightRiserPt, [], rightRiserJnPt),
       ));
 
-      // Connect horizontal feed into Bank 0 inlet
+      // 2. Far-left elbow junction at lineLeftX, topPipeY
+      final Offset leftElbowJnPt = Offset(lineLeftX, topPipeY);
+      final NodeObject leftElbowJn = newJunction(leftElbowJnPt);
+
+      // Top horizontal pipe: rightRiserJn -> leftElbowJn (runs right to left across top of line)
       pipes.add(PipeConnection(
         id: nextId('pipe'),
-        fromNodeId: lineJn.id,
+        fromNodeId: rightRiserJn.id,
+        toNodeId: leftElbowJn.id,
+        waypoints: cleanWaypoints(rightRiserJnPt, [], leftElbowJnPt),
+      ));
+
+      // 3. Lower elbow junction on far-left aligned with firstInlet.dy
+      final Offset lowerLeftJnPt = Offset(lineLeftX, firstInlet.dy);
+      final NodeObject lowerLeftJn = newJunction(lowerLeftJnPt);
+
+      // Left vertical drop pipe: leftElbowJn -> lowerLeftJn (turns 90° down on far left)
+      pipes.add(PipeConnection(
+        id: nextId('pipe'),
+        fromNodeId: leftElbowJn.id,
+        toNodeId: lowerLeftJn.id,
+        waypoints: cleanWaypoints(leftElbowJnPt, [], lowerLeftJnPt),
+      ));
+
+      // 4. Horizontal feed into Bank 0 inlet: lowerLeftJn -> targetFirstNode (turns 90° right into valve header)
+      pipes.add(PipeConnection(
+        id: nextId('pipe'),
+        fromNodeId: lowerLeftJn.id,
         toNodeId: targetFirstNode.id,
         toPortId: 'inlet',
-        waypoints: cleanWaypoints(lineJnPt, [], firstInlet),
+        waypoints: cleanWaypoints(lowerLeftJnPt, [], firstInlet),
       ));
 
-      prevJn = lineJn;
-      prevPt = lineJnPt;
+      NodeObject prevLeftJn = lowerLeftJn;
+      Offset prevLeftPt = lowerLeftJnPt;
 
-      // Connect subsequent valve bank rows
+      // Connect subsequent valve bank rows if bankCount > 1
       for (int b = 1; b < lineValveBanks.length; b++) {
         final bankNode = lineValveBanks[b];
         final Offset bankInlet = bankNode.inputPort;
-        final Offset bankJnPt = Offset(lineDropX, bankInlet.dy);
+        final Offset bankJnPt = Offset(lineLeftX, bankInlet.dy);
         final NodeObject jnBank = newJunction(bankJnPt);
 
         pipes.add(PipeConnection(
           id: nextId('pipe'),
-          fromNodeId: prevJn.id,
+          fromNodeId: prevLeftJn.id,
           toNodeId: jnBank.id,
-          waypoints: cleanWaypoints(prevPt, [], bankJnPt),
+          waypoints: cleanWaypoints(prevLeftPt, [], bankJnPt),
         ));
 
         pipes.add(PipeConnection(
@@ -227,21 +260,21 @@ class IrrigationLineSetup extends SiteSetupBase {
           waypoints: cleanWaypoints(bankJnPt, [], bankInlet),
         ));
 
-        prevJn = jnBank;
-        prevPt = bankJnPt;
+        prevLeftJn = jnBank;
+        prevLeftPt = bankJnPt;
       }
 
       // Connect Fogger System if present
       if (lineValveBanks.isNotEmpty && foggerSystemNode != null) {
         final Offset foggerInlet = foggerSystemNode.inputPort;
-        final Offset foggerJnPt = Offset(lineDropX, foggerInlet.dy);
+        final Offset foggerJnPt = Offset(lineLeftX, foggerInlet.dy);
         final NodeObject jnFogger = newJunction(foggerJnPt);
 
         pipes.add(PipeConnection(
           id: nextId('pipe'),
-          fromNodeId: prevJn.id,
+          fromNodeId: prevLeftJn.id,
           toNodeId: jnFogger.id,
-          waypoints: cleanWaypoints(prevPt, [], foggerJnPt),
+          waypoints: cleanWaypoints(prevLeftPt, [], foggerJnPt),
         ));
 
         pipes.add(PipeConnection(
@@ -252,9 +285,12 @@ class IrrigationLineSetup extends SiteSetupBase {
           waypoints: cleanWaypoints(foggerJnPt, [], foggerInlet),
         ));
 
-        prevJn = jnFogger;
-        prevPt = foggerJnPt;
+        prevLeftJn = jnFogger;
+        prevLeftPt = foggerJnPt;
       }
+
+      prevRightRiserJn = rightRiserJn;
+      prevRightRiserPt = rightRiserJnPt;
 
       final double lineSetupBottom = foggerSystemNode != null
           ? (foggerSystemNode.position.dy + 112.0)
