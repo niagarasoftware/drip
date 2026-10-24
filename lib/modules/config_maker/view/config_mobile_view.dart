@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/product_limit.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
@@ -9,7 +8,6 @@ import '../../config_maker/model/device_model.dart';
 import '../../config_maker/state_management/config_maker_provider.dart';
 import 'config_base_page.dart';
 import 'connection.dart';
-import 'device_list.dart';
 import 'draw_your_site.dart';
 
 class ConfigMobileView extends StatefulWidget {
@@ -31,16 +29,12 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
     super.initState();
     configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
     _tabController = TabController(length: ConfigMakerTabs.values.length, vsync: this);
-    if(configPvd.selectedTab == ConfigMakerTabs.deviceList){
+    if (configPvd.selectedTab == ConfigMakerTabs.connection) {
       _tabController.index = 0;
-    }else if(configPvd.selectedTab == ConfigMakerTabs.productLimit){
+    } else if (configPvd.selectedTab == ConfigMakerTabs.siteConfigure) {
       _tabController.index = 1;
-    }else if(configPvd.selectedTab == ConfigMakerTabs.connection){
+    } else {
       _tabController.index = 2;
-    }else if(configPvd.selectedTab == ConfigMakerTabs.siteConfigure){
-      _tabController.index = 3;
-    }else{
-      _tabController.index = 4;
     }
   }
 
@@ -70,12 +64,8 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
           controller: _tabController,
           onTap: (value){
             ConfigMakerTabs selectedTab = value == 0
-                ? ConfigMakerTabs.deviceList
-                : value == 1
-                ? ConfigMakerTabs.productLimit
-                : value == 2
                 ? ConfigMakerTabs.connection
-                : value == 3
+                : value == 1
                 ? ConfigMakerTabs.siteConfigure
                 : ConfigMakerTabs.siteDiagram;
 
@@ -86,15 +76,11 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
               selectedTab: selectedTab,
             );
             setState(() {
-              _tabController.index = previousTab == ConfigMakerTabs.deviceList
+              _tabController.index = previousTab == ConfigMakerTabs.connection
                   ? 0
-                  : previousTab == ConfigMakerTabs.productLimit
-                  ? 1
-                  : previousTab == ConfigMakerTabs.connection
-                  ? 2
                   : previousTab == ConfigMakerTabs.siteConfigure
-                  ? 3
-                  : 4;
+                  ? 1
+                  : 2;
             });
           },
           tabs: ConfigMakerTabs.values.map((tab) {
@@ -106,8 +92,6 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
       body: TabBarView(
         controller: _tabController,
         children: [
-          DeviceList(listOfDevices: widget.listOfDevices),
-          ProductLimit(listOfDevices: widget.listOfDevices, configPvd: configPvd,),
           Connection(configPvd: configPvd),
           SiteConfigure(configPvd: configPvd),
           const DrawYourSiteScreen(),
@@ -134,15 +118,7 @@ ConfigMakerTabs updateConfigMakerTabs({
     bool valveAvailable = valveObject.count != '0';
     bool dosingAvailable = dosingObject.count != '0';
     bool channelAvailable = channelObject.count != '0';
-    if(!pumpAvailable && ![...AppConstants.ecoGemFlowControlValveModel, ...AppConstants.omsGemList].contains(configPvd.masterData['modelId'])){
-      update = false;
-      simpleDialogBox(context: context, title: 'Alert', message: 'At least one ${!pumpAvailable ? pumpObject.objectName : ''} must be provided in the product limit.');
-      List<int> notice = [];
-      if(!pumpAvailable){
-        notice.add(pumpObject.objectId);
-      }
-      configPvd.noticeObjectForTemporary(notice);
-    }else if(dosingAvailable && !channelAvailable){
+    if(dosingAvailable && !channelAvailable){
       update = false;
       configPvd.noticeObjectForTemporary([channelObject.objectId]);
       simpleDialogBox(context: context, title: 'Alert', message: 'At least one ${channelObject.objectName} must be provided for the dosing site.');

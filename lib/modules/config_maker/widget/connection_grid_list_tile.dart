@@ -87,7 +87,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xff1E293B),
+                  color: Colors.white,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -95,7 +95,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.12),
+                  color: typeColor.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -134,15 +134,15 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
 
     Widget cardContent = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFF181C38),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: typeColor.withOpacity(0.25),
+          color: const Color(0xFF2A3258),
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -156,11 +156,12 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: typeColor,
+              color: const Color(0xFF0A2035),
+              border: Border.all(color: typeColor, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: typeColor.withOpacity(0.35),
-                  blurRadius: 6,
+                  color: typeColor.withOpacity(0.25),
+                  blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -168,7 +169,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
             padding: const EdgeInsets.all(9),
             child: SizedImage(
               imagePath: '${AppConstants.svgObjectPath}objectId_${object.objectId}.svg',
-              color: Colors.white,
+              color: typeColor,
             ),
           ),
           const SizedBox(width: 12),
@@ -182,7 +183,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13.5,
-                    color: Color(0xff0F172A),
+                    color: Colors.white,
                     letterSpacing: 0.1,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -192,16 +193,16 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xffF8FAFC),
+                    color: const Color(0xFF12162B),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: const Color(0xFF2A3258)),
                   ),
                   child: Text(
                     'Unassigned: $notConfiguredCount',
                     style: const TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xff64748B),
+                      color: Color(0xFF8E9BB4),
                     ),
                   ),
                 ),

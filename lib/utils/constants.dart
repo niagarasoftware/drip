@@ -851,7 +851,7 @@ class AppConstants {
     return '$userManualBaseUrl/${link.replaceFirst(RegExp(r'^/+'), '')}';
   }
 
-  static Color outputColor = const Color(0xff059669);
+  static Color outputColor = const Color(0xFF00D2FF);
   static Color commonObjectColor = const Color(0xff2563EB);
   static String analogCode = '3';
   static String digitalCode = '4';

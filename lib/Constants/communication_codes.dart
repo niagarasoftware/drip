@@ -70,17 +70,17 @@ String getObjectTypeCodeToString(int code){
 Color getObjectTypeCodeToColor(int code) {
   switch (code) {
     case 1:
-      return const Color(0xff16A34A); // Relay    – green
+      return const Color(0xFF00D2FF); // Relay    – cyan
     case 2:
-      return const Color(0xff059669); // Latch    – emerald
+      return const Color(0xFF00D2FF); // Latch    – cyan
     case 3:
-      return const Color(0xffEA580C); // Analog   – orange
+      return const Color(0xFFFF8800); // Analog   – warm orange
     case 4:
-      return const Color(0xff7C3AED); // Digital  – violet
+      return const Color(0xFF00D68F); // Digital  – emerald green
     case 5:
       return const Color(0xff0891B2); // Moisture – cyan
     case 6:
-      return const Color(0xffDB2777); // Pulse    – pink
+      return const Color(0xFFFF5376); // Pulse    – rose pink
     case 7:
       return const Color(0xff2563EB); // I2C      – blue
     default:

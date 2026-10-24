@@ -106,7 +106,7 @@ class AppProperties {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     colors: F.appFlavor!.name.contains('oro')
-        ? [const Color(0xff1D808E), const Color(0xff044851)]
+        ? [const Color(0xFF7C3AED), const Color(0xFF5B21B6)]
         : [SmartCommTheme.lightTheme.primaryColor.withOpacity(0.7), SmartCommTheme.lightTheme.primaryColorDark],
   );
 
@@ -114,7 +114,7 @@ class AppProperties {
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,
     colors: F.appFlavor!.name.contains('oro')
-        ? [const Color(0xff1D808E), const Color(0xff044851)]
+        ? [const Color(0xFF7C3AED), const Color(0xFF5B21B6)]
         : [SmartCommTheme.lightTheme.primaryColor.withOpacity(0.7), SmartCommTheme.lightTheme.primaryColorDark],
   );
 

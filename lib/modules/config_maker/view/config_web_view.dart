@@ -3,12 +3,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/valve_configuration.dart';
-import 'package:oro_drip_irrigation/modules/config_maker/view/product_limit.dart';
+
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
 import 'package:oro_drip_irrigation/Widgets/sized_image.dart';
 import 'package:oro_drip_irrigation/modules/constant/state_management/constant_provider.dart';
 import 'package:oro_drip_irrigation/services/mqtt_service.dart';
 import 'package:oro_drip_irrigation/services/communication_service.dart';
+import 'package:oro_drip_irrigation/utils/Theme/oro_theme.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
@@ -38,7 +39,7 @@ import '../../../Constants/dialog_boxes.dart';
 import 'config_base_page.dart';
 import 'config_mobile_view.dart';
 import 'connection.dart';
-import 'device_list.dart';
+
 import 'draw_your_site.dart';
 
 class ConfigWebView extends StatefulWidget {
@@ -226,8 +227,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   List<ConfigMakerTabs> get _visibleTabs =>
       ConfigMakerTabs.values.where(validateTab).toList();
 
-  Color get _barColor =>
-      themeData.primaryColorDark.withOpacity(themeMode ? 1.0 : 0.2);
+  Color get _barColor => const Color(0xFF0C0F1D);
 
   void _goToStep(int offset) {
     final tabs = _visibleTabs;
@@ -276,16 +276,12 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
                   child: Container(
                     width: double.infinity,
-                    color: Colors.white,
+                    color: const Color(0xFF0C0F1D),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       child: KeyedSubtree(
                         key: ValueKey(configPvd.selectedTab),
-                        child: configPvd.selectedTab == ConfigMakerTabs.deviceList
-                            ? DeviceList(listOfDevices: widget.listOfDevices)
-                            : configPvd.selectedTab == ConfigMakerTabs.productLimit
-                            ? ProductLimit(listOfDevices: widget.listOfDevices, configPvd: configPvd)
-                            : configPvd.selectedTab == ConfigMakerTabs.connection
+                        child: configPvd.selectedTab == ConfigMakerTabs.connection
                             ? Connection(configPvd: configPvd)
                             : configPvd.selectedTab == ConfigMakerTabs.siteConfigure
                             ? SiteConfigure(configPvd: configPvd)
@@ -308,6 +304,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     final tabs = _visibleTabs;
     final selectedIndex = tabs.indexOf(configPvd.selectedTab);
     final deviceId = '${configPvd.masterData['deviceId'] ?? ''}';
+    final primary = Theme.of(context).primaryColor;
 
     return Container(
       height: 52,
@@ -324,28 +321,39 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.12),
+                  color: const Color(0xFF181C38),
+                  border: Border.all(color: const Color(0xFF2B335C)),
                 ),
                 child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
               ),
             ),
           ),
           const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.developer_board_rounded, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 8),
           const Text(
             'Config Maker',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           if (deviceId.isNotEmpty) ...[
             const SizedBox(width: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
+                color: const Color(0xFF181C38),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2B335C)),
               ),
               child: Text(
                 deviceId,
-                style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11, letterSpacing: 0.4),
+                style: const TextStyle(color: Color(0xFF8E9BB4), fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4),
               ),
             ),
           ],
@@ -370,6 +378,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   /// so numbered steps with a "done" state show the user where they are.
   Widget _buildStepper(List<ConfigMakerTabs> tabs, int selectedIndex) {
     final children = <Widget>[];
+    final primary = Theme.of(context).primaryColor;
     for (var i = 0; i < tabs.length; i++) {
       final tab = tabs[i];
       final selected = i == selectedIndex;
@@ -379,18 +388,13 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         children.add(Container(
           width: 20,
           height: 2,
-          margin: const EdgeInsets.symmetric(horizontal: 3),
+          margin: const EdgeInsets.symmetric(horizontal: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(i <= selectedIndex ? 0.8 : 0.25),
+            color: i <= selectedIndex ? primary : const Color(0xFF20274B),
             borderRadius: BorderRadius.circular(1),
           ),
         ));
       }
-
-      final pillColor = selected
-          ? (themeMode ? Colors.white : themeData.primaryColorLight.withOpacity(0.5))
-          : Colors.transparent;
-      final textColor = selected && themeMode ? themeData.primaryColor : Colors.white;
 
       children.add(
         Tooltip(
@@ -405,10 +409,13 @@ class _ConfigWebViewState extends State<ConfigWebView> {
             ),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: pillColor,
-                borderRadius: BorderRadius.circular(24),
+                color: selected ? primary : const Color(0xFF181C38),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? primary : const Color(0xFF2B335C),
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -419,31 +426,30 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: done
-                          ? themeData.primaryColorLight
-                          : selected
-                          ? (themeMode
-                          ? themeData.primaryColor.withOpacity(0.12)
-                          : Colors.white.withOpacity(0.2))
-                          : Colors.transparent,
-                      border: (!done && !selected)
-                          ? Border.all(color: Colors.white.withOpacity(0.45))
-                          : null,
+                      color: selected
+                          ? Colors.white
+                          : done
+                          ? primary
+                          : const Color(0xFF2B335C),
                     ),
                     child: done
-                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        ? const Icon(Icons.check, size: 13, color: Colors.white)
                         : Text(
-                      '${i + 1}',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: textColor),
-                    ),
+                            '${i + 1}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: selected ? primary : const Color(0xFF8E9BB4),
+                            ),
+                          ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   Text(
                     getTabName(tab),
                     style: TextStyle(
-                      color: textColor,
-                      fontSize: 13,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: selected ? Colors.white : const Color(0xFF8E9BB4),
+                      fontSize: 12.5,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
                     ),
                   ),
                 ],
@@ -465,7 +471,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 // _openPreferencePage, _showClearConfigDialog) is reused unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
-  static const Color _sendGreen = Color(0xff16A34A);
+  static const Color _sendGreen = Color(0xFF10B981);
 
   Widget _buildActionBar() {
     final tabs = _visibleTabs;
@@ -474,11 +480,11 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     final isLast = index >= tabs.length - 1;
 
     return Container(
-      decoration: BoxDecoration(
-        color: _barColor,
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.12))),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0C0F1D),
+        border: Border(top: BorderSide(color: Color(0xFF1E2545))),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SafeArea(
         top: false,
         child: LayoutBuilder(
@@ -487,7 +493,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth - 0),
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -504,13 +510,13 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                           onTap: isFirst ? null : () => _goToStep(-1),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                           child: Text(
                             '${index + 1} / ${tabs.length}',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
                               letterSpacing: 0.4,
                             ),
                           ),
@@ -522,16 +528,10 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                           tooltip: isLast
                               ? 'Last step'
                               : 'Proceed to ${getTabName(tabs[index + 1])}',
-                          background: Colors.white,
-                          foreground: themeData.primaryColor,
+                          background: Theme.of(context).primaryColor,
+                          foreground: Colors.white,
                           trailing: Icons.arrow_forward_rounded,
                           onTap: isLast ? null : () => _goToStep(1),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          width: 1,
-                          height: 22,
-                          color: Colors.white.withOpacity(0.2),
                         ),
                         const SizedBox(width: 10),
                         _solidButton(
@@ -539,12 +539,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                           tooltip: 'Save & transmit configuration to device',
                           background: _sendGreen,
                           foreground: Colors.white,
-                          leadingWidget: SizedImageSmall(
-                            imagePath: '${AppConstants.svgObjectPath}send.svg',
-                            color: Colors.white,
-                          ),
-                          onTap: (){},
-                          // onTap: _onSendConfig,
+                          leadingWidget: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                          onTap: _onSendConfig,
                         ),
                         const SizedBox(width: 4),
                         _moreMenu(),
@@ -560,34 +556,62 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     );
   }
 
-  /// Constant + Preference in one translucent pill.
+  /// Constant + Preference buttons.
   Widget _toolsGroup(bool compact) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ghostButton(
-            icon: Icons.tune_rounded,
-            label: 'Constant',
-            tooltip: 'Open Constant settings page',
-            compact: compact,
-            onTap: _openConstantPage,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _darkToolButton(
+          icon: Icons.tune_rounded,
+          label: 'Constant',
+          tooltip: 'Open Constant settings page',
+          onTap: _openConstantPage,
+        ),
+        const SizedBox(width: 8),
+        _darkToolButton(
+          icon: Icons.settings_outlined,
+          label: 'Preference',
+          tooltip: 'Open Preference settings page',
+          onTap: _openPreferencePage,
+        ),
+      ],
+    );
+  }
+
+  Widget _darkToolButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    String? tooltip,
+  }) {
+    return Tooltip(
+      message: tooltip ?? label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF181C38),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFF2B335C)),
           ),
-          Container(width: 1, height: 18, color: Colors.white.withOpacity(0.2)),
-          _ghostButton(
-            icon: Icons.settings_outlined,
-            label: 'Preference',
-            tooltip: 'Open Preference settings page',
-            compact: compact,
-            onTap: _openPreferencePage,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -642,15 +666,14 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         opacity: onTap == null ? 0.35 : 1,
         child: InkWell(
           customBorder: const CircleBorder(),
-          hoverColor: Colors.white.withOpacity(0.14),
           onTap: onTap,
           child: Container(
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.08),
-              border: Border.all(color: Colors.white.withOpacity(0.3)),
+              color: const Color(0xFF181C38),
+              border: Border.all(color: const Color(0xFF2B335C)),
             ),
             child: Icon(icon, color: Colors.white, size: 20),
           ),
@@ -774,33 +797,39 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       initialData: MqttConnectionState.disconnected,
       builder: (context, snapShot) {
         final connected = mqttService.isConnected;
-        final dotColor = connected ? Colors.greenAccent : Colors.redAccent;
+        final dotColor = connected ? accentColor : Colors.redAccent;
+        final bgColor = connected
+            ? Color.alphaBlend(accentColor.withValues(alpha: 0.12), const Color(0xFF0C0F1D))
+            : Color.alphaBlend(Colors.redAccent.withValues(alpha: 0.12), const Color(0xFF0C0F1D));
         final statusText = connected ? 'MQTT Connected' : 'MQTT Disconnected';
         return Tooltip(
           message: statusText,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
+              color: bgColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: dotColor.withOpacity(0.35), width: 1),
+              border: Border.all(color: dotColor, width: 1.2),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 7,
-                  height: 7,
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: dotColor,
-                    boxShadow: [BoxShadow(color: dotColor.withOpacity(0.8), blurRadius: 4)],
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Text(
                   statusText,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 11),
+                  style: TextStyle(
+                    color: dotColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11.5,
+                  ),
                 ),
               ],
             ),
@@ -1769,38 +1798,18 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     }
   }
 
-  bool validateTab(ConfigMakerTabs tab){
-    bool display = false;
-    if(AppConstants.pumpWithValveModelList.contains(configPvd.masterData['modelId']) || AppConstants.weatherGsmModelList.contains(configPvd.masterData['modelId'])){
-      if([ConfigMakerTabs.deviceList.name, ConfigMakerTabs.productLimit.name].contains(tab.name)){
-        display = true;
-      }
-    }
-    // else if(AppConstants.omsGemList.contains(configPvd.masterData['modelId'])){
-    //   if([ConfigMakerTabs.deviceList.name, ConfigMakerTabs.productLimit.name, ConfigMakerTabs.connection.name].contains(tab.name)){
-    //     display = true;
-    //   }
-    // }
-    else{
-      display = true;
-    }
-    return display;
+  bool validateTab(ConfigMakerTabs tab) {
+    return true;
   }
 
   String getTabImage(ConfigMakerTabs configMakerTabs) {
     switch (configMakerTabs) {
-      case ConfigMakerTabs.deviceList:
-        return 'device_list';
-      case ConfigMakerTabs.productLimit:
-        return 'product_limit';
       case ConfigMakerTabs.connection:
         return 'connection';
       case ConfigMakerTabs.siteConfigure:
         return 'site_configure';
       case ConfigMakerTabs.siteDiagram:
         return 'site_diagram';
-      default:
-        throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }
   }
 

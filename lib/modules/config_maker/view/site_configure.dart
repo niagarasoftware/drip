@@ -54,17 +54,45 @@ class _SiteConfigureState extends State<SiteConfigure> {
     themeMode = themeData.brightness == Brightness.light;
   }
 
+  bool _isTabVisible(int tabKey) {
+    if (!showTabForAquaCulture(tabKey)) return false;
+    final generatedObjects = widget.configPvd.listOfGeneratedObject;
+
+    switch (tabKey) {
+      case 0: // Source Configuration: show if at least one pump is available
+        return generatedObjects.any((o) =>
+            o.objectId == AppConstants.pumpObjectId ||
+            o.objectId == AppConstants.sourceObjectId);
+      case 2: // Filtration Configuration: show if at least one filter is available
+        return generatedObjects.any((o) =>
+            o.objectId == AppConstants.filterObjectId ||
+            o.objectId == AppConstants.filterSiteObjectId);
+      case 4: // Fertilization Configuration: show if at least one channel is available
+        return generatedObjects.any((o) =>
+            o.objectId == AppConstants.channelObjectId ||
+            o.objectId == AppConstants.fertilizerSiteObjectId);
+      case 10: // Line Configuration: show if at least one valve is available
+        return generatedObjects.any((o) =>
+            o.objectId == AppConstants.valveObjectId ||
+            o.objectId == AppConstants.mainValveObjectId ||
+            o.objectId == AppConstants.irrigationLineObjectId);
+      default:
+        int? requiredObjectId =
+            widget.configPvd.configurationTabObjectId[tabKey];
+        if (requiredObjectId == null) return false;
+        return generatedObjects.any((o) => o.objectId == requiredObjectId);
+    }
+  }
+
   List<MapEntry<int, String>> _visibleTabs() {
     return widget.configPvd.configurationTab.entries
-        .where((tab) =>
-    widget.configPvd.listOfGeneratedObject
-        .any((object) => object.objectId == widget.configPvd.configurationTabObjectId[tab.key]) &&
-        showTabForAquaCulture(tab.key))
+        .where((tab) => _isTabVisible(tab.key))
         .toList();
   }
 
   int _countOf(int key) => widget.configPvd.listOfGeneratedObject
-      .where((o) => o.objectId == widget.configPvd.configurationTabObjectId[key])
+      .where((o) =>
+          o.objectId == widget.configPvd.configurationTabObjectId[key])
       .length;
 
   Widget _tabContent() {
@@ -96,7 +124,13 @@ class _SiteConfigureState extends State<SiteConfigure> {
 
   @override
   Widget build(BuildContext context) {
+    final tabs = _visibleTabs();
+    if (tabs.isNotEmpty &&
+        !tabs.any((t) => t.key == widget.configPvd.selectedConfigurationTab)) {
+      widget.configPvd.selectedConfigurationTab = tabs.first.key;
+    }
     final int selectedKey = widget.configPvd.selectedConfigurationTab;
+
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: LayoutBuilder(builder: (context, constraint) {
@@ -122,11 +156,14 @@ class _SiteConfigureState extends State<SiteConfigure> {
                   transitionBuilder: (child, anim) => FadeTransition(
                     opacity: anim,
                     child: SlideTransition(
-                      position: Tween<Offset>(begin: const Offset(0, 0.012), end: Offset.zero).animate(anim),
+                      position: Tween<Offset>(
+                              begin: const Offset(0, 0.012), end: Offset.zero)
+                          .animate(anim),
                       child: child,
                     ),
                   ),
-                  child: KeyedSubtree(key: ValueKey(selectedKey), child: _tabContent()),
+                  child: KeyedSubtree(
+                      key: ValueKey(selectedKey), child: _tabContent()),
                 ),
               ),
             ],
@@ -139,6 +176,51 @@ class _SiteConfigureState extends State<SiteConfigure> {
   // ───────────────────────── tab bar ─────────────────────────
   Widget getConfigurationCategory() {
     final tabs = _visibleTabs();
+    if (tabs.isEmpty) {
+      final primary = themeData.primaryColor;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF13172E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF20274B)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.dashboard_customize_rounded, size: 28, color: primary),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'No Site Components Available',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Add pumps, filters, channels, or valves to enable site configuration options.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF8E9BB4)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return _style == _TabStyle.pill ? _pillBar(tabs) : _underlineBar(tabs);
   }
 
@@ -148,19 +230,21 @@ class _SiteConfigureState extends State<SiteConfigure> {
     });
   }
 
-  Widget _countBadge(int count, bool selected, {required Color onColor}) {
+  Widget _countBadge(int count, bool selected, {required Color primary}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
       decoration: BoxDecoration(
-        color: selected ? onColor.withOpacity(0.22) : Colors.grey.shade300,
+        color: selected
+            ? primary.withValues(alpha: 0.28)
+            : const Color(0xFF1C2242),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         '$count',
         style: TextStyle(
           fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-          color: selected ? onColor : const Color(0xff475467),
+          fontWeight: FontWeight.bold,
+          color: selected ? Colors.white : const Color(0xFF8E9BB4),
         ),
       ),
     );
@@ -172,60 +256,82 @@ class _SiteConfigureState extends State<SiteConfigure> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: themeMode ? Colors.grey.shade100 : Colors.white10,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: themeMode ? Colors.grey.shade200 : Colors.white12),
+        color: const Color(0xFF13172E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF20274B)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         child: Row(
           children: [
             for (final tab in tabs)
               Builder(builder: (context) {
-                final bool selected = widget.configPvd.selectedConfigurationTab == tab.key;
+                final bool selected =
+                    widget.configPvd.selectedConfigurationTab == tab.key;
                 final int count = _countOf(tab.key);
                 return Padding(
                   padding: const EdgeInsets.only(right: 4),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => _select(tab.key),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                      decoration: BoxDecoration(
-                        gradient: selected
-                            ? LinearGradient(colors: [primary, primary.withOpacity(0.80)])
-                            : null,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: selected
-                            ? [BoxShadow(color: primary.withOpacity(0.30), blurRadius: 10, offset: const Offset(0, 4))]
-                            : null,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _tabIcons[tab.key] ?? Icons.settings_rounded,
-                            size: 16,
-                            color: selected ? Colors.white : const Color(0xff667085),
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            tab.value,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _select(tab.key),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Color.alphaBlend(
+                                  primary.withValues(alpha: 0.25),
+                                  const Color(0xFF1C2242))
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: selected
+                              ? Border.all(
+                                  color: primary.withValues(alpha: 0.6),
+                                  width: 1)
+                              : null,
+                          boxShadow: selected
+                              ? [
+                                  BoxShadow(
+                                    color: primary.withValues(alpha: 0.2),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _tabIcons[tab.key] ?? Icons.settings_rounded,
+                              size: 16,
                               color: selected
-                                  ? Colors.white
-                                  : (themeMode ? const Color(0xff475467) : Colors.white70),
+                                  ? primary
+                                  : const Color(0xFF8E9BB4),
                             ),
-                          ),
-                          if (count > 0) ...[
-                            const SizedBox(width: 7),
-                            _countBadge(count, selected, onColor: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(
+                              tab.value,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight:
+                                    selected ? FontWeight.bold : FontWeight.w500,
+                                color: selected
+                                    ? Colors.white
+                                    : const Color(0xFF8E9BB4),
+                              ),
+                            ),
+                            if (count > 0) ...[
+                              const SizedBox(width: 8),
+                              _countBadge(count, selected, primary: primary),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -241,8 +347,8 @@ class _SiteConfigureState extends State<SiteConfigure> {
   Widget _underlineBar(List<MapEntry<int, String>> tabs) {
     final primary = themeData.primaryColor;
     return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300, width: 1)),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFF20274B), width: 1)),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -250,7 +356,8 @@ class _SiteConfigureState extends State<SiteConfigure> {
           children: [
             for (final tab in tabs)
               Builder(builder: (context) {
-                final bool selected = widget.configPvd.selectedConfigurationTab == tab.key;
+                final bool selected =
+                    widget.configPvd.selectedConfigurationTab == tab.key;
                 final int count = _countOf(tab.key);
                 return InkWell(
                   onTap: () => _select(tab.key),
@@ -258,28 +365,32 @@ class _SiteConfigureState extends State<SiteConfigure> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 11),
                         child: Row(
                           children: [
                             Icon(
                               _tabIcons[tab.key] ?? Icons.settings_rounded,
                               size: 17,
-                              color: selected ? primary : const Color(0xff667085),
+                              color:
+                                  selected ? primary : const Color(0xFF8E9BB4),
                             ),
                             const SizedBox(width: 7),
                             Text(
                               tab.value,
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.w600,
                                 color: selected
                                     ? primary
-                                    : (themeMode ? const Color(0xff475467) : Colors.white70),
+                                    : const Color(0xFF8E9BB4),
                               ),
                             ),
                             if (count > 0) ...[
                               const SizedBox(width: 7),
-                              _countBadge(count, selected, onColor: primary),
+                              _countBadge(count, selected, primary: primary),
                             ],
                           ],
                         ),
@@ -291,7 +402,8 @@ class _SiteConfigureState extends State<SiteConfigure> {
                         width: selected ? 44 : 0,
                         decoration: BoxDecoration(
                           color: primary,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(3)),
                         ),
                       ),
                     ],
@@ -305,7 +417,8 @@ class _SiteConfigureState extends State<SiteConfigure> {
   }
 
   bool showTabForAquaCulture(int tabKey) {
-    bool isAquaCultureGem = AppConstants.aquacultureModelList.contains(widget.configPvd.masterData['modelId']);
+    bool isAquaCultureGem = AppConstants.aquacultureModelList
+        .contains(widget.configPvd.masterData['modelId']);
     if (!isAquaCultureGem) return true;
     List<int> tabKeyNotToShowForAquaCulture = [1, 2, 4, 5, 6, 7, 8];
     if (tabKeyNotToShowForAquaCulture.contains(tabKey)) {

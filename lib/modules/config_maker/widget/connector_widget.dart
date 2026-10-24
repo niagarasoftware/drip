@@ -100,15 +100,35 @@ class ConnectorWidget extends StatelessWidget {
       height: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: bg,
+        gradient: filled
+            ? LinearGradient(
+                colors: [
+                  Color.alphaBlend(bg.withOpacity(0.35), const Color(0xFF12162B)),
+                  Color.alphaBlend(bg.withOpacity(0.12), const Color(0xFF12162B)),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
+            : const LinearGradient(
+                colors: [
+                  Color(0xFF283154),
+                  Color(0xFF1E2542),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: filled ? bg : const Color(0xFF283154),
+          width: 1.2,
+        ),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: TextStyle(
-          color: filled ? Colors.white : Colors.grey.shade700,
-          fontWeight: FontWeight.w800,
+          color: filled ? bg : const Color(0xFF8E9BB4),
+          fontWeight: FontWeight.bold,
           fontSize: 11,
           letterSpacing: 0.2,
         ),
@@ -123,7 +143,7 @@ class ConnectorWidget extends StatelessWidget {
     required bool themeMode,
     required String? name,
   }) {
-    final primary = Theme.of(context).primaryColor;
+    final primary = const Color(0xFF7C3AED);
     final bool assigned = object != null;
     final bool isAuto = configPvd.selectedSelectionMode == SelectionMode.auto;
 
@@ -144,20 +164,20 @@ class ConnectorWidget extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         height: tileHeight,
-        padding: const EdgeInsets.all(2),
+        padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: selectedConnector
-              ? primary.withOpacity(0.10)
+              ? const Color(0xFF2E1752)
               : assigned
-              ? color.withOpacity(0.07)
-              : (themeMode ? Colors.grey.shade50 : Colors.white10),
+              ? const Color(0xFF181C38)
+              : const Color(0xFF151931),
           border: Border.all(
             color: selectedConnector
                 ? primary
                 : assigned
-                ? color.withOpacity(0.35)
-                : Colors.grey.shade300,
+                ? const Color(0xFF2A3258)
+                : const Color(0xFF202747),
             width: selectedConnector ? 1.6 : 1,
           ),
         ),
@@ -165,39 +185,26 @@ class ConnectorWidget extends StatelessWidget {
           children: [
             _pinBadge(
               getSuitableKeyWord(),
-              assigned ? color : Colors.grey.shade200,
+              color,
               assigned,
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
                 assigned ? name.toString() : 'Empty',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11.5,
-                  fontWeight: assigned ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: assigned ? FontWeight.bold : FontWeight.w500,
                   fontStyle: assigned ? FontStyle.normal : FontStyle.italic,
-                  color: assigned ? const Color(0xff0F172A) : Colors.grey.shade500,
+                  color: assigned ? Colors.white : const Color(0xFF64748B),
                 ),
               ),
             ),
-            if (assigned)
-              Container(
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(right: 2),
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: color.withOpacity(0.25)),
-                ),
-                child: SizedImageSmall(imagePath: '${AppConstants.svgObjectPath}objectId_${object.objectId}.svg'),
-              )
-            else if (selectedConnector)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: Icon(Icons.touch_app_rounded, size: 14, color: primary),
+            if (selectedConnector)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFF7C3AED)),
               ),
           ],
         ),

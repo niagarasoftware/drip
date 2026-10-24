@@ -1263,35 +1263,23 @@ class _DeviceListState extends State<DeviceList> {
 
   String getTabName(ConfigMakerTabs configMakerTabs) {
     switch (configMakerTabs) {
-      case ConfigMakerTabs.deviceList:
-        return 'Device List';
-      case ConfigMakerTabs.productLimit:
-        return 'Product Limit';
       case ConfigMakerTabs.connection:
         return 'Connection';
       case ConfigMakerTabs.siteConfigure:
         return 'Site Configure';
       case ConfigMakerTabs.siteDiagram:
         return 'Site Diagram';
-      default:
-        throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }
   }
 
   String getTabImage(ConfigMakerTabs configMakerTabs) {
     switch (configMakerTabs) {
-      case ConfigMakerTabs.deviceList:
-        return 'device_list_';
-      case ConfigMakerTabs.productLimit:
-        return 'product_limit_';
       case ConfigMakerTabs.connection:
         return 'connection_';
       case ConfigMakerTabs.siteConfigure:
         return 'site_configure_';
       case ConfigMakerTabs.siteDiagram:
         return 'site_diagram_';
-      default:
-        throw ArgumentError('Invalid ConfigMakerTabs value: $configMakerTabs');
     }
   }
 }

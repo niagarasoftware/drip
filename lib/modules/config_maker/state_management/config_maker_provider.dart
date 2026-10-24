@@ -25,7 +25,7 @@ import '../view/connection.dart';
 
 class ConfigMakerProvider extends ChangeNotifier{
   double ratio = 1.0;
-  ConfigMakerTabs selectedTab = ConfigMakerTabs.deviceList;
+  ConfigMakerTabs selectedTab = ConfigMakerTabs.connection;
   Map<String, dynamic> configMakerDataFromHttp = {};
   Map<String, dynamic> defaultDataFromHttp = {};
   Map<int, String> configurationTab = {
@@ -1969,9 +1969,6 @@ class ConfigMakerProvider extends ChangeNotifier{
   }
 
   String? validateGemConfiguration() {
-    if (isAllProductLimitCountEmpty) {
-      return 'At least one object count must be provided in Product Limit.';
-    }
 
     if (!AppConstants.gemModelList.contains(masterData['modelId'])) {
       return null;

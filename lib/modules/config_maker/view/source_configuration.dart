@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/device_object_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../Constants/communication_codes.dart';
 import '../../../Constants/dialog_boxes.dart';
 import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../widget/object_manager_bar.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+import '../widget/painter/over_head_tank_painter.dart';
+import '../widget/painter/sump_painter.dart';
+import '../widget/painter/well_painter.dart';
+import '../widget/painter/natural_source_painter.dart';
+import '../widget/painter/main_fertilizer_source_painter.dart';
+import '../widget/painter/fertilizer_tank_painter.dart';
 
 /// Simple holder for how much of a source card has been assigned.
 class _Progress {
@@ -34,8 +40,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   static const Color _outletColor = Color(0xFF059669); // emerald green
   static const Color _agitatorColor = Color(0xFFEA580C); // orange
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
-  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
+  static const Color _inkColor = Colors.white; // dark mode crisp white text
+  static const Color _subTextColor = Color(0xFF8E9BB4); // slate-400 subtle text
 
   static const List<String> _tankTypeList = [
     'Tank',
@@ -117,6 +123,47 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
+  void _addSource() {
+    final p = widget.configPvd;
+    DeviceObjectModel? sampleObj;
+    for (var o in p.listOfSampleObjectModel) {
+      if (o.objectId == AppConstants.sourceObjectId) {
+        sampleObj = o;
+        break;
+      }
+    }
+    if (sampleObj == null) {
+      sampleObj = DeviceObjectModel(
+        objectId: AppConstants.sourceObjectId,
+        objectName: 'Water Source',
+        type: '-',
+        count: '0',
+        assignObject: [],
+      );
+      p.listOfSampleObjectModel.add(sampleObj);
+    }
+
+    int currentCount = 0;
+    if (sampleObj.count != null && sampleObj.count != '') {
+      currentCount = int.tryParse(sampleObj.count!) ?? 0;
+    }
+
+    int? cap = maxCountForObject(p, sampleObj);
+
+    if (cap != null && currentCount + 1 > cap) {
+      simpleDialogBox(
+        context: context,
+        title: 'Alert',
+        message: 'Only $cap Water Source can be added for this master controller model.',
+      );
+      return;
+    }
+
+    setState(() {
+      p.updateObjectCount(AppConstants.sourceObjectId, '${currentCount + 1}');
+    });
+  }
+
   // ───────────────────────────────────────────────────────────
   //  BUILD
   // ───────────────────────────────────────────────────────────
@@ -126,20 +173,10 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     final sources = widget.configPvd.source;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFC), // Slate 50
-            Color(0xFFF1F5F9), // Slate 100
-          ],
-        ),
-      ),
+      color: const Color(0xFF0C0F1D),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: LayoutBuilder(builder: (context, constraint) {
-          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
           return SizedBox(
             width: constraint.maxWidth,
             height: constraint.maxHeight,
@@ -147,24 +184,23 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  _buildPageHeading(sources.length),
+                  _buildPageHeading(sources.length, primaryColor),
                   const SizedBox(height: 18),
-                  ResponsiveGridList(
-                    horizontalGridMargin: 0,
-                    verticalGridMargin: 16,
-                    minItemWidth: itemWidth,
-                    listViewBuilderOptions: ListViewBuilderOptions(
+                  if (sources.isEmpty)
+                    _buildEmptyState(primaryColor)
+                  else
+                    ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
+                      itemCount: sources.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        final source = sources[index];
+                        return _isAquaculture
+                            ? _buildAquacultureSourceCard(source, primaryColor)
+                            : _buildStandardSourceCard(source, primaryColor);
+                      },
                     ),
-                    children: [
-                      for (var source in sources)
-                        if (_isAquaculture)
-                          _buildAquacultureSourceCard(source, primaryColor)
-                        else
-                          _buildStandardSourceCard(source, primaryColor),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -175,106 +211,220 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
+  Widget _buildEmptyState(Color primaryColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13172E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF20274B)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.waves_rounded, size: 48, color: primaryColor.withValues(alpha: 0.8)),
+          const SizedBox(height: 12),
+          const Text(
+            'No Water Sources Added',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tap the button below to add a water source to your configuration.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF8E9BB4)),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _addSource,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ───────────────────────────────────────────────────────────
   //  PAGE INTRO
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total) {
+  Widget _buildPageHeading(int total, Color primaryColor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: primaryColor.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.tune_rounded, color: Colors.white, size: 23),
+          child: Icon(Icons.tune_rounded, color: primaryColor, size: 21),
         ),
         const SizedBox(width: 12),
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Source configuration',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 20,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.45,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Source configuration',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$total ${total == 1 ? 'source' : 'sources'}',
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(height: 4),
-              Text(
+              const SizedBox(height: 3),
+              const Text(
                 'Configure pumps, valves and sensors for your sources',
-                maxLines: 2,
+                maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: _subTextColor,
+                  color: Color(0xFF8E9BB4),
                   fontSize: 12,
-                  height: 1.35,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: const TextStyle(
-                  color: _inkColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'SOURCES',
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 8,
-                  letterSpacing: 0.7,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+        const SizedBox(width: 12),
+        ElevatedButton.icon(
+          onPressed: _addSource,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Add Source',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 0,
           ),
         ),
       ],
     );
   }
+
+  Widget _buildSourcePainterLeading(int sourceType) {
+    CustomPainter painter;
+    switch (sourceType) {
+      case 1:
+        painter = DetailedOverheadTankPainter(isOn: true);
+        break;
+      case 2:
+        painter = DetailedSumpPainter(isOn: true);
+        break;
+      case 3:
+        painter = DetailedWellPainter(isOn: true);
+        break;
+      case 4:
+      case 5:
+        painter = DetailedNaturalSourcePainter(isOn: true);
+        break;
+      case 6:
+        painter = DetailedMainFertilizerSourcePainter(isOn: true);
+        break;
+      case 7:
+        painter = DetailedFertilizerTankPainter(isOn: true);
+        break;
+      default:
+        painter = DetailedOverheadTankPainter(isOn: true);
+    }
+
+    return Container(
+      width: 100,
+      height: 100,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: CustomPaint(
+        painter: painter,
+        size: const Size(88, 88),
+      ),
+    );
+  }
+
+  Widget _buildSourceHeaderBlock({
+    required SourceModel source,
+    required _Progress progress,
+    required Color primaryColor,
+    Widget? typeSelector,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _buildSourcePainterLeading(source.sourceType),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  source.commonDetails.name ?? 'Source',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                if (typeSelector != null) ...[
+                  const SizedBox(height: 6),
+                  typeSelector,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ───────────────────────────────────────────────────────────
   //  CARD SHELL (shared by both card types)
   // ───────────────────────────────────────────────────────────
@@ -284,113 +434,121 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     required Color primaryColor,
     Widget? typeSelector,
     required List<Widget> body,
+    Widget? footer,
   }) {
-    final remaining = progress.total - progress.filled;
+    final sourceHeaderBlock = _buildSourceHeaderBlock(
+      source: source,
+      progress: progress,
+      primaryColor: primaryColor,
+      typeSelector: typeSelector,
+    );
 
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF13172E),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: progress.complete
               ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFFE2E8F0),
+              : const Color(0xFF20274B),
           width: progress.complete ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: progress.complete
                 ? _doneColor.withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 18,
-            spreadRadius: 0,
-            offset: const Offset(0, 5),
+                : Colors.black.withValues(alpha: 0.2),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-            child: Row(
+      padding: const EdgeInsets.all(10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double maxW = constraints.maxWidth;
+          final bool isUltraWide = maxW >= 880 && body.isNotEmpty;
+          final bool isMediumWide = maxW >= 620;
+
+          if (isUltraWide) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.12),
-                        primaryColor.withValues(alpha: 0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: SizedImage(
-                    imagePath: '${AppConstants.svgObjectPath}objectId_1.svg',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        source.commonDetails.name ?? 'Source',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _inkColor,
-                        ),
+                      SizedBox(
+                        width: 280,
+                        child: sourceHeaderBlock,
                       ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (typeSelector != null) typeSelector,
-                          Text(
-                            progress.complete ? 'Complete' : '$remaining left to assign',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: progress.complete ? _doneColor : _subTextColor,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildBodyGrid(body, wide: true),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                _buildProgressRing(progress, primaryColor),
+                if (footer != null) ...[
+                  const SizedBox(height: 10),
+                  footer,
+                ],
+              ],
+            );
+          } else {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                sourceHeaderBlock,
+                if (body.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildBodyGrid(body, wide: isMediumWide),
+                ],
+                if (footer != null) ...[
+                  const SizedBox(height: 10),
+                  footer,
+                ],
+              ],
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildBodyGrid(List<Widget> body, {required bool wide}) {
+    if (body.isEmpty) return const SizedBox();
+
+    if (wide) {
+      final rows = <Widget>[];
+      for (var i = 0; i < body.length; i += 2) {
+        final hasPair = i + 1 < body.length;
+        rows.add(
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: body[i]),
+                if (hasPair) ...[
+                  const SizedBox(width: 10),
+                  Expanded(child: body[i + 1]),
+                ],
               ],
             ),
           ),
-
-          // ── Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _withGaps(body, 10),
-            ),
-          ),
-        ],
-      ),
-    );
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _withGaps(rows, 10),
+      );
+    } else {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _withGaps(body, 10),
+      );
+    }
   }
 
   List<Widget> _withGaps(List<Widget> items, double gap) {
@@ -402,51 +560,20 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     return out;
   }
 
-  Widget _buildProgressRing(_Progress p, Color primaryColor) {
-    final color = p.complete
-        ? _doneColor
-        : p.filled > 0
-        ? primaryColor
-        : Colors.grey.shade400;
-
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: CircularProgressIndicator(
-              value: p.fraction,
-              strokeWidth: 4,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-          p.complete
-              ? Icon(Icons.check_rounded, size: 22, color: color)
-              : Text(
-            '${p.filled}/${p.total}',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
   // ───────────────────────────────────────────────────────────
   //  TYPE SELECTOR (replaces the plain dropdown)
   // ───────────────────────────────────────────────────────────
   Widget _buildTypeSelector(SourceModel source, String currentType, Color primaryColor) {
+    const activeAccent = Color(0xFF38BDF8); // Bright sky blue accent for high visibility
+
     return PopupMenuButton<String>(
       tooltip: 'Change source type',
       initialValue: currentType,
-      color: Colors.white,
+      color: const Color(0xFF181C38),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: const BorderSide(color: Color(0xFF2B335C)),
       ),
       onSelected: (value) {
         setState(() {
@@ -463,57 +590,59 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
         final selected = type == currentType;
         return PopupMenuItem<String>(
           value: type,
-          child: Row(
-            children: [
-              Icon(
-                _tankTypeIcons[type] ?? Icons.circle,
-                size: 18,
-                color: selected ? primaryColor : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  type,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? primaryColor : _inkColor,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected ? activeAccent.withValues(alpha: 0.18) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _tankTypeIcons[type] ?? Icons.circle,
+                  size: 18,
+                  color: selected ? activeAccent : const Color(0xFF94A3B8),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    type,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                      color: selected ? activeAccent : Colors.white,
+                    ),
                   ),
                 ),
-              ),
-              if (selected) Icon(Icons.check_rounded, size: 18, color: primaryColor),
-            ],
+                if (selected)
+                  const Icon(Icons.check_rounded, size: 18, color: activeAccent),
+              ],
+            ),
           ),
         );
       }).toList(),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(9, 4, 7, 4),
+        padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryColor.withValues(alpha: 0.10),
-              primaryColor.withValues(alpha: 0.04),
-            ],
-          ),
+          color: const Color(0xFF1E2648),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: primaryColor.withValues(alpha: 0.20)),
+          border: Border.all(color: activeAccent.withValues(alpha: 0.4)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_tankTypeIcons[currentType] ?? Icons.circle, size: 14, color: primaryColor),
-            const SizedBox(width: 5),
+            Icon(_tankTypeIcons[currentType] ?? Icons.circle, size: 14, color: activeAccent),
+            const SizedBox(width: 6),
             Text(
               currentType,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: primaryColor,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-            Icon(Icons.arrow_drop_down_rounded, size: 18, color: primaryColor),
+            const SizedBox(width: 2),
+            const Icon(Icons.arrow_drop_down_rounded, size: 18, color: activeAccent),
           ],
         ),
       ),
@@ -642,32 +771,22 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               _buildParameterTileForAgitator(source, _agitatorColor),
             ],
           ),
-
-        // ── Sensors ──
-        if (showSensors) _buildSensorsSection(source, progress, primaryColor),
       ],
+      // ── Sensors (full-width footer) ──
+      footer: showSensors ? _buildSensorsSection(source, progress, primaryColor) : null,
     );
   }
 
   // ───────────────────────────────────────────────────────────
-  //  SENSORS (collapsible, 2-column grid)
+  //  SENSORS (collapsible, 3-column grid on wide screens)
   // ───────────────────────────────────────────────────────────
   Widget _buildSensorsSection(SourceModel source, _Progress progress, Color primaryColor) {
     final active = progress.sensorFilled > 0;
 
-    Widget pair(int a, int b) => Row(
-      children: [
-        Expanded(child: _buildParameterTileForSensor(source, a, primaryColor)),
-        const SizedBox(width: 8),
-        Expanded(child: _buildParameterTileForSensor(source, b, primaryColor)),
-      ],
-    );
-
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -676,20 +795,22 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
         ),
         child: ExpansionTile(
           key: PageStorageKey('sensors_${source.commonDetails.sNo}'),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-          childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+          dense: true,
+          visualDensity: const VisualDensity(vertical: -3),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 10),
+          childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           shape: const Border(),
           collapsedShape: const Border(),
           leading: Container(
-            padding: const EdgeInsets.all(7),
+            padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: active ? primaryColor.withValues(alpha: 0.12) : Colors.grey.shade200,
+              color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
               shape: BoxShape.circle,
             ),
             child: Icon(
               Icons.sensors_rounded,
-              size: 16,
-              color: active ? primaryColor : Colors.grey.shade600,
+              size: 14,
+              color: active ? primaryColor : const Color(0xFF8E9BB4),
             ),
           ),
           title: Row(
@@ -699,37 +820,49 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                   'Level and sensors',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: _inkColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
                 decoration: BoxDecoration(
-                  color: active ? primaryColor.withValues(alpha: 0.12) : Colors.grey.shade200,
+                  color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '${progress.sensorFilled}/6 active',
                   style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: active ? primaryColor : Colors.grey.shade600,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: active ? primaryColor : const Color(0xFF8E9BB4),
                   ),
                 ),
               ),
             ],
           ),
           children: [
-            const SizedBox(height: 4),
-            pair(1, 6),
-            const SizedBox(height: 8),
-            pair(2, 3),
-            const SizedBox(height: 8),
-            pair(4, 5),
+            LayoutBuilder(builder: (context, c) {
+              final cols = c.maxWidth >= 560 ? 3 : 2;
+              // 3 cols -> [level, in-top, in-bottom] / [meter, out-top, out-bottom]
+              final order = cols == 3 ? [1, 2, 3, 6, 4, 5] : [1, 6, 2, 3, 4, 5];
+              const gap = 8.0;
+              final w = (c.maxWidth - gap * (cols - 1)) / cols;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final m in order)
+                    SizedBox(
+                      width: w,
+                      child: _buildParameterTileForSensor(source, m, primaryColor),
+                    ),
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -753,37 +886,29 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           thickness: 1,
           indent: 8,
           endIndent: 8,
-          color: accent.withValues(alpha: 0.12),
+          color: accent.withValues(alpha: 0.18),
         ));
       }
       rows.add(children[i]);
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+      padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
+                    color: accent.withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, size: 13, color: accent),
@@ -793,7 +918,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                   title,
                   style: TextStyle(
                     fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.bold,
                     color: accent,
                   ),
                 ),
@@ -822,18 +947,18 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   }) {
     if (compact) {
       return Material(
-        color: isAssigned ? accent.withValues(alpha: 0.08) : Colors.white,
+        color: isAssigned ? accent.withValues(alpha: 0.15) : const Color(0xFF12162B),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: isAssigned ? accent.withValues(alpha: 0.4) : Colors.grey.shade300,
-          ),
+          side: isAssigned
+              ? BorderSide(color: accent.withValues(alpha: 0.5))
+              : BorderSide.none,
         ),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
               children: [
                 SizedBox(
@@ -841,7 +966,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                   height: 20,
                   child: SizedImage(
                     imagePath: imagePath,
-                    color: isAssigned ? accent : Colors.grey.shade500,
+                    color: isAssigned ? accent : const Color(0xFF8E9BB4),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -853,10 +978,10 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10.5,
+                        style: const TextStyle(
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
+                          color: Color(0xFFC0CCE0),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -866,9 +991,9 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12.5,
-                          fontWeight: isAssigned ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: isAssigned ? FontWeight.bold : FontWeight.w500,
                           fontStyle: isAssigned ? FontStyle.normal : FontStyle.italic,
-                          color: isAssigned ? accent : Colors.grey.shade400,
+                          color: isAssigned ? accent : const Color(0xFF64748B),
                         ),
                       ),
                     ],
@@ -887,27 +1012,25 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           child: Row(
             children: [
               // Icon badge
               Container(
-                width: 36,
-                height: 36,
-                padding: const EdgeInsets.all(8),
+                width: 34,
+                height: 34,
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
-                  ),
+                  color: isAssigned ? accent.withValues(alpha: 0.18) : const Color(0xFF12162B),
+                  borderRadius: BorderRadius.circular(8),
+                  border: isAssigned ? Border.all(color: accent.withValues(alpha: 0.4)) : null,
                 ),
                 child: SizedImage(
                   imagePath: imagePath,
-                  color: isAssigned ? accent : Colors.grey.shade500,
+                  color: isAssigned ? accent : const Color(0xFF8E9BB4),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
 
               // Label + chips
               Expanded(
@@ -918,13 +1041,13 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
+                      style: const TextStyle(
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
+                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     if (isAssigned)
                       Wrap(
                         spacing: 6,
@@ -932,17 +1055,17 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                         children: [
                           for (final name in names)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: accent.withValues(alpha: 0.35)),
+                                color: const Color(0xFF12162B),
+                                borderRadius: BorderRadius.circular(7),
+                                border: Border.all(color: accent.withValues(alpha: 0.4)),
                               ),
                               child: Text(
                                 name,
                                 style: TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                   color: accent,
                                 ),
                               ),
@@ -950,12 +1073,12 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                         ],
                       )
                     else
-                      Text(
+                      const Text(
                         'Not assigned',
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 12,
                           fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade400,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                   ],
@@ -967,15 +1090,15 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               isAssigned
                   ? Padding(
                       padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
+                      child: Icon(Icons.edit_rounded, size: 17, color: accent),
                     )
                   : Container(
-                      padding: const EdgeInsets.all(5),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
+                        color: accent.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(Icons.add_rounded, size: 18, color: accent),
+                      child: Icon(Icons.add_rounded, size: 17, color: accent),
                     ),
             ],
           ),

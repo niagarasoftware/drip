@@ -7,6 +7,7 @@ import 'package:responsive_grid_list/responsive_grid_list.dart';
 
 import '../../../Constants/dialog_boxes.dart';
 import '../state_management/config_maker_provider.dart';
+import '../widget/object_manager_bar.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
 import 'config_object_name_editing.dart';
@@ -92,6 +93,47 @@ class _LineConfigurationState extends State<LineConfiguration> {
     return _Progress(filled, total, filled);
   }
 
+  void _addLine() {
+    final p = widget.configPvd;
+    DeviceObjectModel? sampleObj;
+    for (var o in p.listOfSampleObjectModel) {
+      if (o.objectId == AppConstants.irrigationLineObjectId) {
+        sampleObj = o;
+        break;
+      }
+    }
+    if (sampleObj == null) {
+      sampleObj = DeviceObjectModel(
+        objectId: AppConstants.irrigationLineObjectId,
+        objectName: 'Irrigation Line',
+        type: '-',
+        count: '0',
+        assignObject: [],
+      );
+      p.listOfSampleObjectModel.add(sampleObj);
+    }
+
+    int currentCount = 0;
+    if (sampleObj.count != null && sampleObj.count != '') {
+      currentCount = int.tryParse(sampleObj.count!) ?? 0;
+    }
+
+    int? cap = maxCountForObject(p, sampleObj);
+
+    if (cap != null && currentCount + 1 > cap) {
+      simpleDialogBox(
+        context: context,
+        title: 'Alert',
+        message: 'Only $cap Irrigation Line can be added for this master controller model.',
+      );
+      return;
+    }
+
+    setState(() {
+      p.updateObjectCount(AppConstants.irrigationLineObjectId, '${currentCount + 1}');
+    });
+  }
+
   // ───────────────────────────────────────────────────────────
   //  BUILD
   // ───────────────────────────────────────────────────────────
@@ -122,21 +164,24 @@ class _LineConfigurationState extends State<LineConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  _buildPageHeading(lines.length),
+                  _buildPageHeading(lines.length, primaryColor),
                   const SizedBox(height: 18),
-                  ResponsiveGridList(
-                    horizontalGridMargin: 0,
-                    verticalGridMargin: 16,
-                    minItemWidth: itemWidth,
-                    listViewBuilderOptions: ListViewBuilderOptions(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                  if (lines.isEmpty)
+                    _buildEmptyState(primaryColor)
+                  else
+                    ResponsiveGridList(
+                      horizontalGridMargin: 0,
+                      verticalGridMargin: 16,
+                      minItemWidth: itemWidth,
+                      listViewBuilderOptions: ListViewBuilderOptions(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                      ),
+                      children: [
+                        for (var line in lines)
+                          _buildLineCard(line, primaryColor),
+                      ],
                     ),
-                    children: [
-                      for (var line in lines)
-                        _buildLineCard(line, primaryColor),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -147,10 +192,55 @@ class _LineConfigurationState extends State<LineConfiguration> {
     );
   }
 
+  Widget _buildEmptyState(Color primaryColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.alt_route_rounded, size: 48, color: primaryColor.withValues(alpha: 0.6)),
+          const SizedBox(height: 12),
+          const Text(
+            'No Irrigation Lines Added',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _inkColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tap the button below to add an irrigation line to your configuration.',
+            style: TextStyle(fontSize: 12, color: _subTextColor),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _addLine,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add Irrigation Line', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ───────────────────────────────────────────────────────────
   //  PAGE INTRO
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total) {
+  Widget _buildPageHeading(int total, Color primaryColor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -202,6 +292,21 @@ class _LineConfigurationState extends State<LineConfiguration> {
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: _addLine,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Add Line',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
           ),
         ),
         const SizedBox(width: 8),

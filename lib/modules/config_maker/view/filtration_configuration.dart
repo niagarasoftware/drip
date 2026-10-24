@@ -8,6 +8,7 @@ import '../../../Constants/dialog_boxes.dart';
 import '../model/device_object_model.dart';
 import '../model/filtration_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../widget/object_manager_bar.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
 
@@ -51,6 +52,47 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     return _Progress(filled, total, filled);
   }
 
+  void _addFiltrationSite() {
+    final p = widget.configPvd;
+    DeviceObjectModel? sampleObj;
+    for (var o in p.listOfSampleObjectModel) {
+      if (o.objectId == AppConstants.filterSiteObjectId) {
+        sampleObj = o;
+        break;
+      }
+    }
+    if (sampleObj == null) {
+      sampleObj = DeviceObjectModel(
+        objectId: AppConstants.filterSiteObjectId,
+        objectName: 'Filtration Site',
+        type: '-',
+        count: '0',
+        assignObject: [],
+      );
+      p.listOfSampleObjectModel.add(sampleObj);
+    }
+
+    int currentCount = 0;
+    if (sampleObj.count != null && sampleObj.count != '') {
+      currentCount = int.tryParse(sampleObj.count!) ?? 0;
+    }
+
+    int? cap = maxCountForObject(p, sampleObj);
+
+    if (cap != null && currentCount + 1 > cap) {
+      simpleDialogBox(
+        context: context,
+        title: 'Alert',
+        message: 'Only $cap Filtration Site can be added for this master controller model.',
+      );
+      return;
+    }
+
+    setState(() {
+      p.updateObjectCount(AppConstants.filterSiteObjectId, '${currentCount + 1}');
+    });
+  }
+
   // ───────────────────────────────────────────────────────────
   //  BUILD
   // ───────────────────────────────────────────────────────────
@@ -81,21 +123,24 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  _buildPageHeading(filtrations.length),
+                  _buildPageHeading(filtrations.length, primaryColor),
                   const SizedBox(height: 18),
-                  ResponsiveGridList(
-                    horizontalGridMargin: 0,
-                    verticalGridMargin: 16,
-                    minItemWidth: itemWidth,
-                    listViewBuilderOptions: ListViewBuilderOptions(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                  if (filtrations.isEmpty)
+                    _buildEmptyState(primaryColor)
+                  else
+                    ResponsiveGridList(
+                      horizontalGridMargin: 0,
+                      verticalGridMargin: 16,
+                      minItemWidth: itemWidth,
+                      listViewBuilderOptions: ListViewBuilderOptions(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                      ),
+                      children: [
+                        for (var site in filtrations)
+                          _buildFiltrationCard(site, primaryColor),
+                      ],
                     ),
-                    children: [
-                      for (var site in filtrations)
-                        _buildFiltrationCard(site, primaryColor),
-                    ],
-                  ),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -106,10 +151,55 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     );
   }
 
+  Widget _buildEmptyState(Color primaryColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.filter_alt_rounded, size: 48, color: primaryColor.withValues(alpha: 0.6)),
+          const SizedBox(height: 12),
+          const Text(
+            'No Filtration Sites Added',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: _inkColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Tap the button below to add a filtration site to your configuration.',
+            style: TextStyle(fontSize: 12, color: _subTextColor),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _addFiltrationSite,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add Filtration Site', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ───────────────────────────────────────────────────────────
   //  PAGE INTRO
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total) {
+  Widget _buildPageHeading(int total, Color primaryColor) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -161,6 +251,21 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: _addFiltrationSite,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Add Site',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: primaryColor,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
           ),
         ),
         const SizedBox(width: 8),

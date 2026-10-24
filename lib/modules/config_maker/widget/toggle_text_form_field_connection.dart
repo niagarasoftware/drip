@@ -5,6 +5,7 @@ import '../model/device_model.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
 import 'connection_grid_list_tile.dart';
+import 'object_manager_bar.dart';
 
 class ToggleTextFormFieldForConnection extends StatefulWidget {
   final ConfigMakerProvider configPvd;
@@ -58,6 +59,9 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
 
   void _updateConnectionCount(int newCount) {
     if (newCount < 0) return;
+    int oldCount = widget.object.count == '' ? 0 : int.parse(widget.object.count!);
+    if (newCount == oldCount) return;
+
     Map<String, int> mappingBalanceType = {
       '1,2': (widget.selectedDevice.noOfRelay == 0
               ? widget.selectedDevice.noOfLatch
@@ -76,53 +80,74 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
       '7': widget.selectedDevice.noOfI2CInput -
           getConfigureCountByType('7'),
     };
-    int oldCount = widget.object.count == '' ? 0 : int.parse(widget.object.count!);
-    int? increasingCount;
-    if (newCount > oldCount) {
-      increasingCount = newCount - oldCount;
-    }
-    int countLimitFromProductLimit =
-        getNotConfiguredObjectByObjectId(widget.object.objectId, widget.configPvd) +
-            oldCount;
     int balancePossibleCountToConfigure =
         mappingBalanceType[widget.object.type] ?? 0;
 
-    if (newCount == oldCount) {
-      // no change
-    } else if (newCount > countLimitFromProductLimit &&
-        newCount <= balancePossibleCountToConfigure) {
-      int validateCount = newCount < countLimitFromProductLimit
-          ? newCount
-          : countLimitFromProductLimit;
-      bool updateOthers = updateConnectionForFixedInputs(
-          oldCount: oldCount,
-          newCount: validateCount,
-          countLimitFromProductLimit: countLimitFromProductLimit);
-      if (updateOthers) {
-        widget.configPvd.updateObjectConnection(widget.object, validateCount);
+    if (newCount > oldCount) {
+      int increasingCount = newCount - oldCount;
+      if (increasingCount > balancePossibleCountToConfigure) {
+        increasingCount = balancePossibleCountToConfigure;
       }
-    } else if (increasingCount != null &&
-        increasingCount <= balancePossibleCountToConfigure) {
-      bool updateOthers = updateConnectionForFixedInputs(
-          oldCount: oldCount,
-          newCount: newCount,
-          countLimitFromProductLimit: countLimitFromProductLimit);
-      if (updateOthers) {
-        widget.configPvd.updateObjectConnection(
-            widget.object, oldCount + increasingCount);
+
+      if (increasingCount <= 0) return;
+
+      int targetCount = oldCount + increasingCount;
+      int unassignedCount =
+          getNotConfiguredObjectByObjectId(widget.object.objectId, widget.configPvd);
+
+      if (unassignedCount < increasingCount) {
+        int neededNewObjects = increasingCount - unassignedCount;
+
+        DeviceObjectModel? sampleObj;
+        for (var obj in widget.configPvd.listOfSampleObjectModel) {
+          if (obj.objectId == widget.object.objectId) {
+            sampleObj = obj;
+            break;
+          }
+        }
+
+        if (sampleObj != null) {
+          int currentSampleCount =
+              (sampleObj.count == null || sampleObj.count == '')
+                  ? 0
+                  : int.parse(sampleObj.count!);
+          int newSampleCount = currentSampleCount + neededNewObjects;
+
+          int? cap = maxCountForObject(widget.configPvd, sampleObj);
+          if (cap != null && newSampleCount > cap) {
+            newSampleCount = cap;
+            int maxAllowedNewObjects = cap - currentSampleCount;
+            if (maxAllowedNewObjects < 0) maxAllowedNewObjects = 0;
+            if (maxAllowedNewObjects < neededNewObjects) {
+              increasingCount = unassignedCount + maxAllowedNewObjects;
+              targetCount = oldCount + increasingCount;
+            }
+          }
+
+          if (newSampleCount > currentSampleCount) {
+            widget.configPvd
+                .updateObjectCount(widget.object.objectId, newSampleCount.toString());
+          }
+        }
       }
-    } else if (increasingCount != null &&
-        increasingCount >= balancePossibleCountToConfigure) {
+
       bool updateOthers = updateConnectionForFixedInputs(
-          oldCount: oldCount,
-          newCount: newCount,
-          countLimitFromProductLimit: countLimitFromProductLimit);
+        oldCount: oldCount,
+        newCount: targetCount,
+        countLimitFromProductLimit: targetCount,
+      );
       if (updateOthers) {
-        widget.configPvd.updateObjectConnection(
-            widget.object, oldCount + balancePossibleCountToConfigure);
+        widget.configPvd.updateObjectConnection(widget.object, targetCount);
       }
     } else {
-      widget.configPvd.updateObjectConnection(widget.object, newCount);
+      bool updateOthers = updateConnectionForFixedInputs(
+        oldCount: oldCount,
+        newCount: newCount,
+        countLimitFromProductLimit: newCount,
+      );
+      if (updateOthers) {
+        widget.configPvd.updateObjectConnection(widget.object, newCount);
+      }
     }
   }
 
@@ -222,9 +247,9 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
     return Container(
       height: 32,
       decoration: BoxDecoration(
-        color: const Color(0xffF8FAFC),
+        color: const Color(0xFF12162B),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: const Color(0xFF2A3258)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -239,11 +264,11 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
               child: Icon(
                 Icons.remove_rounded,
                 size: 15,
-                color: currentVal > 0 ? const Color(0xff0F172A) : Colors.grey.shade400,
+                color: currentVal > 0 ? const Color(0xFF8E9BB4) : const Color(0xFF2A3258),
               ),
             ),
           ),
-          Container(width: 1, height: 16, color: Colors.grey.shade300),
+          Container(width: 1, height: 16, color: const Color(0xFF2A3258)),
           GestureDetector(
             onTap: toggleEditing,
             child: Container(
@@ -259,7 +284,7 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
                       ],
                       maxLength: 2,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         counterText: '',
@@ -270,15 +295,15 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
                     )
                   : Text(
                       widget.initialValue,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
+                        color: Color(0xFFC084FC),
                       ),
                     ),
             ),
           ),
-          Container(width: 1, height: 16, color: Colors.grey.shade300),
+          Container(width: 1, height: 16, color: const Color(0xFF2A3258)),
           InkWell(
             borderRadius: const BorderRadius.horizontal(right: Radius.circular(7)),
             onTap: () => _updateConnectionCount(currentVal + 1),
@@ -286,10 +311,10 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
               width: 26,
               height: double.infinity,
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.add_rounded,
                 size: 15,
-                color: Color(0xff0F172A),
+                color: Theme.of(context).primaryColor,
               ),
             ),
           ),

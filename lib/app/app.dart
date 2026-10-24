@@ -74,7 +74,7 @@ class _MyAppState extends State<MyApp> {
           SmartCommTheme.lightTheme,
           darkTheme: isOro ? OroTheme.darkTheme : isATel ? ATelTheme.darkTheme :
           SmartCommTheme.darkTheme,
-          themeMode: ThemeMode.light,
+          themeMode: ThemeMode.dark,
           // home: navigateToInitialScreen(snapshot.data ?? Routes.login),
           // onGenerateRoute: Routes.generateRoute,
           home: const ConfigBasePage(masterData:{"userId":2,"customerId":1183,"controllerId":3906,"productId":4276,"deviceId":"EE765EE76E71","deviceName":"Gem+ (RL)","categoryId":1,"categoryName":"ORO GEM","modelId":4,"modelDescription":"Gem+ (RL)","modelName":"NAm2000ROOL","groupId":1052,"groupName":"Siva Prakash Site","connectingObjectId":["1","2","3","4","-"],"productStock":[]}, fromDashboard: true), // siva prakash - filtration + fertigation
