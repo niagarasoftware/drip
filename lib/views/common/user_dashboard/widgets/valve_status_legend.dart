@@ -1,32 +1,54 @@
+
 import 'package:flutter/material.dart';
 
 Widget buildValveStatusLegend(bool isAquaculture) {
-
   Widget legendItem(Color color, String text) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 14,
-          height: 14,
+          width: 12,
+          height: 12,
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(3),
-            border: Border.all(color: Colors.grey.shade400, width: 0.5),
+            border: Border.all(
+              color: Colors.grey.shade400,
+              width: 0.5,
+            ),
           ),
         ),
         const SizedBox(width: 6),
         Text(
           text,
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
+          style: const TextStyle(
+            fontSize: 12,
+            color: Colors.black87,
+          ),
         ),
-        const SizedBox(width: 12),
       ],
     );
   }
 
+  final statusItems = [
+    (const Color(0xFF64748B), 'Default'),
+    (const Color(0xFF16A34A), 'Running'),
+    (const Color(0xFF2563EB), 'Completed'),
+    (const Color(0xFFEAB308), 'Pending'),
+    (const Color(0xFFDC2626), 'Not Open'),
+    (const Color(0xFFB91C1C), 'Not Closed'),
+    (const Color(0xFF7C3AED), 'On · Low Pressure'),
+    (const Color(0xFFA855F7), 'Off · High Pressure'),
+    (const Color(0xFF0891B2), 'On · Low Lateral Pressure'),
+    (const Color(0xFF22D3EE), 'Off · High Lateral Pressure'),
+  ];
+
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 10,
+    ),
     decoration: BoxDecoration(
       color: Colors.white,
       border: Border(
@@ -34,37 +56,32 @@ Widget buildValveStatusLegend(bool isAquaculture) {
         bottom: BorderSide(color: Colors.grey.shade300),
       ),
     ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          isAquaculture ? "Aerator Status" : "Valve Status",
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Container(height: 20, width: 1, color: Colors.black26),
-        ),
-        Expanded(
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              legendItem(Colors.black54, "Default"),
-              legendItem(Colors.green, "Running"),
-              legendItem(Colors.blue, "Completed"),
-              legendItem(Colors.yellow, "Pending"),
-              legendItem(Colors.orange, "Not Open"),
-              legendItem(Colors.red, "Not Closed"),
-            ],
-          ),
-        ),
-      ],
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 600;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isAquaculture ? 'Aerator Status' : 'Valve Status',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: isNarrow ? 14 : 20,
+              runSpacing: 10,
+              children: statusItems.map((item) {
+                return legendItem(item.$1, item.$2);
+              }).toList(),
+            ),
+          ],
+        );
+      },
     ),
   );
 }
-
