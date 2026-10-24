@@ -13,6 +13,7 @@ import '../model/fertigation_model.dart';
 import '../model/filtration_model.dart';
 import '../model/irrigation_line_model.dart';
 import '../model/moisture_model.dart';
+import '../model/nutrient_model.dart';
 import '../model/ph_model.dart';
 import '../model/pressure_model.dart';
 import '../model/pump_model.dart';
@@ -83,7 +84,20 @@ class ConfigMakerProvider extends ChangeNotifier{
   List<EcModel> ec = [];
   List<PhModel> ph = [];
   List<IrrigationLineModel> line = [];
+  List<NutrientCategoryModel> nutrientList = [];
   List<dynamic> productStock = [];
+
+  String getNutrientName(double sNo) {
+    if (sNo == 0.0) return '';
+    for (var category in nutrientList) {
+      for (var item in category.list) {
+        if (item.sNo == sNo) {
+          return item.name;
+        }
+      }
+    }
+    return '';
+  }
 
   void updateRangeMode(bool value){
     rangeMode = value;
@@ -93,6 +107,13 @@ class ConfigMakerProvider extends ChangeNotifier{
   void clearData(){
     listOfSampleObjectModel = (defaultDataFromHttp['objectType'] as List<dynamic>).map(mapToDeviceObject).toList();
     listOfObjectModelConnection = (defaultDataFromHttp['objectType'] as List<dynamic>).map(mapToDeviceObject).toList();
+    if (defaultDataFromHttp['nutrients'] != null) {
+      nutrientList = (defaultDataFromHttp['nutrients'] as List<dynamic>)
+          .map((e) => NutrientCategoryModel.fromJson(e))
+          .toList();
+    } else {
+      nutrientList = [];
+    }
     print("clear called............");
     for(var i in listOfDeviceModel){
       if(AppConstants.ecoGemModelList.contains(masterData['modelId'])){
@@ -297,6 +318,14 @@ class ConfigMakerProvider extends ChangeNotifier{
       configMakerDataFromHttp = configMakerData;
       defaultDataFromHttp = defaultData;
       masterData = masterDataFromSiteConfigure;
+
+      if (defaultData['nutrients'] != null) {
+        nutrientList = (defaultData['nutrients'] as List<dynamic>)
+            .map((e) => NutrientCategoryModel.fromJson(e))
+            .toList();
+      } else {
+        nutrientList = [];
+      }
 
       /* hardcoded for pushing master to deviceList*/
       if(![...AppConstants.gemModelList, ...AppConstants.omsGemList].contains(masterDataFromSiteConfigure['modelId'])){

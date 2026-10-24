@@ -18,6 +18,7 @@ class SourceModel {
   List<double> inletTankValve;
   List<double> outletTankValve;
   List<double> agitator;
+  double nutrient;
 
   bool get isMultiInletTankValve => inletTankValve.length > 1;
   int get inletTankValvePortCount => inletTankValve.isEmpty ? 1 : inletTankValve.length;
@@ -42,6 +43,7 @@ class SourceModel {
     required this.inletTankValve,
     required this.outletTankValve,
     required this.agitator,
+    this.nutrient = 0.0,
   });
 
   void updateObjectIdIfDeletedInProductLimit(List<double> objectIdToBeDeleted){
@@ -80,6 +82,7 @@ class SourceModel {
         inletTankValve: data['inletTankValve'] != null ? (data['inletTankValve'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
         outletTankValve: data['outletTankValve'] != null ? (data['outletTankValve'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
         agitator: data['agitator'] != null ? (data['agitator'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
+        nutrient: intOrDoubleValidate(data['nutrient'] ?? 0.0),
     );
   }
 
@@ -101,6 +104,7 @@ class SourceModel {
       'inletTankValve' : inletTankValve,
       'outletTankValve' : outletTankValve,
       'agitator' : agitator,
+      'nutrient' : nutrient,
     });
     return commonInfo;
   }

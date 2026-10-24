@@ -79,6 +79,20 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
     final showSensors = !isBoreOrPond && !isFertilizerSource;
 
+    if (isFertilizerSource) {
+      final slots = <bool>[
+        source.nutrient != 0.0,
+        if (source.inletTankValve.isNotEmpty) true,
+        if (source.outletTankValve.isNotEmpty) true,
+        if (hasAgitators && source.agitator.isNotEmpty) true,
+      ];
+      return _Progress(
+        slots.where((e) => e).length,
+        slots.length,
+        0,
+      );
+    }
+
     final sensorSlots = <bool>[
       source.level != 0.0,
       source.outletWaterMeter != 0.0,
@@ -94,7 +108,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       if (!isBoreOrPond && source.inletTankValve.isNotEmpty) true,
       if (source.outletTankValve.isNotEmpty) true,
       if (showSensors) ...sensorSlots,
-      if (isFertilizerSource && hasAgitators) source.agitator.isNotEmpty,
     ];
 
     return _Progress(
@@ -585,6 +598,17 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       primaryColor: primaryColor,
       typeSelector: _buildTypeSelector(source, currentTankType, primaryColor),
       body: [
+        // ── Nutrient ──
+        if (isFertilizerSource)
+          _buildFlowSection(
+            title: 'Nutrient',
+            icon: Icons.science_rounded,
+            accent: primaryColor,
+            children: [
+              _buildParameterTileForNutrient(source, primaryColor),
+            ],
+          ),
+
         // ── Inlet ──
         if (!isBoreOrPond)
           _buildFlowSection(
@@ -592,7 +616,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
             icon: Icons.south_west_rounded,
             accent: _inletColor,
             children: [
-              _buildParameterTileForPump(source, 1, _inletColor),
+              if (!isFertilizerSource) _buildParameterTileForPump(source, 1, _inletColor),
               _buildParameterTileForTankValve(source, true, _inletColor),
             ],
           ),
@@ -603,7 +627,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           icon: Icons.north_east_rounded,
           accent: _outletColor,
           children: [
-            _buildParameterTileForPump(source, 2, _outletColor),
+            if (!isFertilizerSource) _buildParameterTileForPump(source, 2, _outletColor),
             _buildParameterTileForTankValve(source, false, _outletColor),
           ],
         ),
@@ -1227,6 +1251,147 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               widget.configPvd.listOfSelectedSno.clear();
             });
             Navigator.pop(context);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildParameterTileForNutrient(SourceModel source, Color accent) {
+    final nutrientName = widget.configPvd.getNutrientName(source.nutrient);
+    final isAssigned = source.nutrient != 0.0;
+
+    return _buildComponentTile(
+      title: 'Nutrient',
+      imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.channelObjectId}.svg',
+      names: isAssigned ? [nutrientName.isNotEmpty ? nutrientName : 'SNo: ${source.nutrient}'] : const [],
+      isAssigned: isAssigned,
+      accent: accent,
+      onTap: () {
+        _showNutrientSelectionDialog(context, source);
+      },
+    );
+  }
+
+  void _showNutrientSelectionDialog(BuildContext context, SourceModel source) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final categories = widget.configPvd.nutrientList;
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Select Nutrient',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _inkColor),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    if (categories.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24.0),
+                        child: Center(
+                          child: Text(
+                            'No nutrients available',
+                            style: TextStyle(color: _subTextColor),
+                          ),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ListTile(
+                                leading: Icon(
+                                  source.nutrient == 0.0
+                                      ? Icons.radio_button_checked_rounded
+                                      : Icons.radio_button_off_rounded,
+                                  color: source.nutrient == 0.0
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey.shade400,
+                                ),
+                                title: const Text(
+                                  'None / Clear Selection',
+                                  style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: _subTextColor),
+                                ),
+                                onTap: () {
+                                  setState(() {
+                                    source.nutrient = 0.0;
+                                  });
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              const Divider(height: 1),
+                              for (var cat in categories) ...[
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                                  child: Text(
+                                    cat.category,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                                  ),
+                                ),
+                                for (var item in cat.list)
+                                  ListTile(
+                                    dense: true,
+                                    leading: Icon(
+                                      source.nutrient == item.sNo
+                                          ? Icons.radio_button_checked_rounded
+                                          : Icons.radio_button_off_rounded,
+                                      color: source.nutrient == item.sNo
+                                          ? Theme.of(context).primaryColor
+                                          : Colors.grey.shade400,
+                                    ),
+                                    title: Text(
+                                      item.name,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: source.nutrient == item.sNo
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      'sNo: ${item.sNo}',
+                                      style: const TextStyle(fontSize: 11, color: _subTextColor),
+                                    ),
+                                    onTap: () {
+                                      setState(() {
+                                        source.nutrient = item.sNo;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
           },
         );
       },

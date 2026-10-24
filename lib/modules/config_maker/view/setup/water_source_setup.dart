@@ -94,20 +94,113 @@ class _HState {
   final Map<double, _HFeed> feedOf = {}; // source sNo -> where its inlet pipe connects
 }
 
+/// Water Source Formation types based on site data topology
+enum WaterSourceFormation {
+  compactLinear,       // Small site (<= 3 sources, direct column / linear)
+  parallelBus,         // Standard site (4 to 8 sources in parallel bus formation)
+  horizontalTree,      // Large site (> 8 sources in horizontal tree layout)
+  cascadedStage,       // Multi-stage series (primary source -> intermediate tank -> secondary pump)
+  commonHeader,        // Central manifold for mixed source types
+  distributedCluster,  // Multi-station or isolated clusters
+  matrixGrid,          // High-density tank farm / grid array
+}
+
 /// WATER SOURCE SETUP
 /// Sources (sump / well / tank / natural source), water pumps, tank valves and
 /// the pipes between them, laid out in clean layers (top section of the canvas).
 class WaterSourceSetup extends SiteSetupBase {
   WaterSourceSetup(super.ctx);
 
-  WaterSetupResult build() {
+  /// Evaluates site data to determine the optimal [WaterSourceFormation].
+  WaterSourceFormation determineFormation() {
     final waterSources = data.waterSources;
+    final waterPumps = data.waterPumps;
 
-    // Use horizontal tree layout when waterSources.length > 8
-    if (waterSources.length > 8) {
-      return _buildHorizontalLayout();
+    if (waterSources.isEmpty && waterPumps.isEmpty) {
+      return WaterSourceFormation.compactLinear;
     }
 
+    // ---- 1. Cascaded detection (pump-to-pump chains between sources) ----
+    // Intermediate = fed by a pump AND feeds another pump
+    final intermediates = waterSources
+        .where((s) => s.inletPump.isNotEmpty && s.outletPump.isNotEmpty)
+        .length;
+
+    // Longest chain of sources linked through pumps
+    int chainDepth() {
+      // a feeds b when a's outletPump appears in b's inletPump
+      final Map<dynamic, List<dynamic>> next = {};
+      for (final a in waterSources) {
+        next[a.commonDetails.sNo] = waterSources
+            .where((b) =>
+        b.commonDetails.sNo != a.commonDetails.sNo &&
+            b.inletPump.any((p) => a.outletPump.contains(p)))
+            .map((b) => b.commonDetails.sNo)
+            .toList();
+      }
+
+      final memo = <dynamic, int>{};
+      int dfs(dynamic id, Set<dynamic> path) {
+        if (memo.containsKey(id)) return memo[id]!;
+        if (path.contains(id)) return 0; // loop guard
+        path.add(id);
+        int best = 1;
+        for (final n in next[id] ?? const []) {
+          final d = 1 + dfs(n, path);
+          if (d > best) best = d;
+        }
+        path.remove(id);
+        return memo[id] = best;
+      }
+
+      int maxDepth = 0;
+      for (final s in waterSources) {
+        final d = dfs(s.commonDetails.sNo, {});
+        if (d > maxDepth) maxDepth = d;
+      }
+      return maxDepth;
+    }
+
+    // River land: intermediates = 3, depth = 4 -> cascaded
+    // KSR:        intermediates = 1, depth = 3 -> not cascaded
+    if (intermediates >= 2 && chainDepth() >= 4) {
+      return WaterSourceFormation.cascadedStage;
+    }
+
+    // ---- 2. Common header ----
+    final distinctTypes = waterSources.map((s) => s.sourceType).toSet();
+    if (distinctTypes.length >= 3 && waterSources.length <= 8) {
+      return WaterSourceFormation.commonHeader;
+    }
+
+    // ---- 3. Size-based ----
+    if (waterSources.length > 8) {
+      return WaterSourceFormation.horizontalTree;
+    } else if (waterSources.length >= 4) {
+      return WaterSourceFormation.parallelBus;
+    } else {
+      return WaterSourceFormation.compactLinear;
+    }
+  }
+
+  WaterSetupResult build() {
+    final formation = determineFormation();
+
+    switch (formation) {
+      case WaterSourceFormation.horizontalTree:
+      case WaterSourceFormation.matrixGrid:
+        return _buildHorizontalLayout();
+      case WaterSourceFormation.cascadedStage:
+      case WaterSourceFormation.commonHeader:
+      case WaterSourceFormation.distributedCluster:
+      case WaterSourceFormation.parallelBus:
+      case WaterSourceFormation.compactLinear:
+        return _buildStandardLayout();
+    }
+  }
+
+  WaterSetupResult _buildStandardLayout() {
+    final waterSources = data.waterSources;
     final waterPumps = data.waterPumps;
     final List<_LayoutEdge> edges = [];
     final Map<double, NodeObject> pumpMap = {};
