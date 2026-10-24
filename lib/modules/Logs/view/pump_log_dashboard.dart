@@ -1,8 +1,5 @@
 import 'dart:developer';
-import 'dart:io';
 
-import 'package:excel/excel.dart' as xls;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -44,7 +41,8 @@ class PumpLogDashboardScreen extends StatefulWidget {
     this.nodeControllerId = 0,
     required this.masterData,
     this.pumpList = const [],
-    this.userData = const {}, required bool showMobileCalendar,
+    this.userData = const {},
+    required bool showMobileCalendar,
   });
 
   @override
@@ -52,9 +50,7 @@ class PumpLogDashboardScreen extends StatefulWidget {
 }
 
 class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
-  /// The target design has no device/MAC bar for a single device.
-  /// Set to true if you want the MAC address bar back.
-  static const bool _showSingleDeviceHeader = false;
+  static const bool _showSingleDeviceHeader = true;
 
   late DateTime _selectedDate;
   late DateTime _weekStartDate;
@@ -223,7 +219,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
   void _changeWeek(int deltaWeeks) {
     final newStart = _weekStartDate.add(Duration(days: deltaWeeks * 7));
-    if (_isFuture(newStart)) return; // never move into a week that is fully in the future
+    if (_isFuture(newStart)) return;
 
     final today = DateTime.now();
     final newEnd = newStart.add(const Duration(days: 6));
@@ -254,85 +250,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       context: context,
       initialDate: _isFuture(_selectedDate) ? now : _selectedDate,
       firstDate: DateTime(2020),
-      lastDate: now, // future dates cannot be picked
+      lastDate: now,
     );
     if (picked != null) {
       _onDateSelected(picked);
-    }
-  }
-
-  void _exportExcel() async {
-    final provider = context.read<PumpControllerProvider>();
-    if (provider.motorDataList.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No data available to export.')),
-      );
-      return;
-    }
-
-    final excel = xls.Excel.createExcel();
-    final xls.Sheet sheet = excel['Sheet1'];
-
-    sheet.appendRow([
-      xls.TextCellValue('Date'),
-      xls.TextCellValue('Total Power On Time'),
-      xls.TextCellValue('Total Power Off Time'),
-      xls.TextCellValue('Cumulative Flow'),
-      xls.TextCellValue('Flow Rate'),
-      xls.TextCellValue('Pressure'),
-      xls.TextCellValue('Level'),
-      xls.TextCellValue('Motor 1 Run Time'),
-      xls.TextCellValue('Motor 1 Idle Time'),
-      xls.TextCellValue('Motor 1 Dry Run Trip'),
-      xls.TextCellValue('Motor 1 Cyclic Trip'),
-      xls.TextCellValue('Motor 1 Other Trip'),
-      xls.TextCellValue('Motor 1 Total Flow'),
-    ]);
-
-    for (final data in provider.motorDataList) {
-      sheet.appendRow([
-        xls.TextCellValue(data.date),
-        xls.TextCellValue(data.totalPowerOnTime),
-        xls.TextCellValue(data.totalPowerOffTime),
-        xls.TextCellValue(data.overAllCumulativeFlow),
-        xls.TextCellValue(data.flowRate),
-        xls.TextCellValue(data.pressure),
-        xls.TextCellValue(data.level),
-        xls.TextCellValue(data.motorRunTime1),
-        xls.TextCellValue(data.motorIdleTime1),
-        xls.TextCellValue(data.dryRunTripTime1),
-        xls.TextCellValue(data.cyclicTripTime1),
-        xls.TextCellValue(data.otherTripTime1),
-        xls.TextCellValue(data.totalFlowToday1),
-      ]);
-    }
-
-    final fileBytes = excel.encode();
-    if (fileBytes != null) {
-      try {
-        if (!kIsWeb) {
-          const downloadsDirectoryPath = "/storage/emulated/0/Download";
-          final filePath =
-              "$downloadsDirectoryPath/Power_Graph_${DateFormat('yyyyMMdd').format(_selectedDate)}.xlsx";
-          final file = File(filePath);
-          await file.create(recursive: true);
-          await file.writeAsBytes(fileBytes);
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Report saved to $filePath')),
-            );
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Report generated.')),
-            );
-          }
-        }
-      } catch (e) {
-        log("Export error: $e");
-      }
     }
   }
 
@@ -944,22 +865,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _cardTitle('POWER GRAPH'),
-              InkWell(
-                onTap: _exportExcel,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  width: 34,
-                  height: 34,
-                  decoration: const BoxDecoration(color: _kTeal, shape: BoxShape.circle),
-                  child: const Icon(Icons.arrow_downward, color: Colors.white, size: 18),
-                ),
-              ),
-            ],
-          ),
+          _cardTitle('POWER GRAPH'),
           const SizedBox(height: 14),
           if (isWide)
             Row(
@@ -1034,7 +940,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           ),
           alignment: Alignment.center,
           child: Text(
-            DateFormat('MMM d yyyy').format(_selectedDate),
+            _powerPeriodIndex == 1
+                ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
+                : (_powerPeriodIndex == 2
+                    ? DateFormat('MMMM yyyy').format(_selectedDate)
+                    : DateFormat('MMM d yyyy').format(_selectedDate)),
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F4C5C)),
           ),
         ),
@@ -1154,10 +1064,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required int activeKey,
     required String activeMotorName,
   }) {
+    final String totalFlowLabel = _powerPeriodIndex == 1
+        ? 'Total flow this week'
+        : (_powerPeriodIndex == 2 ? 'Total flow this month' : 'Total flow today');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Header: motor name (dropdown if several motors) + Unit
         SizedBox(
           height: 30,
           child: Row(
@@ -1213,7 +1126,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         _buildTableRow('Dry run trip time', Constants.changeFormat(dryRunTime), 'HH:MM', _kTeal),
         _buildTableRow('Cyclic trip time', Constants.changeFormat(cyclicTime), 'HH:MM', _kTeal),
         _buildTableRow('Other trip time', Constants.changeFormat(otherTime), 'HH:MM', _kTeal),
-        _buildTableRow('Total flow today', totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
+        _buildTableRow(totalFlowLabel, totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
       ],
     );
   }
@@ -1392,9 +1305,29 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           return Stack(
             children: events.map((event) {
               final startSec = _toSeconds(event.onTime).toDouble();
-              double endSec = event.offTime.trim().isNotEmpty
-                  ? _toSeconds(event.offTime).toDouble()
-                  : startSec + _toSeconds(event.duration);
+              double endSec = 0;
+
+              final cleanOff = event.offTime.trim();
+              final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
+
+              if (hasOffTime) {
+                endSec = _toSeconds(cleanOff).toDouble();
+              } else {
+                final durSec = _toSeconds(event.duration).toDouble();
+                if (durSec > 0) {
+                  endSec = startSec + durSec;
+                } else {
+                  final now = DateTime.now();
+                  final isToday = _selectedDate.year == now.year &&
+                      _selectedDate.month == now.month &&
+                      _selectedDate.day == now.day;
+                  if (isToday) {
+                    endSec = (now.hour * 3600 + now.minute * 60 + now.second).toDouble();
+                  } else {
+                    endSec = startSec + 300;
+                  }
+                }
+              }
 
               if (endSec < startSec) endSec = totalSeconds;
 
@@ -1447,9 +1380,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       return Constants.capitalizeFirstLetter(formatted);
     }
 
-    final hasOffTime = event.offTime.trim().isNotEmpty;
+    final cleanOff = event.offTime.trim();
+    final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
     final hasOnReason = event.onReason.trim().isNotEmpty;
-    final hasOffReason = event.offReason.trim().isNotEmpty;
+    final hasOffReason = event.offReason.trim().isNotEmpty && event.offReason.trim() != '-';
+    final isRunningNow = !hasOffTime && !hasOffReason;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1457,7 +1392,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 64,
+            width: 68,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1470,6 +1405,19 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   Text(
                     event.offTime,
                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _kTeal),
+                  ),
+                ] else if (isRunningNow) ...[
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'RUNNING',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: _kGreen),
+                    ),
                   ),
                 ],
               ],
@@ -1511,8 +1459,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   ),
                 if (hasOnReason || hasOffReason) const SizedBox(height: 4),
                 Text(
-                  'Duration: ${event.duration}',
-                  style: const TextStyle(fontSize: 11, color: _kMuted),
+                  isRunningNow ? 'Duration: Running...' : 'Duration: ${event.duration}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isRunningNow ? _kGreen : _kMuted,
+                    fontWeight: isRunningNow ? FontWeight.w600 : FontWeight.normal,
+                  ),
                 ),
               ],
             ),

@@ -251,6 +251,8 @@ class _FertigationCardListPageState
           "ProgramCategoryName",
           "Pretime",
           "PostTime",
+          "CentralFilterName",
+          "LocalFilterName",
           "CentralFilterOnDuration",
           "LocalFilterOnDuration",
           "CentralFertOnOff",
