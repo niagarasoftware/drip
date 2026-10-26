@@ -74,15 +74,7 @@ Future<bool> exportStandalonePdf(
       'fixedColumn': 'Date',
       'fixedColumnData': fixedCols,
       'generalColumn': standaloneColumn,
-      'generalColumnData': List.generate(standaloneColumn.length, (colIdx) {
-        return List.generate(fixedCols.length, (rowIdx) {
-          if (rowIdx < standaloneCols.length && standaloneCols[rowIdx] is List) {
-            final rowItems = standaloneCols[rowIdx] as List;
-            return colIdx < rowItems.length ? rowItems[colIdx] : '-';
-          }
-          return '-';
-        });
-      }),
+      'generalColumnData': standaloneCols,
     };
 
     final Uint8List bytes = generateIrrigationLogPdfBytes(reportData, name);

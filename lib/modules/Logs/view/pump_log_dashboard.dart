@@ -11,6 +11,7 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/event_log_model.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/motor_data_hourly.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/valve_log.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/widgets/custom_segmented_control.dart';
 import 'pump_log_excel_builder.dart';
 import 'pump_log_excel_download_stub.dart'
@@ -1241,6 +1242,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         _buildMetricItem('Total power on time', '${_formatTime(totalPowerOnTime)} (HH:MM)'),
         const SizedBox(height: 14),
         _buildMetricItem('Total power off time', '${_formatTime(totalPowerOffTime)} (HH:MM)'),
+        if (motorData?.totalInstantEnergy != null && _powerPeriodIndex == 0) ...[
+          const SizedBox(height: 14),
+          _buildMetricItem('Instant energy', '${motorData!.totalInstantEnergy} kW'),
+          const SizedBox(height: 14),
+          _buildMetricItem('Cumulative energy', '${motorData.cumulativeEnergy ?? ''} kW'),
+        ],
       ],
     );
   }
@@ -1272,8 +1279,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required String activeMotorName,
   }) {
     final String totalFlowLabel = _powerPeriodIndex == 1
-        ? 'Total flow this week'
-        : (_powerPeriodIndex == 2 ? 'Total flow this month' : 'Total flow today');
+        ? 'Weekly total flow'
+        : (_powerPeriodIndex == 2 ? 'Monthly total flow ' : 'Today total flow');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1455,6 +1462,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               ),
+            )
+          else if (AppConstants.pumpWithValveModelList.contains(widget.masterData.modelId) &&
+              !AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId))
+            ValveLog(
+              events: events,
+              masterData: widget.masterData,
             )
           else
             ListView.separated(
@@ -1701,26 +1714,52 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   }
 
   Widget _buildVoltageLogCard(PumpControllerProvider provider) {
+    final List<Map<String, dynamic>> voltageData = provider.voltageData;
+    final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
+
+    final List<String> toggleLabels = hasEnergyData
+        ? const ['Voltage', 'Current', 'Power Factor', 'Power']
+        : const ['Voltage', 'Current'];
+
+    final int safeIndex = _voltageMetricIndex < toggleLabels.length ? _voltageMetricIndex : 0;
+
     bool showR = true;
     bool showY = true;
     bool showB = true;
 
     if (isSinglePhaseModel) {
-      if (_voltageMetricIndex == 0) {
+      if (safeIndex == 0) {
         showR = false;
         showY = false;
         showB = true;
-      } else {
+      } else if (safeIndex == 1) {
         showR = true;
         showY = false;
         showB = false;
+      } else {
+        showR = true;
+        showY = true;
+        showB = true;
       }
     }
 
-    final bool isVoltage = _voltageMetricIndex == 0;
-    final String prefix = isVoltage ? 'voltage' : 'current';
-    final String label = isVoltage ? 'Voltage' : 'Current';
-    final List<Map<String, dynamic>> voltageData = provider.voltageData;
+    final String prefix = safeIndex == 0
+        ? 'voltage'
+        : (safeIndex == 1
+            ? 'current'
+            : (safeIndex == 2 ? 'powerFactor' : 'power'));
+
+    final String label = safeIndex == 0
+        ? 'Voltage'
+        : (safeIndex == 1
+            ? 'Current'
+            : (safeIndex == 2 ? 'Power Factor' : 'Power'));
+
+    final String yUnitFormat = safeIndex == 0
+        ? '{value}V'
+        : (safeIndex == 1
+            ? '{value}A'
+            : (safeIndex == 2 ? '{value}' : '{value}kW'));
 
     return _card(
       child: Column(
@@ -1731,9 +1770,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
             children: [
               _cardTitle('VOLTAGE LOG'),
               _buildToggle(
-                labels: const ['Voltage', 'Current'],
-                selected: _voltageMetricIndex,
-                hPad: 16,
+                labels: toggleLabels,
+                selected: safeIndex,
+                hPad: 12,
                 onChanged: (i) => setState(() => _voltageMetricIndex = i),
               ),
             ],
@@ -1770,7 +1809,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
               ),
               primaryYAxis: NumericAxis(
                 minimum: 0,
-                labelFormat: isVoltage ? '{value}V' : '{value}A',
+                labelFormat: yUnitFormat,
                 labelStyle: const TextStyle(fontSize: 9, color: Color(0xFF64748B)),
                 majorGridLines: const MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
               ),
@@ -1804,7 +1843,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       bool showY,
       bool showB,
       ) {
-    final String prefix = _voltageMetricIndex == 0 ? 'voltage' : 'current';
+    final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
+    final int safeIndex = _voltageMetricIndex < (hasEnergyData ? 4 : 2) ? _voltageMetricIndex : 0;
+    final String prefix = safeIndex == 0
+        ? 'voltage'
+        : (safeIndex == 1
+            ? 'current'
+            : (safeIndex == 2 ? 'powerFactor' : 'power'));
 
     Widget headerCell(String text, Color color, int flex) {
       return Expanded(

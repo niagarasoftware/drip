@@ -7,12 +7,86 @@ class _PdfPageData {
   final String sectionTitle;
   final List<Map<String, dynamic>> headers;
   final List<List<String>> rows;
+  final List<String>? summaryRow;
+  final bool isLastSectionPage;
 
   _PdfPageData({
     required this.sectionTitle,
     required this.headers,
     required this.rows,
+    this.summaryRow,
+    this.isLastSectionPage = false,
   });
+}
+
+List<String> _wrapTextLines(String text, int maxCharsPerLine, {int maxLines = 2}) {
+  final cleanText = text.trim();
+  if (cleanText.isEmpty || cleanText == '-') return ['-'];
+  if (cleanText.length <= maxCharsPerLine) return [cleanText];
+
+  List<String> lines = [];
+  String remaining = cleanText;
+
+  while (remaining.isNotEmpty && lines.length < maxLines) {
+    if (remaining.length <= maxCharsPerLine) {
+      lines.add(remaining);
+      break;
+    }
+
+    if (lines.length == maxLines - 1) {
+      if (remaining.length <= maxCharsPerLine + 3) {
+        lines.add(remaining);
+      } else {
+        lines.add(remaining.substring(0, maxCharsPerLine));
+      }
+      break;
+    }
+
+    int breakIndex = -1;
+    final searchSub = remaining.substring(0, maxCharsPerLine + 1);
+
+    for (String delim in ['__', ' ', ',', '/', '-']) {
+      int idx = searchSub.lastIndexOf(delim);
+      if (idx > 0 && idx < maxCharsPerLine) {
+        if (idx > breakIndex) breakIndex = idx + (delim == ' ' ? 0 : delim.length);
+      }
+    }
+
+    if (breakIndex <= 0) {
+      breakIndex = maxCharsPerLine;
+    }
+
+    lines.add(remaining.substring(0, breakIndex).trim());
+    remaining = remaining.substring(breakIndex).trim();
+    if (remaining.startsWith('__')) remaining = remaining.substring(2);
+  }
+
+  return lines.isEmpty ? ['-'] : lines;
+}
+
+int _parsePumpDurationSec(String val) {
+  final clean = val.trim();
+  if (clean.isEmpty || clean == '-') return 0;
+  final parts = clean.split(':');
+  if (parts.length == 3) {
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    final s = int.tryParse(parts[2]) ?? 0;
+    return h * 3600 + m * 60 + s;
+  } else if (parts.length == 2) {
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return h * 3600 + m * 60;
+  }
+  return 0;
+}
+
+String _formatPumpSecs(int secs) {
+  if (secs <= 0) return "00:00:00";
+  int h = secs ~/ 3600;
+  int m = (secs % 3600) ~/ 60;
+  int s = secs % 60;
+  return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
 }
 
 Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName) {
@@ -82,6 +156,21 @@ Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName)
     {'title': 'Off Reason', 'x': 570, 'max': 30},
   ];
 
+  int totalPumpSecs = 0;
+  for (final r in pumpRows) {
+    if (r.length > 3) {
+      totalPumpSecs += _parsePumpDurationSec(r[3]);
+    }
+  }
+  final pumpSummaryRow = [
+    'Total (${pumpRows.length} events)',
+    '-',
+    '-',
+    _formatPumpSecs(totalPumpSecs),
+    '-',
+    '-',
+  ];
+
   // --- SECTION 2: VOLTAGE & CURRENT LOG ---
   List<List<String>> voltageRows = [];
   if (exportData.voltageData.isEmpty) {
@@ -109,6 +198,39 @@ Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName)
     {'title': 'Current Y (A)', 'x': 560, 'max': 12},
     {'title': 'Current B (A)', 'x': 670, 'max': 12},
   ];
+
+  double sumVR = 0, sumVY = 0, sumVB = 0;
+  double sumCR = 0, sumCY = 0, sumCB = 0;
+  int vCount = 0;
+
+  for (final r in voltageRows) {
+    if (r.length >= 7 && r[0] != '-') {
+      double? vr = double.tryParse(r[1]);
+      double? vy = double.tryParse(r[2]);
+      double? vb = double.tryParse(r[3]);
+      double? cr = double.tryParse(r[4]);
+      double? cy = double.tryParse(r[5]);
+      double? cb = double.tryParse(r[6]);
+      if (vr != null) {
+        sumVR += vr; sumVY += (vy ?? 0); sumVB += (vb ?? 0);
+        sumCR += (cr ?? 0); sumCY += (cy ?? 0); sumCB += (cb ?? 0);
+        vCount++;
+      }
+    }
+  }
+
+  List<String>? voltageSummaryRow;
+  if (vCount > 0) {
+    voltageSummaryRow = [
+      'Average',
+      '${(sumVR / vCount).round()} V',
+      '${(sumVY / vCount).round()} V',
+      '${(sumVB / vCount).round()} V',
+      '${(sumCR / vCount).toStringAsFixed(1)} A',
+      '${(sumCY / vCount).toStringAsFixed(1)} A',
+      '${(sumCB / vCount).toStringAsFixed(1)} A',
+    ];
+  }
 
   // --- SECTION 3: POWER GRAPH SUMMARY ---
   List<List<String>> powerRows = [];
@@ -164,7 +286,7 @@ Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName)
   // ---------------------------------------------------------------------------
   List<_PdfPageData> allPages = [];
 
-  void chunkSection(String title, List<Map<String, dynamic>> headers, List<List<String>> rows) {
+  void chunkSection(String title, List<Map<String, dynamic>> headers, List<List<String>> rows, {List<String>? summaryRow}) {
     int count = rows.length;
     int pages = (count == 0) ? 1 : (count / recordsPerPage).ceil();
     for (int p = 0; p < pages; p++) {
@@ -174,12 +296,14 @@ Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName)
         sectionTitle: title,
         headers: headers,
         rows: count == 0 ? [] : rows.sublist(start, end),
+        summaryRow: summaryRow,
+        isLastSectionPage: (p == pages - 1),
       ));
     }
   }
 
-  chunkSection('PUMP LOG', pumpHeaders, pumpRows);
-  chunkSection('VOLTAGE & CURRENT LOG', voltageHeaders, voltageRows);
+  chunkSection('PUMP LOG', pumpHeaders, pumpRows, summaryRow: pumpSummaryRow);
+  chunkSection('VOLTAGE & CURRENT LOG', voltageHeaders, voltageRows, summaryRow: voltageSummaryRow);
   chunkSection('POWER GRAPH SUMMARY', powerHeaders, powerRows);
 
   int numPages = allPages.length;
@@ -244,25 +368,70 @@ Uint8List generatePumpLogPdfBytes(PumpLogExportData exportData, String fileName)
     double currentY = 488;
     for (int r = 0; r < pageData.rows.length; r++) {
       var rowValues = pageData.rows[r];
+
+      int maxRowLines = 1;
+      List<List<String>> cellLines = [];
+      for (int c = 0; c < pageData.headers.length; c++) {
+        int maxL = pageData.headers[c]['max'] as int;
+        String val = c < rowValues.length ? rowValues[c] : '-';
+        List<String> lines = _wrapTextLines(val, maxL, maxLines: 2);
+        cellLines.add(lines);
+        if (lines.length > maxRowLines) maxRowLines = lines.length;
+      }
+
+      double rHeight = 12.0 + (maxRowLines * 9.5);
+      double drawTop = currentY - rHeight + 14;
+
       bool isEven = (r % 2 == 0);
       if (isEven) {
-        streamBuf.write("0.97 0.98 0.99 rg 40 ${currentY - 4} 762 17 re f\n");
+        streamBuf.write("0.97 0.98 0.99 rg 40 $drawTop 762 $rHeight re f\n");
       }
-      streamBuf.write("0.88 0.90 0.92 RG 0.5 w 40 ${currentY - 4} 762 17 re S\n");
+      streamBuf.write("0.88 0.90 0.92 RG 0.5 w 40 $drawTop 762 $rHeight re S\n");
       streamBuf.write("0.15 0.15 0.15 rg\n");
 
       for (int c = 0; c < pageData.headers.length; c++) {
         int xPos = pageData.headers[c]['x'] as int;
-        int maxL = pageData.headers[c]['max'] as int;
-        String val = c < rowValues.length ? rowValues[c] : '-';
-        if (val.length > maxL) {
-          val = "${val.substring(0, maxL - 1)}..";
+        List<String> lines = cellLines[c];
+        for (int lIdx = 0; lIdx < lines.length; lIdx++) {
+          double lineY = currentY - (lIdx * 9.5);
+          streamBuf.write("BT /F2 8 Tf $xPos $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
         }
-        String safeVal = sanitizePdfText(val);
-        streamBuf.write("BT /F2 8 Tf $xPos $currentY Td ($safeVal) Tj ET\n");
       }
 
-      currentY -= 17;
+      currentY -= rHeight;
+    }
+
+    // BOTTOM SUMMARY ROW FOR THIS SECTION
+    if (pageData.isLastSectionPage && pageData.summaryRow != null && pageData.summaryRow!.isNotEmpty) {
+      final summaryVals = pageData.summaryRow!;
+      int maxSumLines = 1;
+      List<List<String>> sumCellLines = [];
+      for (int c = 0; c < pageData.headers.length; c++) {
+        int maxL = pageData.headers[c]['max'] as int;
+        String val = c < summaryVals.length ? summaryVals[c] : '-';
+        List<String> lines = _wrapTextLines(val, maxL, maxLines: 2);
+        sumCellLines.add(lines);
+        if (lines.length > maxSumLines) maxSumLines = lines.length;
+      }
+
+      double sHeight = 13.0 + (maxSumLines * 9.5);
+      double drawTop = currentY - sHeight + 14;
+
+      // Highlighted summary background box
+      streamBuf.write("0.85 0.92 0.94 rg 40 $drawTop 762 $sHeight re f\n");
+      streamBuf.write("0.60 0.75 0.80 RG 0.8 w 40 $drawTop 762 $sHeight re S\n");
+
+      streamBuf.write("0.0 0.25 0.35 rg\n");
+      for (int c = 0; c < pageData.headers.length; c++) {
+        int xPos = pageData.headers[c]['x'] as int;
+        List<String> lines = sumCellLines[c];
+        for (int lIdx = 0; lIdx < lines.length; lIdx++) {
+          double lineY = currentY - (lIdx * 9.5);
+          streamBuf.write("BT /F1 8 Tf $xPos $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
+        }
+      }
+
+      currentY -= sHeight;
     }
 
     // Page Footer

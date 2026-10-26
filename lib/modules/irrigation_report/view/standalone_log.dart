@@ -120,8 +120,8 @@ class _StandaloneLogState extends State<StandaloneLog> {
   }
 
 
-  void getUserName()async{
-    try{
+  void getUserName() async {
+    try {
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
@@ -129,15 +129,18 @@ class _StandaloneLogState extends State<StandaloneLog> {
       var response = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> configData = jsonDecode(response.body);
       print("jsonData : ${configData}");
-      configObject = configData['data']['configObject'];
-
-    }catch(e,stackTrace){
+      if (mounted) {
+        setState(() {
+          configObject = configData['data']['configObject'] ?? [];
+        });
+      }
+    } catch (e, stackTrace) {
       print('error in name = > ${e.toString()}');
       print('error in name stackTrace= > $stackTrace');
     }
   }
 
-  void getStandaloneData()async{
+  void getStandaloneData() async {
     print('data request to the server.............');
     setState(() {
       standaloneData['fixedColumnData'] = [];
@@ -152,14 +155,12 @@ class _StandaloneLogState extends State<StandaloneLog> {
     List<String> parts1 = dateString1.split('/');
     List<String> parts2 = dateString2.split('/');
 
-    // Create DateTime objects
     DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
     DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
 
-    // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
-    try{
+    try {
       String? startMonth = selectedDateRange?.start.month.toString();
       print('startMonth : $startMonth');
 
@@ -169,37 +170,70 @@ class _StandaloneLogState extends State<StandaloneLog> {
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
-        "logType" : "Standalone",
-        "fromDate" : formattedDate1,
-        "toDate" : formattedDate2,
-        "parameters" : parameters,
+        "logType": "Standalone",
+        "fromDate": formattedDate1,
+        "toDate": formattedDate2,
+        "parameters": parameters,
       };
       var response = await IrrigationRepository().getLogDateWise(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
-      // standaloneData = jsonData['data'];
+
+      var standaloneDataFromHttp = jsonData['data'] != null ? jsonData['data']['log'] as List? ?? [] : [];
+
       setState(() {
         print('jsonData : $jsonData');
-        var standaloneDataFromHttp = jsonData['data']['log'];
-        for(var date = 0;date < standaloneDataFromHttp.length;date++){
-          for(var schedule = 0;schedule < standaloneDataFromHttp[date]['standalone']['Date'].length;schedule++){
-            standaloneData['fixedColumnData'].add(standaloneDataFromHttp[date]['standalone']['Date'][schedule]);
+        for (var date = 0; date < standaloneDataFromHttp.length; date++) {
+          var standaloneMap = standaloneDataFromHttp[date]['standalone'];
+          if (standaloneMap == null || standaloneMap is! Map) continue;
+
+          var datesList = standaloneMap['Date'] as List? ?? [];
+          var catList = standaloneMap['ProgramCategory'] as List? ?? [];
+          var methodList = standaloneMap['IrrigationMethod'] as List? ?? [];
+          var startTimes = standaloneMap['ScheduledStartTime'] as List? ?? [];
+          var zoneNames = standaloneMap['ZoneName'] as List? ?? [];
+          var macList = standaloneMap['MacAddress'] as List? ?? [];
+          var seqList = standaloneMap['SequenceData'] as List? ?? [];
+
+          for (var schedule = 0; schedule < datesList.length; schedule++) {
+            standaloneData['fixedColumnData'].add(datesList[schedule]);
             var list = [];
-            list.add(standaloneDataFromHttp[date]['standalone']['ProgramCategory'][schedule]);
-            var method = standaloneDataFromHttp[date]['standalone']['IrrigationMethod'][schedule];
+
+            // 0: Program
+            list.add(schedule < catList.length ? catList[schedule] : '-');
+
+            // 1: Method
+            var method = schedule < methodList.length ? methodList[schedule] : null;
             list.add(method == 1 ? 'Time' : method == 2 ? 'Flow' : 'TimeLess');
-            list.add(standaloneDataFromHttp[date]['standalone']['ScheduledStartTime'][schedule]);
-            // list.add(standaloneDataFromHttp[date]['standalone']['ZoneName'][schedule]);
-            list.add(standaloneDataFromHttp[date]['standalone']['MacAddress'][schedule]);
+
+            // 2: Start Time
+            list.add(schedule < startTimes.length ? startTimes[schedule] : '-');
+
+            // 3: Zone Name (directly from server payload)
+            // String rawZoneName = (schedule < zoneNames.length && zoneNames[schedule] != null)
+            //     ? zoneNames[schedule].toString()
+            //     : '';
+            // list.add(rawZoneName);
+
+            // 4: Device Id
+            list.add(schedule < macList.length ? macList[schedule] : '-');
+
+            // 5: Others (Valves)
+            String seqData = (schedule < seqList.length && seqList[schedule] != null)
+                ? seqList[schedule].toString()
+                : '';
             var valveName = '';
-            for(var valve in standaloneDataFromHttp[date]['standalone']['SequenceData'][schedule].split('_')){
-              valveName += valveName.isNotEmpty ? '__' : '';
-              var objectData = configObject.firstWhere(
-                    (element) => element['sNo'].toString() == valve,
-                orElse: () => null,
-              );
-              valveName += '${objectData != null ? objectData['name'] : valve}';
+            if (seqData.isNotEmpty) {
+              for (var valve in seqData.split('_')) {
+                valveName += valveName.isNotEmpty ? '__' : '';
+                var objectData = configObject.firstWhere(
+                  (element) => element['sNo']?.toString() == valve,
+                  orElse: () => null,
+                );
+                valveName += '${objectData != null ? objectData['name'] : valve}';
+              }
             }
-            list.add(valveName);
+            list.add(valveName.isNotEmpty ? valveName : '-');
+
             standaloneData['standaloneColumnData'].add(list);
           }
         }
@@ -214,7 +248,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
         }
         selectedPages = 1;
       });
-    }catch(e,stackTrace){
+    } catch (e, stackTrace) {
       setState(() {
         httpError = 1;
       });
