@@ -633,16 +633,19 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
 
                       if (width >= 1150) {
                         // All cards in a single row
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (int i = 0; i < cards.length; i++) ...[
-                              if (i > 0) const SizedBox(width: 18),
-                              Expanded(
-                                child: _buildLogCard(context, cards[i]),
-                              ),
+                        return IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (int i = 0; i < cards.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 18),
+                                Expanded(
+                                  child: _buildLogCard(context, cards[i],
+                                      isStretched: true),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         );
                       } else if (width >= 620) {
                         // 2 cards per row
@@ -650,19 +653,23 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                         for (int i = 0; i < cards.length; i += 2) {
                           final hasNext = i + 1 < cards.length;
                           rows.add(
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                    child: _buildLogCard(context, cards[i])),
-                                const SizedBox(width: 16),
-                                if (hasNext)
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                                   Expanded(
-                                      child:
-                                          _buildLogCard(context, cards[i + 1]))
-                                else
-                                  const Spacer(),
-                              ],
+                                      child: _buildLogCard(context, cards[i],
+                                          isStretched: true)),
+                                  const SizedBox(width: 16),
+                                  if (hasNext)
+                                    Expanded(
+                                        child: _buildLogCard(
+                                            context, cards[i + 1],
+                                            isStretched: true))
+                                  else
+                                    const Spacer(),
+                                ],
+                              ),
                             ),
                           );
                           if (i + 2 < cards.length) {
@@ -676,7 +683,8 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                           children: [
                             for (int i = 0; i < cards.length; i++) ...[
                               if (i > 0) const SizedBox(height: 16),
-                              _buildLogCard(context, cards[i]),
+                              _buildLogCard(context, cards[i],
+                                  isStretched: false),
                             ],
                           ],
                         );
@@ -737,7 +745,11 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
     );
   }
 
-  Widget _buildLogCard(BuildContext context, _LogCardItem card) {
+  Widget _buildLogCard(
+    BuildContext context,
+    _LogCardItem card, {
+    bool isStretched = false,
+  }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -753,6 +765,7 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
+        fit: isStretched ? StackFit.passthrough : StackFit.loose,
         children: [
           // Subtle top-right ambient colored corner glow
           Positioned(
@@ -784,66 +797,79 @@ class _IrrigationAndPumpLogState extends State<IrrigationAndPumpLog>
                 padding: const EdgeInsets.all(22.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisSize:
+                      isStretched ? MainAxisSize.max : MainAxisSize.min,
+                  mainAxisAlignment: isStretched
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.start,
                   children: [
-                    // Icon Avatar
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: card.iconBgColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(child: card.iconWidget),
-                    ),
-                    const SizedBox(height: 18),
-
-                    // Title
-                    Text(
-                      card.title,
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Subtitle
-                    Text(
-                      card.subtitle,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        height: 1.45,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Feature bullet list
-                    for (final item in card.features) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Icon(item.icon, size: 18, color: item.iconColor),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                item.text,
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  color: Color(0xFF475569),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Icon Avatar
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: card.iconBgColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(child: card.iconWidget),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 18),
+
+                        // Title
+                        Text(
+                          card.title,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Subtitle
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 58),
+                          child: Text(
+                            card.subtitle,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              height: 1.45,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Feature bullet list
+                        for (final item in card.features) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Icon(item.icon, size: 18, color: item.iconColor),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    item.text,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF475569),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
 
                     const SizedBox(height: 20),
 
