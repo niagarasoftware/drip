@@ -2350,7 +2350,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP HEADER ROW (Yellow Date Headers)
+                            // TOP HEADER ROW (Gray Date Headers)
                             Row(
                               children: [
                                 for (int dIdx = 0;
@@ -2361,12 +2361,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     height: 38,
                                     alignment: Alignment.center,
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFF5B800),
+                                      color: Color(0xFFE2E8F0),
                                       border: Border(
                                         right: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                         bottom: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                       ),
                                     ),
                                     child: Text(
@@ -2645,12 +2645,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           height: 38,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFF5B800),
+                            color: Color(0xFFE2E8F0),
                             border: Border(
                               right: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                               bottom: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                             ),
                           ),
                           child: Text(
@@ -3667,9 +3667,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   ? dayData.durationStr
                                   : '-');
                           String dayQtyStr = (hasRun && qty > 0)
-                              ? (qty % 1 == 0
-                                  ? "${qty.toInt()} L"
-                                  : "$qty L")
+                              ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
                               : '-';
 
                           Color rowBg = dIdx % 2 == 0
@@ -4028,7 +4026,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP HEADER ROW (Yellow Date Headers)
+                            // TOP HEADER ROW (Gray Date Headers)
                             Row(
                               children: [
                                 for (int dIdx = 0;
@@ -4039,12 +4037,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     height: 38,
                                     alignment: Alignment.center,
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFF5B800),
+                                      color: Color(0xFFE2E8F0),
                                       border: Border(
                                         right: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                         bottom: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                       ),
                                     ),
                                     child: Text(
@@ -4314,12 +4312,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           height: 38,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFF5B800),
+                            color: Color(0xFFE2E8F0),
                             border: Border(
                               right: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                               bottom: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                             ),
                           ),
                           child: Text(
@@ -5117,7 +5115,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 Expanded(
                   child: _buildSummaryCard(
                     title: "Total Quantity",
-                    value: grandTotalQuantity > 0 ? "$grandTotalQuantity L" : "-",
+                    value:
+                        grandTotalQuantity > 0 ? "$grandTotalQuantity L" : "-",
                     icon: Icons.water_drop_outlined,
                     color: const Color(0xFF16A34A),
                     bgColor: const Color(0xFFF0FDF4),
@@ -5198,10 +5197,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: color,
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -5795,8 +5794,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : (hasRun && dayData.durationQtyStr != '00:00:00'
                                   ? dayData.durationQtyStr
                                   : '-');
-                          String qtyStr =
-                              (hasRun && qty > 0) ? "$qty L" : '-';
+                          String qtyStr = (hasRun && qty > 0) ? "$qty L" : '-';
 
                           Color rowBg = dIdx % 2 == 0
                               ? Colors.white
