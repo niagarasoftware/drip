@@ -437,9 +437,9 @@ class WaterSourceSetup extends SiteSetupBase {
       }
 
       // 4. Y positions
-      const double vGap = 42.0;
+      const double vGap = 36.0;
       double block(NodeObject n) =>
-          n.size.height + (n.type == NodeType.overheadTank ? 34.0 : 0.0);
+          n.size.height + (n.type == NodeType.overheadTank ? 28.0 : 0.0);
 
       final Map<String, double> top = {};
       final colH = [
@@ -469,11 +469,20 @@ class WaterSourceSetup extends SiteSetupBase {
             desired.add(avg - n.size.height / 2);
           }
         }
+
+        const double minGap = 32.0;
+        const double maxGap = 110.0;
+
         double cursor = -double.infinity;
         for (int i = 0; i < layer.length; i++) {
-          final t = math.max(desired[i], cursor);
+          double t = desired[i];
+          if (cursor.isFinite) {
+            t = math.max(t, cursor);
+            final double capTop = cursor - minGap + maxGap;
+            t = math.min(t, capTop);
+          }
           top[layer[i].id] = t;
-          cursor = t + block(layer[i]) + vGap;
+          cursor = t + block(layer[i]) + minGap;
         }
       }
 

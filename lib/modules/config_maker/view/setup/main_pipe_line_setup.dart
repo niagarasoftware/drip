@@ -60,7 +60,7 @@ class MainPipelineSetup extends SiteSetupBase {
       final bool isTargetOnRight = targetPt.dx >= maxWaterX;
 
       if (isTargetOnRight) {
-        final double trunkX = math.max(maxWaterX + 40.0, targetPt.dx - 30.0);
+        final double trunkX = math.max(maxWaterX + 60.0, targetPt.dx - 80.0);
 
         if (supplyNodes.length == 1) {
           final termRef = supplyNodes.first;
@@ -80,8 +80,7 @@ class MainPipelineSetup extends SiteSetupBase {
               Offset(bypassX, termPt.dy),
               Offset(bypassX, bypassY),
               Offset(trunkX, bypassY),
-              Offset(trunkX, targetPt.dy - 20.0),
-              Offset(targetPt.dx, targetPt.dy - 20.0),
+              Offset(trunkX, targetPt.dy),
             ];
           } else {
             if ((termPt.dy - targetPt.dy).abs() < 2.0) {
@@ -89,8 +88,7 @@ class MainPipelineSetup extends SiteSetupBase {
             } else {
               wps = [
                 Offset(trunkX, termPt.dy),
-                Offset(trunkX, targetPt.dy - 20.0),
-                Offset(targetPt.dx, targetPt.dy - 20.0),
+                Offset(trunkX, targetPt.dy),
               ];
             }
           }
@@ -159,8 +157,7 @@ class MainPipelineSetup extends SiteSetupBase {
             final List<Offset> wps = (prevJnPt.dy - targetPt.dy).abs() < 2.0
                 ? []
                 : [
-              Offset(trunkX, targetPt.dy - 20.0),
-              Offset(targetPt.dx, targetPt.dy - 20.0),
+              Offset(trunkX, targetPt.dy),
             ];
             pipes.add(PipeConnection(
               id: nextId('pipe'),

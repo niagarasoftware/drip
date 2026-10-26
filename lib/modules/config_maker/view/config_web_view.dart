@@ -285,7 +285,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                             ? Connection(configPvd: configPvd)
                             : configPvd.selectedTab == ConfigMakerTabs.siteConfigure
                             ? SiteConfigure(configPvd: configPvd)
-                            : const DrawYourSiteScreen(),
+                            : const DrawYourSiteScreen(fullAccess: false,),
                       ),
                     ),
                   ),

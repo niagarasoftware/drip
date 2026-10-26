@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
 import 'package:provider/provider.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../Constants/communication_codes.dart';
 import '../../../Constants/dialog_boxes.dart';
 import '../model/device_object_model.dart';
 import '../model/filtration_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../widget/config_template_widgets.dart';
 import '../widget/object_manager_bar.dart';
+import '../widget/painter/multi_filter_painter.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
 
@@ -32,12 +33,12 @@ class FiltrationConfiguration extends StatefulWidget {
 }
 
 class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
-  // ── Design tokens (Matching pump_configuration.dart Light Mode) ──
+  // ── Design tokens (Matching source_configuration.dart) ──
   static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _outletColor = Color(0xFF059669); // emerald green
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
-  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
+  static const Color _inkColor = Colors.white; // dark mode crisp white text
+  static const Color _subTextColor = Color(0xFF8E9BB4); // slate-400 subtle text
 
   // ───────────────────────────────────────────────────────────
   //  PROGRESS CALCULATION
@@ -52,8 +53,116 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     return _Progress(filled, total, filled);
   }
 
+  void _showDarkModeAlertDialog({
+    required String title,
+    required String message,
+    IconData icon = Icons.warning_amber_rounded,
+    Color iconColor = const Color(0xFFF59E0B),
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF181C38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF2B335C)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: iconColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: iconColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 28),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF8E9BB4),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'OK',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _addFiltrationSite() {
     final p = widget.configPvd;
+
+    // Check for unassigned filters
+    List<double> assignedFilterSnos = [];
+    for (var site in p.filtration) {
+      for (var filter in site.filters) {
+        assignedFilterSnos.add(filter.sNo);
+      }
+    }
+
+    List<DeviceObjectModel> unassignedFilters = p.listOfGeneratedObject
+        .where((o) =>
+            o.objectId == AppConstants.filterObjectId &&
+            o.sNo != null &&
+            !assignedFilterSnos.contains(o.sNo!))
+        .toList();
+
+    if (unassignedFilters.isEmpty) {
+      _showDarkModeAlertDialog(
+        title: 'No Unassigned Filters',
+        message: 'No unassigned filter is available. Please add more filters before creating a new filtration site.',
+      );
+      return;
+    }
+
     DeviceObjectModel? sampleObj;
     for (var o in p.listOfSampleObjectModel) {
       if (o.objectId == AppConstants.filterSiteObjectId) {
@@ -80,9 +189,8 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     int? cap = maxCountForObject(p, sampleObj);
 
     if (cap != null && currentCount + 1 > cap) {
-      simpleDialogBox(
-        context: context,
-        title: 'Alert',
+      _showDarkModeAlertDialog(
+        title: 'Limit Reached',
         message: 'Only $cap Filtration Site can be added for this master controller model.',
       );
       return;
@@ -90,6 +198,11 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
 
     setState(() {
       p.updateObjectCount(AppConstants.filterSiteObjectId, '${currentCount + 1}');
+      if (p.filtration.isNotEmpty) {
+        final newSite = p.filtration.last;
+        final filterToAssign = unassignedFilters.first;
+        newSite.filters.add(Filter(sNo: filterToAssign.sNo!, filterMode: 1));
+      }
     });
   }
 
@@ -102,20 +215,10 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     final filtrations = widget.configPvd.filtration;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFC), // Slate 50
-            Color(0xFFF1F5F9), // Slate 100
-          ],
-        ),
-      ),
+      color: const Color(0xFF0C0F1D),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: LayoutBuilder(builder: (context, constraint) {
-          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
           return SizedBox(
             width: constraint.maxWidth,
             height: constraint.maxHeight,
@@ -123,23 +226,37 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  _buildPageHeading(filtrations.length, primaryColor),
+                  ConfigPageHeading(
+                    title: 'Filtration configuration',
+                    subtitle: 'Configure site mode, filters, filter types, and pressure sensors',
+                    totalCount: filtrations.length,
+                    countUnitSingular: 'site',
+                    countUnitPlural: 'sites',
+                    primaryColor: primaryColor,
+                    icon: Icons.filter_alt_rounded,
+                    onAddPressed: _addFiltrationSite,
+                    addButtonLabel: 'Add Site',
+                  ),
                   const SizedBox(height: 18),
                   if (filtrations.isEmpty)
-                    _buildEmptyState(primaryColor)
+                    ConfigEmptyState(
+                      title: 'No Filtration Sites Added',
+                      subtitle: 'Tap the button below to add a filtration site to your configuration.',
+                      icon: Icons.filter_alt_rounded,
+                      primaryColor: primaryColor,
+                      onAddPressed: _addFiltrationSite,
+                      buttonLabel: 'Add Site',
+                    )
                   else
-                    ResponsiveGridList(
-                      horizontalGridMargin: 0,
-                      verticalGridMargin: 16,
-                      minItemWidth: itemWidth,
-                      listViewBuilderOptions: ListViewBuilderOptions(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                      ),
-                      children: [
-                        for (var site in filtrations)
-                          _buildFiltrationCard(site, primaryColor),
-                      ],
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filtrations.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        final site = filtrations[index];
+                        return _buildFiltrationCard(site, primaryColor);
+                      },
                     ),
                   const SizedBox(height: 16),
                 ],
@@ -151,192 +268,316 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     );
   }
 
-  Widget _buildEmptyState(Color primaryColor) {
+  Widget _buildFiltrationPainterBlock(FiltrationModel site, Color primaryColor) {
+    if (site.filters.isNotEmpty) {
+      final List<String> filterNames = site.filters
+          .map((f) => getObjectName(f.sNo, widget.configPvd).name ?? '')
+          .toList();
+
+      const double painterH = 200.0;
+      final double calculatedW = DetailedMultiFilterPainter.calculateWidth(painterH, site.filters.length);
+      return Container(
+        width: double.infinity,
+        height: painterH + 20,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF12162B),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: CustomPaint(
+              painter: DetailedMultiFilterPainter(
+                isOn: true,
+                filterCount: site.filters.length,
+                filterNames: filterNames,
+              ),
+              size: Size(calculatedW, painterH),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      height: 90,
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: const Color(0xFF12162B),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedImage(
+              imagePath: '${AppConstants.svgObjectPath}objectId_4.svg',
+              color: primaryColor,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'No Filters Assigned',
+              style: TextStyle(
+                color: _subTextColor,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCancelGradientButton({
+    required VoidCallback onTap,
+    String tooltip = 'Delete',
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFEF4444),
+                  Color(0xFFB91C1C),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete({
+    required BuildContext context,
+    required String itemName,
+    required VoidCallback onDelete,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF181C38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF2B335C)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 28),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Delete $itemName',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Are you sure you want to delete "$itemName"? This action cannot be undone.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF8E9BB4),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF8E9BB4),
+                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFiltrationHeaderBlock({
+    required FiltrationModel site,
+    required _Progress progress,
+    required Color primaryColor,
+    Widget? typeSelector,
+  }) {
+    final itemName = site.commonDetails.name ?? 'Filtration Site';
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.filter_alt_rounded, size: 48, color: primaryColor.withValues(alpha: 0.6)),
-          const SizedBox(height: 12),
-          const Text(
-            'No Filtration Sites Added',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _inkColor,
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            title: Text(
+              itemName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (typeSelector != null) typeSelector,
+                const SizedBox(width: 8),
+                _buildCancelGradientButton(
+                  onTap: () {
+                    _confirmDelete(
+                      context: context,
+                      itemName: itemName,
+                      onDelete: () {
+                        setState(() {
+                          widget.configPvd.deleteGeneratedObject(
+                            site.commonDetails.sNo!,
+                            AppConstants.filterSiteObjectId,
+                          );
+                        });
+                      },
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tap the button below to add a filtration site to your configuration.',
-            style: TextStyle(fontSize: 12, color: _subTextColor),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _addFiltrationSite,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add Filtration Site', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
+          const SizedBox(height: 8),
+          _buildFiltrationPainterBlock(site, primaryColor),
         ],
       ),
     );
   }
 
-  // ───────────────────────────────────────────────────────────
-  //  PAGE INTRO
-  // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total, Color primaryColor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.filter_alt_rounded, color: Colors.white, size: 23),
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Filtration configuration',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 20,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.45,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Configure site mode, filters, filter types, and pressure sensors',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: _addFiltrationSite,
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('Add Site',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: const TextStyle(
-                  color: _inkColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'SITES',
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 8,
-                  letterSpacing: 0.7,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  FILTRATION CARD
-  // ───────────────────────────────────────────────────────────
   Widget _buildFiltrationCard(FiltrationModel site, Color primaryColor) {
+    final currentType = getCentralLocalCodeToString(site.siteMode);
+    const modeTypes = ['Central', 'Local'];
+    const modeIcons = {
+      'Central': Icons.hub_rounded,
+      'Local': Icons.location_on_rounded,
+    };
+
+    final typeSelector = ConfigTypeSelector(
+      currentType: currentType,
+      typeList: modeTypes,
+      typeIcons: modeIcons,
+      tooltip: 'Change site mode',
+      onSelected: (value) {
+        setState(() {
+          site.siteMode = getCentralLocalStringToCode(value);
+        });
+      },
+    );
+
     final progress = _calcProgress(site);
 
-    return _buildCardShell(
-      site: site,
-      progress: progress,
-      primaryColor: primaryColor,
-      typeSelector: _buildSiteModeSelector(site, primaryColor),
+    return ConfigCardShell(
+      headerBlock: _buildFiltrationHeaderBlock(
+        site: site,
+        progress: progress,
+        primaryColor: primaryColor,
+        typeSelector: typeSelector,
+      ),
+      isComplete: progress.complete,
+      completeColor: _doneColor,
+      expandHeader: true,
+      rightPanelWidth: 500.0,
       body: [
-        _buildFlowSection(
-          title: 'Filters & Types',
+        ConfigFlowSection(
+          title: 'Filters',
           icon: Icons.tune_rounded,
           accent: _inletColor,
           children: [
             _buildFiltersTile(site, _inletColor),
-            if (site.filters.isNotEmpty) ...[
-              for (int i = 0; i < site.filters.length; i++)
-                _buildFilterItemTile(site, i, _inletColor),
-            ],
           ],
         ),
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Pressure Sensors',
           icon: Icons.speed_rounded,
           accent: _outletColor,
@@ -349,435 +590,17 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     );
   }
 
-  // ───────────────────────────────────────────────────────────
-  //  CARD SHELL
-  // ───────────────────────────────────────────────────────────
-  Widget _buildCardShell({
-    required FiltrationModel site,
-    required _Progress progress,
-    required Color primaryColor,
-    Widget? typeSelector,
-    required List<Widget> body,
-  }) {
-    final remaining = progress.total - progress.filled;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: progress.complete
-              ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFFE2E8F0),
-          width: progress.complete ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: progress.complete
-                ? _doneColor.withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 18,
-            spreadRadius: 0,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.12),
-                        primaryColor.withValues(alpha: 0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: SizedImage(
-                    imagePath: '${AppConstants.svgObjectPath}objectId_4.svg',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        site.commonDetails.name ?? 'Filtration',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _inkColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (typeSelector != null) typeSelector,
-                          Text(
-                            progress.complete ? 'Complete' : '$remaining left to assign',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: progress.complete ? _doneColor : _subTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildProgressRing(progress, primaryColor),
-              ],
-            ),
-          ),
-
-          // ── Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _withGaps(body, 10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _withGaps(List<Widget> items, double gap) {
-    final out = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) out.add(SizedBox(height: gap));
-      out.add(items[i]);
-    }
-    return out;
-  }
-
-  Widget _buildProgressRing(_Progress p, Color primaryColor) {
-    final color = p.complete
-        ? _doneColor
-        : p.filled > 0
-        ? primaryColor
-        : Colors.grey.shade400;
-
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: CircularProgressIndicator(
-              value: p.fraction,
-              strokeWidth: 4,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-          p.complete
-              ? Icon(Icons.check_rounded, size: 22, color: color)
-              : Text(
-            '${p.filled}/${p.total}',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  SITE MODE SELECTOR
-  // ───────────────────────────────────────────────────────────
-  Widget _buildSiteModeSelector(FiltrationModel site, Color primaryColor) {
-    final currentType = getCentralLocalCodeToString(site.siteMode);
-    const modeTypes = ['Central', 'Local'];
-    const modeIcons = {
-      'Central': Icons.hub_rounded,
-      'Local': Icons.location_on_rounded,
-    };
-
-    return PopupMenuButton<String>(
-      tooltip: 'Change site mode',
-      initialValue: currentType,
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      onSelected: (value) {
-        setState(() {
-          site.siteMode = getCentralLocalStringToCode(value);
-        });
-      },
-      itemBuilder: (context) => modeTypes.map((type) {
-        final selected = type == currentType;
-        return PopupMenuItem<String>(
-          value: type,
-          child: Row(
-            children: [
-              Icon(
-                modeIcons[type] ?? Icons.circle,
-                size: 18,
-                color: selected ? primaryColor : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  type,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? primaryColor : _inkColor,
-                  ),
-                ),
-              ),
-              if (selected) Icon(Icons.check_rounded, size: 18, color: primaryColor),
-            ],
-          ),
-        );
-      }).toList(),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(9, 4, 7, 4),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryColor.withValues(alpha: 0.10),
-              primaryColor.withValues(alpha: 0.04),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: primaryColor.withValues(alpha: 0.20)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(modeIcons[currentType] ?? Icons.circle, size: 14, color: primaryColor),
-            const SizedBox(width: 5),
-            Text(
-              currentType.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: primaryColor,
-              ),
-            ),
-            Icon(Icons.arrow_drop_down_rounded, size: 18, color: primaryColor),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  FLOW SECTION
-  // ───────────────────────────────────────────────────────────
-  Widget _buildFlowSection({
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required List<Widget> children,
-  }) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-          height: 1,
-          thickness: 1,
-          indent: 8,
-          endIndent: 8,
-          color: accent.withValues(alpha: 0.12),
-        ));
-      }
-      rows.add(children[i]);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...rows,
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  TILES FOR PARAMETERS
-  // ───────────────────────────────────────────────────────────
-  Widget _buildTile({
-    required String title,
-    required String imagePath,
-    required String assignedName,
-    required bool isAssigned,
-    required VoidCallback onTap,
-    required Color accent,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: SizedImage(
-                  imagePath: imagePath,
-                  color: isAssigned ? accent : Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isAssigned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Text(
-                          assignedName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: accent,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        'Not assigned',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              isAssigned
-                  ? Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_rounded, size: 18, color: accent),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildFiltersTile(FiltrationModel site, Color accent) {
     int objectId = 11;
     bool isAssigned = site.filters.isNotEmpty;
-    String assignedName = isAssigned
-        ? site.filters.map((filter) => getObjectName(filter.sNo, widget.configPvd).name ?? '-').join(', ')
-        : '';
+    List<String> names = isAssigned
+        ? site.filters.map((filter) => getObjectName(filter.sNo, widget.configPvd).name ?? '-').toList()
+        : [];
 
-    return _buildTile(
+    return ConfigComponentTile(
       title: 'Filter',
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: names,
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -807,163 +630,17 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     );
   }
 
-  Widget _buildFilterItemTile(FiltrationModel site, int index, Color accent) {
-    final filter = site.filters[index];
-    final filterName = getObjectName(filter.sNo, widget.configPvd).name ?? 'Filter ${index + 1}';
-    final isDisc = filter.filterMode == 2;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: SizedImage(
-              imagePath: '${AppConstants.svgObjectPath}objectId_11.svg',
-              color: accent,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  filterName,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: _inkColor,
-                  ),
-                ),
-                Text(
-                  isDisc ? 'Disc Filter' : 'Sand Filter',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: _subTextColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          PopupMenuButton<int>(
-            tooltip: 'Select filter type',
-            initialValue: filter.filterMode,
-            color: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            onSelected: (value) {
-              setState(() {
-                widget.configPvd.updateFilterMode(site, index, value);
-              });
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<int>(
-                value: 1,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.waves_rounded,
-                      size: 16,
-                      color: filter.filterMode == 1 ? accent : Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Sand filter',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: filter.filterMode == 1 ? FontWeight.w700 : FontWeight.w500,
-                        color: filter.filterMode == 1 ? accent : _inkColor,
-                      ),
-                    ),
-                    if (filter.filterMode == 1) ...[
-                      const SizedBox(width: 8),
-                      Icon(Icons.check_rounded, size: 16, color: accent),
-                    ],
-                  ],
-                ),
-              ),
-              PopupMenuItem<int>(
-                value: 2,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.disc_full_rounded,
-                      size: 16,
-                      color: filter.filterMode == 2 ? accent : Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Disc filter',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: filter.filterMode == 2 ? FontWeight.w700 : FontWeight.w500,
-                        color: filter.filterMode == 2 ? accent : _inkColor,
-                      ),
-                    ),
-                    if (filter.filterMode == 2) ...[
-                      const SizedBox(width: 8),
-                      Icon(Icons.check_rounded, size: 16, color: accent),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: accent.withValues(alpha: 0.20)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    isDisc ? 'Disc' : 'Sand',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: accent,
-                    ),
-                  ),
-                  Icon(Icons.arrow_drop_down_rounded, size: 16, color: accent),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPressureTile(FiltrationModel site, int pressureMode, Color accent) {
     int objectId = 24;
     String objectName = pressureMode == 1 ? 'Pressure In' : 'Pressure Out';
     double currentSno = pressureMode == 1 ? site.pressureIn : site.pressureOut;
     bool isAssigned = currentSno != 0.0;
-    String assignedName = isAssigned ? getObjectName(currentSno, widget.configPvd).name ?? '-' : '';
+    List<String> names = isAssigned ? [getObjectName(currentSno, widget.configPvd).name ?? '-'] : [];
 
-    return _buildTile(
+    return ConfigComponentTile(
       title: objectName,
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: names,
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {

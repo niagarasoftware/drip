@@ -5,8 +5,8 @@ import '../../../Constants/communication_codes.dart';
 import '../../../Constants/dialog_boxes.dart';
 import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../widget/config_template_widgets.dart';
 import '../widget/object_manager_bar.dart';
-import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
 import '../widget/painter/over_head_tank_painter.dart';
 import '../widget/painter/sump_painter.dart';
@@ -184,10 +184,27 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  _buildPageHeading(sources.length, primaryColor),
+                  ConfigPageHeading(
+                    title: 'Source configuration',
+                    subtitle: 'Configure pumps, valves and sensors for your sources',
+                    totalCount: sources.length,
+                    countUnitSingular: 'source',
+                    countUnitPlural: 'sources',
+                    primaryColor: primaryColor,
+                    icon: Icons.tune_rounded,
+                    onAddPressed: _addSource,
+                    addButtonLabel: 'Add Source',
+                  ),
                   const SizedBox(height: 18),
                   if (sources.isEmpty)
-                    _buildEmptyState(primaryColor)
+                    ConfigEmptyState(
+                      title: 'No Water Sources Added',
+                      subtitle: 'Tap the button below to add a water source to your configuration.',
+                      icon: Icons.waves_rounded,
+                      primaryColor: primaryColor,
+                      onAddPressed: _addSource,
+                      buttonLabel: 'Add Source',
+                    )
                   else
                     ListView.separated(
                       shrinkWrap: true,
@@ -211,137 +228,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildEmptyState(Color primaryColor) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF20274B)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.waves_rounded, size: 48, color: primaryColor.withValues(alpha: 0.8)),
-          const SizedBox(height: 12),
-          const Text(
-            'No Water Sources Added',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tap the button below to add a water source to your configuration.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF8E9BB4)),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _addSource,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  PAGE INTRO
-  // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total, Color primaryColor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: primaryColor.withValues(alpha: 0.18),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(Icons.tune_rounded, color: primaryColor, size: 21),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Source configuration',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: primaryColor.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '$total ${total == 1 ? 'source' : 'sources'}',
-                      style: TextStyle(
-                        color: primaryColor,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'Configure pumps, valves and sensors for your sources',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Color(0xFF8E9BB4),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        ElevatedButton.icon(
-          onPressed: _addSource,
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('Add Source',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSourcePainterLeading(int sourceType) {
+  Widget _buildSourcePainterBlock(int sourceType) {
     CustomPainter painter;
     switch (sourceType) {
       case 1:
@@ -368,17 +255,160 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     }
 
     return Container(
-      width: 100,
-      height: 100,
-      padding: const EdgeInsets.all(6),
+      width: double.infinity,
+      height: 80,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFF12162B),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: CustomPaint(
-        painter: painter,
-        size: const Size(88, 88),
+      child: Center(
+        child: CustomPaint(
+          painter: painter,
+          size: const Size(85, 72),
+        ),
       ),
+    );
+  }
+
+  Widget _buildCancelGradientButton({
+    required VoidCallback onTap,
+    String tooltip = 'Delete',
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFEF4444),
+                  Color(0xFFB91C1C),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete({
+    required BuildContext context,
+    required String itemName,
+    required VoidCallback onDelete,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF181C38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF2B335C)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 28),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Delete $itemName',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Are you sure you want to delete "$itemName"? This action cannot be undone.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF8E9BB4),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF8E9BB4),
+                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -388,263 +418,58 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     required Color primaryColor,
     Widget? typeSelector,
   }) {
+    final itemName = source.commonDetails.name ?? 'Source';
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: const Color(0xFF181C38),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSourcePainterLeading(source.sourceType),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  source.commonDetails.name ?? 'Source',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                if (typeSelector != null) ...[
-                  const SizedBox(height: 6),
-                  typeSelector,
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  CARD SHELL (shared by both card types)
-  // ───────────────────────────────────────────────────────────
-  Widget _buildCardShell({
-    required SourceModel source,
-    required _Progress progress,
-    required Color primaryColor,
-    Widget? typeSelector,
-    required List<Widget> body,
-    Widget? footer,
-  }) {
-    final sourceHeaderBlock = _buildSourceHeaderBlock(
-      source: source,
-      progress: progress,
-      primaryColor: primaryColor,
-      typeSelector: typeSelector,
-    );
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: progress.complete
-              ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFF20274B),
-          width: progress.complete ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: progress.complete
-                ? _doneColor.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.2),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(10),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final double maxW = constraints.maxWidth;
-          final bool isUltraWide = maxW >= 880 && body.isNotEmpty;
-          final bool isMediumWide = maxW >= 620;
-
-          if (isUltraWide) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SizedBox(
-                        width: 280,
-                        child: sourceHeaderBlock,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildBodyGrid(body, wide: true),
-                      ),
-                    ],
-                  ),
-                ),
-                if (footer != null) ...[
-                  const SizedBox(height: 10),
-                  footer,
-                ],
-              ],
-            );
-          } else {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                sourceHeaderBlock,
-                if (body.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildBodyGrid(body, wide: isMediumWide),
-                ],
-                if (footer != null) ...[
-                  const SizedBox(height: 10),
-                  footer,
-                ],
-              ],
-            );
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildBodyGrid(List<Widget> body, {required bool wide}) {
-    if (body.isEmpty) return const SizedBox();
-
-    if (wide) {
-      final rows = <Widget>[];
-      for (var i = 0; i < body.length; i += 2) {
-        final hasPair = i + 1 < body.length;
-        rows.add(
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: body[i]),
-                if (hasPair) ...[
-                  const SizedBox(width: 10),
-                  Expanded(child: body[i + 1]),
-                ],
-              ],
-            ),
-          ),
-        );
-      }
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _withGaps(rows, 10),
-      );
-    } else {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: _withGaps(body, 10),
-      );
-    }
-  }
-
-  List<Widget> _withGaps(List<Widget> items, double gap) {
-    final out = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) out.add(SizedBox(height: gap));
-      out.add(items[i]);
-    }
-    return out;
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  TYPE SELECTOR (replaces the plain dropdown)
-  // ───────────────────────────────────────────────────────────
-  Widget _buildTypeSelector(SourceModel source, String currentType, Color primaryColor) {
-    const activeAccent = Color(0xFF38BDF8); // Bright sky blue accent for high visibility
-
-    return PopupMenuButton<String>(
-      tooltip: 'Change source type',
-      initialValue: currentType,
-      color: const Color(0xFF181C38),
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF2B335C)),
-      ),
-      onSelected: (value) {
-        setState(() {
-          source.sourceType = getTankStringToCode(value);
-          if ([4, 5].contains(source.sourceType)) {
-            source.inletPump.clear();
-            source.level = 0.0;
-            source.topFloatForInletPump = 0.0;
-            source.bottomFloatForInletPump = 0.0;
-          }
-        });
-      },
-      itemBuilder: (context) => _tankTypeList.map((type) {
-        final selected = type == currentType;
-        return PopupMenuItem<String>(
-          value: type,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            decoration: BoxDecoration(
-              color: selected ? activeAccent.withValues(alpha: 0.18) : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  _tankTypeIcons[type] ?? Icons.circle,
-                  size: 18,
-                  color: selected ? activeAccent : const Color(0xFF94A3B8),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    type,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                      color: selected ? activeAccent : Colors.white,
-                    ),
-                  ),
-                ),
-                if (selected)
-                  const Icon(Icons.check_rounded, size: 18, color: activeAccent),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E2648),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: activeAccent.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_tankTypeIcons[currentType] ?? Icons.circle, size: 14, color: activeAccent),
-            const SizedBox(width: 6),
-            Text(
-              currentType,
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            title: Text(
+              itemName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 12.5,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(width: 2),
-            const Icon(Icons.arrow_drop_down_rounded, size: 18, color: activeAccent),
-          ],
-        ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (typeSelector != null) typeSelector,
+                const SizedBox(width: 8),
+                _buildCancelGradientButton(
+                  onTap: () {
+                    _confirmDelete(
+                      context: context,
+                      itemName: itemName,
+                      onDelete: () {
+                        setState(() {
+                          widget.configPvd.deleteGeneratedObject(
+                            source.commonDetails.sNo!,
+                            AppConstants.sourceObjectId,
+                          );
+                        });
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          _buildSourcePainterBlock(source.sourceType),
+        ],
       ),
     );
   }
@@ -655,12 +480,16 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   Widget _buildAquacultureSourceCard(SourceModel source, Color primaryColor) {
     final progress = _calcProgress(source);
 
-    return _buildCardShell(
-      source: source,
-      progress: progress,
-      primaryColor: primaryColor,
+    return ConfigCardShell(
+      headerBlock: _buildSourceHeaderBlock(
+        source: source,
+        progress: progress,
+        primaryColor: primaryColor,
+      ),
+      isComplete: progress.complete,
+      completeColor: _doneColor,
       body: [
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Aeration',
           icon: Icons.air_rounded,
           accent: primaryColor,
@@ -721,15 +550,37 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
 
     final progress = _calcProgress(source);
 
-    return _buildCardShell(
-      source: source,
-      progress: progress,
-      primaryColor: primaryColor,
-      typeSelector: _buildTypeSelector(source, currentTankType, primaryColor),
+    final typeSelector = ConfigTypeSelector(
+      currentType: currentTankType,
+      typeList: _tankTypeList,
+      typeIcons: _tankTypeIcons,
+      tooltip: 'Change source type',
+      onSelected: (value) {
+        setState(() {
+          source.sourceType = getTankStringToCode(value);
+          if ([4, 5].contains(source.sourceType)) {
+            source.inletPump.clear();
+            source.level = 0.0;
+            source.topFloatForInletPump = 0.0;
+            source.bottomFloatForInletPump = 0.0;
+          }
+        });
+      },
+    );
+
+    return ConfigCardShell(
+      headerBlock: _buildSourceHeaderBlock(
+        source: source,
+        progress: progress,
+        primaryColor: primaryColor,
+        typeSelector: typeSelector,
+      ),
+      isComplete: progress.complete,
+      completeColor: _doneColor,
       body: [
         // ── Nutrient ──
         if (isFertilizerSource)
-          _buildFlowSection(
+          ConfigFlowSection(
             title: 'Nutrient',
             icon: Icons.science_rounded,
             accent: primaryColor,
@@ -740,7 +591,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
 
         // ── Inlet ──
         if (!isBoreOrPond)
-          _buildFlowSection(
+          ConfigFlowSection(
             title: 'Inlet',
             icon: Icons.south_west_rounded,
             accent: _inletColor,
@@ -751,7 +602,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           ),
 
         // ── Outlet ──
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Outlet',
           icon: Icons.north_east_rounded,
           accent: _outletColor,
@@ -763,7 +614,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
 
         // ── Agitator ──
         if (isFertilizerSource && hasAgitators)
-          _buildFlowSection(
+          ConfigFlowSection(
             title: 'Mixing',
             icon: Icons.sync_rounded,
             accent: _agitatorColor,
@@ -781,161 +632,35 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   //  SENSORS (collapsible, 3-column grid on wide screens)
   // ───────────────────────────────────────────────────────────
   Widget _buildSensorsSection(SourceModel source, _Progress progress, Color primaryColor) {
-    final active = progress.sensorFilled > 0;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-          iconTheme: const IconThemeData(color: _subTextColor),
-        ),
-        child: ExpansionTile(
-          key: PageStorageKey('sensors_${source.commonDetails.sNo}'),
-          dense: true,
-          visualDensity: const VisualDensity(vertical: -3),
-          tilePadding: const EdgeInsets.symmetric(horizontal: 10),
-          childrenPadding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-          shape: const Border(),
-          collapsedShape: const Border(),
-          leading: Container(
-            padding: const EdgeInsets.all(5),
-            decoration: BoxDecoration(
-              color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.sensors_rounded,
-              size: 14,
-              color: active ? primaryColor : const Color(0xFF8E9BB4),
-            ),
-          ),
-          title: Row(
+    return ConfigSensorsSection(
+      storageKey: PageStorageKey('sensors_${source.commonDetails.sNo}'),
+      title: 'Level and sensors',
+      activeSensorCount: progress.sensorFilled,
+      totalSensors: 6,
+      primaryColor: primaryColor,
+      children: [
+        LayoutBuilder(builder: (context, c) {
+          final cols = c.maxWidth >= 560 ? 3 : 2;
+          // 3 cols -> [level, in-top, in-bottom] / [meter, out-top, out-bottom]
+          final order = cols == 3 ? [1, 2, 3, 6, 4, 5] : [1, 6, 2, 3, 4, 5];
+          const gap = 8.0;
+          final w = (c.maxWidth - gap * (cols - 1)) / cols;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
             children: [
-              const Flexible(
-                child: Text(
-                  'Level and sensors',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              for (final m in order)
+                SizedBox(
+                  width: w,
+                  child: _buildParameterTileForSensor(source, m, primaryColor),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${progress.sensorFilled}/6 active',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: active ? primaryColor : const Color(0xFF8E9BB4),
-                  ),
-                ),
-              ),
             ],
-          ),
-          children: [
-            LayoutBuilder(builder: (context, c) {
-              final cols = c.maxWidth >= 560 ? 3 : 2;
-              // 3 cols -> [level, in-top, in-bottom] / [meter, out-top, out-bottom]
-              final order = cols == 3 ? [1, 2, 3, 6, 4, 5] : [1, 6, 2, 3, 4, 5];
-              const gap = 8.0;
-              final w = (c.maxWidth - gap * (cols - 1)) / cols;
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final m in order)
-                    SizedBox(
-                      width: w,
-                      child: _buildParameterTileForSensor(source, m, primaryColor),
-                    ),
-                ],
-              );
-            }),
-          ],
-        ),
-      ),
+          );
+        }),
+      ],
     );
   }
 
-  // ───────────────────────────────────────────────────────────
-  //  FLOW SECTION (Inlet / Outlet / Mixing)
-  // ───────────────────────────────────────────────────────────
-  Widget _buildFlowSection({
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required List<Widget> children,
-  }) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-          height: 1,
-          thickness: 1,
-          indent: 8,
-          endIndent: 8,
-          color: accent.withValues(alpha: 0.18),
-        ));
-      }
-      rows.add(children[i]);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
-      decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.18),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.bold,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...rows,
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  COMPONENT TILE
-  //  Row style (default): icon, label, assigned chips, action.
-  //  Compact style: small bordered box used in the sensor grid.
-  // ───────────────────────────────────────────────────────────
   Widget _buildComponentTile({
     required String title,
     required String imagePath,
@@ -945,165 +670,14 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     required Color accent,
     bool compact = false,
   }) {
-    if (compact) {
-      return Material(
-        color: isAssigned ? accent.withValues(alpha: 0.15) : const Color(0xFF12162B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: isAssigned
-              ? BorderSide(color: accent.withValues(alpha: 0.5))
-              : BorderSide.none,
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: SizedImage(
-                    imagePath: imagePath,
-                    color: isAssigned ? accent : const Color(0xFF8E9BB4),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFC0CCE0),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isAssigned ? names.join(', ') : 'Tap to add',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: isAssigned ? FontWeight.bold : FontWeight.w500,
-                          fontStyle: isAssigned ? FontStyle.normal : FontStyle.italic,
-                          color: isAssigned ? accent : const Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: Row(
-            children: [
-              // Icon badge
-              Container(
-                width: 34,
-                height: 34,
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.18) : const Color(0xFF12162B),
-                  borderRadius: BorderRadius.circular(8),
-                  border: isAssigned ? Border.all(color: accent.withValues(alpha: 0.4)) : null,
-                ),
-                child: SizedImage(
-                  imagePath: imagePath,
-                  color: isAssigned ? accent : const Color(0xFF8E9BB4),
-                ),
-              ),
-              const SizedBox(width: 10),
-
-              // Label + chips
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isAssigned)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          for (final name in names)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF12162B),
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(color: accent.withValues(alpha: 0.4)),
-                              ),
-                              child: Text(
-                                name,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: accent,
-                                ),
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      const Text(
-                        'Not assigned',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Action
-              isAssigned
-                  ? Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 17, color: accent),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.18),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_rounded, size: 17, color: accent),
-                    ),
-            ],
-          ),
-        ),
-      ),
+    return ConfigComponentTile(
+      title: title,
+      imagePath: imagePath,
+      names: names,
+      isAssigned: isAssigned,
+      onTap: onTap,
+      accent: accent,
+      compact: compact,
     );
   }
 

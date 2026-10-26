@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 
 import '../../../Constants/communication_codes.dart';
 import '../../../Constants/dialog_boxes.dart';
+import '../../../utils/constants.dart';
 import '../model/pump_model.dart';
 import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
-import '../../../Widgets/sized_image.dart';
-import '../../../utils/constants.dart';
+import '../widget/config_template_widgets.dart';
+import '../widget/painter/pump_painter.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -31,13 +31,11 @@ class PumpConfiguration extends StatefulWidget {
 }
 
 class _PumpConfigurationState extends State<PumpConfiguration> {
-  // ── Design tokens (Matching source_configuration.dart Light Mode) ──
+  // ── Design tokens (Matching source_configuration.dart) ──
   static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _outletColor = Color(0xFF059669); // emerald green
   static const Color _agitatorColor = Color(0xFFEA580C); // orange
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
-  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
 
   List<int> pumpModelList = [5, 6, 7, 8, 9, 10];
 
@@ -94,149 +92,131 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
     final pumps = widget.configPvd.pump;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFC), // Slate 50
-            Color(0xFFF1F5F9), // Slate 100
-          ],
-        ),
-      ),
+      color: const Color(0xFF0C0F1D),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: LayoutBuilder(builder: (context, constraint) {
-          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
-          return SizedBox(
-            width: constraint.maxWidth,
-            height: constraint.maxHeight,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildPageHeading(pumps.length),
-                  const SizedBox(height: 18),
-                  ResponsiveGridList(
-                    horizontalGridMargin: 0,
-                    verticalGridMargin: 16,
-                    minItemWidth: itemWidth,
-                    listViewBuilderOptions: ListViewBuilderOptions(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                    ),
-                    children: [
-                      for (var pump in pumps)
-                        _buildPumpCard(pump, primaryColor),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              ConfigPageHeading(
+                title: 'Pump configuration',
+                subtitle: 'Configure pump modes, pressure sensors, floats and levels',
+                totalCount: pumps.length,
+                countUnitSingular: 'pump',
+                countUnitPlural: 'pumps',
+                primaryColor: primaryColor,
+                icon: Icons.speed_rounded,
               ),
-            ),
-          );
-        }),
+              const SizedBox(height: 18),
+              if (pumps.isEmpty)
+                ConfigEmptyState(
+                  title: 'No Pumps Configured',
+                  subtitle: 'No pumps found in current configuration.',
+                  icon: Icons.speed_rounded,
+                  primaryColor: primaryColor,
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: pumps.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final pump = pumps[index];
+                    return _buildPumpCard(pump, primaryColor);
+                  },
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   // ───────────────────────────────────────────────────────────
-  //  PAGE INTRO
+  //  PUMP PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+  Widget _buildPumpPainterBlock() {
+    return Container(
+      width: double.infinity,
+      height: 105,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12162B),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: CustomPaint(
+          painter: DetailedPumpPainter(isOn: true),
+          size: const Size(160, 95),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPumpHeaderBlock({
+    required PumpModel pump,
+    required _Progress progress,
+    required Color primaryColor,
+    Widget? typeSelector,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            title: Text(
+              pump.commonDetails.name ?? 'Pump',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            trailing: typeSelector,
           ),
-          child: const Icon(Icons.speed_rounded, color: Colors.white, size: 23),
+          const SizedBox(height: 8),
+          Expanded(child: _buildPumpPainterBlock()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactGrid(List<Widget> tiles) {
+    const gap = 8.0;
+    final rows = <Widget>[];
+    for (var i = 0; i < tiles.length; i += 2) {
+      final hasSecond = i + 1 < tiles.length;
+      rows.add(
+        Row(
+          children: [
+            Expanded(child: tiles[i]),
+            const SizedBox(width: gap),
+            Expanded(
+              child: hasSecond ? tiles[i + 1] : const SizedBox(),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Pump configuration',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 20,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.45,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Configure pump modes, pressure sensors, floats and levels',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: const TextStyle(
-                  color: _inkColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'PUMPS',
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 8,
-                  letterSpacing: 0.7,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
+      );
+    }
+    return Column(
+      children: [
+        for (var r = 0; r < rows.length; r++) ...[
+          if (r > 0) const SizedBox(height: gap),
+          rows[r],
+        ],
       ],
     );
   }
@@ -248,37 +228,80 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
     final progress = _calcProgress(pump);
     final showModeDropdown = !pumpModelList.contains(widget.configPvd.masterData['modelId']);
 
-    return _buildCardShell(
-      pump: pump,
-      progress: progress,
-      primaryColor: primaryColor,
-      typeSelector: showModeDropdown ? _buildPumpModeSelector(pump, primaryColor) : null,
+    String currentTypeStr = getPumpTypeCodeToString(pump.pumpType);
+    String currentTypeFormatted = currentTypeStr[0].toUpperCase() + currentTypeStr.substring(1);
+
+    final typeSelector = showModeDropdown
+        ? ConfigTypeSelector(
+            currentType: currentTypeFormatted,
+            typeList: const ['Source', 'Irrigation', 'Aerator'],
+            typeIcons: const {
+              'Source': Icons.water_rounded,
+              'Irrigation': Icons.grass_rounded,
+              'Aerator': Icons.air_rounded,
+            },
+            tooltip: 'Change pump mode',
+            onSelected: (value) {
+              setState(() {
+                final codeStr = value.toLowerCase();
+                for (var line in widget.configPvd.line) {
+                  if (codeStr == 'source') {
+                    if (line.irrigationPump.contains(pump.commonDetails.sNo)) {
+                      line.irrigationPump.remove(pump.commonDetails.sNo);
+                    }
+                  } else {
+                    if (line.sourcePump.contains(pump.commonDetails.sNo)) {
+                      line.sourcePump.remove(pump.commonDetails.sNo);
+                    }
+                  }
+                }
+                pump.pumpType = getPumpTypeStringToCode(codeStr);
+              });
+            },
+          )
+        : null;
+
+    return ConfigCardShell(
+      headerBlock: _buildPumpHeaderBlock(
+        pump: pump,
+        progress: progress,
+        primaryColor: primaryColor,
+        typeSelector: typeSelector,
+      ),
+      isComplete: progress.complete,
+      completeColor: _doneColor,
       body: [
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Pressure & Flow Sensors',
           icon: Icons.speed_rounded,
           accent: _inletColor,
           children: [
-            for (var mode in [1, 2, 3])
-              _buildPressureAndWaterMeterTile(pump, mode, _inletColor),
+            _buildCompactGrid([
+              for (var mode in [1, 2, 3])
+                _buildPressureAndWaterMeterTile(pump, mode, _inletColor),
+            ]),
           ],
         ),
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Float Switches',
           icon: Icons.waves_rounded,
           accent: _outletColor,
           children: [
-            for (var mode in [1, 2, 3, 4])
-              _buildFloatTile(pump, mode, _outletColor),
+            _buildCompactGrid([
+              for (var mode in [1, 2, 3, 4])
+                _buildFloatTile(pump, mode, _outletColor),
+            ]),
           ],
         ),
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Level Sensors',
           icon: Icons.unfold_more_rounded,
           accent: _agitatorColor,
           children: [
-            for (var mode in [1, 2])
-              _buildLevelTile(pump, mode, _agitatorColor),
+            _buildCompactGrid([
+              for (var mode in [1, 2])
+                _buildLevelTile(pump, mode, _agitatorColor),
+            ]),
           ],
         ),
       ],
@@ -286,432 +309,25 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   }
 
   // ───────────────────────────────────────────────────────────
-  //  CARD SHELL
+  //  COMPONENT TILES
   // ───────────────────────────────────────────────────────────
-  Widget _buildCardShell({
-    required PumpModel pump,
-    required _Progress progress,
-    required Color primaryColor,
-    Widget? typeSelector,
-    required List<Widget> body,
-  }) {
-    final remaining = progress.total - progress.filled;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: progress.complete
-              ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFFE2E8F0),
-          width: progress.complete ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: progress.complete
-                ? _doneColor.withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 18,
-            spreadRadius: 0,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.12),
-                        primaryColor.withValues(alpha: 0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: SizedImage(
-                    imagePath: '${AppConstants.svgObjectPath}objectId_5.svg',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pump.commonDetails.name ?? 'Pump',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _inkColor,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          if (typeSelector != null) typeSelector,
-                          Text(
-                            progress.complete ? 'Complete' : '$remaining left to assign',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: progress.complete ? _doneColor : _subTextColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildProgressRing(progress, primaryColor),
-              ],
-            ),
-          ),
-
-          // ── Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _withGaps(body, 10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _withGaps(List<Widget> items, double gap) {
-    final out = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) out.add(SizedBox(height: gap));
-      out.add(items[i]);
-    }
-    return out;
-  }
-
-  Widget _buildProgressRing(_Progress p, Color primaryColor) {
-    final color = p.complete
-        ? _doneColor
-        : p.filled > 0
-        ? primaryColor
-        : Colors.grey.shade400;
-
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: CircularProgressIndicator(
-              value: p.fraction,
-              strokeWidth: 4,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-          p.complete
-              ? Icon(Icons.check_rounded, size: 22, color: color)
-              : Text(
-            '${p.filled}/${p.total}',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  MODE SELECTOR
-  // ───────────────────────────────────────────────────────────
-  Widget _buildPumpModeSelector(PumpModel pump, Color primaryColor) {
-    final currentType = getPumpTypeCodeToString(pump.pumpType);
-    const pumpTypes = ['source', 'irrigation', 'aerator'];
-    const modeIcons = {
-      'source': Icons.water_rounded,
-      'irrigation': Icons.grass_rounded,
-      'aerator': Icons.air_rounded,
-    };
-
-    return PopupMenuButton<String>(
-      tooltip: 'Change pump mode',
-      initialValue: currentType,
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
-      ),
-      onSelected: (value) {
-        setState(() {
-          for (var line in widget.configPvd.line) {
-            if (value == 'source') {
-              if (line.irrigationPump.contains(pump.commonDetails.sNo)) {
-                line.irrigationPump.remove(pump.commonDetails.sNo);
-              }
-            } else {
-              if (line.sourcePump.contains(pump.commonDetails.sNo)) {
-                line.sourcePump.remove(pump.commonDetails.sNo);
-              }
-            }
-          }
-          pump.pumpType = getPumpTypeStringToCode(value);
-        });
-      },
-      itemBuilder: (context) => pumpTypes.map((type) {
-        final selected = type == currentType;
-        return PopupMenuItem<String>(
-          value: type,
-          child: Row(
-            children: [
-              Icon(
-                modeIcons[type] ?? Icons.circle,
-                size: 18,
-                color: selected ? primaryColor : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  type.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? primaryColor : _inkColor,
-                  ),
-                ),
-              ),
-              if (selected) Icon(Icons.check_rounded, size: 18, color: primaryColor),
-            ],
-          ),
-        );
-      }).toList(),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(9, 4, 7, 4),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryColor.withValues(alpha: 0.10),
-              primaryColor.withValues(alpha: 0.04),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: primaryColor.withValues(alpha: 0.20)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(modeIcons[currentType] ?? Icons.circle, size: 14, color: primaryColor),
-            const SizedBox(width: 5),
-            Text(
-              currentType.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                color: primaryColor,
-              ),
-            ),
-            Icon(Icons.arrow_drop_down_rounded, size: 18, color: primaryColor),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  FLOW SECTION
-  // ───────────────────────────────────────────────────────────
-  Widget _buildFlowSection({
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required List<Widget> children,
-  }) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-          height: 1,
-          thickness: 1,
-          indent: 8,
-          endIndent: 8,
-          color: accent.withValues(alpha: 0.12),
-        ));
-      }
-      rows.add(children[i]);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...rows,
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  TILES FOR PARAMETERS
-  // ───────────────────────────────────────────────────────────
-  Widget _buildTile({
+  Widget _buildComponentTile({
     required String title,
     required String imagePath,
-    required String assignedName,
+    required List<String> names,
     required bool isAssigned,
     required VoidCallback onTap,
     required Color accent,
+    bool compact = true,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: SizedImage(
-                  imagePath: imagePath,
-                  color: isAssigned ? accent : Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isAssigned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Text(
-                          assignedName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: accent,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        'Not assigned',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              isAssigned
-                  ? Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_rounded, size: 18, color: accent),
-                    ),
-            ],
-          ),
-        ),
-      ),
+    return ConfigComponentTile(
+      title: title,
+      imagePath: imagePath,
+      names: names,
+      isAssigned: isAssigned,
+      onTap: onTap,
+      accent: accent,
+      compact: compact,
     );
   }
 
@@ -734,10 +350,10 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       }
     }
 
-    return _buildTile(
+    return _buildComponentTile(
       title: objectName,
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: isAssigned ? [assignedName] : const [],
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -782,10 +398,10 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
     bool isAssigned = currentSno != 0.0;
     String assignedName = isAssigned ? getObjectName(currentSno, widget.configPvd).name ?? '-' : '';
 
-    return _buildTile(
+    return _buildComponentTile(
       title: objectName,
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: isAssigned ? [assignedName] : const [],
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -861,10 +477,10 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       }
     }
 
-    return _buildTile(
+    return _buildComponentTile(
       title: objectName,
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: isAssigned ? [assignedName] : const [],
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -895,9 +511,9 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   }
 }
 
-List<Widget> getWaterMeterAndPressure(double pressureInSno, double waterMeterSno, ConfigMakerProvider configPvd){
+List<Widget> getWaterMeterAndPressure(double pressureInSno, double waterMeterSno, ConfigMakerProvider configPvd) {
   return [
-    if(pressureInSno != 0.0)
+    if (pressureInSno != 0.0)
       Positioned(
         right: 0,
         top: 15 * configPvd.ratio,
@@ -907,7 +523,7 @@ List<Widget> getWaterMeterAndPressure(double pressureInSno, double waterMeterSno
           height: 30,
         ),
       ),
-    if(waterMeterSno != 0.0)
+    if (waterMeterSno != 0.0)
       Positioned(
         right: 0,
         top: 50 * configPvd.ratio,
@@ -920,7 +536,7 @@ List<Widget> getWaterMeterAndPressure(double pressureInSno, double waterMeterSno
   ];
 }
 
-Widget singlePump(SourceModel source, bool fillingPump, ConfigMakerProvider configPvd, {bool dashboard = false}){
+Widget singlePump(SourceModel source, bool fillingPump, ConfigMakerProvider configPvd, {bool dashboard = false}) {
   List<double> currentParameter = fillingPump ? source.inletPump : source.outletPump;
   if (currentParameter.isEmpty) return const SizedBox();
 
@@ -931,12 +547,12 @@ Widget singlePump(SourceModel source, bool fillingPump, ConfigMakerProvider conf
   return Stack(
     children: [
       Positioned(
-        left : fillingPump ? 40 : null,
-        right : (!fillingPump && dashboard) ? 0 : (!fillingPump) ? 40 : null,
+        left: fillingPump ? 40 : null,
+        right: (!fillingPump && dashboard) ? 0 : (!fillingPump) ? 40 : null,
         bottom: 32 * configPvd.ratio,
         child: SvgPicture.asset(
           'assets/Images/Source/backside_pipe_1.svg',
-          width: 120 ,
+          width: 120,
           height: 8.5 * configPvd.ratio,
         ),
       ),
@@ -946,25 +562,28 @@ Widget singlePump(SourceModel source, bool fillingPump, ConfigMakerProvider conf
         height: 120 * configPvd.ratio,
       ),
       ...getWaterMeterAndPressure(
-          pModel.pressureIn,
-          pModel.waterMeter,
-          configPvd
+        pModel.pressureIn,
+        pModel.waterMeter,
+        configPvd,
       ),
       Positioned(
-        left : 5,
+        left: 5,
         top: 0,
-        child: Text(getObjectName(currentParameter[0], configPvd).name ?? '', style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),),
+        child: Text(
+          getObjectName(currentParameter[0], configPvd).name ?? '',
+          style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),
+        ),
       )
     ],
   );
 }
 
 Widget multiplePump(SourceModel source, bool fillingPump, ConfigMakerProvider configPvd,
-    {bool dashBoard = false, int? maxOutletPumpForTank}){
+    {bool dashBoard = false, int? maxOutletPumpForTank}) {
   List<double> currentParameter = fillingPump ? source.inletPump : source.outletPump;
   return Row(
     children: [
-      for(var i = 0; i < currentParameter.length; i++)
+      for (var i = 0; i < currentParameter.length; i++)
         Builder(builder: (context) {
           final pumpMatches = configPvd.pump.where((pump) => pump.commonDetails.sNo == currentParameter[i]);
           final pModel = pumpMatches.isNotEmpty ? pumpMatches.first : null;
@@ -991,39 +610,37 @@ Widget multiplePump(SourceModel source, bool fillingPump, ConfigMakerProvider co
                   pModel.waterMeter,
                   configPvd,
                 ),
-              if(currentParameter.length > 1)
+              if (currentParameter.length > 1)
                 Positioned(
                   right: i == 0 ? 0 : null,
                   left: i == 1 ? 0 : null,
                   bottom: 16 * configPvd.ratio,
                   child: SvgPicture.asset(
-                    'assets/Images/Source/${
-                        i == 0
-                            ? 'front_corner_left_radius_pipe_1'
-                            : i == (currentParameter.length - 1)
-                            ? 'front_corner_right_radius_pipe_1'
-                            : 'backside_pipe_1'}.svg',
+                    'assets/Images/Source/${i == 0 ? 'front_corner_left_radius_pipe_1' : i == (currentParameter.length - 1) ? 'front_corner_right_radius_pipe_1' : 'backside_pipe_1'}.svg',
                     width: 120,
                     height: 8.5 * configPvd.ratio,
                   ),
                 ),
               Positioned(
-                left : 5,
+                left: 5,
                 top: 0,
-                child: Text(getObjectName(currentParameter[i], configPvd).name ?? '', style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),),
+                child: Text(
+                  getObjectName(currentParameter[i], configPvd).name ?? '',
+                  style: TextStyle(fontSize: 12 * configPvd.ratio, fontWeight: FontWeight.bold),
+                ),
               )
             ],
           );
         }),
-      if(maxOutletPumpForTank != null)
-        for(var i = 0; i < (maxOutletPumpForTank - currentParameter.length); i++)
+      if (maxOutletPumpForTank != null)
+        for (var i = 0; i < (maxOutletPumpForTank - currentParameter.length); i++)
           SizedBox(
             width: 94,
             height: 120 * configPvd.ratio,
             child: Stack(
               children: [
                 Positioned(
-                  bottom : 32 * configPvd.ratio,
+                  bottom: 32 * configPvd.ratio,
                   child: SvgPicture.asset(
                     'assets/Images/Source/backside_pipe_1.svg',
                     width: 120,
@@ -1037,14 +654,14 @@ Widget multiplePump(SourceModel source, bool fillingPump, ConfigMakerProvider co
   );
 }
 
-Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool dashboard = false, bool inlet = true,}){
+Widget getTankImage(SourceModel source, ConfigMakerProvider configPvd, {bool dashboard = false, bool inlet = true}) {
   bool levelAvailable = source.level != 0.0;
   bool topFloatAvailableForOutlet = source.topFloatForOutletPump != 0.0;
   bool bottomFloatAvailableForOutlet = source.bottomFloatForOutletPump != 0.0;
   bool topFloatAvailableForInlet = source.topFloatForInletPump != 0.0;
   bool bottomFloatAvailableForInlet = source.bottomFloatForInletPump != 0.0;
   bool outletWaterMeter = source.outletWaterMeter != 0.0;
-  if(source.sourceType == 1){
+  if (source.sourceType == 1) {
     return Stack(
       children: [
         SvgPicture.asset(
@@ -1052,7 +669,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           width: 120,
           height: 120 * configPvd.ratio,
         ),
-        if(levelAvailable)
+        if (levelAvailable)
           Positioned(
             left: 52,
             bottom: 28,
@@ -1060,21 +677,15 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               width: 10,
               height: 40,
               padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.white),
               alignment: Alignment.bottomCenter,
               child: Container(
                 height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.green),
               ),
             ),
           ),
-        if(topFloatAvailableForOutlet)
+        if (topFloatAvailableForOutlet)
           Positioned(
             right: 40,
             bottom: 50,
@@ -1084,7 +695,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 40,
             ),
           ),
-        if(topFloatAvailableForInlet)
+        if (topFloatAvailableForInlet)
           Positioned(
             left: 40,
             bottom: 50,
@@ -1094,7 +705,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 40,
             ),
           ),
-        if(bottomFloatAvailableForOutlet)
+        if (bottomFloatAvailableForOutlet)
           Positioned(
             right: 50,
             bottom: 25,
@@ -1104,7 +715,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 70,
             ),
           ),
-        if(bottomFloatAvailableForInlet)
+        if (bottomFloatAvailableForInlet)
           Positioned(
             left: 50,
             bottom: 25,
@@ -1114,7 +725,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 70,
             ),
           ),
-        if(outletWaterMeter)
+        if (outletWaterMeter)
           Positioned(
             right: 0,
             bottom: 20,
@@ -1126,8 +737,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           )
       ],
     );
-  }
-  else if(source.sourceType == 2){
+  } else if (source.sourceType == 2) {
     return Stack(
       children: [
         SvgPicture.asset(
@@ -1135,7 +745,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           width: 120,
           height: 120 * configPvd.ratio,
         ),
-        if(levelAvailable)
+        if (levelAvailable)
           Positioned(
             left: 52,
             bottom: 35,
@@ -1143,21 +753,15 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               width: 10,
               height: 40,
               padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.white),
               alignment: Alignment.bottomCenter,
               child: Container(
                 height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.green),
               ),
             ),
           ),
-        if(topFloatAvailableForOutlet)
+        if (topFloatAvailableForOutlet)
           Positioned(
             right: 55,
             bottom: 55,
@@ -1167,7 +771,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 30,
             ),
           ),
-        if(bottomFloatAvailableForOutlet)
+        if (bottomFloatAvailableForOutlet)
           Positioned(
             right: 70,
             bottom: 35,
@@ -1177,7 +781,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 50,
             ),
           ),
-        if(outletWaterMeter)
+        if (outletWaterMeter)
           Positioned(
             right: 0,
             bottom: 20,
@@ -1189,8 +793,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           )
       ],
     );
-  }
-  else if(source.sourceType == 3){
+  } else if (source.sourceType == 3) {
     return Stack(
       children: [
         SvgPicture.asset(
@@ -1198,7 +801,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           width: 120,
           height: 120 * configPvd.ratio,
         ),
-        if(levelAvailable)
+        if (levelAvailable)
           Positioned(
             left: 45,
             bottom: 22,
@@ -1206,21 +809,15 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               width: 10,
               height: 40,
               padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: Colors.white
-              ),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.white),
               alignment: Alignment.bottomCenter,
               child: Container(
                 height: 20,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: Colors.green
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: Colors.green),
               ),
             ),
           ),
-        if(topFloatAvailableForOutlet)
+        if (topFloatAvailableForOutlet)
           Positioned(
             right: 55,
             bottom: 55,
@@ -1230,7 +827,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 40,
             ),
           ),
-        if(bottomFloatAvailableForOutlet)
+        if (bottomFloatAvailableForOutlet)
           Positioned(
             right: 70,
             bottom: 35,
@@ -1240,7 +837,7 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
               height: 50,
             ),
           ),
-        if(outletWaterMeter)
+        if (outletWaterMeter)
           Positioned(
             right: 0,
             bottom: 20,
@@ -1252,31 +849,29 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
           )
       ],
     );
-  }
-  else if(source.sourceType == 4){
+  } else if (source.sourceType == 4) {
     return SvgPicture.asset(
       'assets/Images/Source/bore_1.svg',
       width: 120,
       height: 120 * configPvd.ratio,
     );
-  }
-  else if(source.sourceType == 5){
+  } else if (source.sourceType == 5) {
     return SvgPicture.asset(
       'assets/Images/Source/pond_1.svg',
       width: 120,
-      height: 120* configPvd.ratio,
+      height: 120 * configPvd.ratio,
     );
-  }else if(source.sourceType == 6){
+  } else if (source.sourceType == 6) {
     return SvgPicture.asset(
       'assets/Images/Source/fertilizer_source.svg',
       width: 120,
-      height: 120* configPvd.ratio,
+      height: 120 * configPvd.ratio,
     );
-  }else{
+  } else {
     return SvgPicture.asset(
       'assets/Images/Source/fertilizer_tank.svg',
       width: 120,
-      height: 120* configPvd.ratio,
+      height: 120 * configPvd.ratio,
     );
   }
 }

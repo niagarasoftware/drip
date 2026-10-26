@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/pressure_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 
 import '../../../Constants/dialog_boxes.dart';
-import '../state_management/config_maker_provider.dart';
-import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+import '../state_management/config_maker_provider.dart';
+import '../widget/config_template_widgets.dart';
+import '../widget/painter/pressure_sensor_painter.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -28,11 +28,9 @@ class PressureConfiguration extends StatefulWidget {
 }
 
 class _PressureConfigurationState extends State<PressureConfiguration> {
-  // ── Design tokens (Matching ChannelConfiguration Light Mode) ──
+  // ── Design tokens (Matching valve_configuration.dart) ──
   static const Color _mainValveColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
-  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
 
   // ───────────────────────────────────────────────────────────
   //  PROGRESS CALCULATION
@@ -54,150 +52,108 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
     final pressureSensors = widget.configPvd.pressureSensor;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFC), // Slate 50
-            Color(0xFFF1F5F9), // Slate 100
-          ],
-        ),
-      ),
+      color: const Color(0xFF0C0F1D),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: LayoutBuilder(builder: (context, constraint) {
-          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
-          return SizedBox(
-            width: constraint.maxWidth,
-            height: constraint.maxHeight,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildPageHeading(pressureSensors.length),
-                  const SizedBox(height: 18),
-                  ResponsiveGridList(
-                    horizontalGridMargin: 0,
-                    verticalGridMargin: 16,
-                    minItemWidth: itemWidth,
-                    listViewBuilderOptions: ListViewBuilderOptions(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                    ),
-                    children: [
-                      for (var ps in pressureSensors)
-                        _buildPressureCard(ps, primaryColor),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              ConfigPageHeading(
+                title: 'Pressure configuration',
+                subtitle: 'Configure main valves for pressure sensors',
+                totalCount: pressureSensors.length,
+                countUnitSingular: 'sensor',
+                countUnitPlural: 'sensors',
+                primaryColor: primaryColor,
+                icon: Icons.speed_rounded,
               ),
-            ),
-          );
-        }),
+              const SizedBox(height: 18),
+              if (pressureSensors.isEmpty)
+                ConfigEmptyState(
+                  title: 'No Pressure Sensors Configured',
+                  subtitle: 'No pressure sensors found in current configuration.',
+                  icon: Icons.speed_rounded,
+                  primaryColor: primaryColor,
+                )
+              else
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 360,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 215,
+                  ),
+                  itemCount: pressureSensors.length,
+                  itemBuilder: (context, index) {
+                    final pressureSensor = pressureSensors[index];
+                    return _buildPressureCard(pressureSensor, primaryColor);
+                  },
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   // ───────────────────────────────────────────────────────────
-  //  PAGE INTRO
+  //  PRESSURE PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+  Widget _buildPressurePainterBlock(PressureModel pressureSensor) {
+    return Container(
+      width: 90,
+      height: 64,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12162B),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Center(
+        child: RepaintBoundary(
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: PressureSensorView(
+              isOn: pressureSensor.mainValve.isNotEmpty,
+              size: const Size(110, 80),
             ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.speed_rounded, color: Colors.white, size: 23),
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Pressure configuration',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 20,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.45,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Configure main valves for pressure sensors',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
           ),
         ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+      ),
+    );
+  }
+
+  Widget _buildPressureHeaderBlock({
+    required PressureModel pressureSensor,
+    required Color primaryColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          _buildPressurePainterBlock(pressureSensor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              pressureSensor.commonDetails.name ?? 'Pressure Sensor',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-            ],
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: const TextStyle(
-                  color: _inkColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'SENSORS',
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 8,
-                  letterSpacing: 0.7,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -207,12 +163,15 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   Widget _buildPressureCard(PressureModel pressureSensor, Color primaryColor) {
     final progress = _calcProgress(pressureSensor);
 
-    return _buildCardShell(
-      pressureSensor: pressureSensor,
-      progress: progress,
-      primaryColor: primaryColor,
+    return ConfigCardShell(
+      headerBlock: _buildPressureHeaderBlock(
+        pressureSensor: pressureSensor,
+        primaryColor: primaryColor,
+      ),
+      isComplete: progress.complete,
+      completeColor: _doneColor,
       body: [
-        _buildFlowSection(
+        ConfigFlowSection(
           title: 'Main Valves',
           icon: Icons.vibration_rounded,
           accent: _mainValveColor,
@@ -225,339 +184,21 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   }
 
   // ───────────────────────────────────────────────────────────
-  //  CARD SHELL
+  //  COMPONENT TILES
   // ───────────────────────────────────────────────────────────
-  Widget _buildCardShell({
-    required PressureModel pressureSensor,
-    required _Progress progress,
-    required Color primaryColor,
-    required List<Widget> body,
-  }) {
-    final remaining = progress.total - progress.filled;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: progress.complete
-              ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFFE2E8F0),
-          width: progress.complete ? 1.4 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: progress.complete
-                ? _doneColor.withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 18,
-            spreadRadius: 0,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.12),
-                        primaryColor.withValues(alpha: 0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: SizedImage(
-                    imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.pressureSensorObjectId}.svg',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pressureSensor.commonDetails.name ?? 'Pressure Sensor',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _inkColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        progress.complete ? 'Complete' : '$remaining left to assign',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: progress.complete ? _doneColor : _subTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildProgressRing(progress, primaryColor),
-              ],
-            ),
-          ),
-
-          // ── Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _withGaps(body, 10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _withGaps(List<Widget> items, double gap) {
-    final out = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) out.add(SizedBox(height: gap));
-      out.add(items[i]);
-    }
-    return out;
-  }
-
-  Widget _buildProgressRing(_Progress p, Color primaryColor) {
-    final color = p.complete
-        ? _doneColor
-        : p.filled > 0
-            ? primaryColor
-            : Colors.grey.shade400;
-
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: CircularProgressIndicator(
-              value: p.fraction,
-              strokeWidth: 4,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-          p.complete
-              ? Icon(Icons.check_rounded, size: 22, color: color)
-              : Text(
-                  '${p.filled}/${p.total}',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-                ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  FLOW SECTION
-  // ───────────────────────────────────────────────────────────
-  Widget _buildFlowSection({
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required List<Widget> children,
-  }) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-          height: 1,
-          thickness: 1,
-          indent: 8,
-          endIndent: 8,
-          color: accent.withValues(alpha: 0.12),
-        ));
-      }
-      rows.add(children[i]);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...rows,
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  TILES FOR PARAMETERS
-  // ───────────────────────────────────────────────────────────
-  Widget _buildTile({
-    required String title,
-    required String imagePath,
-    required String assignedName,
-    required bool isAssigned,
-    required VoidCallback onTap,
-    required Color accent,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: SizedImage(
-                  imagePath: imagePath,
-                  color: isAssigned ? accent : Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isAssigned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Text(
-                          assignedName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: accent,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        'Not assigned',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              isAssigned
-                  ? Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_rounded, size: 18, color: accent),
-                    ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMainValveTile(PressureModel pressureSensor, Color accent) {
     int objectId = AppConstants.mainValveObjectId;
     bool isAssigned = pressureSensor.mainValve.isNotEmpty;
-    String assignedName = isAssigned
-        ? pressureSensor.mainValve.map((sNo) => getObjectName(sNo, widget.configPvd).name ?? '-').join(', ')
-        : '';
+    List<String> assignedNames = isAssigned
+        ? pressureSensor.mainValve
+            .map((sNo) => getObjectName(sNo, widget.configPvd).name ?? '-')
+            .toList()
+        : const [];
 
-    return _buildTile(
+    return ConfigComponentTile(
       title: 'Main Valve',
       imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      assignedName: assignedName,
+      names: assignedNames,
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -574,7 +215,10 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
               .toList(),
           onPressed: () {
             setState(() {
-              widget.configPvd.updateSelectionInPressure(pressureSensor.commonDetails.sNo!, AppConstants.mainValveObjectId);
+              widget.configPvd.updateSelectionInPressure(
+                pressureSensor.commonDetails.sNo!,
+                AppConstants.mainValveObjectId,
+              );
             });
             Navigator.pop(context);
           },

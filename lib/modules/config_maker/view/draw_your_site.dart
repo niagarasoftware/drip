@@ -30,7 +30,8 @@ const double kCanvasHeight = 2000;
 const double kPipeHitTolerance = 14;
 
 class DrawYourSiteScreen extends StatefulWidget {
-  const DrawYourSiteScreen({super.key});
+  final bool fullAccess;
+  const DrawYourSiteScreen({super.key, this.fullAccess = true});
 
   @override
   State<DrawYourSiteScreen> createState() => _DrawYourSiteScreenState();
@@ -96,6 +97,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   void initState() {
     super.initState();
     _tc.addListener(_onCameraChanged);
+    if (!widget.fullAccess) {
+      _globalHideJoints = true;
+    }
   }
 
   void _markInteracting() {
@@ -379,9 +383,28 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   }
 
   void _zoomBy(double factor) {
-    final double target = (_scale * factor).clamp(0.4, 2.0).toDouble();
-    final double k = target / _scale;
-    _tc.value = _tc.value.clone()..scale(k, k, 1.0);
+    final double currentScale = _scale;
+    final double targetScale = (currentScale * factor).clamp(0.4, 2.0).toDouble();
+    if ((targetScale - currentScale).abs() < 0.001) return;
+
+    final ctx = _viewKey.currentContext;
+    final ro = ctx?.findRenderObject();
+    final Size viewportSize = (ro is RenderBox && ro.hasSize)
+        ? ro.size
+        : MediaQuery.of(context).size;
+    final Offset center = Offset(viewportSize.width / 2, viewportSize.height / 2);
+
+    final double k = targetScale / currentScale;
+    final Matrix4 m = _tc.value.clone();
+
+    final double focalX = center.dx;
+    final double focalY = center.dy;
+    m.translate(focalX, focalY);
+    m.scale(k, k, 1.0);
+    m.translate(-focalX, -focalY);
+
+    _tc.value = m;
+    setState(() {});
   }
 
   void _focusOnRect(
@@ -450,8 +473,12 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     );
     animation.addListener(() {
       _tc.value = animation.value;
+      _canvasNotifier.notify();
     });
-    controller.forward().then((_) => controller.dispose());
+    controller.forward().then((_) {
+      if (mounted) setState(() {});
+      controller.dispose();
+    });
   }
 
   void _focusOnAllNodes() {
@@ -503,14 +530,25 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         maxY + marginBottom,
       );
 
+      final ctx = _viewKey.currentContext;
+      final ro = ctx?.findRenderObject();
+      final Size viewportSize = (ro is RenderBox && ro.hasSize)
+          ? ro.size
+          : MediaQuery.of(context).size;
+
+      final double rectW = math.max(50.0, target.width);
+      final double rectH = math.max(50.0, target.height);
+      final double fitScale = math.min(viewportSize.width / rectW, viewportSize.height / rectH);
+
+      // Subtle extra zoom scale (1.15x magnification factor, minimum 0.80 scale)
+      final double extraZoomScale = math.max(0.80, fitScale * 1.15).clamp(0.7, 1.3);
+
       _focusOnRect(
         target,
         paddingX: 12.0,
         paddingY: 12.0,
-        fitWidth: true,
+        targetScale: extraZoomScale,
         alignTopLeft: true,
-        maxScale: 1.0,
-        minScale: 0.15,
       );
     }
   }
@@ -535,27 +573,24 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     for (final n in _nodes) {
       final bool isLineNode = n.id == headerId ||
           n.id.startsWith(bankPrefix) ||
-          (n.type == NodeType.multiValve && n.id.contains('line_${lineIdx}_'));
+          (n.type == NodeType.multiValve && n.id.contains('line_${lineIdx}_')) ||
+          (n.type == NodeType.multiFogger && n.id.contains('line_$lineIdx'));
       if (!isLineNode) continue;
 
       double w = n.size.width;
       if (n.type == NodeType.multiValve) {
-        // node width = 60 * valves + 60  ->  recover the valve count
-        final int valves = math.max(1, ((n.size.width - 60.0) / 75.0).round());
-        // painted spacing is ~157px per valve for a 180px-high node
-        final double spacing = n.size.height * 0.875;
-        w = valves * spacing;
+        final int valves = math.max(1, ((n.size.width - 60.0) / 60.0).round());
+        w = math.max(120.0, 60.0 * valves + 60.0);
       }
       include(Rect.fromLTWH(n.position.dx, n.position.dy, w, n.size.height));
     }
 
     if (!minX.isFinite) return;
 
-    // Margins (reduce these to zoom in a little more)
-    const double marginLeft = 50.0;  // main header pipe on the left
-    const double marginRight = 20.0;
-    const double marginTop = 50.0;   // room for the "Irrigation Line" badge
-    const double marginBottom = 30.0;
+    const double marginLeft = 40.0;
+    const double marginRight = 40.0;
+    const double marginTop = 70.0;
+    const double marginBottom = 40.0;
 
     final Rect target = Rect.fromLTRB(
       math.max(0.0, minX - marginLeft),
@@ -564,14 +599,24 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       maxY + marginBottom,
     );
 
+    final ctx = _viewKey.currentContext;
+    final ro = ctx?.findRenderObject();
+    final Size viewportSize = (ro is RenderBox && ro.hasSize)
+        ? ro.size
+        : MediaQuery.of(context).size;
+
+    final double rectW = math.max(50.0, target.width);
+    final double rectH = math.max(50.0, target.height);
+    final double fitScale = math.min(viewportSize.width / rectW, viewportSize.height / rectH);
+
+    final double lineScale = math.min(1.0, math.max(0.7, fitScale * 0.95));
+
     _focusOnRect(
       target,
-      paddingX: 12.0,
-      paddingY: 12.0,
-      fitWidth: true,
+      paddingX: 30.0,
+      paddingY: 60.0,
+      targetScale: lineScale,
       alignTopLeft: true,
-      maxScale: 1.0,
-      minScale: 0.15,
     );
   }
 
@@ -613,7 +658,34 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
 
     if (minX.isFinite) {
-      _focusOnRect(Rect.fromLTRB(minX, minY, maxX, maxY));
+      const double margin = 40.0;
+      final Rect target = Rect.fromLTRB(
+        math.max(0.0, minX - margin),
+        math.max(0.0, minY - margin),
+        maxX + margin,
+        maxY + margin,
+      );
+
+      final ctx = _viewKey.currentContext;
+      final ro = ctx?.findRenderObject();
+      final Size viewportSize = (ro is RenderBox && ro.hasSize)
+          ? ro.size
+          : MediaQuery.of(context).size;
+
+      final double rectW = math.max(50.0, target.width);
+      final double rectH = math.max(50.0, target.height);
+      final double fitScale = math.min(viewportSize.width / rectW, viewportSize.height / rectH);
+
+      // Subtle extra zoom scale (1.15x magnification factor, minimum 0.80 scale)
+      final double extraZoomScale = math.max(0.80, fitScale * 1.15).clamp(0.7, 1.3);
+
+      _focusOnRect(
+        target,
+        paddingX: 12.0,
+        paddingY: 12.0,
+        targetScale: extraZoomScale,
+        alignTopLeft: true,
+      );
     }
   }
 
@@ -632,7 +704,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       id: 'all',
       title: 'All',
       icon: Icons.grid_view_rounded,
-      accentColor: const Color(0xFF10B981),
+      accentColor: const Color(0xFF10B981), // Emerald Green
       onTap: () {
         setState(() => _activeTabId = 'all');
         _focusOnAllNodes();
@@ -643,44 +715,15 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     tabs.add(SiteTabItem(
       id: 'water_source',
       title: 'Water Source',
-      icon: Icons.water_drop_outlined,
-      accentColor: const Color(0xFF0284C7),
+      icon: Icons.water_drop_rounded,
+      accentColor: const Color(0xFF0284C7), // Sky Blue
       onTap: () {
         setState(() => _activeTabId = 'water_source');
         _focusOnWaterSource();
       },
     ));
 
-    // 3. Irrigation Line Tabs
-    const List<Color> lineColors = [
-      Color(0xFF10B981),
-      Color(0xFF3B82F6),
-      Color(0xFFF59E0B),
-      Color(0xFF8B5CF6),
-      Color(0xFFF43F5E),
-      Color(0xFF06B6D4),
-    ];
-
-    for (int i = 0; i < lines.length; i++) {
-      final lSpec = lines[i];
-      final String lName = (lSpec.commonDetails.name?.isNotEmpty == true && lSpec.commonDetails.name != '-')
-          ? lSpec.commonDetails.name!
-          : 'Irrigation Line ${i + 1}';
-      final Color color = lineColors[i % lineColors.length];
-
-      tabs.add(SiteTabItem(
-        id: 'line_$i',
-        title: lName,
-        icon: Icons.alt_route_rounded,
-        accentColor: color,
-        onTap: () {
-          setState(() => _activeTabId = 'line_$i');
-          _focusOnLine(i);
-        },
-      ));
-    }
-
-    // 4. Filtration Site Tabs
+    // 3. Filtration Site Tabs
     for (int f = 0; f < filtrations.length; f++) {
       final fSite = filtrations[f];
       final String fName = (fSite.commonDetails.name?.isNotEmpty == true)
@@ -690,8 +733,8 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       tabs.add(SiteTabItem(
         id: 'filter_$f',
         title: fName,
-        icon: Icons.filter_alt_outlined,
-        accentColor: const Color(0xFFEF4444),
+        icon: Icons.filter_alt_rounded,
+        accentColor: const Color(0xFFEA580C), // Orange
         onTap: () {
           setState(() => _activeTabId = 'filter_$f');
           _focusOnFilterSite(f);
@@ -699,7 +742,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       ));
     }
 
-    // 5. Fertigation Site Tabs
+    // 4. Fertigation / Fertilization Site Tabs
     for (int s = 0; s < fertilizations.length; s++) {
       final fSite = fertilizations[s];
       final String sName = (fSite.commonDetails.name?.isNotEmpty == true)
@@ -709,11 +752,30 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       tabs.add(SiteTabItem(
         id: 'fert_$s',
         title: sName,
-        icon: Icons.science_outlined,
-        accentColor: const Color(0xFF3B82F6),
+        icon: Icons.science_rounded,
+        accentColor: const Color(0xFF8B5CF6), // Purple / Violet
         onTap: () {
           setState(() => _activeTabId = 'fert_$s');
           _focusOnFertilizationSite(s);
+        },
+      ));
+    }
+
+    // 5. Irrigation Line Tabs
+    for (int i = 0; i < lines.length; i++) {
+      final lSpec = lines[i];
+      final String lName = (lSpec.commonDetails.name?.isNotEmpty == true && lSpec.commonDetails.name != '-')
+          ? lSpec.commonDetails.name!
+          : 'Irrigation Line ${i + 1}';
+
+      tabs.add(SiteTabItem(
+        id: 'line_$i',
+        title: lName,
+        icon: Icons.alt_route_rounded,
+        accentColor: const Color(0xFF06B6D4), // Cyan / Teal
+        onTap: () {
+          setState(() => _activeTabId = 'line_$i');
+          _focusOnLine(i);
         },
       ));
     }
@@ -1286,7 +1348,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       }
 
       if (node.type == NodeType.multiInjector) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < node.activeChannelStates.length; i++) {
           final p = node.getPort('channel_$i', isInput: true);
           if ((p - pos).distance < 35) {
             targetNodeId = node.id;
@@ -1686,7 +1748,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           ),
         );
       } else if (node.type == NodeType.multiInjector) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < node.activeChannelStates.length; i++) {
           handles.add(
             WaypointHandle(
               key: ValueKey('${node.id}_channel_$i'),
@@ -1912,33 +1974,35 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         },
         child: Column(
           children: [
-            RepaintBoundary(
-              child: DrawSiteToolbar(
-                onAddNode: _addNode,
-                onAutoArrange: () {
-                  setState(() {
-                    _isAiLoading = true;
-                  });
-                  Future.delayed(const Duration(milliseconds: 300), () {
-                    if (mounted) {
-                      _generateFromSourceConfig(showSnackBar: true);
-                    }
-                  });
-                },
-                onToggleConnectMode: _toggleConnectMode,
-                onDeleteSelected: _deleteSelected,
-                onScaleSelectedNode: _scaleSelectedNode,
-                onResetSelectedNodeSize: _resetSelectedNodeSize,
-                connectMode: _connectMode,
-                isNodeSelected: _selectedNodeId != null,
-                isPipeSelected: _selectedPipeId != null,
-                isJunctionSelected: _selectedNodeId != null &&
-                    _findNode(_selectedNodeId!)?.type == NodeType.junction,
+            if (widget.fullAccess)
+              RepaintBoundary(
+                child: DrawSiteToolbar(
+                  onAddNode: _addNode,
+                  onAutoArrange: () {
+                    setState(() {
+                      _isAiLoading = true;
+                    });
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      if (mounted) {
+                        _generateFromSourceConfig(showSnackBar: true);
+                      }
+                    });
+                  },
+                  onToggleConnectMode: _toggleConnectMode,
+                  onDeleteSelected: _deleteSelected,
+                  onScaleSelectedNode: _scaleSelectedNode,
+                  onResetSelectedNodeSize: _resetSelectedNodeSize,
+                  connectMode: _connectMode,
+                  isNodeSelected: _selectedNodeId != null,
+                  isPipeSelected: _selectedPipeId != null,
+                  isJunctionSelected: _selectedNodeId != null &&
+                      _findNode(_selectedNodeId!)?.type == NodeType.junction,
+                  fullAccess: widget.fullAccess,
+                ),
               ),
-            ),
             Expanded(
               child: Container(
-                color: Colors.white,
+                color: const Color(0xFF12162B),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return Stack(
@@ -2070,6 +2134,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                             canRedo: _redoStack.isNotEmpty,
                             globalHideJoints: _globalHideJoints,
                             transformationController: _tc,
+                            fullAccess: widget.fullAccess,
                             onToggleHideJoints: () {
                               setState(() {
                                 _globalHideJoints = !_globalHideJoints;

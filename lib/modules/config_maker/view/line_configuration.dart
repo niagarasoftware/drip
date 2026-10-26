@@ -3,13 +3,13 @@ import 'package:oro_drip_irrigation/modules/config_maker/model/device_model.dart
 import 'package:oro_drip_irrigation/modules/config_maker/model/device_object_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/irrigation_line_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/site_configure.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 
 import '../../../Constants/dialog_boxes.dart';
-import '../state_management/config_maker_provider.dart';
-import '../widget/object_manager_bar.dart';
-import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+import '../../../Widgets/sized_image.dart';
+import '../state_management/config_maker_provider.dart';
+import '../widget/config_template_widgets.dart';
+import '../widget/object_manager_bar.dart';
 import 'config_object_name_editing.dart';
 
 /// Simple holder for progress metrics.
@@ -32,15 +32,13 @@ class LineConfiguration extends StatefulWidget {
 }
 
 class _LineConfigurationState extends State<LineConfiguration> {
-  // ── Design tokens (Matching SourceConfiguration Light Mode) ──
+  // ── Design tokens (Matching SourceConfiguration Dark Mode) ──
   static const Color _sourceColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _valveColor = Color(0xFF059669); // emerald green
   static const Color _fertColor = Color(0xFFEA580C); // orange
   static const Color _sensorColor = Color(0xFF0EA5E9); // ocean blue
   static const Color _envColor = Color(0xFF7C3AED); // purple
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Color(0xFF0F172A); // slate-900 crisp dark text
-  static const Color _subTextColor = Color(0xFF64748B); // slate-500 subtle text
 
   bool availability(int objectId) {
     return widget.configPvd.listOfSampleObjectModel.any(
@@ -143,94 +141,324 @@ class _LineConfigurationState extends State<LineConfiguration> {
     final lines = widget.configPvd.line;
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFF8FAFC), // Slate 50
-            Color(0xFFF1F5F9), // Slate 100
-          ],
-        ),
-      ),
+      color: const Color(0xFF0C0F1D),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: LayoutBuilder(builder: (context, constraint) {
-          final itemWidth = constraint.maxWidth < 460 ? constraint.maxWidth : 460.0;
-          return SizedBox(
-            width: constraint.maxWidth,
-            height: constraint.maxHeight,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _buildPageHeading(lines.length, primaryColor),
-                  const SizedBox(height: 18),
-                  if (lines.isEmpty)
-                    _buildEmptyState(primaryColor)
-                  else
-                    ResponsiveGridList(
-                      horizontalGridMargin: 0,
-                      verticalGridMargin: 16,
-                      minItemWidth: itemWidth,
-                      listViewBuilderOptions: ListViewBuilderOptions(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                      ),
-                      children: [
-                        for (var line in lines)
-                          _buildLineCard(line, primaryColor),
-                      ],
+                  Expanded(
+                    child: ConfigPageHeading(
+                      title: 'Line configuration',
+                      subtitle: 'Configure pumps, valves, filtration, fertilization and sensors for irrigation lines',
+                      totalCount: lines.length,
+                      countUnitSingular: 'line',
+                      countUnitPlural: 'lines',
+                      primaryColor: primaryColor,
+                      icon: Icons.alt_route_rounded,
+                      onAddPressed: _addLine,
+                      addButtonLabel: 'Add Line',
                     ),
-                  const SizedBox(height: 16),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      showModalBottomSheet(
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        isScrollControlled: true,
+                        context: context,
+                        builder: (context) {
+                          return SizedBox(
+                            width: 700,
+                            child: ConfigObjectNameEditing(
+                              listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
+                              configPvd: widget.configPvd,
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    tooltip: 'Edit Object Names',
+                    icon: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF181C38),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF20274B)),
+                      ),
+                      child: const Icon(Icons.dataset_rounded, color: Colors.white, size: 20),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          );
-        }),
+              const SizedBox(height: 18),
+              if (lines.isEmpty)
+                ConfigEmptyState(
+                  title: 'No Irrigation Lines Added',
+                  subtitle: 'Tap the button below to add an irrigation line to your configuration.',
+                  icon: Icons.alt_route_rounded,
+                  primaryColor: primaryColor,
+                  onAddPressed: _addLine,
+                  buttonLabel: 'Add Line',
+                )
+              else
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: lines.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 14),
+                  itemBuilder: (context, index) {
+                    final line = lines[index];
+                    return _buildLineCard(line, primaryColor);
+                  },
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildEmptyState(Color primaryColor) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+  Widget _buildCancelGradientButton({
+    required VoidCallback onTap,
+    String tooltip = 'Delete',
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFEF4444),
+                  Color(0xFFB91C1C),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.close_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    );
+  }
+
+  void _confirmDelete({
+    required BuildContext context,
+    required String itemName,
+    required VoidCallback onDelete,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF181C38),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF2B335C)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFEF4444).withValues(alpha: 0.3)),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 28),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Delete $itemName',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Are you sure you want to delete "$itemName"? This action cannot be undone.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: Color(0xFF8E9BB4),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF8E9BB4),
+                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────
+  //  LINE HEADER BLOCK
+  // ───────────────────────────────────────────────────────────
+  Widget _buildLineHeaderBlock({
+    required IrrigationLineModel line,
+    required _Progress progress,
+    required Color primaryColor,
+  }) {
+    final remaining = progress.total - progress.filled;
+    final itemName = line.commonDetails.name ?? 'Irrigation Line';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF252D54)),
+      ),
+      child: Row(
         children: [
-          Icon(Icons.alt_route_rounded, size: 48, color: primaryColor.withValues(alpha: 0.6)),
-          const SizedBox(height: 12),
-          const Text(
-            'No Irrigation Lines Added',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _inkColor,
+          Container(
+            width: 42,
+            height: 42,
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor.withValues(alpha: 0.25),
+                  primaryColor.withValues(alpha: 0.08),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: primaryColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: SizedImage(
+              imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.irrigationLineObjectId}.svg',
+              color: primaryColor,
             ),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Tap the button below to add an irrigation line to your configuration.',
-            style: TextStyle(fontSize: 12, color: _subTextColor),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _addLine,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add Irrigation Line', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  itemName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  progress.complete
+                      ? 'All parameters configured'
+                      : progress.total == 0
+                          ? 'No parameters available'
+                          : '$remaining left to assign',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: progress.complete ? _doneColor : const Color(0xFF8E9BB4),
+                  ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(width: 8),
+          _buildCancelGradientButton(
+            onTap: () {
+              _confirmDelete(
+                context: context,
+                itemName: itemName,
+                onDelete: () {
+                  setState(() {
+                    widget.configPvd.deleteGeneratedObject(
+                      line.commonDetails.sNo!,
+                      AppConstants.irrigationLineObjectId,
+                    );
+                  });
+                },
+              );
+            },
           ),
         ],
       ),
@@ -238,157 +466,50 @@ class _LineConfigurationState extends State<LineConfiguration> {
   }
 
   // ───────────────────────────────────────────────────────────
-  //  PAGE INTRO
+  //  BODY GRID (2-column on wide screens, 1-column on narrow)
   // ───────────────────────────────────────────────────────────
-  Widget _buildPageHeading(int total, Color primaryColor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
-            ),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF2563EB).withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: const Icon(Icons.alt_route_rounded, color: Colors.white, size: 23),
-        ),
-        const SizedBox(width: 12),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Line configuration',
-                style: TextStyle(
-                  color: _inkColor,
-                  fontSize: 20,
-                  height: 1.15,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.45,
-                ),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Configure pumps, valves, filtration, fertilization and sensors for irrigation lines',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 12,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: _addLine,
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('Add Line',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: () {
-            showModalBottomSheet(
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              isScrollControlled: true,
-              context: context,
-              builder: (context) {
-                return SizedBox(
-                  width: 700,
-                  child: ConfigObjectNameEditing(
-                    listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
-                    configPvd: widget.configPvd,
-                  ),
-                );
-              },
-            );
-          },
-          tooltip: 'Edit Object Names',
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
+  Widget _buildBodyGrid(List<Widget> bodyItems, {required bool wide}) {
+    if (bodyItems.isEmpty) return const SizedBox();
+
+    if (wide) {
+      final rows = <Widget>[];
+      for (var i = 0; i < bodyItems.length; i += 2) {
+        final hasPair = i + 1 < bodyItems.length;
+        rows.add(
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: bodyItems[i]),
+                if (hasPair) ...[
+                  const SizedBox(width: 10),
+                  Expanded(child: bodyItems[i + 1]),
+                ] else
+                  const Expanded(child: SizedBox()),
               ],
             ),
-            child: const Icon(Icons.dataset_rounded, color: _inkColor, size: 20),
           ),
-        ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF1E3A5F).withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$total',
-                style: const TextStyle(
-                  color: _inkColor,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'LINES',
-                style: TextStyle(
-                  color: _subTextColor,
-                  fontSize: 8,
-                  letterSpacing: 0.7,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
+        );
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _withGaps(rows, 10),
+      );
+    } else {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _withGaps(bodyItems, 10),
+      );
+    }
+  }
+
+  List<Widget> _withGaps(List<Widget> items, double gap) {
+    final out = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) out.add(SizedBox(height: gap));
+      out.add(items[i]);
+    }
+    return out;
   }
 
   // ───────────────────────────────────────────────────────────
@@ -805,202 +926,83 @@ class _LineConfigurationState extends State<LineConfiguration> {
         .where((device) => (device.masterId != null && device.categoryId == 4))
         .toList();
 
-    return _buildCardShell(
-      line: line,
-      progress: progress,
-      primaryColor: primaryColor,
-      body: [
-        if (sourceAndPumpTiles.isNotEmpty)
-          _buildFlowSection(
-            title: 'Source & Pumps',
-            icon: Icons.water_rounded,
-            accent: _sourceColor,
-            children: sourceAndPumpTiles,
-          ),
-        if (valveAndControlTiles.isNotEmpty)
-          _buildFlowSection(
-            title: 'Valves & Controls',
-            icon: Icons.vibration_rounded,
-            accent: _valveColor,
-            children: valveAndControlTiles,
-          ),
-        if (fertFilterTiles.isNotEmpty)
-          _buildFlowSection(
-            title: 'Filtration & Fertilization',
-            icon: Icons.science_rounded,
-            accent: _fertColor,
-            children: fertFilterTiles,
-          ),
-        if (sensorMeterTiles.isNotEmpty)
-          _buildFlowSection(
-            title: 'Meters & Pressure Sensors',
-            icon: Icons.speed_rounded,
-            accent: _sensorColor,
-            children: sensorMeterTiles,
-          ),
-        if (climateTiles.isNotEmpty)
-          _buildFlowSection(
-            title: 'Climate & Environment',
-            icon: Icons.thermostat_rounded,
-            accent: _envColor,
-            children: climateTiles,
-          ),
-        if (weatherDevices.isNotEmpty)
-          _buildWeatherStationSection(line, weatherDevices),
-      ],
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  CARD SHELL
-  // ───────────────────────────────────────────────────────────
-  Widget _buildCardShell({
-    required IrrigationLineModel line,
-    required _Progress progress,
-    required Color primaryColor,
-    required List<Widget> body,
-  }) {
-    final remaining = progress.total - progress.filled;
+    final bodySections = <Widget>[
+      if (sourceAndPumpTiles.isNotEmpty)
+        ConfigFlowSection(
+          title: 'Source & Pumps',
+          icon: Icons.water_rounded,
+          accent: _sourceColor,
+          children: sourceAndPumpTiles,
+        ),
+      if (valveAndControlTiles.isNotEmpty)
+        ConfigFlowSection(
+          title: 'Valves & Controls',
+          icon: Icons.vibration_rounded,
+          accent: _valveColor,
+          children: valveAndControlTiles,
+        ),
+      if (fertFilterTiles.isNotEmpty)
+        ConfigFlowSection(
+          title: 'Filtration & Fertilization',
+          icon: Icons.science_rounded,
+          accent: _fertColor,
+          children: fertFilterTiles,
+        ),
+      if (sensorMeterTiles.isNotEmpty)
+        ConfigFlowSection(
+          title: 'Meters & Pressure Sensors',
+          icon: Icons.speed_rounded,
+          accent: _sensorColor,
+          children: sensorMeterTiles,
+        ),
+      if (climateTiles.isNotEmpty)
+        ConfigFlowSection(
+          title: 'Climate & Environment',
+          icon: Icons.thermostat_rounded,
+          accent: _envColor,
+          children: climateTiles,
+        ),
+      if (weatherDevices.isNotEmpty)
+        _buildWeatherStationSection(line, weatherDevices),
+    ];
 
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFF13172E),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: progress.complete
               ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFFE2E8F0),
+              : const Color(0xFF20274B),
           width: progress.complete ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: progress.complete
                 ? _doneColor.withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 18,
-            spreadRadius: 0,
-            offset: const Offset(0, 5),
+                : Colors.black.withValues(alpha: 0.2),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Header ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        primaryColor.withValues(alpha: 0.12),
-                        primaryColor.withValues(alpha: 0.04),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: primaryColor.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: SizedImage(
-                    imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.irrigationLineObjectId}.svg',
-                    color: primaryColor,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        line.commonDetails.name ?? 'Irrigation Line',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: _inkColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        progress.complete
-                            ? 'Complete'
-                            : progress.total == 0
-                                ? 'No parameters available'
-                                : '$remaining left to assign',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: progress.complete ? _doneColor : _subTextColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildProgressRing(progress, primaryColor),
-              ],
-            ),
+          _buildLineHeaderBlock(
+            line: line,
+            progress: progress,
+            primaryColor: primaryColor,
           ),
-
-          // ── Body ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: _withGaps(body, 10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _withGaps(List<Widget> items, double gap) {
-    final out = <Widget>[];
-    for (var i = 0; i < items.length; i++) {
-      if (i > 0) out.add(SizedBox(height: gap));
-      out.add(items[i]);
-    }
-    return out;
-  }
-
-  Widget _buildProgressRing(_Progress p, Color primaryColor) {
-    final color = p.complete
-        ? _doneColor
-        : p.filled > 0
-            ? primaryColor
-            : Colors.grey.shade400;
-
-    return SizedBox(
-      width: 46,
-      height: 46,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox.expand(
-            child: CircularProgressIndicator(
-              value: p.fraction,
-              strokeWidth: 4,
-              strokeCap: StrokeCap.round,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation(color),
-            ),
-          ),
-          p.complete
-              ? Icon(Icons.check_rounded, size: 22, color: color)
-              : Text(
-                  '${p.filled}/${p.total}',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-                ),
+          if (bodySections.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            LayoutBuilder(builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 620;
+              return _buildBodyGrid(bodySections, wide: isWide);
+            }),
+          ],
         ],
       ),
     );
@@ -1013,9 +1015,8 @@ class _LineConfigurationState extends State<LineConfiguration> {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: const Color(0xFF181C38),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,8 +1031,8 @@ class _LineConfigurationState extends State<LineConfiguration> {
                   'Weather Station',
                   style: TextStyle(
                     fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: _inkColor,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -1040,9 +1041,16 @@ class _LineConfigurationState extends State<LineConfiguration> {
           for (var device in weatherDevices)
             CheckboxListTile(
               dense: true,
+              activeColor: Theme.of(context).primaryColor,
               contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              title: Text(device.deviceName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              subtitle: Text(device.deviceId, style: const TextStyle(fontSize: 11, color: _subTextColor)),
+              title: Text(
+                device.deviceName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+              ),
+              subtitle: Text(
+                device.deviceId,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF8E9BB4)),
+              ),
               value: line.weatherStation.contains(device.controllerId),
               onChanged: (value) {
                 setState(() {
@@ -1054,76 +1062,6 @@ class _LineConfigurationState extends State<LineConfiguration> {
                 });
               },
             ),
-        ],
-      ),
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  FLOW SECTION
-  // ───────────────────────────────────────────────────────────
-  Widget _buildFlowSection({
-    required String title,
-    required IconData icon,
-    required Color accent,
-    required List<Widget> children,
-  }) {
-    final rows = <Widget>[];
-    for (var i = 0; i < children.length; i++) {
-      if (i > 0) {
-        rows.add(Divider(
-          height: 1,
-          thickness: 1,
-          indent: 8,
-          endIndent: 8,
-          color: accent.withValues(alpha: 0.12),
-        ));
-      }
-      rows.add(children[i]);
-    }
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0.02),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.14)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 13, color: accent),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: accent,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ...rows,
         ],
       ),
     );
@@ -1144,14 +1082,14 @@ class _LineConfigurationState extends State<LineConfiguration> {
     List<DeviceObjectModel>? listOfObject,
   }) {
     bool isAssigned = currentParameterValue.isNotEmpty;
-    String assignedName = isAssigned
-        ? currentParameterValue.map((sNo) => getObjectName(sNo, widget.configPvd).name ?? '-').join(', ')
-        : '';
+    List<String> names = isAssigned
+        ? currentParameterValue.map((sNo) => getObjectName(sNo, widget.configPvd).name ?? '-').toList()
+        : const [];
 
-    return _buildTile(
+    return ConfigComponentTile(
       title: title,
       imagePath: imagePath,
-      assignedName: assignedName,
+      names: names,
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -1196,12 +1134,12 @@ class _LineConfigurationState extends State<LineConfiguration> {
     List<DeviceObjectModel>? listOfObject,
   }) {
     bool isAssigned = currentValue != 0.0;
-    String assignedName = isAssigned ? (getObjectName(currentValue, widget.configPvd).name ?? '-') : '';
+    List<String> names = isAssigned ? [getObjectName(currentValue, widget.configPvd).name ?? '-'] : const [];
 
-    return _buildTile(
+    return ConfigComponentTile(
       title: title,
       imagePath: imagePath,
-      assignedName: assignedName,
+      names: names,
       isAssigned: isAssigned,
       accent: accent,
       onTap: () {
@@ -1233,105 +1171,6 @@ class _LineConfigurationState extends State<LineConfiguration> {
           },
         );
       },
-    );
-  }
-
-  Widget _buildTile({
-    required String title,
-    required String imagePath,
-    required String assignedName,
-    required bool isAssigned,
-    required VoidCallback onTap,
-    required Color accent,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.12) : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isAssigned ? accent.withValues(alpha: 0.25) : const Color(0xFFE2E8F0),
-                  ),
-                ),
-                child: SizedImage(
-                  imagePath: imagePath,
-                  color: isAssigned ? accent : Colors.grey.shade500,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (isAssigned)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: accent.withValues(alpha: 0.35)),
-                        ),
-                        child: Text(
-                          assignedName,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: accent,
-                          ),
-                        ),
-                      )
-                    else
-                      Text(
-                        'Not assigned',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade400,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              isAssigned
-                  ? Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(Icons.edit_rounded, size: 18, color: accent),
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.add_rounded, size: 18, color: accent),
-                    ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 

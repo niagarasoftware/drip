@@ -2,7 +2,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// Coordinate scaling helper for the reference canvas (1536 x 1024, 3:2).
+/// Coordinate helper. The painter now scales the whole canvas once
+/// (uniform scale + centring), so this is an identity mapping kept only so
+/// the drawing code can keep using s.x / s.y / s.pt / s.rect / s.rrect.
 class _Sc {
   final double sx;
   final double sy;
@@ -38,12 +40,21 @@ class _Flow {
   const _Flow(this.pts, this.color, this.layer, {this.w = 34, this.r = 34});
 }
 
-/// Dual Disc Filter station with top ordinary inlet pipe, common dirty water
-/// backwash drain line, and grooved disc filter elements.
+/// Disc Filter station for 1..N filters.
+///
+/// Layout rule: filters sit on a fixed pitch ([_pitch]) and the reference
+/// canvas WIDTH grows with the filter count (height is always 1024). All
+/// pipes are generated per filter, so nothing overlaps for any count.
+/// For 2 filters the result is identical to the original 1536 x 1024 design.
 class DetailedMultiFilterPainter extends CustomPainter {
   final bool isOn;
   final bool filter1IsBackwash;
   final bool filter2IsBackwash;
+
+  /// Optional per-filter backwash state. When given it overrides
+  /// [filter1IsBackwash] / [filter2IsBackwash] and supports any filter count.
+  final List<bool>? backwashStates;
+
   final double phase;
   final bool showJoints;
   final List<String>? filterNames;
@@ -53,6 +64,7 @@ class DetailedMultiFilterPainter extends CustomPainter {
     required this.isOn,
     this.filter1IsBackwash = false,
     this.filter2IsBackwash = true,
+    this.backwashStates,
     this.phase = 0,
     this.showJoints = true,
     this.filterNames,
@@ -75,94 +87,193 @@ class DetailedMultiFilterPainter extends CustomPainter {
   static const Color _dirtyColor = Color(0xFF795548);
 
   // ------------------------------------------------------------ geometry
-  static const double _cx1 = 522, _cx2 = 1083;
+  static const double _refH = 1024;
+  static const double _firstCx = 522; // centre of the first vessel
+  static const double _pitch = 561; // distance between vessel centres
+  static const double _rightPad = 453; // space right of the last vessel
   static const double _half = 153;
   static const double _mainY = 122;
   static const double _collY = 834;
 
+  // Per-paint state (set at the start of paint()).
+  late List<double> _cx;
+  late double _refW;
+
+  /// Width of the reference canvas for [count] filters.
+  static double referenceWidth(int count) =>
+      _firstCx + (math.max(1, count) - 1) * _pitch + _rightPad;
+
+  /// Ideal width / height ratio for [count] filters (2 filters = 1.5).
+  static double aspectRatio(int count) => referenceWidth(count) / _refH;
+
+  /// Calculates the dynamic width needed for a given [height] and [count] of filters.
+  static double calculateWidth(double height, int count) =>
+      height * aspectRatio(count);
+
+  /// Dynamic width calculation per filter count given a height.
+  static double dynamicWidth({required double height, required int filterCount}) =>
+      calculateWidth(height, filterCount);
+
+  static ({double k, double ox, double oy}) _fit(Size size, int count) {
+    final double rw = referenceWidth(count);
+    const double totalH = _refH + 60.0;
+    final double k = math.min(size.width / rw, size.height / totalH);
+    return (k: k, ox: (size.width - rw * k) / 2, oy: (size.height - totalH * k) / 2 + 50.0 * k);
+  }
+
   // ------------------------------------------------------------------ ports
-  /// Top-left raw water inlet port position (relative to canvas size).
-  static Offset inletPort(Size s) => Offset(s.width * (24 / 1536), s.height * (122 / 1024));
+  /// Top-left raw water inlet port position.
+  static Offset inletPort(Size s, {int filterCount = 2}) {
+    final f = _fit(s, filterCount);
+    return Offset(f.ox + 24 * f.k, f.oy + 122 * f.k);
+  }
 
-  /// Bottom-right clean water outlet port position (relative to canvas size).
-  static Offset outletPort(Size s) => Offset(s.width * (1512 / 1536), s.height * (834 / 1024));
+  /// Bottom-right clean water outlet port position.
+  static Offset outletPort(Size s, {int filterCount = 2}) {
+    final f = _fit(s, filterCount);
+    return Offset(f.ox + (referenceWidth(filterCount) - 24) * f.k, f.oy + 834 * f.k);
+  }
 
-  /// Left brown dirty water backwash port position (at the brown pipe edge).
-  static Offset backwashPort(Size s) => Offset(s.width * (24 / 1536), s.height * (650 / 1024));
+  /// Left brown dirty water backwash port position.
+  static Offset backwashPort(Size s, {int filterCount = 2}) {
+    final f = _fit(s, filterCount);
+    return Offset(f.ox + 24 * f.k, f.oy + 650 * f.k);
+  }
 
-  // Pipes drawn behind the vessels (their ends are hidden by the vessel body).
-  static const List<_Pipe> _backPipes = [
-    // Stainless arch from filter-1 top-right nozzle up to the raw main
-    _Pipe([Offset(552, 143), Offset(778, 143), Offset(778, 368), Offset(672, 368)], 34, 34, _steelPal),
-    // Raw main continuation to filter-2 top-right nozzle
-    _Pipe([Offset(1148, 122), Offset(1368, 122), Offset(1368, 370), Offset(1240, 370)], 34, 36, _steelPal),
-    // Bottom-right nozzle pipes
-    _Pipe([Offset(672, 565), Offset(762, 565), Offset(762, 834)], 34, 34, _steelPal),
-    _Pipe([Offset(1232, 562), Offset(1315, 562), Offset(1315, 810)], 34, 34, _steelPal),
-    // Top-left nozzle necks (valve -> vessel)
-    _Pipe([Offset(330, 366), Offset(380, 366)], 32, 0, _steelPal),
-    _Pipe([Offset(886, 366), Offset(942, 366)], 32, 0, _steelPal),
-    // COMMON dirty water drain pipeline (filter 2 through filter 1 to left exit)
-    _Pipe([Offset(852, 402), Offset(852, 650), Offset(-20, 650)], 38, 30, _orangePal),
-    _Pipe([Offset(291, 402), Offset(291, 650)], 38, 0, _orangePal),
-    _Pipe([Offset(291, 566), Offset(380, 566)], 26, 0, _orangePal),
-    _Pipe([Offset(852, 566), Offset(942, 566)], 26, 0, _steelPal),
-  ];
+  // ------------------------------------------------------------- state
+  bool _isBw(int i) {
+    final b = backwashStates;
+    if (b != null) return i < b.length && b[i];
+    if (i == 0) return filter1IsBackwash;
+    if (i == 1) return filter2IsBackwash;
+    return false;
+  }
 
-  static const _Pipe _mainPipe = _Pipe([Offset(-20, 122), Offset(1148, 122)], 50, 0, _bluePal);
+  static List<double> _calcCxList(int count) {
+    final int n = math.max(1, count);
+    return List.generate(n, (i) => _firstCx + i * _pitch);
+  }
 
-  // Pipes drawn in front of the vessels / legs.
-  static const List<_Pipe> _frontPipes = [
-    _Pipe([Offset(1083, 716), Offset(1083, 834)], 36, 0, _steelPal),
-    _Pipe([Offset(522, 716), Offset(522, 834), Offset(1210, 834)], 40, 34, _steelPal),
-    // Blue clean water outlet collector extending directly to the right edge
-    _Pipe([Offset(1200, 834), Offset(1560, 834)], 56, 0, _bluePal),
-  ];
+  /// x of the common dirty-water drain drop belonging to the vessel at [cx].
+  static double _dropX(double cx) => cx - 231;
 
+  // ------------------------------------------------------------ pipe sets
+
+  /// Pipes drawn behind the vessels (their ends are hidden by the vessel body).
+  List<_Pipe> _buildBackPipes() {
+    final List<_Pipe> p = [];
+    final int n = _cx.length;
+    final int last = n - 1;
+
+    // Common dirty drain header: last filter's drop -> out to the left port at x = 24.
+    final double dxLast = _dropX(_cx[last]);
+    p.add(_Pipe([Offset(dxLast, 402), Offset(dxLast, 650), const Offset(24, 650)], 38, 30, _orangePal));
+
+    for (int i = 0; i < n; i++) {
+      final double c = _cx[i];
+      final bool isLast = i == last;
+      final double dx = _dropX(c);
+
+      // Raw water side nozzle (top-right)
+      if (isLast) {
+        // continuation of the raw main
+        p.add(_Pipe([Offset(c + 65, 122), Offset(c + 285, 122), Offset(c + 285, 370), Offset(c + 157, 370)], 34, 36, _steelPal));
+      } else {
+        // arch hidden behind the main, dropping between this and next vessel
+        p.add(_Pipe([Offset(c + 30, 143), Offset(c + 256, 143), Offset(c + 256, 368), Offset(c + 150, 368)], 34, 34, _steelPal));
+      }
+
+      // Bottom-right clean water nozzle pipe
+      if (isLast) {
+        p.add(_Pipe([Offset(c + 149, 562), Offset(c + 232, 562), Offset(c + 232, 810)], 34, 34, _steelPal));
+      } else {
+        p.add(_Pipe([Offset(c + 150, 565), Offset(c + 240, 565), Offset(c + 240, 834)], 34, 34, _steelPal));
+      }
+
+      // Top-left nozzle neck (valve -> vessel)
+      p.add(_Pipe([Offset(c - 192, 366), Offset(c - 142, 366)], 32, 0, _steelPal));
+
+      // Dirty drain drop for non-last filters (last one is part of the header)
+      if (!isLast) {
+        p.add(_Pipe([Offset(dx, 402), Offset(dx, 650)], 38, 0, _orangePal));
+      }
+      // Mid-left nozzle -> dirty drain
+      p.add(_Pipe([Offset(dx, 566), Offset(c - 142, 566)], 26, 0, _orangePal));
+    }
+    return p;
+  }
+
+  _Pipe _buildMainPipe() =>
+      _Pipe([const Offset(24, 122), Offset(_cx.last + 65, 122)], 50, 0, _bluePal);
+
+  /// Pipes drawn in front of the vessels / legs.
+  List<_Pipe> _buildFrontPipes() {
+    final List<_Pipe> p = [];
+    final int n = _cx.length;
+    final double cLast = _cx.last;
+
+    // Vertical drops of every vessel except the first onto the collector
+    for (int i = 1; i < n; i++) {
+      p.add(_Pipe([Offset(_cx[i], 716), Offset(_cx[i], 834)], 36, 0, _steelPal));
+    }
+    // Collector: first vessel drop with elbow, running to the outlet
+    p.add(_Pipe([Offset(_cx.first, 716), Offset(_cx.first, 834), Offset(cLast + 127, 834)], 40, 34, _steelPal));
+    // Blue clean water outlet running to the right port flange at _refW - 24
+    p.add(_Pipe([Offset(cLast + 117, 834), Offset(_refW - 24, 834)], 56, 0, _bluePal));
+    return p;
+  }
+
+  // ------------------------------------------------------------------ paint
   @override
   void paint(Canvas canvas, Size size) {
-    final _Sc s = _Sc(size.width / 1536, size.height / 1024);
+    final int n = math.max(1, filterCount);
+    final fit = _fit(size, n);
+    final double k = fit.k;
+
+    _cx = _calcCxList(n);
+    _refW = referenceWidth(n);
+
+    const _Sc s = _Sc(1, 1);
+    final List<double> cxList = _cx;
 
     canvas.save();
     canvas.clipRect(Offset.zero & size);
+    canvas.translate(fit.ox, fit.oy);
+    canvas.scale(k);
 
-    _drawSlab(canvas, s);
+    _drawSlab(canvas, s, cxList);
     _drawPosts(canvas, s);
-    for (final double cx in [_cx1, _cx2]) {
+    for (final double cx in cxList) {
       _drawLegs(canvas, s, cx);
     }
 
     _drawDecorPipe(canvas, s);
-    for (final _Pipe p in _backPipes) {
+    for (final _Pipe p in _buildBackPipes()) {
       _tube(canvas, s, p);
     }
     _drawFlows(canvas, s, 0);
-    _tube(canvas, s, _mainPipe);
+    _tube(canvas, s, _buildMainPipe());
     _drawFlows(canvas, s, 1);
 
-    for (final double cx in [_cx1, _cx2]) {
-      _drawVessel(canvas, s, cx);
+    for (int i = 0; i < cxList.length; i++) {
+      _drawVessel(canvas, s, cxList[i]);
+      _drawTop(canvas, s, cxList[i], i);
     }
-    _drawTop(canvas, s, _cx1);
-    _drawTop(canvas, s, _cx2);
 
-    // Both filters rendered as Disc Filters with grooved disc cartridges
-    _drawWindow(canvas, s, _cx1, filter1IsBackwash, false);
-    _drawWindow(canvas, s, _cx2, filter2IsBackwash, true);
+    for (int i = 0; i < cxList.length; i++) {
+      _drawWindow(canvas, s, cxList[i], _isBw(i), i % 2 != 0);
+    }
 
-    for (final _Pipe p in _frontPipes) {
+    for (final _Pipe p in _buildFrontPipes()) {
       _tube(canvas, s, p);
     }
     _drawFlows(canvas, s, 2);
 
-    _drawHardware(canvas, s);
+    _drawHardware(canvas, s, cxList);
 
-    // Render filter names by serial number on vessels
-    final int effectiveCount = math.max(1, filterCount);
-    for (int i = 0; i < effectiveCount; i++) {
-      final double cx = effectiveCount <= 2
-          ? (i == 0 ? _cx1 : _cx2)
-          : (350.0 + i * (1300.0 - 350.0) / (effectiveCount - 1));
+    // Filter name badges
+    for (int i = 0; i < cxList.length; i++) {
+      final double cx = cxList[i];
 
       final String fName = (filterNames != null && i < filterNames!.length && filterNames![i].isNotEmpty)
           ? filterNames![i]
@@ -173,7 +284,7 @@ class DetailedMultiFilterPainter extends CustomPainter {
           text: fName,
           style: TextStyle(
             color: Colors.white,
-            fontSize: math.max(10.0, size.height * 0.038),
+            fontSize: math.max(10 / k, _refH * 0.038),
             fontWeight: FontWeight.w700,
             letterSpacing: 0.3,
           ),
@@ -181,12 +292,11 @@ class DetailedMultiFilterPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      final double badgeX = s.x(cx);
-      final double badgeY = s.y(438.0);
+      final double badgeY = 32.0;
       final Rect badgeRect = Rect.fromCenter(
-        center: Offset(badgeX, badgeY),
-        width: math.max(tp.width + 12, s.x(85)),
-        height: tp.height + 4,
+        center: Offset(cx, badgeY),
+        width: math.max(tp.width + 12 / k, 85),
+        height: tp.height + 4 / k,
       );
       final RRect badgeRRect = RRect.fromRectAndRadius(badgeRect, const Radius.circular(5));
       canvas.drawRRect(badgeRRect, Paint()..color = const Color(0xEE0F172A));
@@ -194,10 +304,10 @@ class DetailedMultiFilterPainter extends CustomPainter {
         badgeRRect,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = s.x(1.2)
+          ..strokeWidth = 1.2
           ..color = const Color(0xFF38BDF8),
       );
-      tp.paint(canvas, Offset(badgeX - tp.width / 2, badgeY - tp.height / 2));
+      tp.paint(canvas, Offset(cx - tp.width / 2, badgeY - tp.height / 2));
     }
 
     canvas.restore();
@@ -266,11 +376,11 @@ class DetailedMultiFilterPainter extends CustomPainter {
     final Path path = _poly(p.pts, s, p.r);
     final double w = p.w;
     Paint line(
-      Color col,
-      double ww, {
-      StrokeCap cap = StrokeCap.round,
-      MaskFilter? blur,
-    }) =>
+        Color col,
+        double ww, {
+          StrokeCap cap = StrokeCap.round,
+          MaskFilter? blur,
+        }) =>
         Paint()
           ..isAntiAlias = true
           ..style = PaintingStyle.stroke
@@ -312,12 +422,14 @@ class DetailedMultiFilterPainter extends CustomPainter {
     if (dim > 0) canvas.drawPath(path, line(Colors.black.withValues(alpha: dim), w, cap: StrokeCap.round));
   }
 
-  /// Second stainless pipe visible behind the carbon vessel's dome.
+  /// Second stainless pipe visible behind the last vessel's dome.
   void _drawDecorPipe(Canvas canvas, _Sc s) {
+    final double c = _cx.last;
+    final double startX = _cx.length > 1 ? c - 233 : c - 60;
     _tube(
       canvas,
       s,
-      const _Pipe([Offset(850, 143), Offset(1162, 143), Offset(1162, 238)], 28, 28, _steelPal),
+      _Pipe([Offset(startX, 143), Offset(c + 79, 143), Offset(c + 79, 238)], 28, 28, _steelPal),
       dim: 0.16,
     );
   }
@@ -325,59 +437,69 @@ class DetailedMultiFilterPainter extends CustomPainter {
   // ------------------------------------------------------------------ flows
 
   List<_Flow> _flows() {
-    final bool bw1 = filter1IsBackwash, bw2 = filter2IsBackwash;
+    final int n = _cx.length;
+    final int last = n - 1;
+    final List<bool> bw = List<bool>.generate(n, _isBw);
+    final List<int> filtering = [for (int i = 0; i < n; i++) if (!bw[i]) i];
     final List<_Flow> f = [];
 
-    // RAW water (blue): main header -> top of each filtering vessel
-    if (!bw2) {
-      f.add(const _Flow([Offset(-20, 122), Offset(1368, 122), Offset(1368, 370), Offset(1244, 370)], _rawColor, 1, w: 40, r: 36));
-    } else if (!bw1) {
-      f.add(const _Flow([Offset(-20, 122), Offset(_cx1, 122)], _rawColor, 1, w: 40));
-    }
-    if (!bw1) {
-      f.add(const _Flow([Offset(_cx1, 122), Offset(_cx1, 170)], _rawColor, 1, w: 28));
-      f.add(const _Flow([Offset(560, 143), Offset(778, 143), Offset(778, 368), Offset(680, 368)], _rawColor, 0));
-    }
-    if (!bw2) {
-      f.add(const _Flow([Offset(_cx2, 122), Offset(_cx2, 170)], _rawColor, 1, w: 28));
+    // RAW water (blue): main header runs as far as the farthest filtering vessel
+    if (filtering.isNotEmpty) {
+      final int m = filtering.last;
+      if (m == last) {
+        final double c = _cx[last];
+        f.add(_Flow([Offset(24, 122), Offset(c + 285, 122), Offset(c + 285, 370), Offset(c + 161, 370)], _rawColor, 1, w: 40, r: 36));
+      } else {
+        f.add(_Flow([Offset(24, 122), Offset(_cx[m], 122)], _rawColor, 1, w: 40));
+      }
     }
 
-    // DIRTY water (brown): top-left nozzle -> 3-way valve -> COMMON dirty water drain pipeline -> left exit
-    if (bw1) {
-      f.add(const _Flow(
-        [Offset(372, 366), Offset(291, 366), Offset(291, 650), Offset(-20, 650)],
+    for (final int i in filtering) {
+      final double c = _cx[i];
+      final bool isLast = i == last;
+
+      // raw: main -> top of vessel (+ side arch for non-last vessels)
+      f.add(_Flow([Offset(c, 122), Offset(c, 170)], _rawColor, 1, w: 28));
+      if (!isLast) {
+        f.add(_Flow([Offset(c + 38, 143), Offset(c + 256, 143), Offset(c + 256, 368), Offset(c + 158, 368)], _rawColor, 0));
+      }
+
+      // clean: bottom nozzle -> collector -> blue outlet
+      f.add(_Flow([Offset(c, 720), Offset(c, 834), Offset(_refW - 24, 834)], _cleanColor, 2, w: 36));
+      if (isLast) {
+        f.add(_Flow([Offset(c + 149, 562), Offset(c + 232, 562), Offset(c + 232, 810)], _cleanColor, 2));
+      } else {
+        f.add(_Flow([Offset(c + 158, 565), Offset(c + 240, 565), Offset(c + 240, 834)], _cleanColor, 2));
+      }
+    }
+
+    for (int i = 0; i < n; i++) {
+      if (!bw[i]) continue;
+      final double c = _cx[i];
+      final double dx = _dropX(c);
+
+      // DIRTY water (brown): nozzle -> 3-way valve -> common drain -> left exit
+      f.add(_Flow(
+        [Offset(c - 150, 366), Offset(dx, 366), Offset(dx, 650), Offset(24, 650)],
         _dirtyColor,
         0,
         w: 38,
         r: 30,
       ));
-    }
-    if (bw2) {
-      f.add(const _Flow(
-        [Offset(912, 366), Offset(852, 366), Offset(852, 650), Offset(-20, 650)],
-        _dirtyColor,
-        0,
-        w: 38,
-        r: 30,
-      ));
-    }
 
-    // CLEAN water (white): bottom nozzles -> collector -> blue outlet pipe
-    if (!bw1) {
-      f.add(const _Flow([Offset(_cx1, 720), Offset(_cx1, 834), Offset(1560, 834)], _cleanColor, 2, w: 36));
-      f.add(const _Flow([Offset(680, 565), Offset(762, 565), Offset(762, 834)], _cleanColor, 2));
-    }
-    if (!bw2) {
-      f.add(const _Flow([Offset(_cx2, 720), Offset(_cx2, 834), Offset(1560, 834)], _cleanColor, 2, w: 36));
-      f.add(const _Flow([Offset(1232, 562), Offset(1315, 562), Offset(1315, 810)], _cleanColor, 2));
-    }
-
-    // BACKWASH feed: clean water from the collector rises into the vessel bottom
-    if (bw1 && !bw2) {
-      f.add(const _Flow([Offset(_cx2, 834), Offset(_cx1, 834), Offset(_cx1, 720)], _cleanColor, 2, w: 36));
-    }
-    if (bw2 && !bw1) {
-      f.add(const _Flow([Offset(_cx1, 834), Offset(_cx2, 834), Offset(_cx2, 720)], _cleanColor, 2, w: 36));
+      // BACKWASH feed: clean water from the nearest filtering vessel
+      int? src;
+      int best = 1 << 30;
+      for (final int j in filtering) {
+        final int d = (j - i).abs();
+        if (d < best) {
+          best = d;
+          src = j;
+        }
+      }
+      if (src != null) {
+        f.add(_Flow([Offset(_cx[src], 834), Offset(c, 834), Offset(c, 720)], _cleanColor, 2, w: 36));
+      }
     }
     return f;
   }
@@ -414,23 +536,26 @@ class DetailedMultiFilterPainter extends CustomPainter {
 
   // ------------------------------------------------------------ concrete pad
 
-  void _drawSlab(Canvas c, _Sc s) {
+  void _drawSlab(Canvas c, _Sc s, List<double> cxList) {
+    final double l = cxList.first - 382;
+    final double r = cxList.last + 367;
+
     final Path top = Path()
-      ..moveTo(s.x(190), s.y(836))
-      ..lineTo(s.x(1400), s.y(836))
-      ..lineTo(s.x(1450), s.y(930))
-      ..lineTo(s.x(140), s.y(930))
+      ..moveTo(s.x(l + 50), s.y(836))
+      ..lineTo(s.x(r - 50), s.y(836))
+      ..lineTo(s.x(r), s.y(930))
+      ..lineTo(s.x(l), s.y(930))
       ..close();
-    c.drawPath(top, _fillV(s.rect(140, 836, 1310, 94), const [Color(0xFFD9D7D2), Color(0xFFC4C2BC)]));
+    c.drawPath(top, _fillV(s.rect(l, 836, r - l, 94), const [Color(0xFFD9D7D2), Color(0xFFC4C2BC)]));
     c.drawPath(top, _stroke(_edge.withValues(alpha: 0.25), s.x(1)));
 
-    final Rect front = s.rect(140, 930, 1310, 45);
+    final Rect front = s.rect(l, 930, r - l, 45);
     c.drawRect(front, _fillV(front, const [Color(0xFFB8B6B0), Color(0xFF9C9A94)]));
-    c.drawLine(s.pt(140, 930), s.pt(1450, 930), _stroke(Colors.white.withValues(alpha: 0.55), s.x(1.6)));
+    c.drawLine(s.pt(l, 930), s.pt(r, 930), _stroke(Colors.white.withValues(alpha: 0.55), s.x(1.6)));
     c.drawRect(front, _stroke(_edge.withValues(alpha: 0.25), s.x(1)));
 
     // vessel contact shadows
-    for (final double cx in [_cx1, _cx2]) {
+    for (final double cx in cxList) {
       c.drawOval(
         s.rect(cx - 200, 876, 400, 34),
         Paint()
@@ -461,12 +586,21 @@ class DetailedMultiFilterPainter extends CustomPainter {
     }
   }
 
+  /// Posts: one left of the first vessel, one between every pair of vessels,
+  /// one short post right of the last vessel.
   void _drawPosts(Canvas c, _Sc s) {
-    _post(c, s, 245, 275, 150, 848);
-    _basePlate(c, s, 260, 842, 76);
-    _post(c, s, 815, 845, 150, 840);
-    _basePlate(c, s, 830, 834, 80, color: const Color(0xFF5C666C));
-    _post(c, s, 1262, 1283, 400, 812);
+    final double first = _cx.first;
+    _post(c, s, first - 277, first - 247, 150, 848);
+    _basePlate(c, s, first - 262, 842, 76);
+
+    for (int i = 0; i < _cx.length - 1; i++) {
+      final double m = _cx[i] + 308;
+      _post(c, s, m - 15, m + 15, 150, 840);
+      _basePlate(c, s, m, 834, 80, color: const Color(0xFF5C666C));
+    }
+
+    final double last = _cx.last;
+    _post(c, s, last + 179, last + 200, 400, 812);
   }
 
   void _bracket(Canvas c, _Sc s, double x, double y) {
@@ -582,7 +716,7 @@ class DetailedMultiFilterPainter extends CustomPainter {
   }
 
   /// Neck flange, blue tee stub and pressure gauge on top of a vessel.
-  void _drawTop(Canvas c, _Sc s, double cx) {
+  void _drawTop(Canvas c, _Sc s, double cx, int index) {
     // neck pipe
     final Rect neck = s.rect(cx - 22, 160, 44, 50);
     c.drawRect(neck, _steelBody(neck));
@@ -612,7 +746,7 @@ class DetailedMultiFilterPainter extends CustomPainter {
 
     // pressure gauge
     final double gx = cx - 76;
-    final double gy = cx < 800 ? 190 : 198;
+    final double gy = index.isEven ? 190 : 198;
     const double r = 23;
 
     final Rect stem = s.rect(gx - 5, gy + r - 4, 10, 26);
@@ -710,9 +844,6 @@ class DetailedMultiFilterPainter extends CustomPainter {
     const double discWidth = 46.0;
     final double discL = cx - discWidth / 2;
 
-    // Color palettes for disc filter elements:
-    // Filter 1: Precision blue grooved discs
-    // Filter 2: High-capacity red/charcoal grooved discs
     final Color discBase = isFilter2 ? const Color(0xFF2C3539) : const Color(0xFF1565C0);
     final Color discLight = isFilter2 ? const Color(0xFFE53935) : const Color(0xFF42A5F5);
     final Color discShade = isFilter2 ? const Color(0xFF1A1F22) : const Color(0xFF0D47A1);
@@ -757,7 +888,6 @@ class DetailedMultiFilterPainter extends CustomPainter {
     if (isOn) {
       final math.Random rp = math.Random(cx.toInt() * 11 + 5);
       if (!bw) {
-        // FILTRATION: Water flows from outside through grooved discs into spine
         for (int i = 0; i < 12; i++) {
           final double side = rp.nextBool() ? 1.0 : -1.0;
           final double t = (phase * 2.5 + i / 12) % 1.0;
@@ -768,7 +898,6 @@ class DetailedMultiFilterPainter extends CustomPainter {
           canvas.drawCircle(s.pt(px, py), s.x(1.8), Paint()..color = Colors.white.withValues(alpha: 0.85));
         }
       } else {
-        // BACKWASH: High-pressure water jets spray outward between loosened discs
         for (int i = 0; i < 14; i++) {
           final double side = i.isEven ? 1.0 : -1.0;
           final double t = (phase * 3.0 + i / 14) % 1.0;
@@ -829,33 +958,35 @@ class DetailedMultiFilterPainter extends CustomPainter {
     _flange(c, s, flangeX, y, 28, h);
   }
 
-  void _drawHardware(Canvas c, _Sc s) {
-    // clamp brackets under the raw main
-    _bracket(c, s, 260, 150);
-    _bracket(c, s, 830, 150);
+  void _drawHardware(Canvas c, _Sc s, List<double> cxList) {
+    final int n = cxList.length;
+    final int last = n - 1;
 
-    // Flange joint where top ordinary inlet pipe drops down into the main header
+    // clamp brackets under the raw main (at the support posts)
+    _bracket(c, s, cxList.first - 262, 150);
+    for (int i = 0; i < last; i++) {
+      _bracket(c, s, cxList[i] + 308, 150);
+    }
+
+    // Flange joint where the inlet pipe drops into the main header
     _flange(c, s, 80, _mainY, 28, 76);
 
-    // main-line flanges
-    _flange(c, s, 405, _mainY, 24, 92);
-    _flange(c, s, 548, _mainY, 24, 76);
-    _flange(c, s, 987, _mainY, 24, 92);
-    _flange(c, s, 1140, _mainY, 24, 76);
-
-    // blue actuated valves on the main
-    _mainValve(c, s, 473);
-    _mainValve(c, s, 1075);
-
-    for (final double cx in [_cx1, _cx2]) {
+    for (int i = 0; i < n; i++) {
+      final double cx = cxList[i];
       final double L = cx - _half, R = cx + _half;
-      final bool bw = cx == _cx1 ? filter1IsBackwash : filter2IsBackwash;
+      final bool isLast = i == last;
+      final bool bw = _isBw(i);
+
+      // main-line flanges + actuated valve in front of every vessel
+      _flange(c, s, cx + (isLast ? -96 : -117), _mainY, 24, 92);
+      _flange(c, s, cx + (isLast ? 57 : 26), _mainY, 24, 76);
+      _mainValve(c, s, cx + (isLast ? -8 : -49));
 
       // side nozzles
       _nozzle(c, s, L + 2, L - 22, 366);
       _nozzle(c, s, L + 2, L - 30, 566, h: 66);
-      _nozzle(c, s, R - 2, R + 22, cx == _cx1 ? 368 : 370);
-      _nozzle(c, s, R - 2, R + 22, cx == _cx1 ? 565 : 562);
+      _nozzle(c, s, R - 2, R + 22, 368);
+      _nozzle(c, s, R - 2, R + 22, 565);
 
       // 3-way valve on the top-left nozzle + drain lever
       _threeWay(c, s, L - 78, 366);
@@ -863,32 +994,37 @@ class DetailedMultiFilterPainter extends CustomPainter {
 
       // bottom drain valve
       _bottomValve(c, s, cx);
+
+      // dirty-water drain collar (junction with the common drain line)
+      _collar(c, s, _dropX(cx), 650, 44, 18);
+
+      if (!isLast) {
+        // collector joints + bottom-right pipe flange
+        _collar(c, s, cx + 240, _collY, 18, 52);
+        _collar(c, s, cx + 308, _collY, 14, 48);
+        _flange(c, s, cx + 240, 782, 70, 16, bolts: 4);
+      } else {
+        // blue tee collar + bottom-right pipe flange into the outlet header
+        _flange(c, s, cx + 232, 774, 70, 16, bolts: 4);
+        final RRect gt = s.rrect(cx + 205, 792, 54, 14, 3);
+        c.drawRRect(gt, _fillV(gt.outerRect, const [Color(0xFF3A8FEA), Color(0xFF0F4F9C)]));
+        c.drawRRect(gt, _stroke(_edge.withValues(alpha: 0.7), s.x(1)));
+      }
     }
 
-    // Common dirty water pipeline collars / T-junction joints
-    _collar(c, s, 291, 650, 44, 18);
-    _collar(c, s, 852, 650, 44, 18);
-
-    // collector joints
-    _collar(c, s, 762, _collY, 18, 52);
-    _collar(c, s, 830, _collY, 14, 48);
-    _collar(c, s, 1150, _collY, 14, 48);
-    _flange(c, s, 1205, _collY, 24, 76);
-
-    // bottom-right pipe flanges
-    _flange(c, s, 762, 782, 70, 16, bolts: 4);
-    _flange(c, s, 1315, 774, 70, 16, bolts: 4);
-
-    // blue tee collar
-    final RRect gt = s.rrect(1288, 792, 54, 14, 3);
-    c.drawRRect(gt, _fillV(gt.outerRect, const [Color(0xFF3A8FEA), Color(0xFF0F4F9C)]));
-    c.drawRRect(gt, _stroke(_edge.withValues(alpha: 0.7), s.x(1)));
+    // collector -> outlet joints
+    final double cl = cxList.last;
+    _collar(c, s, cl + 67, _collY, 14, 48);
+    _flange(c, s, cl + 122, _collY, 24, 76);
 
     // End flange at the mouth of blue main inlet header
     _flange(c, s, 24, _mainY, 24, 76);
 
+    // End flange at the mouth of orange backwash header
+    _flange(c, s, 24, 650, 24, 66);
+
     // End flange at the mouth of blue main outlet header
-    _flange(c, s, 1512, _collY, 24, 76);
+    _flange(c, s, _refW - 24, _collY, 24, 76);
   }
 
   void _collar(Canvas c, _Sc s, double x, double y, double w, double h) {
@@ -1005,19 +1141,29 @@ class DetailedMultiFilterPainter extends CustomPainter {
         old.phase != phase ||
         old.showJoints != showJoints ||
         old.filterCount != filterCount ||
+        !listEquals(old.backwashStates, backwashStates) ||
         !listEquals(old.filterNames, filterNames);
   }
 }
 
 /// Animated widget wrapper for [DetailedMultiFilterPainter].
 ///
-/// Use a 3:2 size, e.g. `Size(600, 400)`.
+/// Pick a size with the right proportions for the filter count, e.g.
+/// `MultiFilterView.sizeForWidth(600, filters.length)`. Any other size still
+/// works: the drawing is scaled uniformly and centred, and the pipes extend to
+/// the widget edges.
 class MultiFilterView extends StatefulWidget {
   final bool isOn;
   final bool filter1IsBackwash;
   final bool filter2IsBackwash;
+
+  /// Per-filter backwash flags (index = filter index). Overrides the two
+  /// flags above when provided; use this for 3+ filters.
+  final List<bool>? backwashStates;
+
   final bool showJoints;
-  final Size size;
+  final Size? size;
+  final double? height;
   final List<String>? filterNames;
   final int filterCount;
 
@@ -1026,11 +1172,21 @@ class MultiFilterView extends StatefulWidget {
     required this.isOn,
     this.filter1IsBackwash = false,
     this.filter2IsBackwash = true,
+    this.backwashStates,
     this.showJoints = true,
-    required this.size,
+    this.size,
+    this.height,
     this.filterNames,
     this.filterCount = 2,
   });
+
+  /// Size with the ideal aspect ratio for [count] filters at a given [width].
+  static Size sizeForWidth(double width, int count) =>
+      Size(width, width / DetailedMultiFilterPainter.aspectRatio(count));
+
+  /// Size with the ideal aspect ratio for [count] filters at a given [height].
+  static Size sizeForHeight(double height, int count) =>
+      Size(DetailedMultiFilterPainter.calculateWidth(height, count), height);
 
   @override
   State<MultiFilterView> createState() => _MultiFilterViewState();
@@ -1064,15 +1220,18 @@ class _MultiFilterViewState extends State<MultiFilterView> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final Size effectiveSize = widget.size ??
+        MultiFilterView.sizeForHeight(widget.height ?? 140.0, widget.filterCount);
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, _) => CustomPaint(
-          size: widget.size,
+          size: effectiveSize,
           painter: DetailedMultiFilterPainter(
             isOn: widget.isOn,
             filter1IsBackwash: widget.filter1IsBackwash,
             filter2IsBackwash: widget.filter2IsBackwash,
+            backwashStates: widget.backwashStates,
             phase: _controller.value,
             showJoints: widget.showJoints,
             filterNames: widget.filterNames,

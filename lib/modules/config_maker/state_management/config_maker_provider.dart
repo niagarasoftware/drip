@@ -703,6 +703,57 @@ class ConfigMakerProvider extends ChangeNotifier{
 
   }
 
+  void deleteGeneratedObject(double sNo, int objectId) {
+    for (var object in listOfSampleObjectModel) {
+      if (object.objectId == objectId) {
+        int count = object.count == null || object.count == '' ? 0 : int.tryParse(object.count!) ?? 0;
+        if (count > 0) {
+          object.count = '${count - 1}';
+        }
+      }
+    }
+    listOfGeneratedObject.removeWhere((e) => e.sNo == sNo);
+    filtration.removeWhere((e) => e.commonDetails.sNo == sNo);
+    fertilization.removeWhere((e) => e.commonDetails.sNo == sNo);
+    source.removeWhere((e) => e.commonDetails.sNo == sNo);
+    moisture.removeWhere((e) => e.commonDetails.sNo == sNo);
+    valveConfig.removeWhere((e) => e.commonDetails.sNo == sNo);
+    channelConfig.removeWhere((e) => e.commonDetails.sNo == sNo);
+    pressureSensor.removeWhere((e) => e.commonDetails.sNo == sNo);
+    line.removeWhere((e) => e.commonDetails.sNo == sNo);
+    pump.removeWhere((e) => e.commonDetails.sNo == sNo);
+
+    final filteredList = [sNo];
+    for (var p in pump) {
+      p.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var filterSite in filtration) {
+      filterSite.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var fertilizerSite in fertilization) {
+      fertilizerSite.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var src in source) {
+      src.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var ms in moisture) {
+      ms.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var v in valveConfig) {
+      v.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var v in channelConfig) {
+      v.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var ps in pressureSensor) {
+      ps.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    for (var l in line) {
+      l.updateObjectIdIfDeletedInProductLimit(filteredList);
+    }
+    notifyListeners();
+  }
+
   void updateObjectConnection(DeviceObjectModel selectedConnectionObject,int newCount){
 
     // ------making connection list--------------------------------------------------------

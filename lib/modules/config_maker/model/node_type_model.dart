@@ -114,11 +114,11 @@ class NodeObject {
       return Offset(position.dx + size.width * (92 / 944), position.dy + size.height * (434 / 1132));
     }
     if (type == NodeType.multiInjector) {
-      final p = DetailedMultiInjectorPainter.inletPort(size);
+      final p = DetailedMultiInjectorPainter.inletPort(size, math.max(1, activeChannelStates.length));
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiFilter) {
-      final p = DetailedMultiFilterPainter.inletPort(size);
+      final p = DetailedMultiFilterPainter.inletPort(size, filterCount: math.max(1, outletPortCount));
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiValve) {
@@ -182,11 +182,11 @@ class NodeObject {
       return Offset(position.dx + size.width * (500 / 944), position.dy + size.height * (968 / 1132));
     }
     if (type == NodeType.multiInjector) {
-      final p = DetailedMultiInjectorPainter.outletPort(size);
+      final p = DetailedMultiInjectorPainter.outletPort(size, math.max(1, activeChannelStates.length));
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiFilter) {
-      final p = DetailedMultiFilterPainter.outletPort(size);
+      final p = DetailedMultiFilterPainter.outletPort(size, filterCount: math.max(1, outletPortCount));
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiValve) {
@@ -271,7 +271,7 @@ class NodeObject {
     if (type == NodeType.multiInjector) {
       if (portId != null && portId.startsWith('channel_')) {
         final int index = int.tryParse(portId.split('_').last) ?? 0;
-        final p = DetailedMultiInjectorPainter.channelTopPort(size, index);
+        final p = DetailedMultiInjectorPainter.channelTopPort(size, index, math.max(1, activeChannelStates.length));
         return Offset(position.dx + p.dx, position.dy + p.dy);
       }
       if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
@@ -279,7 +279,7 @@ class NodeObject {
     }
     if (type == NodeType.multiFilter) {
       if (portId == 'backwash' || portId == 'dirty' || portId == 'drain') {
-        final p = DetailedMultiFilterPainter.backwashPort(size);
+        final p = DetailedMultiFilterPainter.backwashPort(size, filterCount: math.max(1, outletPortCount));
         return Offset(position.dx + p.dx, position.dy + p.dy);
       }
       if (portId == 'inlet' || (portId == null && isInput)) return inputPort;
@@ -376,9 +376,9 @@ class NodeObject {
       case NodeType.fertilizerTank:
         return const Size(70, 88);
       case NodeType.multiInjector:
-        return const Size(308, 132);
+        return Size(DetailedMultiInjectorPainter.aspectRatioFor(math.max(1, outletPortCount)) * 132, 132);
       case NodeType.multiFilter:
-        return const Size(220, 132);
+        return Size(DetailedMultiFilterPainter.calculateWidth(132, math.max(1, outletPortCount)), 132);
       case NodeType.multiValve:
         return Size(math.max(180.0, 60.0 * outletPortCount + 60.0), 180);
       case NodeType.mainValve:

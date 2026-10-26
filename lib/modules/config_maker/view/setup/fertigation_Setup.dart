@@ -104,7 +104,7 @@ class FertigationSetup extends SiteSetupBase {
             type: NodeType.pump,
             size: const Size(68, 47),
             label: pumpLabel,
-            isOn: true,
+            isOn: false,
             showJoints: !globalHideJoints,
           );
           pumpNode.size = pumpNode.defaultSize;
@@ -458,13 +458,21 @@ class FertigationSetup extends SiteSetupBase {
               ? site.commonDetails.name!
               : 'Multi-Injector Skid';
 
+          final int count = math.max(1, site.channel.length);
+          final List<String> portLabels = site.channel
+              .map((inj) => getObjectName(inj.sNo, configPvd).name ?? '')
+              .toList();
+          final List<bool> channelStates = List.filled(count, true);
+
           final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0 + s * 340.0;
           final skidNode = NodeObject(
             id: nextId('skid_${site.commonDetails.sNo?.toInt() ?? s}'),
             position: Offset(skidX, provisionalSkidY),
             type: NodeType.multiInjector,
-            size: const Size(308, 132),
             label: label,
+            outletPortCount: count,
+            channelStates: channelStates,
+            portLabels: portLabels,
             showJoints: !globalHideJoints,
           );
           skidNode.size = skidNode.defaultSize;
@@ -506,12 +514,20 @@ class FertigationSetup extends SiteSetupBase {
       } else if (fertTanks.isNotEmpty || channelConfigs.isNotEmpty) {
         // Create 1 default Multi-Injector Skid if channels exist but no site object
         final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0;
+        final int channelCount = math.max(1, channelConfigs.length);
+        final List<String> portLabels = channelConfigs
+            .map((ch) => getObjectName(ch.commonDetails.sNo ?? 0.0, configPvd).name ?? '')
+            .toList();
+        final List<bool> channelStates = List.filled(channelCount, true);
+
         final skidNode = NodeObject(
           id: nextId('skid_0'),
           position: Offset(skidX, provisionalSkidY),
           type: NodeType.multiInjector,
-          size: const Size(308, 132),
           label: 'Multi-Injector Skid',
+          outletPortCount: channelCount,
+          channelStates: channelStates,
+          portLabels: portLabels,
           showJoints: !globalHideJoints,
         );
         skidNode.size = skidNode.defaultSize;
@@ -519,8 +535,6 @@ class FertigationSetup extends SiteSetupBase {
         skidNodes.add(skidNode);
 
         final valves = fertTankValveNodeMap.values.toSet().toList();
-        final int channelCount = math.max(4, channelConfigs.length);
-
         for (int c = 0; c < channelCount; c++) {
           final String targetPort = 'channel_$c';
           final cConfig = c < channelConfigs.length ? channelConfigs[c] : null;

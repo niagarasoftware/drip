@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/view/setup/site_layout_context.dart';
 
 import '../../model/node_type_model.dart';
-
+import '../../widget/painter/multi_filter_painter.dart';
 import '../../widget/painter/pipe_painter.dart';
 import 'water_source_setup.dart';
 
@@ -51,7 +51,7 @@ class FiltrationSetup extends SiteSetupBase {
           portLabels: filterNames,
           showJoints: !globalHideJoints,
         );
-        filterNode.size = Size(math.max(160.0, 80.0 * filterCount + 60.0), 120);
+        filterNode.size = Size(DetailedMultiFilterPainter.calculateWidth(120, filterCount), 120);
         nodes.add(filterNode);
         filterNodes.add(filterNode);
       }
@@ -67,7 +67,7 @@ class FiltrationSetup extends SiteSetupBase {
       final Offset sampleInletLocal = filterNodes.first.getPort('inlet', isInput: true) - filterNodes.first.position;
       final double targetY = math.max(30.0, primarySupplyY - sampleInletLocal.dy);
 
-      double currentX = math.max(350.0, maxWaterX + 80.0);
+      double currentX = math.max(420.0, maxWaterX + 160.0);
       for (int f = 0; f < filterNodes.length; f++) {
         final fn = filterNodes[f];
         fn.position = Offset(currentX, targetY);

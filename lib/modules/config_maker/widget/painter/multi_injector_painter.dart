@@ -2,42 +2,65 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// Multi-Injector Fertilizer Dosing Skid, redrawn to match the reference photo
-/// (aluminium extrusion frame, grey PVC piping, green motor + volute pump,
-/// 4 rotameter channels with blue caps / red floats, a pressure gauge on EACH
-/// of the 4 channels + 1 on the suction column).
+import 'single_injector_channel_painter.dart';
+
+/// Multi-Injector Fertilizer Dosing Skid.
+///
+/// (aluminium extrusion frame, grey PVC piping, yellow booster pump,
+/// dynamic N injector channels, a pressure gauge on EACH channel + 1 on the suction
+/// column.)
+///
+/// IMPORTANT: every channel is drawn by calling
+/// [InjectorChannelArt.paint] from single_injector_channel_painter.dart, so a
+/// channel on the skid is exactly the same drawing as
+/// [DetailedSingleInjectorChannelPainter]. The skid just scales it, places it
+/// on each channel axis and lines its shelf rails / manifold tees up with it.
 ///
 /// Design the canvas at the skid's aspect ratio:
-///   AspectRatio(aspectRatio: DetailedMultiInjectorPainter.aspectRatio)
-///
-/// Layout notes (v2):
-///  * The artwork is authored in "design units": 1.0 unit = one original photo
-///    width, and the drawing is [_designW] units wide. This gives extra room so
-///    the booster pump sits fully in the open (the frame starts to its right),
-///    the channels are spaced further apart, and the 4th channel has its own
-///    gauge. Element sizes are unchanged, only the layout is wider.
+///   AspectRatio(aspectRatio: DetailedMultiInjectorPainter.aspectRatioFor(channelCount))
 ///
 /// PORTS (in pixels of the canvas size, use these for overlays / hit-tests):
 ///   inletPort(size)          -> water inlet flange, left of the suction column
 ///   outletPort(size)         -> outlet flange, right of the frame
-///   channelPort(size, i)     -> bottom injection port of channel i (0..3)
-///   channelTopPort(size, i)  -> blue-cap (top) port of channel i
+///   channelPort(size, i)     -> bottom injection port of channel i
+///   channelTopPort(size, i)  -> top (inlet flange) port of channel i
 ///
-/// [isOn]       – floats bob, bubbles rise, glow.
-/// [phase]      – 0..1 looping animation driver.
-/// [showJoints] – draw flange bolts / screws.
+/// [isOn]          – master switch: pump, glow, flow animation.
+/// [phase]         – 0..1 looping animation driver.
+/// [showJoints]    – draw flange bolts / screws.
+/// [channelCount]  – number of injector channels to render (default 4).
+/// [channelStates] – per channel ON/OFF (default all ON). An OFF channel
+///                   shows a resting float and no bubbles.
+/// [channelNames]  – optional names / labels for each channel/injector.
+/// [fluidColors]   – optional per channel chemical colour.
 class DetailedMultiInjectorPainter extends CustomPainter {
   final bool isOn;
   final double phase;
   final bool showJoints;
+  final int channelCount;
   final List<bool>? channelStates;
+  final List<String>? channelNames;
+  final List<Color>? fluidColors;
 
   DetailedMultiInjectorPainter({
     required this.isOn,
     this.phase = 0,
     this.showJoints = true,
+    this.channelCount = 4,
     this.channelStates,
+    this.channelNames,
+    this.fluidColors,
   });
+
+  int get count {
+    if (channelNames != null && channelNames!.isNotEmpty) {
+      return math.max(1, channelNames!.length);
+    }
+    if (channelStates != null && channelStates!.isNotEmpty) {
+      return math.max(1, channelStates!.length);
+    }
+    return math.max(1, channelCount);
+  }
 
   bool isChannelActive(int i) {
     if (channelStates != null && i >= 0 && i < channelStates!.length) {
@@ -47,42 +70,61 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   }
 
   // ------------------------------------------------------------ geometry API
-  /// Width of the drawing in design units (original photo width = 1.0).
-  static const double _designW = 1.75;
-
-  static const double aspectRatio = 1448 / 1085 * _designW;
-  static const int channelCount = 4;
   static const double firstChannelX = 0.52;
-  static const double channelSpacing = 0.32; // 2x expanded channel gap
+  static const double channelSpacing = 0.32;
+
+  static double designWidthFor(int count) {
+    final int c = math.max(1, count);
+    final double lastChX = firstChannelX + channelSpacing * (c - 1);
+    final double returnX = lastChX + 0.13;
+    final double postR = returnX + 0.07;
+    return postR + 0.07;
+  }
+
+  static double aspectRatioFor(int count) => (1448 / 1085) * designWidthFor(count);
+
+  static double get aspectRatio => aspectRatioFor(4);
+
+  double get _lastChannelX => firstChannelX + channelSpacing * (count - 1);
+  double get _returnX => _lastChannelX + 0.13;
+  double get _postR => _returnX + 0.07;
+  double get _designW => _postR + 0.07;
+
+  /// The channel art spans (outletY - inletY) = 500 reference units, mapped to
+  /// this fraction of the canvas height (top flange at 0.20 .. outlet 0.82).
+  static const double _chTopFrac = 0.200;
+  static const double _chSpanFrac = 0.620;
 
   // Frame / pipe x-positions (design units).
   static const double _postL = 0.385; // front-left post
-  static const double _returnX = 1.610; // right return pipe
-  static const double _postR = 1.680; // front-right post
 
   /// Design-unit x -> pixel x on a canvas of [s].
-  static double _fx(Size s, double ux) => s.width * ux / _designW;
+  static double _fx(Size s, double ux, [int count = 4]) =>
+      s.width * ux / designWidthFor(count);
 
-  static Offset inletPort(Size s) => Offset(_fx(s, 0.04), s.height * 0.54);
-  static Offset outletPort(Size s) => Offset(_fx(s, _returnX + 0.08), s.height * 0.72);
-  static Offset channelPort(Size s, int i) =>
-      Offset(_fx(s, firstChannelX + channelSpacing * i), s.height * 0.820);
-  static Offset channelTopPort(Size s, int i) =>
-      Offset(_fx(s, firstChannelX + channelSpacing * i), s.height * 0.200);
+  static Offset inletPort(Size s, [int count = 4]) =>
+      Offset(_fx(s, 0.04, count), s.height * 0.54);
+
+  static Offset outletPort(Size s, [int count = 4]) {
+    final int c = math.max(1, count);
+    final double lastChX = firstChannelX + channelSpacing * (c - 1);
+    final double returnX = lastChX + 0.13;
+    return Offset(_fx(s, returnX + 0.08, count), s.height * 0.72);
+  }
+
+  static Offset channelPort(Size s, int i, [int count = 4]) =>
+      Offset(_fx(s, firstChannelX + channelSpacing * i, count), s.height * (_chTopFrac + _chSpanFrac));
+
+  static Offset channelTopPort(Size s, int i, [int count = 4]) =>
+      Offset(_fx(s, firstChannelX + channelSpacing * i, count), s.height * _chTopFrac);
 
   // ---------------------------------------------------------------- palette
-  static const Color _edge = Color(0xFF151D24);
-  static const Color _pvcDark = Color(0xFF263038);
-  static const Color _blueKnob = Color(0xFF1E6FE0);
-  static const Color _blueKnobDark = Color(0xFF0B3FA8);
-  static const Color _redFloat = Color(0xFFE53935);
+  static const Color _edge = InjectorChannelArt.edge;
   static const Color _redValve = Color(0xFFE53935);
-  static const Color _chemGreen = Color(0xFF00E676);
-  static const Color _chemBlue = Color(0xFF0288D1);
-  static const Color _chemGlow = Color(0xFF00E5FF);
-  static const Color _steelLight = Color(0xFFECEFF1);
-  static const Color _steelMid = Color(0xFF90A4AE);
-  static const Color _steelDark = Color(0xFF455A64);
+  static const Color _chemGlow = InjectorChannelArt.chemGlow;
+  static const Color _steelLight = InjectorChannelArt.steelLight;
+  static const Color _steelMid = InjectorChannelArt.steelMid;
+  static const Color _steelDark = InjectorChannelArt.steelDark;
   static const Color _brass = Color(0xFFFFB300);
 
   // Booster Pump Yellow & Black Palette
@@ -103,23 +145,13 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   static const Color _bpSteelMid = Color(0xFFA7B2B9);
   static const Color _bpSteelDark = Color(0xFF3F494F);
 
-  static const List<Color> _pvcCyl = [
-    Color(0xFF2B343B),
-    Color(0xFF7C8A94),
-    Color(0xFF55616A),
-    Color(0xFF263038),
-  ];
-  static const List<Color> _alumCyl = [
-    Color(0xFFB8C2C9),
-    Color(0xFFFFFFFF),
-    Color(0xFFD5DCE1),
-    Color(0xFF8E9BA4),
-  ];
-  static const List<double> _cylStops = [0.0, 0.25, 0.65, 1.0];
+  static const List<Color> _alumCyl = InjectorChannelArt.alumCyl;
+  static const List<double> _cylStops = InjectorChannelArt.cylStops;
 
   Size _size = Size.zero;
   double _w = 0; // pixels per design unit (horizontal)
   double _h = 0; // pixels of canvas height
+  double _chK = 0; // pixels per channel-art reference unit
 
   // ---------------------------------------------------------------- helpers
   Rect _r(double x, double y, double ww, double hh) =>
@@ -127,56 +159,27 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
   double _cx(int i) => _w * (firstChannelX + channelSpacing * i);
 
-  Paint _gv(Rect r, List<Color> c, [List<double>? s]) => Paint()
-    ..isAntiAlias = true
-    ..shader = LinearGradient(
-      colors: c,
-      stops: s,
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-    ).createShader(r);
+  /// Channel-art reference y -> canvas pixel y.
+  double _chY(double refY) =>
+      _h * _chTopFrac + (refY - InjectorChannelArt.inletY) * _chK;
 
-  Paint _gh(Rect r, List<Color> c, [List<double>? s]) => Paint()
-    ..isAntiAlias = true
-    ..shader = LinearGradient(
-      colors: c,
-      stops: s,
-      begin: Alignment.centerLeft,
-      end: Alignment.centerRight,
-    ).createShader(r);
-
+  Paint _gv(Rect r, List<Color> c, [List<double>? s]) => InjectorChannelArt.gv(r, c, s);
+  Paint _gh(Rect r, List<Color> c, [List<double>? s]) => InjectorChannelArt.gh(r, c, s);
   Paint _stroke(Color c, double w) => Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = w
     ..color = c;
 
   /// Horizontal PVC cylinder (lit from top).
-  void _cylH(Canvas c, Rect r, {double radius = 2}) {
-    final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
-    c.drawRRect(rr, _gv(r, _pvcCyl, _cylStops));
-    c.drawRRect(rr, _stroke(_edge.withValues(alpha: 0.7), 0.8));
-  }
+  void _cylH(Canvas c, Rect r, {double radius = 2}) =>
+      InjectorChannelArt.pvcH(c, r, radius: radius);
 
   /// Vertical PVC cylinder (lit from left).
-  void _cylV(Canvas c, Rect r, {double radius = 2}) {
-    final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
-    c.drawRRect(rr, _gh(r, _pvcCyl, _cylStops));
-    c.drawRRect(rr, _stroke(_edge.withValues(alpha: 0.7), 0.8));
-  }
+  void _cylV(Canvas c, Rect r, {double radius = 2}) =>
+      InjectorChannelArt.pvcV(c, r, radius: radius);
 
-  void _alumH(Canvas c, Rect r) {
-    c.drawRect(r, _gv(r, _alumCyl, _cylStops));
-    c.drawRect(r, _stroke(const Color(0xFF6B7780), 0.8));
-    c.drawLine(Offset(r.left + 2, r.center.dy), Offset(r.right - 2, r.center.dy),
-        Paint()..color = const Color(0x55000000)..strokeWidth = 0.8);
-  }
-
-  void _alumV(Canvas c, Rect r) {
-    c.drawRect(r, _gh(r, _alumCyl, _cylStops));
-    c.drawRect(r, _stroke(const Color(0xFF6B7780), 0.8));
-    c.drawLine(Offset(r.center.dx, r.top + 2), Offset(r.center.dx, r.bottom - 2),
-        Paint()..color = const Color(0x55000000)..strokeWidth = 0.8);
-  }
+  void _alumH(Canvas c, Rect r) => InjectorChannelArt.alumH(c, r);
+  void _alumV(Canvas c, Rect r) => InjectorChannelArt.alumV(c, r);
 
   void _alumPoly(Canvas c, List<Offset> pts) {
     final Path p = Path()..moveTo(pts.first.dx * _w, pts.first.dy * _h);
@@ -184,14 +187,12 @@ class DetailedMultiInjectorPainter extends CustomPainter {
       p.lineTo(o.dx * _w, o.dy * _h);
     }
     p.close();
+    c.drawPath(p.shift(const Offset(1.5, 2.0)), Paint()..color = const Color(0x24000000));
     c.drawPath(p, _gv(p.getBounds(), _alumCyl, _cylStops));
-    c.drawPath(p, _stroke(const Color(0xFF6B7780), 0.8));
+    c.drawPath(p, InjectorChannelArt.stroke(const Color(0xFF6B7780), 0.9));
   }
 
-  void _bolt(Canvas c, Offset o, double r) {
-    c.drawCircle(o, r, Paint()..color = _steelLight);
-    c.drawCircle(o, r, _stroke(_edge, 0.6));
-  }
+  void _bolt(Canvas c, Offset o, double r) => InjectorChannelArt.bolt(c, o, r);
 
   // ------------------------------------------------------------------ paint
   @override
@@ -199,22 +200,32 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     _size = size;
     _w = size.width / _designW;
     _h = size.height;
+    _chK = _h * _chSpanFrac / (InjectorChannelArt.outletY - InjectorChannelArt.inletY);
 
+    _drawFloorShadow(canvas);
     if (isOn) _drawActiveGlow(canvas);
     _drawBackFrame(canvas);
     _drawPipes(canvas);
     _drawPump(canvas);
     _drawFrontFrame(canvas);
-    _drawChannelGauges(canvas);
-    _drawRotameters(canvas);
+    _drawChannels(canvas);
     _drawPorts(canvas);
     _drawChannelButtons(canvas);
+  }
+
+  void _drawFloorShadow(Canvas c) {
+    c.drawOval(
+      _r(0.0, 0.875, _postR + 0.09, 0.07),
+      Paint()
+        ..color = const Color(0x33000000)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, _h * 0.02),
+    );
   }
 
   // ------------------------------------------------------------- back frame
   void _drawBackFrame(Canvas c) {
     const double rl = _postL + 0.085; // rear-left post (perspective offset)
-    const double rr = _returnX - 0.01; // rear-right post
+    final double rr = _returnX - 0.01; // rear-right post
 
     _alumV(c, _r(rl, 0.02, 0.024, 0.74)); // rear-left post
     _alumV(c, _r(rr, 0.015, 0.026, 0.20)); // rear-right post
@@ -226,9 +237,9 @@ class DetailedMultiInjectorPainter extends CustomPainter {
       Offset(_postL + 0.003, 0.07), Offset(_postL + 0.107, 0.012),
       Offset(_postL + 0.112, 0.04), Offset(_postL + 0.045, 0.088),
     ]);
-    _alumPoly(c, const [
-      Offset(_returnX - 0.01, 0.012), Offset(_returnX + 0.093, 0.062),
-      Offset(_returnX + 0.068, 0.092), Offset(_returnX - 0.01, 0.045),
+    _alumPoly(c, [
+      Offset(rr, 0.012), Offset(_returnX + 0.093, 0.062),
+      Offset(_returnX + 0.068, 0.092), Offset(rr, 0.045),
     ]);
 
     // right floor diagonal
@@ -248,13 +259,10 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   void _drawPipes(Canvas c) {
     // --- left suction column
     final Rect col = _r(0.047, 0.15, 0.043, 0.56);
-    c.drawRRect(
+    InjectorChannelArt.pvcRRect(
+      c,
       RRect.fromRectAndCorners(col, bottomLeft: Radius.circular(_w * 0.03)),
-      _gh(col, _pvcCyl, _cylStops),
-    );
-    c.drawRRect(
-      RRect.fromRectAndCorners(col, bottomLeft: Radius.circular(_w * 0.03)),
-      _stroke(_edge.withValues(alpha: 0.7), 0.8),
+      vertical: true,
     );
     _cylH(c, _r(0.065, 0.66, 0.05, 0.05)); // bend into pump
     _cylV(c, _r(0.044, 0.60, 0.049, 0.045), radius: 4); // union collar
@@ -275,29 +283,22 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
     // red ball valve
     _cylV(c, _r(0.352, 0.148, 0.03, 0.045), radius: 4);
-    c.drawRRect(
-      RRect.fromRectAndRadius(_r(0.338, 0.146, 0.045, 0.02), const Radius.circular(3)),
-      Paint()..color = _redValve,
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(_r(0.338, 0.146, 0.045, 0.02), const Radius.circular(3)),
-      _stroke(_edge, 0.8),
-    );
+    final RRect lever = RRect.fromRectAndRadius(_r(0.338, 0.146, 0.045, 0.02), const Radius.circular(3));
+    c.drawRRect(lever.shift(const Offset(1, 2)), Paint()..color = const Color(0x33000000));
+    c.drawRRect(lever, _gv(lever.outerRect, const [Color(0xFFFF7A70), _redValve, Color(0xFFB71C1C)]));
+    c.drawRRect(lever, _stroke(_edge, 0.9));
 
     // --- top manifold (runs behind the front-left post)
     const double manL = 0.375;
-    const double manR = _returnX + 0.033;
+    final double manR = _returnX + 0.033;
     final Rect man = _r(manL, 0.125, manR - manL, 0.05);
-    c.drawRRect(
+    InjectorChannelArt.pvcRRect(
+      c,
       RRect.fromRectAndCorners(man, topRight: Radius.circular(_w * 0.022)),
-      _gv(man, _pvcCyl, _cylStops),
-    );
-    c.drawRRect(
-      RRect.fromRectAndCorners(man, topRight: Radius.circular(_w * 0.022)),
-      _stroke(_edge.withValues(alpha: 0.7), 0.8),
+      vertical: false,
     );
     // manifold sections (couplings) halfway between the channels
-    for (int i = 0; i < channelCount - 1; i++) {
+    for (int i = 0; i < count - 1; i++) {
       final double x = firstChannelX + channelSpacing * (i + 0.5) - 0.006;
       _cylV(c, _r(x, 0.12, 0.012, 0.06), radius: 2);
     }
@@ -310,15 +311,20 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     const double botL = 0.372;
     _cylH(c, _r(botL, 0.65, _returnX + 0.02 - botL, 0.046));
     final Offset elbow = Offset(_w * (_returnX + 0.0165), _h * 0.673);
-    c.drawCircle(elbow, _w * 0.0185,
-        _gh(Rect.fromCircle(center: elbow, radius: _w * 0.0185), _pvcCyl, _cylStops));
+    final double er = _w * 0.0185;
+    InjectorChannelArt.pvcRRect(
+      c,
+      RRect.fromRectAndRadius(Rect.fromCircle(center: elbow, radius: er), Radius.circular(er)),
+      vertical: true,
+      shadow: false,
+    );
 
     // --- outlet drop + stub (flange is drawn last, in _drawPorts)
     _cylV(c, _r(_returnX, 0.67, 0.033, 0.07));
     _cylH(c, _r(_returnX, 0.72 - 0.023, 0.07, 0.046));
 
-    // --- branch tees from top manifold to each channel
-    for (int i = 0; i < channelCount; i++) {
+    // --- branch tees from top manifold down to each channel's top flange
+    for (int i = 0; i < count; i++) {
       final double xc = _cx(i);
       _cylV(c, Rect.fromLTWH(xc - _w * 0.016, _h * 0.165, _w * 0.032, _h * 0.04));
       _cylV(c, Rect.fromLTWH(xc - _w * 0.025, _h * 0.155, _w * 0.05, _h * 0.03), radius: 5);
@@ -424,8 +430,8 @@ class DetailedMultiInjectorPainter extends CustomPainter {
       r,
       Paint()
         ..isAntiAlias = true
-        ..shader = LinearGradient(
-          colors: const [_bpSteelLight, _bpSteelMid, _bpSteelDark],
+        ..shader = const LinearGradient(
+          colors: [_bpSteelLight, _bpSteelMid, _bpSteelDark],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ).createShader(rect),
@@ -776,10 +782,10 @@ class DetailedMultiInjectorPainter extends CustomPainter {
     c.drawRect(
       bodyR,
       Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-0.5, -0.55),
+        ..shader = const RadialGradient(
+          center: Alignment(-0.5, -0.55),
           radius: 0.9,
-          colors: const [Color(0x40FFFFFF), Color(0x00FFFFFF)],
+          colors: [Color(0x40FFFFFF), Color(0x00FFFFFF)],
         ).createShader(bodyR),
     );
     final Rect low = _r(0.280, 0.700, 0.048, 0.046);
@@ -887,8 +893,8 @@ class DetailedMultiInjectorPainter extends CustomPainter {
         final Offset holeC = frontC + Offset(math.cos(a) * _w * 0.009, math.sin(a) * _h * 0.056);
         final Rect hole = Rect.fromCenter(center: holeC, width: 3.5, height: 5.0);
         c.drawOval(hole.inflate(0.7), _stroke(const Color(0x66FFFFFF), 0.7));
-        c.drawOval(hole, Paint()..shader = LinearGradient(
-          colors: const [Color(0xFF000A03), Color(0xFF0B2A12)],
+        c.drawOval(hole, Paint()..shader = const LinearGradient(
+          colors: [Color(0xFF000A03), Color(0xFF0B2A12)],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ).createShader(hole));
@@ -913,8 +919,14 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   void _drawFrontFrame(Canvas c) {
     _alumV(c, _r(_postL, 0.075, 0.041, 0.745)); // front-left post
     _alumV(c, _r(_postR, 0.07, 0.037, 0.76)); // front-right post
-    _alumH(c, _r(_postL + 0.03, 0.212, _postR - _postL - 0.027, 0.042)); // upper shelf rail
-    _alumH(c, _r(_postL + 0.035, 0.419, _postR - _postL - 0.032, 0.046)); // middle shelf rail
+
+    // Shelf rails sit at EXACTLY the heights of the background rails in the
+    // single-channel artwork, so each channel looks mounted the same way.
+    final double xl = _w * (_postL + 0.03);
+    final double xr = _w * (_postR + 0.003);
+    _alumH(c, Rect.fromLTRB(xl, _chY(InjectorChannelArt.upperRailTop), xr, _chY(InjectorChannelArt.upperRailBottom)));
+    _alumH(c, Rect.fromLTRB(xl, _chY(InjectorChannelArt.lowerRailTop), xr, _chY(InjectorChannelArt.lowerRailBottom)));
+
     _alumH(c, _r(0.022, 0.81, _postR + 0.043 - 0.022, 0.043)); // base front rail
 
     // black end caps
@@ -922,183 +934,86 @@ class DetailedMultiInjectorPainter extends CustomPainter {
       _r(_postL - 0.002, 0.069, 0.039, 0.042),
       _r(_postR + 0.009, 0.06, 0.032, 0.042),
     ]) {
-      c.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), Paint()..color = const Color(0xFF111111));
+      final RRect rr = RRect.fromRectAndRadius(r, const Radius.circular(2));
+      c.drawRRect(rr, _gv(r, const [Color(0xFF3A4247), Color(0xFF111111), Color(0xFF050505)]));
+      c.drawLine(Offset(r.left + 2, r.top + 1.2), Offset(r.right - 2, r.top + 1.2),
+          _stroke(const Color(0x55FFFFFF), 0.8));
     }
 
     // rubber feet
-    for (final double fx in [0.045, 0.207, 0.50, 0.85, 1.25, _postR + 0.019]) {
-      c.drawRect(_r(fx - 0.004, 0.855, 0.008, 0.025), Paint()..color = _steelMid);
+    final List<double> feetX = [0.045, 0.207];
+    for (int i = 0; i < count; i++) {
+      feetX.add(firstChannelX + channelSpacing * i);
+    }
+    feetX.add(_postR + 0.019);
+
+    for (final double fx in feetX) {
+      c.drawRect(_r(fx - 0.004, 0.855, 0.008, 0.025), _gh(_r(fx - 0.004, 0.855, 0.008, 0.025),
+          const [Color(0xFF607D8B), Color(0xFFCFD8DC), Color(0xFF607D8B)]));
       final Rect foot = Rect.fromCenter(center: Offset(_w * fx, _h * 0.895), width: _w * 0.045, height: _h * 0.04);
-      c.drawRRect(RRect.fromRectAndRadius(foot, const Radius.circular(8)),
-          _gv(foot, const [Color(0xFF3A3A3A), Color(0xFF0A0A0A)]));
+      final RRect fr = RRect.fromRectAndRadius(foot, const Radius.circular(8));
+      c.drawRRect(fr, _gv(foot, const [Color(0xFF4A4A4A), Color(0xFF111111), Color(0xFF050505)]));
+      c.drawLine(Offset(foot.left + 5, foot.top + 2.5), Offset(foot.right - 5, foot.top + 2.5),
+          _stroke(const Color(0x40FFFFFF), 1.0));
     }
   }
 
-  // ------------------------------------------------ channel gauges + valves
-  void _drawChannelGauges(Canvas c) {
-    // One gauge per channel (the 4th used to be missing).
-    for (int i = 0; i < channelCount; i++) {
-      final double gx = _cx(i) + _w * 0.05;
-      // gauge stem
-      _cylV(c, Rect.fromLTWH(gx - _w * 0.006, _h * 0.33, _w * 0.012, _h * 0.03));
-      // small black ball valve below the gauge
-      _cylV(c, Rect.fromLTWH(gx - _w * 0.016, _h * 0.345, _w * 0.032, _h * 0.07), radius: 4);
-      final Rect cap = Rect.fromLTWH(gx - _w * 0.02, _h * 0.40, _w * 0.04, _h * 0.025);
-      c.drawRRect(RRect.fromRectAndRadius(cap, const Radius.circular(3)),
-          _gh(cap, const [Color(0xFF111111), Color(0xFF3A444B), Color(0xFF111111)]));
-      _gauge(c, Offset(gx, _h * 0.30), _w * 0.021, _gaugeValue(i));
-    }
-  }
-
+  // ----------------------------------------------------------------- gauges
   double _gaugeValue(int seed) {
     if (!isOn) return 0.04;
     return 0.58 + 0.02 * math.sin(phase * 2 * math.pi * 10 + seed);
   }
 
-  void _gauge(Canvas c, Offset ctr, double r, double v) {
-    final Rect o = Rect.fromCircle(center: ctr, radius: r);
-    c.drawCircle(
-      ctr,
-      r,
-      Paint()
-        ..shader = const LinearGradient(
-          colors: [Color(0xFFFFFFFF), Color(0xFF8E9BA4), Color(0xFFE3E8EC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ).createShader(o),
-    );
-    c.drawCircle(ctr, r, _stroke(_edge, 1));
-    c.drawCircle(ctr, r * 0.84, Paint()..color = Colors.white);
-    c.drawCircle(ctr, r * 0.84, _stroke(const Color(0xFF78848C), 0.8));
+  void _gauge(Canvas c, Offset ctr, double r, double v) =>
+      InjectorChannelArt.gauge(c, ctr, r, v);
 
-    for (int k = 0; k <= 20; k++) {
-      final double a = 0.75 * math.pi + k / 20 * 1.5 * math.pi;
-      final double len = (k % 5 == 0) ? 0.24 : 0.12;
-      final Offset d = Offset(math.cos(a), math.sin(a));
-      c.drawLine(
-        ctr + d * (r * 0.78),
-        ctr + d * (r * (0.78 - len)),
-        Paint()
-          ..color = k >= 16 ? const Color(0xFFD32F2F) : Colors.black54
-          ..strokeWidth = (k % 5 == 0) ? 1.1 : 0.7,
+  // --------------------------------------------------------------- channels
+  /// Float offsets so the channels show slightly different flow rates.
+  static const List<double> _floatOffsets = [0, -18, 10, -7];
+
+  void _drawChannels(Canvas c) {
+    for (int i = 0; i < count; i++) {
+      final bool active = isOn && isChannelActive(i);
+      final double dxFloat = i < _floatOffsets.length ? _floatOffsets[i] : ((i * 7) % 5 - 2) * 6.0;
+      final Color fluid = (fluidColors != null && i < fluidColors!.length)
+          ? fluidColors![i]
+          : (i.isEven ? InjectorChannelArt.chemGreen : InjectorChannelArt.chemBlue);
+
+      c.save();
+      c.translate(
+        _cx(i) - InjectorChannelArt.axisX * _chK,
+        _h * _chTopFrac - InjectorChannelArt.inletY * _chK,
       );
-    }
-    final double na = 0.75 * math.pi + v.clamp(0.0, 1.0) * 1.5 * math.pi;
-    c.drawLine(ctr, ctr + Offset(math.cos(na), math.sin(na)) * (r * 0.62),
-        Paint()..color = const Color(0xFF1A1A1A)..strokeWidth = 1.5..strokeCap = StrokeCap.round);
-    c.drawCircle(ctr, r * 0.1, Paint()..color = _edge);
-    c.drawArc(Rect.fromCircle(center: ctr, radius: r * 0.7), -math.pi * 0.9, math.pi * 0.45, false,
-        _stroke(Colors.white.withValues(alpha: 0.55), 1.4));
-  }
-
-  // -------------------------------------------------------------- rotameters
-  void _drawRotameters(Canvas c) {
-    for (int i = 0; i < channelCount; i++) {
-      final double xc = _cx(i);
-      Rect rc(double dx, double y, double ww, double hh) =>
-          Rect.fromLTWH(xc + _w * dx, _h * y, _w * ww, _h * hh);
-
-      // blue cap
-      final Rect cap = rc(-0.0125, 0.185, 0.025, 0.035);
-      c.drawRRect(RRect.fromRectAndRadius(cap, const Radius.circular(5)),
-          _gh(cap, const [_blueKnobDark, _blueKnob, Color(0xFF6AA8FF), _blueKnobDark], const [0, 0.35, 0.55, 1]));
-      c.drawRRect(RRect.fromRectAndRadius(cap, const Radius.circular(5)), _stroke(_edge, 1));
-
-      // upper stem, collar, neck, big nut
-      _cylV(c, rc(-0.014, 0.22, 0.028, 0.055));
-      _cylV(c, rc(-0.021, 0.27, 0.042, 0.04), radius: 4);
-      _cylV(c, rc(-0.016, 0.31, 0.032, 0.035));
-      _cylV(c, rc(-0.028, 0.345, 0.056, 0.05), radius: 5);
-      if (showJoints) {
-        for (final double y in [0.29, 0.365]) {
-          c.drawLine(Offset(xc - _w * 0.02, _h * y), Offset(xc + _w * 0.02, _h * y),
-              Paint()..color = Colors.black54..strokeWidth = 0.8);
-        }
-      }
-
-      // glass tube
-      final Rect glass = rc(-0.0165, 0.395, 0.033, 0.255);
-      final RRect glassRR = RRect.fromRectAndRadius(glass, const Radius.circular(3));
-      c.drawRRect(
-        glassRR,
-        _gh(glass, const [Color(0xAAB0BEC5), Color(0xEEFFFFFF), Color(0x99CFD8DC)], const [0, 0.4, 1]),
+      c.scale(_chK);
+      // <<< the very same drawing as DetailedSingleInjectorChannelPainter >>>
+      InjectorChannelArt.paint(
+        c,
+        isOn: active,
+        phase: phase + i * 0.17,
+        showJoints: showJoints,
+        fluidColor: fluid,
+        pressureValue: 0.56 + 0.02 * (i % 3),
+        drawRails: false, // the skid draws continuous shelf rails instead
+        drawGlow: false, // the skid has its own overall glow
+        seed: i * 13 + 7,
+        floatOffset: dxFloat,
       );
-
-      if (isOn) {
-        final Color f = (i % 2 == 0) ? _chemGreen : _chemBlue;
-        c.drawRect(glass.deflate(1.5), Paint()..color = f.withValues(alpha: 0.22));
-      }
-
-      // scale ticks
-      int k = 0;
-      for (double y = 0.42; y < 0.625; y += 0.0115, k++) {
-        final double len = (k % 5 == 0) ? 0.009 : 0.005;
-        c.drawLine(
-          Offset(xc - _w * 0.0145, _h * y),
-          Offset(xc - _w * (0.0145 - len), _h * y),
-          Paint()..color = Colors.black87..strokeWidth = 0.8,
-        );
-      }
-
-      // float (red) + stopper (white)
-      final double fy = _h * (isOn ? 0.50 + 0.004 * (i.isEven ? 1 : -1) : 0.60) +
-          (isOn ? _h * 0.006 * math.sin(phase * 4 * math.pi + i * 0.85) : 0.0);
-      final Rect stopper = rc(-0.009, 0.628, 0.018, 0.022);
-      c.drawRRect(RRect.fromRectAndRadius(stopper, const Radius.circular(2)), Paint()..color = Colors.white);
-      c.drawRRect(RRect.fromRectAndRadius(stopper, const Radius.circular(2)), _stroke(_steelDark, 0.8));
-
-      final Rect flt = Rect.fromCenter(center: Offset(xc, fy), width: _w * 0.021, height: _h * 0.024);
-      c.drawRRect(RRect.fromRectAndRadius(flt, const Radius.circular(2)),
-          _gv(flt, const [Color(0xFFFF6F60), _redFloat, Color(0xFFB71C1C)]));
-      c.drawRRect(RRect.fromRectAndRadius(flt, const Radius.circular(2)), _stroke(Colors.white, 0.8));
-
-      // border + glare
-      c.drawRRect(glassRR, _stroke(_pvcDark, 1.2));
-      final Path glare = Path()
-        ..moveTo(glass.left + 2, glass.top + 2)
-        ..lineTo(glass.left + 6, glass.top + 2)
-        ..lineTo(glass.left + 4.5, glass.bottom - 2)
-        ..lineTo(glass.left + 2, glass.bottom - 2)
-        ..close();
-      c.drawPath(glare, Paint()..color = Colors.white.withValues(alpha: 0.4));
-
-      // bubbles
-      if (isOn) {
-        final math.Random rnd = math.Random(i * 13 + 7);
-        final Paint bp = Paint()..color = Colors.white.withValues(alpha: 0.9);
-        for (int b = 0; b < 6; b++) {
-          final double bx = xc - _w * 0.009 + rnd.nextDouble() * _w * 0.018;
-          final double speed = 0.7 + rnd.nextDouble() * 0.6;
-          final double prog = (phase * speed + rnd.nextDouble()) % 1.0;
-          final double by = glass.bottom - prog * glass.height;
-          if (by > glass.top + 3 && by < glass.bottom - 3) {
-            c.drawCircle(Offset(bx, by), 1.1, bp);
-          }
-        }
-      }
-
-      // bottom nut, valve body, ball-valve block, handle, clamp
-      _cylV(c, rc(-0.028, 0.65, 0.056, 0.05), radius: 5);
-      _cylV(c, rc(-0.02, 0.70, 0.04, 0.06));
-      _cylV(c, rc(-0.025, 0.755, 0.05, 0.045), radius: 4);
-      final Rect handle = rc(-0.012, 0.775, 0.028, 0.032);
-      c.drawRRect(RRect.fromRectAndRadius(handle, const Radius.circular(3)), Paint()..color = const Color(0xFF111111));
-      final Rect clamp = rc(-0.026, 0.80, 0.052, 0.04);
-      c.drawRRect(RRect.fromRectAndRadius(clamp, const Radius.circular(3)),
-          _gv(clamp, const [Color(0xFF2A2A2A), Color(0xFF050505)]));
-      if (showJoints) {
-        _bolt(c, Offset(clamp.left + 5, clamp.center.dy), 1.6);
-        _bolt(c, Offset(clamp.right - 5, clamp.center.dy), 1.6);
-      }
+      c.restore();
     }
   }
 
   // ------------------------------------------------------------ channel buttons
-  /// Single source of truth for the channel button rectangle. The painter
-  /// draws it and NodeWidget uses the very same rect as the tap target, so
-  /// what you see is exactly what you can press.
-  static Rect channelButtonRect(Size s, int i) {
-    final double w = s.width / _designW;
+  Rect _channelButtonRectAt(int i) {
+    return Rect.fromCenter(
+      center: Offset(_w * (firstChannelX + channelSpacing * i), _h * 0.935),
+      width: _w * 0.27,
+      height: _h * 0.115,
+    );
+  }
+
+  static Rect channelButtonRect(Size s, int i, {int channelCount = 4}) {
+    final double dw = designWidthFor(channelCount);
+    final double w = s.width / dw;
     return Rect.fromCenter(
       center: Offset(w * (firstChannelX + channelSpacing * i), s.height * 0.935),
       width: w * 0.27,
@@ -1112,21 +1027,21 @@ class DetailedMultiInjectorPainter extends CustomPainter {
   static const Color _chOffDark = Color(0xFF475569);
 
   void _drawChannelButtons(Canvas c) {
-    for (int i = 0; i < channelCount; i++) {
+    for (int i = 0; i < count; i++) {
       final bool active = isChannelActive(i);
-      final Rect btn = channelButtonRect(_size, i);
+      final Rect btn = _channelButtonRectAt(i);
       final double bh = btn.height;
       final RRect body = RRect.fromRectAndRadius(btn, Radius.circular(bh / 2));
 
-      // soft drop shadow (+ green glow when running)
+      // soft drop shadow (+ green glow when selected)
       c.drawRRect(
         body.shift(Offset(0, bh * 0.10)),
         Paint()
-          ..color = (active ? _chOn : Colors.black).withValues(alpha: active ? 0.40 : 0.25)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bh * 0.22),
+          ..color = (active ? _chOn : Colors.black).withValues(alpha: active ? 0.35 : 0.20)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, bh * 0.20),
       );
 
-      // body: solid green = ON, solid slate = OFF
+      // body: green = selected, grey = unselected
       c.drawRRect(
         body,
         Paint()
@@ -1138,45 +1053,31 @@ class DetailedMultiInjectorPainter extends CustomPainter {
                 : const [_chOff, _chOffDark],
           ).createShader(btn),
       );
+
       // top gloss
       c.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(btn.left + bh * 0.3, btn.top + bh * 0.07, btn.width - bh * 0.6, bh * 0.32),
+          Rect.fromLTWH(btn.left + bh * 0.2, btn.top + bh * 0.07, btn.width - bh * 0.4, bh * 0.32),
           Radius.circular(bh * 0.16),
         ),
-        Paint()..color = Colors.white.withValues(alpha: active ? 0.22 : 0.14),
+        Paint()..color = Colors.white.withValues(alpha: active ? 0.22 : 0.12),
       );
+
       // border
       c.drawRRect(
         body,
-        _stroke(active ? const Color(0xFFBBF7D0) : const Color(0xFFCBD5E1), 1.2),
+        _stroke(active ? const Color(0xFFBBF7D0) : const Color(0xFF94A3B8), 1.2),
       );
 
-      // ---- left: round power badge (white disc + power glyph)
-      final double r = bh * 0.36;
-      final Offset bc = Offset(btn.left + bh * 0.5, btn.center.dy);
-      c.drawCircle(bc, r, Paint()..color = Colors.white);
-      final Color glyph = active ? _chOnDark : _chOff;
-      final Paint gp = Paint()
-        ..color = glyph
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = math.max(1.1, r * 0.28);
-      final double gr = r * 0.52;
-      c.drawArc(
-        Rect.fromCircle(center: bc, radius: gr),
-        -math.pi / 2 + 0.7,
-        2 * math.pi - 1.4,
-        false,
-        gp,
-      );
-      c.drawLine(bc.translate(0, -gr * 1.05), bc.translate(0, -gr * 0.10), gp);
+      // centered injector name
+      final double fs = bh * 0.42;
+      final String chLabel = (channelNames != null && i < channelNames!.length && channelNames![i].isNotEmpty)
+          ? channelNames![i]
+          : 'CH ${i + 1}';
 
-      // ---- middle: channel name
-      final double fs = bh * 0.40;
       final TextPainter name = TextPainter(
         text: TextSpan(
-          text: 'CH ${i + 1}',
+          text: chLabel,
           style: TextStyle(
             color: Colors.white,
             fontSize: fs,
@@ -1185,34 +1086,9 @@ class DetailedMultiInjectorPainter extends CustomPainter {
           ),
         ),
         textDirection: TextDirection.ltr,
-      )..layout();
-      name.paint(c, Offset(bc.dx + r + bh * 0.14, btn.center.dy - name.height / 2));
+      )..layout(maxWidth: btn.width - 8);
 
-      // ---- right: explicit state word ("ON" / "OFF") in a small chip
-      final TextPainter st = TextPainter(
-        text: TextSpan(
-          text: active ? 'ON' : 'OFF',
-          style: TextStyle(
-            color: active ? _chOnDark : const Color(0xFF334155),
-            fontSize: fs * 0.82,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final double chipW = st.width + bh * 0.34;
-      final Rect chip = Rect.fromLTWH(
-        btn.right - chipW - bh * 0.16,
-        btn.center.dy - bh * 0.26,
-        chipW,
-        bh * 0.52,
-      );
-      c.drawRRect(
-        RRect.fromRectAndRadius(chip, Radius.circular(bh * 0.26)),
-        Paint()..color = Colors.white.withValues(alpha: active ? 0.95 : 0.85),
-      );
-      st.paint(c, Offset(chip.center.dx - st.width / 2, chip.center.dy - st.height / 2));
+      name.paint(c, Offset(btn.center.dx - name.width / 2, btn.center.dy - name.height / 2));
     }
   }
 
@@ -1221,34 +1097,21 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
     // ---------- OUTLET: pipe passes in front of the right post, then flange
     _cylH(c, _r(_postR - 0.004, 0.72 - 0.023, 0.022, 0.046));
-    _verticalFlange(c, outletPort(_size), pulse);
+    _verticalFlange(c, outletPort(_size, count), pulse);
 
     // ---------- INLET
-    _verticalFlange(c, inletPort(_size), pulse);
+    _verticalFlange(c, inletPort(_size, count), pulse);
 
-    // ---------- CHANNEL PORTS (top of each channel)
-    for (int i = 0; i < channelCount; i++) {
-      final Offset p = channelTopPort(_size, i);
-      final Rect fl = Rect.fromCenter(center: p, width: _w * 0.046, height: _h * 0.011);
-      c.drawRRect(RRect.fromRectAndRadius(fl, const Radius.circular(1.5)),
-          _gv(fl, const [_steelLight, _steelMid, _steelDark]));
-      c.drawRRect(RRect.fromRectAndRadius(fl, const Radius.circular(1.5)), _stroke(_edge, 1));
-      if (showJoints) {
-        _bolt(c, Offset(fl.left + 4, p.dy), 1.4);
-        _bolt(c, Offset(fl.right - 4, p.dy), 1.4);
-      }
-      if (isOn) {
-        c.drawCircle(p, _w * 0.014 * (1 + 0.25 * pulse),
-            _stroke(_chemGlow.withValues(alpha: 0.55 * (1 - 0.4 * pulse)), 1.6));
-      }
-    }
+    // Channel top / bottom flanges, bolts and glow rings are part of the
+    // channel artwork itself, so nothing extra is drawn per channel here.
   }
 
   void _verticalFlange(Canvas c, Offset p, double pulse) {
     final Rect fl = Rect.fromCenter(center: p, width: _w * 0.011, height: _h * 0.066);
-    c.drawRRect(RRect.fromRectAndRadius(fl, const Radius.circular(1.5)),
-        _gh(fl, const [_steelDark, _steelLight, _steelMid]));
-    c.drawRRect(RRect.fromRectAndRadius(fl, const Radius.circular(1.5)), _stroke(_edge, 1));
+    final RRect rr = RRect.fromRectAndRadius(fl, const Radius.circular(1.5));
+    c.drawRRect(rr.shift(const Offset(1, 2)), Paint()..color = const Color(0x33000000));
+    c.drawRRect(rr, _gh(fl, const [_steelDark, _steelLight, _steelMid]));
+    c.drawRRect(rr, _stroke(_edge, 1));
     if (showJoints) {
       _bolt(c, Offset(p.dx, fl.top + 4), 1.5);
       _bolt(c, Offset(p.dx, fl.bottom - 4), 1.5);
@@ -1261,11 +1124,7 @@ class DetailedMultiInjectorPainter extends CustomPainter {
 
   // ------------------------------------------------------------- active glow
   void _drawActiveGlow(Canvas c) {
-    final Rect main = _r(0.03, 0.10, _designW - 0.06, 0.76);
-    final Paint glow = Paint()
-      ..color = _chemGlow.withValues(alpha: 0.18 + 0.08 * math.sin(phase * 2 * math.pi))
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
-    c.drawRRect(RRect.fromRectAndRadius(main, const Radius.circular(18)), glow);
+    // Glow removed
   }
 
   @override
@@ -1273,35 +1132,88 @@ class DetailedMultiInjectorPainter extends CustomPainter {
       old.isOn != isOn ||
           old.phase != phase ||
           old.showJoints != showJoints ||
-          !listEquals(old.channelStates, channelStates);
+          old.channelCount != channelCount ||
+          !listEquals(old.channelStates, channelStates) ||
+          !listEquals(old.channelNames, channelNames) ||
+          !listEquals(old.fluidColors, fluidColors);
 }
 
-/// Stateful wrapper for DetailedMultiInjectorPainter.
+/// Animated wrapper for [DetailedMultiInjectorPainter].
 class MultiInjectorView extends StatefulWidget {
   final bool isOn;
   final bool showJoints;
   final Size size;
+  final int channelCount;
+  final List<bool>? channelStates;
+  final List<String>? channelNames;
+  final List<Color>? fluidColors;
 
   const MultiInjectorView({
     super.key,
     required this.isOn,
     this.showJoints = true,
     required this.size,
+    this.channelCount = 4,
+    this.channelStates,
+    this.channelNames,
+    this.fluidColors,
   });
+
+  /// Size with the skid's native proportions for a given width.
+  static Size sizeForWidth(double width, {int channelCount = 4}) =>
+      Size(width, width / DetailedMultiInjectorPainter.aspectRatioFor(channelCount));
+
+  static Size sizeForHeight(double height, {int channelCount = 4}) =>
+      Size(height * DetailedMultiInjectorPainter.aspectRatioFor(channelCount), height);
 
   @override
   State<MultiInjectorView> createState() => _MultiInjectorViewState();
 }
 
-class _MultiInjectorViewState extends State<MultiInjectorView> {
+class _MultiInjectorViewState extends State<MultiInjectorView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller =
+  AnimationController(vsync: this, duration: const Duration(seconds: 3));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isOn) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant MultiInjectorView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isOn && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!widget.isOn && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: widget.size,
-      painter: DetailedMultiInjectorPainter(
-        isOn: widget.isOn,
-        phase: 0.0,
-        showJoints: widget.showJoints,
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => CustomPaint(
+          size: widget.size,
+          painter: DetailedMultiInjectorPainter(
+            isOn: widget.isOn,
+            phase: _controller.value,
+            showJoints: widget.showJoints,
+            channelCount: widget.channelCount,
+            channelStates: widget.channelStates,
+            channelNames: widget.channelNames,
+            fluidColors: widget.fluidColors,
+          ),
+        ),
       ),
     );
   }

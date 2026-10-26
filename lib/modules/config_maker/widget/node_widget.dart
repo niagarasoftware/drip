@@ -344,11 +344,13 @@ class NodeWidget extends StatelessWidget {
             ),
           ),
           if (node.type == NodeType.multiInjector)
-            ...List.generate(DetailedMultiInjectorPainter.channelCount, (i) {
+            ...List.generate(node.activeChannelStates.length, (i) {
               // Same rect the painter draws -> tap target matches the button.
-              final Rect r =
-              DetailedMultiInjectorPainter.channelButtonRect(node.size, i)
-                  .inflate(4);
+              final Rect r = DetailedMultiInjectorPainter.channelButtonRect(
+                node.size,
+                i,
+                channelCount: node.activeChannelStates.length,
+              ).inflate(4);
               return Positioned(
                 left: r.left,
                 top: r.top,
@@ -385,23 +387,27 @@ class NodeWidget extends StatelessWidget {
                   onTap: onTap,
                   onLongPress: onLongPress,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                     decoration: BoxDecoration(
-                      color: const Color(0xEE0F172A),
-                      borderRadius: BorderRadius.circular(6),
+                      color: const Color(0xFF1E2648),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isSelected
-                            ? Colors.blue.shade400
+                            ? const Color(0xFF38BDF8)
                             : (isConnectSource
-                            ? Colors.orangeAccent
-                            : const Color(0x33FFFFFF)),
-                        width: isSelected || isConnectSource ? 1.2 : 0.8,
+                                ? const Color(0xFFF97316)
+                                : const Color(0xFF38BDF8).withValues(alpha: 0.55)),
+                        width: isSelected || isConnectSource ? 1.8 : 1.2,
                       ),
-                      boxShadow: const [
+                      boxShadow: [
                         BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 2,
-                          offset: Offset(0, 1),
+                          color: isSelected
+                              ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                              : (isConnectSource
+                                  ? const Color(0xFFF97316).withValues(alpha: 0.35)
+                                  : Colors.black.withValues(alpha: 0.5)),
+                          blurRadius: isSelected || isConnectSource ? 8 : 5,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -409,16 +415,24 @@ class NodeWidget extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 4.5,
-                          height: 4.5,
+                          width: 6,
+                          height: 6,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: node.isOn
-                                ? const Color(0xFF10B981)
-                                : Colors.grey.shade400,
+                                ? const Color(0xFF00E676)
+                                : const Color(0xFF94A3B8),
+                            boxShadow: node.isOn
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(0xFF00E676).withValues(alpha: 0.8),
+                                      blurRadius: 4,
+                                    ),
+                                  ]
+                                : null,
                           ),
                         ),
-                        const SizedBox(width: 4.5),
+                        const SizedBox(width: 5),
                         Flexible(
                           child: Text(
                             node.label,
@@ -427,8 +441,8 @@ class NodeWidget extends StatelessWidget {
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.1,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.2,
                               height: 1.1,
                             ),
                           ),
@@ -603,17 +617,20 @@ class NodeWidget extends StatelessWidget {
       // "unchanged" and the live painter would never repaint.
       final List<bool> chStates = List<bool>.of(node.activeChannelStates);
       final String chKey = chStates.map((e) => e ? '1' : '0').join();
+      final String labelsKey = (node.portLabels ?? []).join('_');
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_inj_v5_${node.isOn}_${node.showJoints}_${chKey}_$szKey',
+          cacheKey: 'multi_inj_v6_${node.isOn}_${node.showJoints}_${chKey}_${labelsKey}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiInjectorPainter(
             isOn: node.isOn,
             phase: 0.0,
             showJoints: node.showJoints,
+            channelCount: chStates.length,
             channelStates: chStates,
+            channelNames: node.portLabels,
           ),
         ),
       );
@@ -658,7 +675,7 @@ class NodeWidget extends StatelessWidget {
       } catch (_) {}
 
       final String fNamesKey = filterNames.join('_');
-      final double targetW = math.max(160.0, 80.0 * node.outletPortCount + 60.0);
+      final double targetW = math.max(120.0, DetailedMultiFilterPainter.calculateWidth(node.size.height, node.outletPortCount));
       if (node.size.width != targetW) {
         node.size = Size(targetW, node.size.height);
       }

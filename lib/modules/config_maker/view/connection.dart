@@ -1370,7 +1370,9 @@ class _ConnectionState extends State<Connection> {
         return true;
       }
     })
-        .where((object) => (object.type == '1,2' && !['', '0', null].contains(object.count)))
+        .where((object) => (object.type == '1,2' &&
+            (!['', '0', null].contains(object.count) ||
+                widget.configPvd.listOfGeneratedObject.any((g) => g.objectId == object.objectId))))
         .toList()
         .where((object) => selectedDevice.connectingObjectId.contains(object.objectId))
         .map((object) => object.objectId)
@@ -1379,15 +1381,6 @@ class _ConnectionState extends State<Connection> {
     List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection
         .where((object) => filteredObjectList.contains(object.objectId))
         .toList();
-
-    filteredList = filteredList.where((object) {
-      if (['', '0', null].contains(object.count) &&
-          getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0) {
-        return false;
-      } else {
-        return true;
-      }
-    }).toList();
 
     return ConnectionGridListTile(
       listOfObjectModel: filteredList,
@@ -1405,7 +1398,9 @@ class _ConnectionState extends State<Connection> {
     DeviceModel selectedDevice = widget.configPvd.listOfDeviceModel
         .firstWhere((device) => device.controllerId == widget.configPvd.selectedModelControllerId);
     List<int> filteredObjectList = widget.configPvd.listOfSampleObjectModel
-        .where((object) => (object.type == sensorCode && !['', '0', null].contains(object.count)))
+        .where((object) => (object.type == sensorCode &&
+            (!['', '0', null].contains(object.count) ||
+                widget.configPvd.listOfGeneratedObject.any((g) => g.objectId == object.objectId))))
         .toList()
         .where((object) => selectedDevice.connectingObjectId.contains(object.objectId))
         .map((object) => object.objectId)
@@ -1414,15 +1409,6 @@ class _ConnectionState extends State<Connection> {
     List<DeviceObjectModel> filteredList = widget.configPvd.listOfObjectModelConnection
         .where((object) => filteredObjectList.contains(object.objectId))
         .toList();
-
-    filteredList = filteredList.where((object) {
-      if (['', '0', null].contains(object.count) &&
-          getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd) == 0) {
-        return false;
-      } else {
-        return true;
-      }
-    }).toList();
 
     return filteredList.isNotEmpty
         ? ConnectionGridListTile(
