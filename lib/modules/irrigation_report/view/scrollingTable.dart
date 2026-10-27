@@ -383,7 +383,24 @@ class _ScrollingTableState extends State<ScrollingTable> {
                     width: w,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [for (final s in sections) _sectionHeader(s)],
+                      children: [
+                        for (final s in sections) _sectionHeader(s),
+                        if (w > contentWidth)
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Container(
+                                  height: _kBannerHeight,
+                                  color: _kBannerBg,
+                                ),
+                                Container(
+                                  height: _kHeaderHeight,
+                                  color: _kHeaderBg,
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -407,7 +424,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
                         slivers: _groupSlivers(
                           groups,
                           _mainGroupHeader,
-                          (a, b) => _mainRows(sections, a, b),
+                          (a, b) => _mainRows(sections, a, b,
+                              w: w, contentWidth: contentWidth),
                         ),
                       ),
                     ),
@@ -447,7 +465,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
     ];
   }
 
-  Widget _mainRows(List<_Section> sections, int a, int b) {
+  Widget _mainRows(List<_Section> sections, int a, int b,
+      {double? w, double? contentWidth}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -456,6 +475,20 @@ class _ScrollingTableState extends State<ScrollingTable> {
             width: s.width,
             child: Column(
               children: [for (var i = a; i < b; i++) _sectionEntry(s, i)],
+            ),
+          ),
+        if (w != null && contentWidth != null && w > contentWidth)
+          Expanded(
+            child: Column(
+              children: [
+                for (var i = a; i < b; i++)
+                  Container(
+                    height: _rowHeight(i),
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: _kLine)),
+                    ),
+                  ),
+              ],
             ),
           ),
       ],
