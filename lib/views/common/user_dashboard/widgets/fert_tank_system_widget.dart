@@ -24,7 +24,7 @@ import '../../../../StateManagement/mqtt_payload_provider.dart';
 ///                                 │
 ///                                 ───────●──  I3
 ///
-/// MOBILE (vertical): one row per outlet valve.
+/// MOBILE (vertical): one row per outlet valve, mirrored right -> left.
 ///
 /// Lines are BROKEN at every icon so they never run behind a widget.
 class FertTankSystemWidget extends StatelessWidget {
@@ -53,6 +53,12 @@ class FertTankSystemWidget extends StatelessWidget {
   static const double rowH = 74;
   static const double iconCy = 20;
   static const double injGap = 30;
+
+  // mobile-only constants
+  static const double injGapMobile = 18;
+  static const double valveColW = 56; // mobile valve column width (was colW = 76)
+  static const double mainColW = 56; // mobile main source/pump column width (was colW = 76)
+  static const double tankColW = 56; // mobile tank column width (was colW = 76)
 
   // horizontal (web) layout constants
   static const double hGap = 16;
@@ -313,15 +319,19 @@ class FertTankSystemWidget extends StatelessWidget {
   }
 
   // ============================================================
-  // MOBILE: vertical layout
+  // MOBILE: vertical layout (mirrored right -> left)
   // ============================================================
   Widget _buildVertical(BuildContext context) {
     final tanks = system.tanks;
     final mains = system.mainSources;
 
+    // keeps text/icons readable inside the mirrored canvas
+    Widget unflip(Widget w) => Transform.flip(flipX: true, child: w);
+
     // ---------- main section ----------
-    final mainWidths =
-    mains.map((m) => colW + m.pumps.length * (connW + colW)).toList();
+    final mainWidths = mains
+        .map((m) => mainColW + m.pumps.length * (connW + mainColW))
+        .toList();
     final maxMainW = mainWidths.isEmpty ? 0.0 : mainWidths.reduce(math.max);
     final collectorX = maxMainW + 16;
 
@@ -330,10 +340,11 @@ class FertTankSystemWidget extends StatelessWidget {
     int row = 0;
     for (final t in tanks) {
       final k = math.max(1, t.outletValves.length);
-      final inletW =
-      t.inletValves.isEmpty ? 0.0 : t.inletValves.length * colW + connW;
+      final inletW = t.inletValves.isEmpty
+          ? 0.0
+          : t.inletValves.length * valveColW + connW;
       final tankX = collectorX + connW + inletW;
-      final tankRight = tankX + colW;
+      final tankRight = tankX + tankColW;
       final forkX = tankRight + 12;
       final valveX = forkX + 12;
       groups.add(_Group(t, row, k, tankX, tankRight, forkX, valveX));
@@ -355,12 +366,12 @@ class FertTankSystemWidget extends StatelessWidget {
     double crossStart = 0;
     for (final g in groups) {
       if (g.tank.outletValves.isNotEmpty) {
-        crossStart = math.max(crossStart, g.valveX + colW);
+        crossStart = math.max(crossStart, g.valveX + valveColW);
       }
     }
-    double injX(int j) => crossStart + 16 + j * injGap;
+    double injX(int j) => crossStart + 16 + j * injGapMobile;
     final crossEnd =
-    injSNos.isEmpty ? crossStart : injX(injSNos.length - 1) + 18;
+    injSNos.isEmpty ? crossStart : injX(injSNos.length - 1) + 6;
 
     final tanksEnd = groups.isEmpty
         ? collectorX
@@ -369,27 +380,35 @@ class FertTankSystemWidget extends StatelessWidget {
 
     // ---------- vertical layout ----------
     final chipTop = _cy(totalRows - 1) + 26;
-    const joinTopY = railY; // top rail with its own space above the icons
+    const joinTopY = railY;
     final height = injSNos.isEmpty ? totalRows * rowH : chipTop + 24;
 
-    // ---------- build drawing ----------
+    // ---------- build drawing (in normal coords, mirrored at the end) ----------
     final c = <Widget>[];
 
-    if(mains.isNotEmpty){
-      c.add(Positioned(left: 0, top: capTop, child: _caption('FERT MAIN SOURCE')));
+    if (mains.isNotEmpty) {
+      c.add(Positioned(
+          left: 0, top: capTop, child: unflip(_caption('FERT MAIN SOURCE'))));
     }
 
     c.add(Positioned(
-        left: collectorX, top: capTop, child: _caption('FERTILIZER TANKS')));
+        left: collectorX,
+        top: capTop,
+        child: unflip(_caption('FERTILIZER TANKS'))));
     if (injSNos.isNotEmpty) {
       c.add(Positioned(
-          left: crossStart + 4, top: capTop, child: _caption('INJECTORS')));
+          left: crossStart + 4,
+          top: capTop,
+          child: unflip(_caption('INJECTORS'))));
     }
 
     // main source rows
     for (int i = 0; i < mains.length; i++) {
-      c.add(Positioned(left: 0, top: i * rowH, child: _mainRow(mains[i])));
-      final sx = _mainEndX(mains[i]);
+      c.add(Positioned(
+          left: 0,
+          top: i * rowH,
+          child: _mainRow(mains[i], unflipContent: true, cw: mainColW)));
+      final sx = _mainEndX(mains[i], cw: mainColW);
       c.add(_h(sx, _cy(i), collectorX - sx));
     }
 
@@ -404,18 +423,18 @@ class FertTankSystemWidget extends StatelessWidget {
     for (final g in groups) {
       final t = g.tank;
       final y = _cy(g.row);
-      final tankCx = g.tankX + colW / 2;
+      final tankCx = g.tankX + tankColW / 2;
 
-      // collector -> inlet valves -> tank (broken at every icon)
       final obs = <List<double>>[];
       for (int i = 0; i < t.inletValves.length; i++) {
-        final cx = collectorX + connW + i * colW + colW / 2;
+        final cx = collectorX + connW + i * valveColW + valveColW / 2;
         obs.add([cx, valveR]);
         c.add(Positioned(
-          left: collectorX + connW + i * colW,
+          left: collectorX + connW + i * valveColW,
           top: g.row * rowH,
-          width: colW,
-          child: _valveChip(context, t.inletValves[i], isInlet: true),
+          width: valveColW,
+          child: unflip(_valveChip(context, t.inletValves[i],
+              isInlet: true, reverseIcon: true, labelW: valveColW - 6)),
         ));
       }
       obs.add([tankCx, boxHalf]);
@@ -424,13 +443,13 @@ class FertTankSystemWidget extends StatelessWidget {
       c.add(Positioned(
         left: g.tankX,
         top: g.row * rowH,
-        width: colW,
-        child: _tankBox(t),
+        width: tankColW,
+        child: unflip(_tankBox(t, cw: tankColW)),
       ));
+
 
       if (t.outletValves.isEmpty) continue;
 
-      // tank -> fork
       final tx = tankCx + boxHalf + lineGap;
       c.add(_h(tx, y, g.forkX - tx));
       if (g.rows > 1) c.add(_v(g.forkX, y, _cy(g.row + g.rows - 1)));
@@ -439,20 +458,19 @@ class FertTankSystemWidget extends StatelessWidget {
         final v = t.outletValves[s];
         final r = g.row + s;
         final vy = _cy(r);
-        final valveCx = g.valveX + colW / 2;
+        final valveCx = g.valveX + valveColW / 2;
 
-        // fork -> valve (stops before the icon)
         final fx2 = valveCx - valveR - lineGap;
         c.add(_h(g.forkX, vy, fx2 - g.forkX));
 
         c.add(Positioned(
           left: g.valveX,
           top: r * rowH,
-          width: colW,
-          child: _valveChip(context, v, isInlet: false),
+          width: valveColW,
+          child: unflip(_valveChip(context, v,
+              isInlet: false, reverseIcon: true, labelW: valveColW - 6)),
         ));
 
-        // valve -> injectors (crossbar, starts after the icon)
         final feeds = <int>[];
         for (int j = 0; j < injSNos.length; j++) {
           if (v.channelSNos.contains(injSNos[j])) feeds.add(j);
@@ -466,12 +484,12 @@ class FertTankSystemWidget extends StatelessWidget {
       }
     }
 
-    // injector columns + chips (top join only)
+    // injector columns + chips
     if (injSNos.isNotEmpty) {
       final firstX = injX(0);
       final lastX = injX(injSNos.length - 1);
 
-      c.add(_h(firstX, joinTopY, (lastX + 20) - (firstX - 8)));
+      c.add(_h(firstX, joinTopY, (lastX + 10) - (firstX - 8)));
 
       for (int j = 0; j < injSNos.length; j++) {
         c.add(_v(injX(j), joinTopY, chipTop));
@@ -480,17 +498,20 @@ class FertTankSystemWidget extends StatelessWidget {
           top: chipTop,
           width: 28,
           height: 20,
-          child: _injChip(injNames[injSNos[j]] ?? ''),
+          child: unflip(_injChip(injNames[injSNos[j]] ?? '')),
         ));
       }
     }
 
     return Padding(
       padding: const EdgeInsets.only(top: 42, left: 4, right: 4, bottom: 8),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Stack(clipBehavior: Clip.none, children: c),
+      child: Transform.flip(
+        flipX: true, // <-- the mirror (right -> left)
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(clipBehavior: Clip.none, children: c),
+        ),
       ),
     );
   }
@@ -499,8 +520,9 @@ class FertTankSystemWidget extends StatelessWidget {
     final tanks = system.tanks;
     final mains = system.mainSources;
 
-    final mainWidths =
-    mains.map((m) => colW + m.pumps.length * (connW + colW)).toList();
+    final mainWidths = mains
+        .map((m) => mainColW + m.pumps.length * (connW + mainColW))
+        .toList();
     final maxMainW = mainWidths.isEmpty ? 0.0 : mainWidths.reduce(math.max);
     final collectorX = maxMainW + 16;
 
@@ -511,13 +533,14 @@ class FertTankSystemWidget extends StatelessWidget {
 
     for (final t in tanks) {
       final k = math.max(1, t.outletValves.length);
-      final inletW =
-      t.inletValves.isEmpty ? 0.0 : t.inletValves.length * colW + connW;
+      final inletW = t.inletValves.isEmpty
+          ? 0.0
+          : t.inletValves.length * valveColW + connW;
       final tankX = collectorX + connW + inletW;
-      final tankRight = tankX + colW;
+      final tankRight = tankX + tankColW;
       final valveX = tankRight + 24;
       if (t.outletValves.isNotEmpty) {
-        crossStart = math.max(crossStart, valveX + colW);
+        crossStart = math.max(crossStart, valveX + valveColW);
       }
       tanksEnd = math.max(tanksEnd, tankRight);
       for (final v in t.outletValves) {
@@ -529,7 +552,7 @@ class FertTankSystemWidget extends StatelessWidget {
     final totalRows = math.max(row, mains.length);
     final crossEnd = injNos.isEmpty
         ? crossStart
-        : crossStart + 16 + (injNos.length - 1) * injGap + 18;
+        : crossStart + 16 + (injNos.length - 1) * injGapMobile + 14;
     final width = math.max(crossEnd, tanksEnd) + 6 + 8;
 
     final chipTop = (totalRows - 1) * rowH + iconCy + 26;
@@ -626,44 +649,49 @@ class FertTankSystemWidget extends StatelessWidget {
 
   /// x where the line leaving this main-source row should start
   /// (just after its last icon).
-  double _mainEndX(FertMainSource m) {
-    final w = colW + m.pumps.length * (connW + colW);
-    final lastCx = w - colW / 2;
+  double _mainEndX(FertMainSource m, {double cw = colW}) {
+    final w = cw + m.pumps.length * (connW + cw);
+    final lastCx = w - cw / 2;
     final half = m.pumps.isEmpty ? boxHalf : pumpR;
     return lastCx + half + lineGap;
   }
 
-  Widget _mainRow(FertMainSource m) {
+  Widget _mainRow(FertMainSource m,
+      {bool unflipContent = false, double cw = colW}) {
+    Widget uf(Widget w) =>
+        unflipContent ? Transform.flip(flipX: true, child: w) : w;
+
     final src = m.source;
     final level = src.level.isNotEmpty ? src.level.first.value : '-';
-    final w = colW + m.pumps.length * (connW + colW);
+    final w = cw + m.pumps.length * (connW + cw);
 
     final children = <Widget>[
       Positioned(
         left: 0,
         top: 0,
-        width: colW,
-        child: _box(
+        width: cw,
+        child: uf(_box(
           icon: Icons.water,
           color: Colors.black54,
           border: Colors.black12,
           iconColor: Colors.white,
           name: src.name,
           sub: level == '-' ? null : 'L: $level',
-        ),
+          labelW: cw - 6,
+        )),
       ),
     ];
 
-    double prevCx = colW / 2;
+    double prevCx = cw / 2;
     double prevHalf = boxHalf;
     for (int i = 0; i < m.pumps.length; i++) {
-      final left = colW + i * (connW + colW) + connW;
-      final cx = left + colW / 2;
+      final left = cw + i * (connW + cw) + connW;
+      final cx = left + cw / 2;
       children.add(Positioned(
         left: left,
         top: 0,
-        width: colW,
-        child: _pumpChip(m.pumps[i]),
+        width: cw,
+        child: uf(_pumpChip(m.pumps[i], labelW: cw - 6)),
       ));
       // connector stops before each icon
       final sx = prevCx + prevHalf + lineGap;
@@ -680,7 +708,7 @@ class FertTankSystemWidget extends StatelessWidget {
     );
   }
 
-  Widget _pumpChip(PumpModel pump) {
+  Widget _pumpChip(PumpModel pump, {double labelW = colW - 6}) {
     final on = pump.status == 1;
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -708,7 +736,7 @@ class FertTankSystemWidget extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         SizedBox(
-          width: colW - 6,
+          width: labelW,
           child: Text(
             pump.name,
             textAlign: TextAlign.center,
@@ -721,7 +749,7 @@ class FertTankSystemWidget extends StatelessWidget {
     );
   }
 
-  Widget _tankBox(FertTank t) {
+  Widget _tankBox(FertTank t, {double cw = colW}) {
     final level = t.source.level.isNotEmpty ? t.source.level.first.value : '-';
     return _box(
       icon: FontAwesomeIcons.water,
@@ -730,11 +758,14 @@ class FertTankSystemWidget extends StatelessWidget {
       iconColor: Colors.teal,
       name: t.name,
       sub: level == '-' ? null : 'L: $level',
+      labelW: cw - 6,
     );
   }
 
   Widget _valveChip(BuildContext context, TankValveModel v,
-      {bool isInlet = false}) {
+      {bool isInlet = false,
+        bool reverseIcon = false,
+        double labelW = colW - 6}) {
     final rawKey = v.sNo.toString();
     final paddedKey = v.sNo.toStringAsFixed(3);
 
@@ -793,11 +824,14 @@ class FertTankSystemWidget extends StatelessWidget {
                       color: statusColor,
                       border: Border.all(color: Colors.black26, width: 0.6),
                     ),
-                    child: const Center(
-                      child: FaIcon(
-                        FontAwesomeIcons.faucetDrip,
-                        size: 11,
-                        color: Colors.white,
+                    child: Center(
+                      child: Transform.flip(
+                        flipX: reverseIcon,
+                        child: const FaIcon(
+                          FontAwesomeIcons.faucetDrip,
+                          size: 11,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -826,7 +860,7 @@ class FertTankSystemWidget extends StatelessWidget {
               ),
             ),
             SizedBox(
-              width: colW - 6,
+              width: labelW,
               child: Text(
                 v.name,
                 textAlign: TextAlign.center,
@@ -854,6 +888,7 @@ class FertTankSystemWidget extends StatelessWidget {
     required Color iconColor,
     required String name,
     String? sub,
+    double labelW = colW - 6,
   }) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -874,7 +909,7 @@ class FertTankSystemWidget extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         SizedBox(
-          width: colW - 6,
+          width: labelW,
           child: Text(
             name,
             textAlign: TextAlign.center,
