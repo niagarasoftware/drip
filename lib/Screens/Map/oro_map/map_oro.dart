@@ -16,6 +16,8 @@ import '../../../views/common/user_dashboard/widgets/valve_status_legend.dart';
 import '../MapDeviceList.dart';
 import '../polygon_area_calculator.dart';
 import 'map_conection_objects.dart';
+import '../../../services/mqtt_service.dart';
+import '../../../utils/environment.dart';
 
 
 class MapScreenOro extends StatefulWidget {
@@ -62,6 +64,17 @@ class _MapScreenOroState extends State<MapScreenOro> {
       (obj['objectName'] ?? '').toString().toLowerCase().contains('valve');
 
   bool _isValveRunning(int status) => status == 1;
+
+  void _requestLiveData() {
+    final payload = jsonEncode({
+      '3001': ''
+    });
+
+    MqttService().topicToPublishAndItsMessage(
+      payload,
+      '${Environment.mqttPublishTopic}/${widget.imeiNo}',
+    );
+  }
 
   // Compact single-row overlay: area metrics, valve chips, live sync and actions.
   // On narrow screens the whole bar scrolls horizontally without overflowing.
@@ -138,7 +151,9 @@ class _MapScreenOroState extends State<MapScreenOro> {
                         IconButton(
                           tooltip: 'Refresh',
                           icon: const Icon(Icons.refresh, color: Colors.red),
-                          onPressed: () async => _init(),
+                          onPressed: () async {
+                             await _init();
+                          },
                         ),
                         if (!widget.isCheckDashboard)
                           IconButton(
@@ -202,6 +217,7 @@ class _MapScreenOroState extends State<MapScreenOro> {
   Future<void> _init() async {
     await _loadIcons();
     await _fetchData();
+    _requestLiveData();
   }
 
   // ---------------- ICON LOAD ----------------
@@ -226,6 +242,8 @@ class _MapScreenOroState extends State<MapScreenOro> {
       "injector": await load('assets/png/markerinjector.png'),
     };
   }
+
+
 
   // ---------------- FETCH DATA ----------------
   Future<void> _fetchData() async {
@@ -655,7 +673,7 @@ class _MapScreenOroState extends State<MapScreenOro> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
-              await _init();
+               await _init();
             },
           ),
           if (!widget.isCheckDashboard)

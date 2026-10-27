@@ -692,7 +692,7 @@ class MqttPayloadProvider with ChangeNotifier {
 
       try {
         Map<String, dynamic> data = _receivedPayload.isNotEmpty? jsonDecode(_receivedPayload) : {};
-         // debugPrint('_receivedPayload------>:$_receivedPayload');
+          debugPrint('_receivedPayload------>:$_receivedPayload');
 
         if (data.containsKey('cD') && data.containsKey('cT')) {
           liveDateAndTime = '${data['cD'] ?? "--"} ${data['cT'] ?? "--"}';
