@@ -22,11 +22,13 @@ class DetailedMultiMainValvePainter extends CustomPainter {
 
   /// Pipe diameter in logical pixels (limited so the parts never overlap).
   final double? pipeThickness;
+  final bool isHorizontal;
 
   DetailedMultiMainValvePainter({
     required this.valves,
     this.showJoints = true,
     this.pipeThickness,
+    this.isHorizontal = false,
   });
 
   // Ports
@@ -45,6 +47,19 @@ class DetailedMultiMainValvePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (isHorizontal) {
+      canvas.save();
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.rotate(-math.pi / 2);
+      canvas.translate(-size.height / 2, -size.width / 2);
+      _paintBody(canvas, Size(size.height, size.width));
+      canvas.restore();
+      return;
+    }
+    _paintBody(canvas, size);
+  }
+
+  void _paintBody(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
     final int n = valves.isEmpty ? 4 : valves.length;
@@ -247,7 +262,8 @@ class DetailedMultiMainValvePainter extends CustomPainter {
   bool shouldRepaint(covariant DetailedMultiMainValvePainter old) =>
       !listEquals(old.valves, valves) ||
           old.showJoints != showJoints ||
-          old.pipeThickness != pipeThickness;
+          old.pipeThickness != pipeThickness ||
+          old.isHorizontal != isHorizontal;
 }
 
 /// Widget wrapper for [DetailedMultiMainValvePainter].

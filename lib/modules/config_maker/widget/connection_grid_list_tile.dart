@@ -6,6 +6,7 @@ import '../../../Constants/communication_codes.dart';
 import '../model/device_model.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../view/utils/connection_colors.dart';
 import '../../../utils/constants.dart';
 
 class ConnectionGridListTile extends StatefulWidget {
@@ -60,6 +61,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
       return const SizedBox.shrink();
     }
 
+    final colors = ConnectionColors.of(context);
     Color typeColor = widget.leadingColor ??
         (widget.listOfObjectModel.isNotEmpty && widget.listOfObjectModel.first.type != '-'
             ? getObjectTypeCodeToColor(int.parse(widget.listOfObjectModel.first.type))
@@ -84,10 +86,10 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
               const SizedBox(width: 8),
               Text(
                 widget.title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: colors.textPrimary,
                   letterSpacing: 0.2,
                 ),
               ),
@@ -95,7 +97,7 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: typeColor.withOpacity(0.18),
+                  color: typeColor.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -115,34 +117,34 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
           horizontalGridMargin: 4,
           verticalGridMargin: 6,
           minItemWidth: 280,
-          shrinkWrap: true,
           listViewBuilderOptions: ListViewBuilderOptions(
+            shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
           ),
           children: [
             for (var object in widget.listOfObjectModel)
-              objectTile(object),
+              objectTile(object, colors),
           ],
         ),
       ],
     );
   }
 
-  Widget objectTile(DeviceObjectModel object) {
+  Widget objectTile(DeviceObjectModel object, ConnectionColors colors) {
     Color typeColor = widget.leadingColor ?? getObjectTypeCodeToColor(int.parse(object.type));
     int notConfiguredCount = getNotConfiguredObjectByObjectId(object.objectId, widget.configPvd);
 
     Widget cardContent = Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: const Color(0xFF2A3258),
+          color: colors.innerBorder,
           width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: colors.isLight ? 0.05 : 0.2),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -156,11 +158,11 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
             height: 42,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF0A2035),
+              color: colors.circleBg,
               border: Border.all(color: typeColor, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: typeColor.withOpacity(0.25),
+                  color: typeColor.withValues(alpha: 0.25),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -180,10 +182,10 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
               children: [
                 Text(
                   object.objectName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13.5,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     letterSpacing: 0.1,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -193,16 +195,16 @@ class _ConnectionGridListTileState extends State<ConnectionGridListTile> with Si
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF12162B),
+                    color: colors.unassignedBadgeBg,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF2A3258)),
+                    border: Border.all(color: colors.unassignedBadgeBorder),
                   ),
                   child: Text(
                     'Unassigned: $notConfiguredCount',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.unassignedBadgeText,
                     ),
                   ),
                 ),

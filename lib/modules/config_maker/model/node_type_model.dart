@@ -395,7 +395,7 @@ class NodeObject {
       case NodeType.singleAgitator:
         return const Size(63, 102);
       case NodeType.pressureSensor:
-        return const Size(27, 27);
+        return const Size(54, 54);
       case NodeType.moistureSensor:
         return const Size(32, 42);
       case NodeType.ecSensor:

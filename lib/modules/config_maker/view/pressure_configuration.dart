@@ -7,6 +7,7 @@ import '../../../utils/constants.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/painter/pressure_sensor_painter.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -48,11 +49,12 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final pressureSensors = widget.configPvd.pressureSensor;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
@@ -89,7 +91,7 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
                   itemCount: pressureSensors.length,
                   itemBuilder: (context, index) {
                     final pressureSensor = pressureSensors[index];
-                    return _buildPressureCard(pressureSensor, primaryColor);
+                    return _buildPressureCard(pressureSensor, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -103,13 +105,13 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  PRESSURE PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildPressurePainterBlock(PressureModel pressureSensor) {
+  Widget _buildPressurePainterBlock(PressureModel pressureSensor, ConfigMakerColors colors) {
     return Container(
       width: 90,
       height: 64,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
@@ -129,26 +131,27 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   Widget _buildPressureHeaderBlock({
     required PressureModel pressureSensor,
     required Color primaryColor,
+    required ConfigMakerColors colors,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          _buildPressurePainterBlock(pressureSensor),
+          _buildPressurePainterBlock(pressureSensor, colors),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               pressureSensor.commonDetails.name ?? 'Pressure Sensor',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
           ),
@@ -160,13 +163,14 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  PRESSURE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildPressureCard(PressureModel pressureSensor, Color primaryColor) {
+  Widget _buildPressureCard(PressureModel pressureSensor, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(pressureSensor);
 
     return ConfigCardShell(
       headerBlock: _buildPressureHeaderBlock(
         pressureSensor: pressureSensor,
         primaryColor: primaryColor,
+        colors: colors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,

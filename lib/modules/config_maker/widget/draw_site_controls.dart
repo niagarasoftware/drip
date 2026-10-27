@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../view/utils/config_maker_colors.dart';
 
 /// Floating right-side vertical overlay buttons (Undo, Redo, AI Auto Arrange, Hide Joints, Zoom +/- with scale %, Export, Clear).
 class DrawSiteControlsOverlay extends StatelessWidget {
@@ -38,11 +39,12 @@ class DrawSiteControlsOverlay extends StatelessWidget {
     required String tooltip,
     required VoidCallback? onPressed,
     Color? iconColor,
+    required ConfigMakerColors colors,
   }) {
     final bool enabled = onPressed != null;
     final color = enabled
-        ? (iconColor ?? const Color(0xFF38BDF8))
-        : const Color(0xFF475569);
+        ? (iconColor ?? (colors.isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8)))
+        : colors.textMuted;
 
     return Tooltip(
       message: tooltip,
@@ -54,28 +56,29 @@ class DrawSiteControlsOverlay extends StatelessWidget {
     );
   }
 
-  Widget _buildDivider() {
+  Widget _buildDivider(ConfigMakerColors colors) {
     return Container(
       width: 22,
       height: 1,
       margin: const EdgeInsets.symmetric(vertical: 4),
-      color: const Color(0xFF2B335C),
+      color: colors.controlsDivider,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     return Material(
       color: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFF181C38),
+          color: colors.controlsBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF2B335C), width: 1.2),
+          border: Border.all(color: colors.controlsBorder, width: 1.2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
+              color: Colors.black.withValues(alpha: colors.isLight ? 0.10 : 0.45),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -89,15 +92,17 @@ class DrawSiteControlsOverlay extends StatelessWidget {
                 icon: Icons.undo_rounded,
                 tooltip: 'Undo',
                 onPressed: canUndo ? onUndo : null,
-                iconColor: Colors.white,
+                iconColor: colors.controlsIconColor,
+                colors: colors,
               ),
               _buildIconButton(
                 icon: Icons.redo_rounded,
                 tooltip: 'Redo',
                 onPressed: canRedo ? onRedo : null,
-                iconColor: Colors.white,
+                iconColor: colors.controlsIconColor,
+                colors: colors,
               ),
-              _buildDivider(),
+              _buildDivider(colors),
             ],
             if (onAiAutoArrange != null) ...[
               _buildIconButton(
@@ -105,22 +110,25 @@ class DrawSiteControlsOverlay extends StatelessWidget {
                 tooltip: 'Generate AI Diagram',
                 onPressed: onAiAutoArrange,
                 iconColor: const Color(0xFFA855F7),
+                colors: colors,
               ),
-              _buildDivider(),
+              _buildDivider(colors),
             ],
             if (fullAccess) ...[
               _buildIconButton(
                 icon: globalHideJoints ? Icons.layers_clear_rounded : Icons.layers_rounded,
                 tooltip: globalHideJoints ? 'Show Joints' : 'Hide Joints',
                 onPressed: onToggleHideJoints,
-                iconColor: globalHideJoints ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8),
+                iconColor: globalHideJoints ? const Color(0xFFF59E0B) : (colors.isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8)),
+                colors: colors,
               ),
-              _buildDivider(),
+              _buildDivider(colors),
             ],
             _buildIconButton(
               icon: Icons.add_circle_outline_rounded,
               tooltip: 'Zoom in',
               onPressed: onZoomIn,
+              colors: colors,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -130,10 +138,10 @@ class DrawSiteControlsOverlay extends StatelessWidget {
                   final scale = matrix.getMaxScaleOnAxis();
                   return Text(
                     '${(scale * 100).round()}%',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF38BDF8),
+                      color: colors.isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8),
                     ),
                   );
                 },
@@ -143,20 +151,23 @@ class DrawSiteControlsOverlay extends StatelessWidget {
               icon: Icons.remove_circle_outline_rounded,
               tooltip: 'Zoom out',
               onPressed: onZoomOut,
+              colors: colors,
             ),
             if (fullAccess) ...[
-              _buildDivider(),
+              _buildDivider(colors),
               _buildIconButton(
                 icon: Icons.file_download_rounded,
                 tooltip: 'Export configuration (JSON)',
                 onPressed: onExportJson,
                 iconColor: const Color(0xFF10B981),
+                colors: colors,
               ),
               _buildIconButton(
                 icon: Icons.delete_sweep_rounded,
                 tooltip: 'Clear canvas',
                 onPressed: onClearCanvas,
                 iconColor: const Color(0xFFEF4444),
+                colors: colors,
               ),
             ],
           ],

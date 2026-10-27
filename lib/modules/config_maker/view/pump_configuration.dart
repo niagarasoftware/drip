@@ -10,6 +10,7 @@ import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/painter/pump_painter.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -88,11 +89,12 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final pumps = widget.configPvd.pump;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
@@ -124,7 +126,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
                   separatorBuilder: (context, index) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final pump = pumps[index];
-                    return _buildPumpCard(pump, primaryColor);
+                    return _buildPumpCard(pump, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -138,13 +140,13 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  PUMP PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildPumpPainterBlock() {
+  Widget _buildPumpPainterBlock(ConfigMakerColors colors) {
     return Container(
       width: double.infinity,
       height: 105,
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
@@ -160,12 +162,13 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
     required PumpModel pump,
     required _Progress progress,
     required Color primaryColor,
+    required ConfigMakerColors colors,
     Widget? typeSelector,
   }) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -182,10 +185,10 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
                       pump.commonDetails.name ?? 'Pump',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (typeSelector != null) ...[
@@ -198,7 +201,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
             ],
           ),
           const SizedBox(height: 8),
-          Expanded(child: _buildPumpPainterBlock()),
+          Expanded(child: _buildPumpPainterBlock(colors)),
         ],
       ),
     );
@@ -234,7 +237,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  PUMP CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildPumpCard(PumpModel pump, Color primaryColor) {
+  Widget _buildPumpCard(PumpModel pump, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(pump);
     final showModeDropdown = !pumpModelList.contains(widget.configPvd.masterData['modelId']);
 
@@ -276,6 +279,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
         pump: pump,
         progress: progress,
         primaryColor: primaryColor,
+        colors: colors,
         typeSelector: typeSelector,
       ),
       isComplete: progress.complete,

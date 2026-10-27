@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../Widgets/sized_image.dart';
+import '../view/utils/config_maker_colors.dart';
 
 /// Page heading for configuration screens.
 /// Displays an icon badge, title, total item count badge, subtitle, and an optional action button.
@@ -29,6 +30,7 @@ class ConfigPageHeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final unitText = totalCount == 1 ? countUnitSingular : countUnitPlural;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -52,8 +54,8 @@ class ConfigPageHeading extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.3,
@@ -82,8 +84,8 @@ class ConfigPageHeading extends StatelessWidget {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF8E9BB4),
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -137,13 +139,14 @@ class ConfigEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF20274B)),
+        border: Border.all(color: colors.cardBorder),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -152,16 +155,16 @@ class ConfigEmptyState extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF8E9BB4)),
+            style: TextStyle(fontSize: 12, color: colors.textMuted),
             textAlign: TextAlign.center,
           ),
           if (onAddPressed != null) ...[
@@ -204,6 +207,7 @@ class ConfigFlowSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       if (i > 0) {
@@ -221,7 +225,7 @@ class ConfigFlowSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -297,14 +301,17 @@ class ConfigComponentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     if (compact) {
       return Material(
-        color: isAssigned ? accent.withValues(alpha: 0.15) : const Color(0xFF12162B),
+        color: isAssigned
+            ? accent.withValues(alpha: colors.isLight ? 0.12 : 0.15)
+            : colors.unassignedBadgeBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: isAssigned
               ? BorderSide(color: accent.withValues(alpha: 0.5))
-              : BorderSide.none,
+              : BorderSide(color: colors.unassignedBadgeBorder),
         ),
         child: InkWell(
           onTap: onTap,
@@ -316,7 +323,7 @@ class ConfigComponentTile extends StatelessWidget {
                 SizedBox(
                   width: 20,
                   height: 20,
-                  child: _buildImage(isAssigned ? accent : const Color(0xFF8E9BB4)),
+                  child: _buildImage(isAssigned ? accent : colors.textMuted),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -327,10 +334,10 @@ class ConfigComponentTile extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFFC0CCE0),
+                          color: colors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -342,7 +349,7 @@ class ConfigComponentTile extends StatelessWidget {
                           fontSize: 12.5,
                           fontWeight: isAssigned ? FontWeight.bold : FontWeight.w500,
                           fontStyle: isAssigned ? FontStyle.normal : FontStyle.italic,
-                          color: isAssigned ? accent : const Color(0xFF64748B),
+                          color: isAssigned ? accent : colors.textMuted,
                         ),
                       ),
                     ],
@@ -370,11 +377,13 @@ class ConfigComponentTile extends StatelessWidget {
                 height: 34,
                 padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
-                  color: isAssigned ? accent.withValues(alpha: 0.18) : const Color(0xFF12162B),
+                  color: isAssigned
+                      ? accent.withValues(alpha: 0.18)
+                      : colors.unassignedBadgeBg,
                   borderRadius: BorderRadius.circular(8),
                   border: isAssigned ? Border.all(color: accent.withValues(alpha: 0.4)) : null,
                 ),
-                child: _buildImage(isAssigned ? accent : const Color(0xFF8E9BB4)),
+                child: _buildImage(isAssigned ? accent : colors.textMuted),
               ),
               const SizedBox(width: 10),
 
@@ -387,10 +396,10 @@ class ConfigComponentTile extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -403,7 +412,7 @@ class ConfigComponentTile extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF12162B),
+                                color: colors.unassignedBadgeBg,
                                 borderRadius: BorderRadius.circular(7),
                                 border: Border.all(color: accent.withValues(alpha: 0.4)),
                               ),
@@ -419,12 +428,12 @@ class ConfigComponentTile extends StatelessWidget {
                         ],
                       )
                     else
-                      const Text(
+                      Text(
                         'Not assigned',
                         style: TextStyle(
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
-                          color: Color(0xFF64748B),
+                          color: colors.textMuted,
                         ),
                       ),
                   ],
@@ -473,16 +482,17 @@ class ConfigTypeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     const activeAccent = Color(0xFF38BDF8); // Bright sky blue accent
 
     return PopupMenuButton<String>(
       tooltip: tooltip,
       initialValue: currentType,
-      color: const Color(0xFF181C38),
+      color: colors.isLight ? Colors.white : const Color(0xFF181C38),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF2B335C)),
+        side: BorderSide(color: colors.innerBorder),
       ),
       onSelected: onSelected,
       itemBuilder: (context) => typeList.map((type) {
@@ -500,7 +510,7 @@ class ConfigTypeSelector extends StatelessWidget {
                 Icon(
                   typeIcons[type] ?? Icons.circle,
                   size: 18,
-                  color: selected ? activeAccent : const Color(0xFF94A3B8),
+                  color: selected ? activeAccent : colors.textMuted,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -509,7 +519,7 @@ class ConfigTypeSelector extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                      color: selected ? activeAccent : Colors.white,
+                      color: selected ? activeAccent : colors.textPrimary,
                     ),
                   ),
                 ),
@@ -523,7 +533,7 @@ class ConfigTypeSelector extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E2648),
+          color: colors.isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E2648),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: activeAccent.withValues(alpha: 0.4)),
         ),
@@ -534,10 +544,10 @@ class ConfigTypeSelector extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               currentType,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
             const SizedBox(width: 2),
@@ -616,22 +626,23 @@ class ConfigCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isComplete
               ? completeColor.withValues(alpha: 0.48)
-              : const Color(0xFF20274B),
+              : colors.cardBorder,
           width: isComplete ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isComplete
-                ? completeColor.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.2),
+                ? completeColor.withValues(alpha: colors.isLight ? 0.05 : 0.08)
+                : Colors.black.withValues(alpha: colors.isLight ? 0.05 : 0.2),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -723,18 +734,19 @@ class ConfigSensorsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final active = activeSensorCount > 0;
-    const subTextColor = Color(0xFF8E9BB4);
+    final subTextColor = colors.textMuted;
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
           dividerColor: Colors.transparent,
-          iconTheme: const IconThemeData(color: subTextColor),
+          iconTheme: IconThemeData(color: subTextColor),
         ),
         child: ExpansionTile(
           key: storageKey,
@@ -747,7 +759,7 @@ class ConfigSensorsSection extends StatelessWidget {
           leading: Container(
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
+              color: active ? primaryColor.withValues(alpha: 0.18) : colors.unassignedBadgeBg,
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -762,10 +774,10 @@ class ConfigSensorsSection extends StatelessWidget {
                 child: Text(
                   title,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                   ),
                 ),
               ),
@@ -773,7 +785,7 @@ class ConfigSensorsSection extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1.5),
                 decoration: BoxDecoration(
-                  color: active ? primaryColor.withValues(alpha: 0.18) : const Color(0xFF12162B),
+                  color: active ? primaryColor.withValues(alpha: 0.18) : colors.unassignedBadgeBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(

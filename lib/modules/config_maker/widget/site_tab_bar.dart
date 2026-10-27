@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../view/utils/config_maker_colors.dart';
 
 /// Item model representing a site navigation tab.
 class SiteTabItem {
@@ -33,13 +34,14 @@ class SiteTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     return Container(
       height: 38,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
+      decoration: BoxDecoration(
+        color: colors.bottomTabBarBg,
         border: Border(
-          top: BorderSide(color: Color(0xFF334155), width: 1.0),
-          bottom: BorderSide(color: Color(0xFF0F172A), width: 1.0),
+          top: BorderSide(color: colors.innerBorder, width: 1.0),
+          bottom: BorderSide(color: colors.bottomTabBarBg, width: 1.0),
         ),
       ),
       child: Row(
@@ -48,9 +50,9 @@ class SiteTabBar extends StatelessWidget {
           Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1E293B),
-              border: Border(right: BorderSide(color: Color(0xFF334155), width: 1)),
+            decoration: BoxDecoration(
+              color: colors.bottomTabActiveBg,
+              border: Border(right: BorderSide(color: colors.innerBorder, width: 1)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -64,9 +66,9 @@ class SiteTabBar extends StatelessWidget {
                       curve: Curves.easeOut,
                     );
                   },
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_left, size: 20, color: Colors.white),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.chevron_left, size: 20, color: colors.textPrimary),
                   ),
                 ),
                 const SizedBox(width: 2),
@@ -79,9 +81,9 @@ class SiteTabBar extends StatelessWidget {
                       curve: Curves.easeOut,
                     );
                   },
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_right, size: 20, color: Colors.white),
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(Icons.chevron_right, size: 20, color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -107,8 +109,8 @@ class SiteTabBar extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isActive
-                            ? const Color(0xFF1E293B)
-                            : const Color(0xFF334155),
+                            ? colors.bottomTabActiveBg
+                            : colors.bottomTabInactiveBg,
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(8),
                           topRight: Radius.circular(8),
@@ -116,7 +118,7 @@ class SiteTabBar extends StatelessWidget {
                         border: Border.all(
                           color: isActive
                               ? tab.accentColor
-                              : const Color(0xFF475569),
+                              : colors.innerBorder,
                           width: isActive ? 1.8 : 1.0,
                         ),
                         boxShadow: isActive
@@ -144,13 +146,13 @@ class SiteTabBar extends StatelessWidget {
                           Icon(
                             tab.icon,
                             size: 14,
-                            color: isActive ? Colors.white : Colors.white70,
+                            color: isActive ? colors.bottomTabActiveText : colors.bottomTabInactiveText,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             tab.title,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: isActive ? colors.bottomTabActiveText : colors.bottomTabInactiveText,
                               fontSize: 12,
                               fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
                               letterSpacing: 0.3,

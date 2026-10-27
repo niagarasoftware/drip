@@ -11,6 +11,7 @@ import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/object_manager_bar.dart';
 import 'config_object_name_editing.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -28,10 +29,11 @@ class LineConfiguration extends StatefulWidget {
   const LineConfiguration({super.key, required this.configPvd});
 
   @override
-  State<LineConfiguration> createState() => _LineConfigurationState();
+  State<LineConfiguration> createState() => LineConfigurationState();
 }
 
-class _LineConfigurationState extends State<LineConfiguration> {
+class LineConfigurationState extends State<LineConfiguration> {
+  void addLine() => _addLine();
   // ── Design tokens (Matching SourceConfiguration Dark Mode) ──
   static const Color _sourceColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _valveColor = Color(0xFF059669); // emerald green
@@ -137,56 +139,42 @@ class _LineConfigurationState extends State<LineConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final lines = widget.configPvd.line;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: ConfigPageHeading(
-                      title: 'Line configuration',
-                      subtitle: 'Configure pumps, valves, filtration, fertilization and sensors for irrigation lines',
-                      totalCount: lines.length,
-                      countUnitSingular: 'line',
-                      countUnitPlural: 'lines',
-                      primaryColor: primaryColor,
-                      icon: Icons.alt_route_rounded,
-                      onAddPressed: _addLine,
-                      addButtonLabel: 'Add Line',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      showEditObjectNamesSideSheet(
-                        context: context,
-                        configPvd: widget.configPvd,
-                        listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
-                      );
-                    },
-                    tooltip: 'Edit Object Names',
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF181C38),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF20274B)),
+              if (lines.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        showEditObjectNamesSideSheet(
+                          context: context,
+                          configPvd: widget.configPvd,
+                          listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
+                        );
+                      },
+                      icon: const Icon(Icons.dataset_rounded, size: 16),
+                      label: const Text('Edit Object Names', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryColor,
+                        side: BorderSide(color: primaryColor.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       ),
-                      child: const Icon(Icons.dataset_rounded, color: Colors.white, size: 20),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 18),
+                ),
               if (lines.isEmpty)
                 ConfigEmptyState(
                   title: 'No Irrigation Lines Added',
@@ -204,7 +192,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
                   separatorBuilder: (context, index) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final line = lines[index];
-                    return _buildLineCard(line, primaryColor);
+                    return _buildLineCard(line, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -263,14 +251,15 @@ class _LineConfigurationState extends State<LineConfiguration> {
     required String itemName,
     required VoidCallback onDelete,
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -293,19 +282,19 @@ class _LineConfigurationState extends State<LineConfiguration> {
                   Text(
                     'Delete $itemName',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to delete "$itemName"? This action cannot be undone.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -316,8 +305,8 @@ class _LineConfigurationState extends State<LineConfiguration> {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF8E9BB4),
-                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            foregroundColor: colors.textMuted,
+                            side: BorderSide(color: colors.innerBorder),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -363,6 +352,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
     required IrrigationLineModel line,
     required _Progress progress,
     required Color primaryColor,
+    required ConfigMakerColors colors,
   }) {
     final remaining = progress.total - progress.filled;
     final itemName = line.commonDetails.name ?? 'Irrigation Line';
@@ -370,9 +360,9 @@ class _LineConfigurationState extends State<LineConfiguration> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF252D54)),
+        border: Border.all(color: colors.innerBorder),
       ),
       child: Row(
         children: [
@@ -409,10 +399,10 @@ class _LineConfigurationState extends State<LineConfiguration> {
                   itemName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16.5,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                     letterSpacing: -0.2,
                   ),
                 ),
@@ -504,7 +494,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  LINE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildLineCard(IrrigationLineModel line, Color primaryColor) {
+  Widget _buildLineCard(IrrigationLineModel line, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(line);
 
     final sourceAndPumpTiles = <Widget>[
@@ -952,25 +942,25 @@ class _LineConfigurationState extends State<LineConfiguration> {
           children: climateTiles,
         ),
       if (weatherDevices.isNotEmpty)
-        _buildWeatherStationSection(line, weatherDevices),
+        _buildWeatherStationSection(line, weatherDevices, colors),
     ];
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: progress.complete
               ? _doneColor.withValues(alpha: 0.48)
-              : const Color(0xFF20274B),
+              : colors.cardBorder,
           width: progress.complete ? 1.4 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: progress.complete
-                ? _doneColor.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.2),
+                ? _doneColor.withValues(alpha: colors.isLight ? 0.05 : 0.08)
+                : Colors.black.withValues(alpha: colors.isLight ? 0.05 : 0.2),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -984,6 +974,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
             line: line,
             progress: progress,
             primaryColor: primaryColor,
+            colors: colors,
           ),
           if (bodySections.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -1000,28 +991,28 @@ class _LineConfigurationState extends State<LineConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  WEATHER STATION SECTION
   // ───────────────────────────────────────────────────────────
-  Widget _buildWeatherStationSection(IrrigationLineModel line, List<DeviceModel> weatherDevices) {
+  Widget _buildWeatherStationSection(IrrigationLineModel line, List<DeviceModel> weatherDevices, ConfigMakerColors colors) {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
             child: Row(
               children: [
-                Icon(Icons.wb_sunny_rounded, size: 16, color: Color(0xFFD97706)),
-                SizedBox(width: 8),
+                const Icon(Icons.wb_sunny_rounded, size: 16, color: Color(0xFFD97706)),
+                const SizedBox(width: 8),
                 Text(
                   'Weather Station',
                   style: TextStyle(
                     fontSize: 13.5,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: colors.textPrimary,
                   ),
                 ),
               ],
@@ -1034,11 +1025,11 @@ class _LineConfigurationState extends State<LineConfiguration> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 4),
               title: Text(
                 device.deviceName,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: colors.textPrimary),
               ),
               subtitle: Text(
                 device.deviceId,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF8E9BB4)),
+                style: TextStyle(fontSize: 11, color: colors.textMuted),
               ),
               value: line.weatherStation.contains(device.controllerId),
               onChanged: (value) {

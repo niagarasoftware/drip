@@ -259,6 +259,8 @@ abstract class SiteSetupBase {
   String nextId(String prefix) => ctx.nextId(prefix);
   NodeObject newJunction(Offset p) => ctx.newJunction(p);
   List<Offset> cleanWaypoints(Offset s, List<Offset> wps, Offset e) => ctx.cleanWaypoints(s, wps, e);
+  Offset portPosition(NodeObject node, String? portId, {bool isInput = false}) =>
+      node.getPort(portId, isInput: isInput);
   DeviceObjectModel getObjectName(double sNo, ConfigMakerProvider configPvd) =>
       ctx.getObjectName(sNo, configPvd);
 }

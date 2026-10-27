@@ -35,6 +35,7 @@ import 'moisture_configuration.dart';
 import 'pressure_configuration.dart';
 import 'pump_configuration.dart';
 import 'source_configuration.dart';
+import 'utils/config_maker_colors.dart';
 import 'valve_configuration.dart';
 
 class _ConfigTabItem {
@@ -87,6 +88,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   int? _activeConfigTab;
   bool _isConfigSheetOpen = false;
+
+  final GlobalKey<SourceConfigurationState> _sourceKey = GlobalKey<SourceConfigurationState>();
+  final GlobalKey<FiltrationConfigurationState> _filtrationKey = GlobalKey<FiltrationConfigurationState>();
+  final GlobalKey<FertilizationConfigurationState> _fertilizationKey = GlobalKey<FertilizationConfigurationState>();
+  final GlobalKey<LineConfigurationState> _lineKey = GlobalKey<LineConfigurationState>();
 
   // ---- Render / performance infrastructure ------------------------------
   final CanvasNotifier _canvasNotifier = CanvasNotifier();
@@ -2018,15 +2024,15 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       case -1:
         return Connection(configPvd: configPvd);
       case 0:
-        return SourceConfiguration(configPvd: configPvd);
+        return SourceConfiguration(configPvd: configPvd, key: _sourceKey);
       case 1:
         return PumpConfiguration(configPvd: configPvd);
       case 2:
-        return FiltrationConfiguration(configPvd: configPvd);
+        return FiltrationConfiguration(configPvd: configPvd, key: _filtrationKey);
       case 3:
         return ChannelConfiguration(configPvd: configPvd);
       case 4:
-        return FertilizationConfiguration(configPvd: configPvd);
+        return FertilizationConfiguration(configPvd: configPvd, key: _fertilizationKey);
       case 8:
         return PressureConfiguration(configPvd: configPvd);
       case 5:
@@ -2034,13 +2040,13 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       case 9:
         return ValveConfiguration(configPvd: configPvd);
       case 10:
-        return LineConfiguration(configPvd: configPvd);
+        return LineConfiguration(configPvd: configPvd, key: _lineKey);
       default:
-        return SourceConfiguration(configPvd: configPvd);
+        return SourceConfiguration(configPvd: configPvd, key: _sourceKey);
     }
   }
 
-  Widget _buildConfigTabTile(_ConfigTabItem tab, ConfigMakerProvider configPvd) {
+  Widget _buildConfigTabTile(_ConfigTabItem tab, ConfigMakerProvider configPvd, ConfigMakerColors colors) {
     final bool isSelected = _isConfigSheetOpen && _activeConfigTab == tab.key;
     final int count = tab.key == -1
         ? configPvd.listOfObjectModelConnection.length
@@ -2063,7 +2069,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : null,
+                color: isSelected ? colors.sideTabSelectedBg : null,
                 borderRadius: isSelected ? BorderRadius.circular(10) : null,
               ),
               child: Column(
@@ -2076,20 +2082,20 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                           width: 22,
                           height: 22,
                           colorFilter: ColorFilter.mode(
-                            isSelected ? Colors.black : Colors.white,
+                            isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
                             BlendMode.srcIn,
                           ),
                         )
                       : Icon(
                           tab.icon ?? Icons.cable_rounded,
                           size: 22,
-                          color: isSelected ? Colors.black : Colors.white,
+                          color: isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
                         ),
                   const SizedBox(height: 4),
                   Text(
                     tab.shortName,
                     style: TextStyle(
-                      color: isSelected ? Colors.black : Colors.white,
+                      color: isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
                       fontSize: 10.5,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     ),
@@ -2106,14 +2112,21 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     );
   }
 
-  Widget _buildConfigVerticalTabs(ConfigMakerProvider configPvd) {
+  Widget _buildConfigVerticalTabs(ConfigMakerProvider configPvd, ConfigMakerColors colors) {
     final primaryColor = Theme.of(context).primaryColor;
     return Container(
       width: 82,
       decoration: BoxDecoration(
-        color: primaryColor,
-        border: const Border(
-          right: BorderSide(color: Color(0xFF334155), width: 1.0),
+        gradient: LinearGradient(
+          colors: [
+            primaryColor,
+            Color.alphaBlend(Colors.black.withValues(alpha: 0.18), primaryColor),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        border: Border(
+          right: BorderSide(color: colors.sideTabBorder, width: 1.0),
         ),
       ),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
@@ -2123,14 +2136,14 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final tab in _configTabs)
-              _buildConfigTabTile(tab, configPvd),
+              _buildConfigTabTile(tab, configPvd, colors),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildConfigSideSheet(BoxConstraints constraints, ConfigMakerProvider configPvd) {
+  Widget _buildConfigSideSheet(BoxConstraints constraints, ConfigMakerProvider configPvd, ConfigMakerColors colors) {
     final double sheetWidth = constraints.maxWidth * 0.9;
     final activeTabItem = _configTabs.firstWhere(
       (t) => t.key == _activeConfigTab,
@@ -2143,6 +2156,23 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
             .where((o) => o.objectId == configPvd.configurationTabObjectId[activeTabItem.key])
             .length;
 
+    String? addButtonLabel;
+    VoidCallback? onAddPressed;
+
+    if (_activeConfigTab == 0) {
+      addButtonLabel = 'Add Source';
+      onAddPressed = () => _sourceKey.currentState?.addSource();
+    } else if (_activeConfigTab == 2) {
+      addButtonLabel = 'Add Site';
+      onAddPressed = () => _filtrationKey.currentState?.addFiltrationSite();
+    } else if (_activeConfigTab == 4) {
+      addButtonLabel = 'Add Site';
+      onAddPressed = () => _fertilizationKey.currentState?.addFertilizationSite();
+    } else if (_activeConfigTab == 10) {
+      addButtonLabel = 'Add Line';
+      onAddPressed = () => _lineKey.currentState?.addLine();
+    }
+
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
@@ -2154,16 +2184,16 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
         elevation: 16,
         color: Colors.transparent,
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF0F172A),
+          decoration: BoxDecoration(
+            color: colors.sideSheetBg,
             border: Border(
-              right: BorderSide(color: Color(0xFF334155), width: 1.0),
+              right: BorderSide(color: colors.sideSheetBorder, width: 1.0),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black54,
+                color: Colors.black.withValues(alpha: colors.isLight ? 0.12 : 0.5),
                 blurRadius: 15,
-                offset: Offset(4, 0),
+                offset: const Offset(4, 0),
               ),
             ],
           ),
@@ -2174,10 +2204,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
               Container(
                 height: 56,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1E293B),
+                decoration: BoxDecoration(
+                  color: colors.sideSheetHeaderBg,
                   border: Border(
-                    bottom: BorderSide(color: Color(0xFF334155), width: 1.0),
+                    bottom: BorderSide(color: colors.sideSheetBorder, width: 1.0),
                   ),
                 ),
                 child: Row(
@@ -2204,50 +2234,70 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                               size: 20,
                             ),
                     ),
-                      const SizedBox(width: 12),
-                      Text(
-                        activeTabItem.title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    const SizedBox(width: 12),
+                    Text(
+                      activeTabItem.title,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      if (count > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          child: Text(
-                            '$count items',
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
+                    ),
+                    if (count > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
                           ),
                         ),
-                      ],
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Color(0xFF8E9BB4)),
-                        hoverColor: Colors.white12,
-                        tooltip: 'Close',
-                        onPressed: () {
-                          setState(() {
-                            _isConfigSheetOpen = false;
-                          });
-                        },
+                        child: Text(
+                          '$count items',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
-                  ),
+                    const Spacer(),
+                    if (onAddPressed != null && addButtonLabel != null) ...[
+                      ElevatedButton.icon(
+                        onPressed: onAddPressed,
+                        icon: const Icon(Icons.add_rounded, size: 16),
+                        label: Text(
+                          addButtonLabel,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: colors.textMuted),
+                      hoverColor: colors.isLight ? Colors.black12 : Colors.white12,
+                      tooltip: 'Close',
+                      onPressed: () {
+                        setState(() {
+                          _isConfigSheetOpen = false;
+                        });
+                      },
+                    ),
+                  ],
                 ),
+              ),
                 // Body
                 Expanded(
                   child: KeyedSubtree(
@@ -2265,6 +2315,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   @override
   Widget build(BuildContext context) {
     final configPvd = Provider.of<ConfigMakerProvider>(context);
+    final colors = ConfigMakerColors.of(context);
 
     return Scaffold(
       body: KeyboardListener(
@@ -2313,11 +2364,11 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
               ),
             Expanded(
               child: Container(
-                color: const Color(0xFF12162B),
+                color: colors.canvasBg,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildConfigVerticalTabs(configPvd),
+                    _buildConfigVerticalTabs(configPvd, colors),
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -2346,7 +2397,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                           children: [
                                             Positioned.fill(
                                               child: RepaintBoundary(
-                                                child: CustomPaint(painter: const GridPainter()),
+                                                child: CustomPaint(painter: GridPainter(isLight: colors.isLight)),
                                               ),
                                             ),
                                             ListenableBuilder(
@@ -2499,7 +2550,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                     ),
                                   ),
                                 ),
-                              _buildConfigSideSheet(constraints, configPvd),
+                              _buildConfigSideSheet(constraints, configPvd, colors),
                               if (_isAiLoading)
                                 Positioned.fill(
                                   child: AiDiagramLoadingOverlay(

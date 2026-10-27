@@ -12,6 +12,7 @@ import '../widget/object_manager_bar.dart';
 import '../widget/painter/multi_filter_painter.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -29,16 +30,15 @@ class FiltrationConfiguration extends StatefulWidget {
   const FiltrationConfiguration({super.key, required this.configPvd});
 
   @override
-  State<FiltrationConfiguration> createState() => _FiltrationConfigurationState();
+  State<FiltrationConfiguration> createState() => FiltrationConfigurationState();
 }
 
-class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
+class FiltrationConfigurationState extends State<FiltrationConfiguration> {
+  void addFiltrationSite() => _addFiltrationSite();
   // ── Design tokens (Matching source_configuration.dart) ──
   static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _outletColor = Color(0xFF059669); // emerald green
   static const Color _doneColor = Color(0xFF059669); // emerald green
-  static const Color _inkColor = Colors.white; // dark mode crisp white text
-  static const Color _subTextColor = Color(0xFF8E9BB4); // slate-400 subtle text
 
   // ───────────────────────────────────────────────────────────
   //  PROGRESS CALCULATION
@@ -59,14 +59,15 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     IconData icon = Icons.warning_amber_rounded,
     Color iconColor = const Color(0xFFF59E0B),
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -89,19 +90,19 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -207,15 +208,17 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
   }
 
   // ───────────────────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
   //  BUILD
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final filtrations = widget.configPvd.filtration;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: LayoutBuilder(builder: (context, constraint) {
@@ -226,18 +229,6 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  ConfigPageHeading(
-                    title: 'Filtration configuration',
-                    subtitle: 'Configure site mode, filters, filter types, and pressure sensors',
-                    totalCount: filtrations.length,
-                    countUnitSingular: 'site',
-                    countUnitPlural: 'sites',
-                    primaryColor: primaryColor,
-                    icon: Icons.filter_alt_rounded,
-                    onAddPressed: _addFiltrationSite,
-                    addButtonLabel: 'Add Site',
-                  ),
-                  const SizedBox(height: 18),
                   if (filtrations.isEmpty)
                     ConfigEmptyState(
                       title: 'No Filtration Sites Added',
@@ -255,7 +246,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                       separatorBuilder: (context, index) => const SizedBox(height: 14),
                       itemBuilder: (context, index) {
                         final site = filtrations[index];
-                        return _buildFiltrationCard(site, primaryColor);
+                        return _buildFiltrationCard(site, primaryColor, colors);
                       },
                     ),
                   const SizedBox(height: 16),
@@ -268,7 +259,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     );
   }
 
-  Widget _buildFiltrationPainterBlock(FiltrationModel site, Color primaryColor) {
+  Widget _buildFiltrationPainterBlock(FiltrationModel site, Color primaryColor, ConfigMakerColors colors) {
     if (site.filters.isNotEmpty) {
       final List<String> filterNames = site.filters
           .map((f) => getObjectName(f.sNo, widget.configPvd).name ?? '')
@@ -281,7 +272,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
         height: painterH + 20,
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF12162B),
+          color: colors.innerSurface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
@@ -306,7 +297,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
       height: 90,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
@@ -318,10 +309,10 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
               color: primaryColor,
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'No Filters Assigned',
               style: TextStyle(
-                color: _subTextColor,
+                color: colors.textMuted,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -380,14 +371,15 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     required String itemName,
     required VoidCallback onDelete,
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -410,19 +402,19 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                   Text(
                     'Delete $itemName',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to delete "$itemName"? This action cannot be undone.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -433,8 +425,26 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF8E9BB4),
-                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            foregroundColor: colors.textMuted,
+                            side: BorderSide(color: colors.innerBorder),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            onDelete();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFEF4444),
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -477,6 +487,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     required FiltrationModel site,
     required _Progress progress,
     required Color primaryColor,
+    required ConfigMakerColors colors,
     Widget? typeSelector,
   }) {
     final itemName = site.commonDetails.name ?? 'Filtration Site';
@@ -484,7 +495,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -501,10 +512,10 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
                       itemName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (typeSelector != null) ...[
@@ -534,13 +545,13 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
             ],
           ),
           const SizedBox(height: 8),
-          _buildFiltrationPainterBlock(site, primaryColor),
+          _buildFiltrationPainterBlock(site, primaryColor, colors),
         ],
       ),
     );
   }
 
-  Widget _buildFiltrationCard(FiltrationModel site, Color primaryColor) {
+  Widget _buildFiltrationCard(FiltrationModel site, Color primaryColor, ConfigMakerColors colors) {
     final currentType = getCentralLocalCodeToString(site.siteMode);
     const modeTypes = ['Central', 'Local'];
     const modeIcons = {
@@ -567,6 +578,7 @@ class _FiltrationConfigurationState extends State<FiltrationConfiguration> {
         site: site,
         progress: progress,
         primaryColor: primaryColor,
+        colors: colors,
         typeSelector: typeSelector,
       ),
       isComplete: progress.complete,

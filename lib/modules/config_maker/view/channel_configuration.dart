@@ -8,6 +8,7 @@ import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/painter/single_injector_channel_painter.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -57,11 +58,12 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final channels = widget.configPvd.channelConfig;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
@@ -93,7 +95,7 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
                   separatorBuilder: (context, index) => const SizedBox(height: 14),
                   itemBuilder: (context, index) {
                     final channel = channels[index];
-                    return _buildChannelCard(channel, primaryColor);
+                    return _buildChannelCard(channel, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -107,13 +109,13 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  CHANNEL PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildChannelPainterBlock() {
+  Widget _buildChannelPainterBlock(ConfigMakerColors colors) {
     return Container(
       width: double.infinity,
       height: 155,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Center(
@@ -128,11 +130,12 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
   Widget _buildChannelHeaderBlock({
     required ChannelConfigModel channel,
     required Color primaryColor,
+    required ConfigMakerColors colors,
   }) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -146,15 +149,15 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
               channel.commonDetails.name ?? 'Channel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
           ),
           const SizedBox(height: 8),
-          _buildChannelPainterBlock(),
+          _buildChannelPainterBlock(colors),
         ],
       ),
     );
@@ -163,13 +166,14 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  CHANNEL CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildChannelCard(ChannelConfigModel channel, Color primaryColor) {
+  Widget _buildChannelCard(ChannelConfigModel channel, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(channel);
 
     return ConfigCardShell(
       headerBlock: _buildChannelHeaderBlock(
         channel: channel,
         primaryColor: primaryColor,
+        colors: colors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,

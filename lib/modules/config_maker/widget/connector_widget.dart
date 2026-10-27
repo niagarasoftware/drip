@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/Widgets/sized_image.dart';
 import '../model/device_model.dart';
 import '../model/device_object_model.dart';
-import '../view/connection.dart';
 import '../state_management/config_maker_provider.dart';
-import '../../../utils/constants.dart';
+import '../view/connection.dart';
+import '../view/utils/connection_colors.dart';
 
 /// Compact single-pin tile: [badge] — name  [icon]
 class ConnectorWidget extends StatelessWidget {
@@ -39,20 +38,20 @@ class ConnectorWidget extends StatelessWidget {
     bool selectedConnector = (configPvd.selectedModelControllerId == selectedDevice.controllerId &&
         configPvd.selectedType == type &&
         configPvd.selectedConnectionNo == connectionNo);
-    bool isLight = Theme.of(context).brightness == Brightness.light;
+    final colors = ConnectionColors.of(context);
 
     // Reserved pin (D5 - Pulse Input) on category 6
     if (selectedDevice.categoryId == 6 && type == '4' && connectionNo == 5) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _reservedTile(isLight),
+          _reservedTile(colors),
           const SizedBox(height: 4),
           connector(
             object: object,
             selectedConnector: selectedConnector,
             context: context,
-            themeMode: isLight,
+            colors: colors,
             name: name,
           ),
         ],
@@ -62,28 +61,28 @@ class ConnectorWidget extends StatelessWidget {
       object: object,
       selectedConnector: selectedConnector,
       context: context,
-      themeMode: isLight,
+      colors: colors,
       name: name,
     );
   }
 
-  Widget _reservedTile(bool isLight) {
+  Widget _reservedTile(ConnectionColors colors) {
     return Container(
       height: tileHeight,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: isLight ? Colors.grey.shade100 : Colors.white10,
+        color: colors.isLight ? Colors.grey.shade100 : Colors.white10,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: colors.isLight ? Colors.grey.shade300 : Colors.white24),
       ),
       child: Row(
         children: [
-          _pinBadge('D5', Colors.grey.shade500, true),
+          _pinBadge('D5', Colors.grey.shade500, true, colors),
           const SizedBox(width: 6),
           Expanded(
             child: Text('Pulse (reserved)',
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                style: TextStyle(fontSize: 11, color: colors.textMuted, fontWeight: FontWeight.w600)),
           ),
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -94,7 +93,9 @@ class ConnectorWidget extends StatelessWidget {
     );
   }
 
-  Widget _pinBadge(String label, Color bg, bool filled) {
+  Widget _pinBadge(String label, Color bg, bool filled, ConnectionColors colors) {
+    final darkBg = const Color(0xFF12162B);
+    final lightBg = Colors.white;
     return Container(
       constraints: const BoxConstraints(minWidth: 38),
       height: double.infinity,
@@ -103,23 +104,24 @@ class ConnectorWidget extends StatelessWidget {
         gradient: filled
             ? LinearGradient(
                 colors: [
-                  Color.alphaBlend(bg.withOpacity(0.35), const Color(0xFF12162B)),
-                  Color.alphaBlend(bg.withOpacity(0.12), const Color(0xFF12162B)),
+                  Color.alphaBlend(bg.withValues(alpha: colors.isLight ? 0.22 : 0.35), colors.isLight ? lightBg : darkBg),
+                  Color.alphaBlend(bg.withValues(alpha: colors.isLight ? 0.08 : 0.12), colors.isLight ? lightBg : darkBg),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
-            : const LinearGradient(
-                colors: [
-                  Color(0xFF283154),
-                  Color(0xFF1E2542),
-                ],
+            : LinearGradient(
+                colors: colors.isLight
+                    ? [const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)]
+                    : [const Color(0xFF283154), const Color(0xFF1E2542)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: filled ? bg : const Color(0xFF283154),
+          color: filled
+              ? bg
+              : (colors.isLight ? const Color(0xFFCBD5E1) : const Color(0xFF283154)),
           width: 1.2,
         ),
       ),
@@ -127,7 +129,7 @@ class ConnectorWidget extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          color: filled ? bg : const Color(0xFF8E9BB4),
+          color: filled ? bg : colors.textMuted,
           fontWeight: FontWeight.bold,
           fontSize: 11,
           letterSpacing: 0.2,
@@ -140,10 +142,10 @@ class ConnectorWidget extends StatelessWidget {
     required DeviceObjectModel? object,
     required bool selectedConnector,
     required BuildContext context,
-    required bool themeMode,
+    required ConnectionColors colors,
     required String? name,
   }) {
-    final primary = const Color(0xFF7C3AED);
+    const primary = Color(0xFF7C3AED);
     final bool assigned = object != null;
     final bool isAuto = configPvd.selectedSelectionMode == SelectionMode.auto;
 
@@ -168,16 +170,16 @@ class ConnectorWidget extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: selectedConnector
-              ? const Color(0xFF2E1752)
+              ? colors.pinSelectedBg
               : assigned
-              ? const Color(0xFF181C38)
-              : const Color(0xFF151931),
+              ? colors.pinAssignedBg
+              : colors.pinUnassignedBg,
           border: Border.all(
             color: selectedConnector
-                ? primary
+                ? colors.pinSelectedBorder
                 : assigned
-                ? const Color(0xFF2A3258)
-                : const Color(0xFF202747),
+                ? colors.pinAssignedBorder
+                : colors.pinUnassignedBorder,
             width: selectedConnector ? 1.6 : 1,
           ),
         ),
@@ -187,6 +189,7 @@ class ConnectorWidget extends StatelessWidget {
               getSuitableKeyWord(),
               color,
               assigned,
+              colors,
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -197,14 +200,14 @@ class ConnectorWidget extends StatelessWidget {
                   fontSize: 11.5,
                   fontWeight: assigned ? FontWeight.bold : FontWeight.w500,
                   fontStyle: assigned ? FontStyle.normal : FontStyle.italic,
-                  color: assigned ? Colors.white : const Color(0xFF64748B),
+                  color: assigned ? colors.pinAssignedText : colors.pinUnassignedText,
                 ),
               ),
             ),
             if (selectedConnector)
               const Padding(
                 padding: EdgeInsets.only(right: 4),
-                child: Icon(Icons.touch_app_rounded, size: 14, color: Color(0xFF7C3AED)),
+                child: Icon(Icons.touch_app_rounded, size: 14, color: primary),
               ),
           ],
         ),

@@ -13,6 +13,7 @@ import '../widget/node_dialogs.dart';
 import '../widget/select_object_categories_dialog.dart';
 import '../../../flavors.dart';
 import '../../../utils/shared_preferences_helper.dart';
+import 'utils/connection_colors.dart';
 
 class Connection extends StatefulWidget {
   final ConfigMakerProvider configPvd;
@@ -239,8 +240,8 @@ class _ConnectionState extends State<Connection> {
     onChanged: _afterNodeChange,
   );
 
-  Widget _addNodeButton() {
-    const accentGreen = Color(0xFF10B981);
+  Widget _addNodeButton(ConnectionColors colors) {
+    final accentGreen = colors.accentGreen;
     return SizedBox(
       width: double.infinity,
       child: InkWell(
@@ -252,19 +253,19 @@ class _ConnectionState extends State<Connection> {
             borderRadius: BorderRadius.circular(10),
             gradient: LinearGradient(
               colors: [
-                Color.alphaBlend(accentGreen.withValues(alpha: 0.25), const Color(0xFF181C38)),
-                Color.alphaBlend(accentGreen.withValues(alpha: 0.08), const Color(0xFF181C38)),
+                Color.alphaBlend(accentGreen.withValues(alpha: colors.isLight ? 0.15 : 0.25), colors.innerSurface),
+                Color.alphaBlend(accentGreen.withValues(alpha: colors.isLight ? 0.05 : 0.08), colors.innerSurface),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             border: Border.all(color: accentGreen, width: 1.2),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.add_circle_outline_rounded, size: 18, color: accentGreen),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Text(
                 'Add Node',
                 style: TextStyle(
@@ -280,19 +281,19 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  Widget _emptyNodes() {
+  Widget _emptyNodes(ConnectionColors colors) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.hub_outlined, size: 46, color: Color(0xFF8E9BB4)),
+          Icon(Icons.hub_outlined, size: 46, color: colors.textMuted),
           const SizedBox(height: 10),
-          const Text('No nodes added yet',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text('No nodes added yet',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: colors.textPrimary)),
           const SizedBox(height: 4),
-          const Text('Add a node to start wiring objects.', style: TextStyle(fontSize: 12, color: Color(0xFF8E9BB4))),
+          Text('Add a node to start wiring objects.', style: TextStyle(fontSize: 12, color: colors.textMuted)),
           const SizedBox(height: 16),
-          SizedBox(width: 200, child: _addNodeButton()),
+          SizedBox(width: 200, child: _addNodeButton(colors)),
         ],
       ),
     );
@@ -301,6 +302,7 @@ class _ConnectionState extends State<Connection> {
   // ───────────────────────── build ─────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConnectionColors.of(context);
     return FutureBuilder(
       future: updateValuesConnectionPageInitialize,
       builder: (context, snapShot) {
@@ -308,11 +310,11 @@ class _ConnectionState extends State<Connection> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapShot.hasError) {
-          return const Center(child: Text('Error loading data', style: TextStyle(color: Colors.white)));
+          return Center(child: Text('Error loading data', style: TextStyle(color: colors.textPrimary)));
         }
         if (snapShot.hasData) {
           final DeviceModel? selectedOrNull = _selectedDeviceOrNull();
-          if (selectedOrNull == null) return _emptyNodes();
+          if (selectedOrNull == null) return _emptyNodes(colors);
           final DeviceModel selectedDevice = selectedOrNull;
           final bool manualMode = widget.configPvd.selectedSelectionMode == SelectionMode.manual;
           final terminals = _terminals(selectedDevice);
@@ -330,19 +332,19 @@ class _ConnectionState extends State<Connection> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(width: 240, child: _sidebar()),
+                    SizedBox(width: 240, child: _sidebar(colors)),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _header(selectedDevice, terminals),
+                          _header(selectedDevice, terminals, colors),
                           const SizedBox(height: 10),
                           if (manualMode) ...[
-                            _detachedNodesSection(selectedDevice),
+                            _detachedNodesSection(selectedDevice, colors),
                             const SizedBox(height: 10),
                           ],
-                          Expanded(child: _workArea(selectedDevice, terminals, active, true)),
+                          Expanded(child: _workArea(selectedDevice, terminals, active, true, colors)),
                         ],
                       ),
                     ),
@@ -355,15 +357,15 @@ class _ConnectionState extends State<Connection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _navStrip(),
+                  _navStrip(colors),
                   const SizedBox(height: 10),
-                  _header(selectedDevice, terminals),
+                  _header(selectedDevice, terminals, colors),
                   const SizedBox(height: 10),
                   if (manualMode) ...[
-                    _detachedNodesSection(selectedDevice),
+                    _detachedNodesSection(selectedDevice, colors),
                     const SizedBox(height: 10),
                   ],
-                  _workArea(selectedDevice, terminals, active, false),
+                  _workArea(selectedDevice, terminals, active, false, colors),
                   const SizedBox(height: 16),
                 ],
               ),
@@ -378,12 +380,12 @@ class _ConnectionState extends State<Connection> {
 
   // ───────────────────────── device navigator ─────────────────────────
   /// Wide screens: vertical list, devices grouped by category
-  Widget _sidebar() {
+  Widget _sidebar(ConnectionColors colors) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF20274B)),
+        border: Border.all(color: colors.cardBorder),
       ),
       child: Column(
         children: [
@@ -400,23 +402,23 @@ class _ConnectionState extends State<Connection> {
                           child: Text(
                             _categoryName(cat).toUpperCase(),
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.8,
-                              color: Color(0xFF8E9BB4),
+                              color: colors.textMuted,
                             ),
                           ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF181C38),
+                            color: colors.innerSurface,
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
                             '${_modelsOf(cat).length}',
-                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF8E9BB4)),
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: colors.textMuted),
                           ),
                         ),
                       ],
@@ -425,21 +427,21 @@ class _ConnectionState extends State<Connection> {
                   for (final m in _modelsOf(cat))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 6),
-                      child: _modelTile(m),
+                      child: _modelTile(m, colors),
                     ),
                 ],
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFF20274B)),
-          Padding(padding: const EdgeInsets.all(10), child: _addNodeButton()),
+          Divider(height: 1, color: colors.cardBorder),
+          Padding(padding: const EdgeInsets.all(10), child: _addNodeButton(colors)),
         ],
       ),
     );
   }
 
   /// Narrow screens: horizontal strip
-  Widget _navStrip() {
+  Widget _navStrip(ConnectionColors colors) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -453,8 +455,8 @@ class _ConnectionState extends State<Connection> {
                   padding: const EdgeInsets.only(left: 4, bottom: 4),
                   child: Text(
                     _categoryName(cat).toUpperCase(),
-                    style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: Color(0xFF8E9BB4)),
+                    style: TextStyle(
+                        fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8, color: colors.textMuted),
                   ),
                 ),
                 Row(
@@ -462,7 +464,7 @@ class _ConnectionState extends State<Connection> {
                     for (final m in _modelsOf(cat))
                       Padding(
                         padding: const EdgeInsets.only(right: 6),
-                        child: SizedBox(width: 200, child: _modelTile(m)),
+                        child: SizedBox(width: 200, child: _modelTile(m, colors)),
                       ),
                   ],
                 ),
@@ -472,14 +474,14 @@ class _ConnectionState extends State<Connection> {
           ],
           Padding(
             padding: const EdgeInsets.only(top: 18),
-            child: SizedBox(width: 150, child: _addNodeButton()),
+            child: SizedBox(width: 150, child: _addNodeButton(colors)),
           ),
         ],
       ),
     );
   }
 
-  Widget _modelTile(DeviceModel model) {
+  Widget _modelTile(DeviceModel model, ConnectionColors colors) {
     final primary = Theme.of(context).primaryColor;
     final bool selected = widget.configPvd.selectedModelControllerId == model.controllerId;
     return Tooltip(
@@ -494,14 +496,17 @@ class _ConnectionState extends State<Connection> {
             borderRadius: BorderRadius.circular(10),
             gradient: selected
                 ? LinearGradient(
-                    colors: [primary.withOpacity(0.35), const Color(0xFF181C38)],
+                    colors: [
+                      primary.withValues(alpha: colors.isLight ? 0.15 : 0.35),
+                      colors.innerSurface,
+                    ],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   )
                 : null,
-            color: selected ? null : const Color(0xFF181C38),
+            color: selected ? null : colors.innerSurface,
             border: Border.all(
-              color: selected ? primary : const Color(0xFF232A4D),
+              color: selected ? primary : colors.innerBorder,
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -511,7 +516,7 @@ class _ConnectionState extends State<Connection> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: selected ? primary : const Color(0xFF13172E),
+                  color: selected ? primary : (colors.isLight ? primary.withValues(alpha: 0.1) : colors.cardBg),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(Icons.memory_rounded, size: 18, color: selected ? Colors.white : primary),
@@ -525,7 +530,7 @@ class _ConnectionState extends State<Connection> {
                       model.deviceName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: colors.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -535,7 +540,7 @@ class _ConnectionState extends State<Connection> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: selected ? const Color(0xFFC084FC) : const Color(0xFF8E9BB4),
+                        color: selected ? colors.deviceIdText : colors.textMuted,
                       ),
                     ),
                   ],
@@ -547,9 +552,9 @@ class _ConnectionState extends State<Connection> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(8),
                     onTap: () => _editNode(model),
-                    child: const Padding(
-                      padding: EdgeInsets.all(5),
-                      child: Icon(Icons.edit_outlined, size: 16, color: Color(0xFF8E9BB4)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: Icon(Icons.edit_outlined, size: 16, color: colors.textMuted),
                     ),
                   ),
                 ),
@@ -561,7 +566,7 @@ class _ConnectionState extends State<Connection> {
   }
 
   // ───────────────────────── header + terminal tabs ─────────────────────────
-  Widget _header(DeviceModel d, List<_TerminalInfo> terminals) {
+  Widget _header(DeviceModel d, List<_TerminalInfo> terminals, ConnectionColors colors) {
     final primary = Theme.of(context).primaryColor;
     final bool showToggle = [...AppConstants.gemModelList, ...AppConstants.omsGemList]
         .contains(widget.configPvd.masterData['modelId']);
@@ -575,9 +580,9 @@ class _ConnectionState extends State<Connection> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF20274B)),
+        border: Border.all(color: colors.cardBorder),
       ),
       child: Wrap(
         alignment: WrapAlignment.spaceBetween,
@@ -602,10 +607,10 @@ class _ConnectionState extends State<Connection> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(d.deviceName,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colors.textPrimary)),
                   const SizedBox(height: 2),
                   Text('${d.modelDescription}  ·  # ${d.deviceId}',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF8E9BB4))),
+                      style: TextStyle(fontSize: 11, color: colors.textMuted)),
                 ],
               ),
             ],
@@ -636,7 +641,7 @@ class _ConnectionState extends State<Connection> {
               ),
               const SizedBox(width: 10),
               if (total > 0 && showToggle) const SizedBox(width: 10),
-              if (showToggle) getSelectionCategory(),
+              if (showToggle) getSelectionCategory(colors),
             ],
           ),
         ],
@@ -647,10 +652,10 @@ class _ConnectionState extends State<Connection> {
   // ───────────────────────── real tabs + attached content card ─────────────────────────
   static const double _tabH = 46;
 
-  Widget _workArea(DeviceModel d, List<_TerminalInfo> terminals, _TerminalInfo? active, bool fill) {
+  Widget _workArea(DeviceModel d, List<_TerminalInfo> terminals, _TerminalInfo? active, bool fill, ConnectionColors colors) {
     if (active == null) {
       // devices without terminals (e.g. weather): objects only
-      return _objectsPanel(d, null, fill);
+      return _objectsPanel(d, null, fill, colors);
     }
     final int activeIndex = terminals.indexOf(active);
 
@@ -658,17 +663,17 @@ class _ConnectionState extends State<Connection> {
         ? Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(flex: 5, child: _pinsPanel(d, active, true)),
+        Expanded(flex: 5, child: _pinsPanel(d, active, true, colors)),
         const SizedBox(width: 10),
-        Expanded(flex: 6, child: _objectsPanel(d, active, true)),
+        Expanded(flex: 6, child: _objectsPanel(d, active, true, colors)),
       ],
     )
         : Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _pinsPanel(d, active, false),
+        _pinsPanel(d, active, false, colors),
         const SizedBox(height: 10),
-        _objectsPanel(d, active, false),
+        _objectsPanel(d, active, false, colors),
       ],
     );
 
@@ -701,7 +706,7 @@ class _ConnectionState extends State<Connection> {
       margin: const EdgeInsets.only(top: _tabH - 1),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF0C0F1D),
+        color: colors.workAreaCardBg,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(activeIndex == 0 ? 0 : 14),
           topRight: const Radius.circular(14),
@@ -711,7 +716,7 @@ class _ConnectionState extends State<Connection> {
         border: Border.all(color: active.color, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: active.color.withValues(alpha: 0.15),
+            color: active.color.withValues(alpha: colors.isLight ? 0.08 : 0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -726,7 +731,7 @@ class _ConnectionState extends State<Connection> {
         scrollDirection: Axis.horizontal,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
-          children: [for (final t in terminals) _tab(d, t)],
+          children: [for (final t in terminals) _tab(d, t, colors)],
         ),
       ),
     );
@@ -743,11 +748,10 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  Widget _tab(DeviceModel d, _TerminalInfo t) {
+  Widget _tab(DeviceModel d, _TerminalInfo t, ConnectionColors colors) {
     final bool selected = t.type == _activeType;
     final bool pressed = _pressedType == t.type;
     final int used = _usedPins(d, t.type);
-    final int pending = _pending(d, t.type);
     final double progress = t.total == 0 ? 0 : (used / t.total).clamp(0.0, 1.0);
     const double r = 12;
 
@@ -763,7 +767,7 @@ class _ConnectionState extends State<Connection> {
               child: CircularProgressIndicator(
                 value: progress,
                 strokeWidth: 3,
-                backgroundColor: t.color.withOpacity(0.2),
+                backgroundColor: t.color.withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(t.color),
               ),
             ),
@@ -779,10 +783,10 @@ class _ConnectionState extends State<Connection> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: FontWeight.bold,
-                  color: selected ? Colors.white : const Color(0xFFE2E8F0),
+                  color: selected ? colors.textPrimary : colors.textSecondary,
                 )),
             Text('$used / ${t.total} pins',
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF8E9BB4))),
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: colors.textMuted)),
           ],
         ),
       ],
@@ -801,7 +805,7 @@ class _ConnectionState extends State<Connection> {
           height: selected ? _tabH + 1 : _tabH - 8,
           padding: const EdgeInsets.fromLTRB(1.6, 1.6, 1.6, 0),
           decoration: BoxDecoration(
-            color: selected ? t.color : const Color(0xFF232A4D),
+            color: selected ? t.color : colors.innerBorder,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(r)),
           ),
           child: Container(
@@ -809,14 +813,14 @@ class _ConnectionState extends State<Connection> {
               gradient: selected
                   ? LinearGradient(
                       colors: [
-                        Color.alphaBlend(t.color.withValues(alpha: 0.35), const Color(0xFF13172E)),
-                        Color.alphaBlend(t.color.withValues(alpha: 0.12), const Color(0xFF13172E)),
+                        Color.alphaBlend(t.color.withValues(alpha: colors.isLight ? 0.20 : 0.35), colors.cardBg),
+                        Color.alphaBlend(t.color.withValues(alpha: colors.isLight ? 0.06 : 0.12), colors.cardBg),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     )
                   : null,
-              color: selected ? null : const Color(0xFF181C38),
+              color: selected ? null : colors.innerSurface,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(r - 1.6)),
             ),
             child: Material(
@@ -864,13 +868,14 @@ class _ConnectionState extends State<Connection> {
     Widget? action,
     required Widget child,
     required bool fill,
+    required ConnectionColors colors,
   }) {
     final body = Padding(padding: const EdgeInsets.all(10), child: child);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.cardBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF20274B)),
+        border: Border.all(color: colors.cardBorder),
       ),
       child: Column(
         mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
@@ -878,9 +883,9 @@ class _ConnectionState extends State<Connection> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: const BoxDecoration(
-              color: Color(0xFF181C38),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
+            decoration: BoxDecoration(
+              color: colors.innerSurface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
             ),
             child: Row(
               children: [
@@ -899,7 +904,7 @@ class _ConnectionState extends State<Connection> {
                     child: Text(trailing,
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF8E9BB4))),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textMuted)),
                   ),
               ],
             ),
@@ -910,7 +915,7 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  Widget _pinsPanel(DeviceModel d, _TerminalInfo info, bool fill) {
+  Widget _pinsPanel(DeviceModel d, _TerminalInfo info, bool fill, ConnectionColors colors) {
     final bool manual = widget.configPvd.selectedSelectionMode == SelectionMode.manual;
     final pins = <Widget>[
       for (int i = 0; i < info.total; i++)
@@ -938,6 +943,7 @@ class _ConnectionState extends State<Connection> {
       color: info.color,
       trailing: manual ? 'Tap a pin · double-tap to clear' : '${_usedPins(d, info.type)} / ${info.total} wired',
       fill: fill,
+      colors: colors,
       child: Wrap(
         spacing: 8,
         runSpacing: 6,
@@ -947,13 +953,13 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  Widget _objectsPanel(DeviceModel d, _TerminalInfo? info, bool fill) {
+  Widget _objectsPanel(DeviceModel d, _TerminalInfo? info, bool fill, ConnectionColors colors) {
     final bool manual = widget.configPvd.selectedSelectionMode == SelectionMode.manual;
     final Color color = info?.color ?? Theme.of(context).primaryColor;
 
     Widget body;
     if (manual) {
-      body = _objectCards(d, info);
+      body = _objectCards(d, info, colors);
     } else if (info == null) {
       body = Column(crossAxisAlignment: CrossAxisAlignment.start, children: getAutoSelection(d));
     } else if (info.type == '1,2') {
@@ -970,6 +976,7 @@ class _ConnectionState extends State<Connection> {
           ? 'Tap a card to wire it to the selected node'
           : 'Set quantities · pins are allocated automatically',
       fill: fill,
+      colors: colors,
       child: body,
     );
   }
@@ -1078,45 +1085,45 @@ class _ConnectionState extends State<Connection> {
     setState(() {});
   }
 
-  Widget _detachedNodesSection(DeviceModel selected) {
+  Widget _detachedNodesSection(DeviceModel selected, ConnectionColors colors) {
     final primary = Theme.of(context).primaryColor;
     final detached = _detachedNodes();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF13172E),
+        color: colors.detachedBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF3B2A12)),
+        border: Border.all(color: colors.detachedBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.link_off_rounded, size: 16, color: Color(0xFFF59E0B)),
+              Icon(Icons.link_off_rounded, size: 16, color: colors.detachedText),
               const SizedBox(width: 8),
-              const Text('Detached nodes',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
+              Text('Detached nodes',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: colors.detachedText)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFF3B2A12), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: colors.detachedBadgeBg, borderRadius: BorderRadius.circular(10)),
                 child: Text('${detached.length}',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B))),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: colors.detachedText)),
               ),
               const Spacer(),
-              const Flexible(
+              Flexible(
                 child: Text('Pick a node, then tap an object card to wire it',
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF8E9BB4))),
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: colors.textMuted)),
               ),
             ],
           ),
           const SizedBox(height: 8),
           if (detached.isEmpty)
-            const Text('Every node already has at least one object wired.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF8E9BB4)))
+            Text('Every node already has at least one object wired.',
+                style: TextStyle(fontSize: 12, color: colors.textMuted))
           else
             Wrap(
               spacing: 8,
@@ -1131,9 +1138,11 @@ class _ConnectionState extends State<Connection> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(10),
-                        color: n.controllerId == selected.controllerId ? primary.withOpacity(0.25) : const Color(0xFF181C38),
+                        color: n.controllerId == selected.controllerId
+                            ? primary.withValues(alpha: colors.isLight ? 0.15 : 0.25)
+                            : colors.innerSurface,
                         border: Border.all(
-                          color: n.controllerId == selected.controllerId ? primary : const Color(0xFF2B335C),
+                          color: n.controllerId == selected.controllerId ? primary : colors.innerBorder,
                           width: n.controllerId == selected.controllerId ? 1.6 : 1,
                         ),
                       ),
@@ -1143,10 +1152,10 @@ class _ConnectionState extends State<Connection> {
                           Icon(Icons.memory_rounded, size: 15, color: primary),
                           const SizedBox(width: 6),
                           Text(n.deviceName,
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.textPrimary)),
                           const SizedBox(width: 6),
                           Text('# ${n.deviceId}',
-                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Color(0xFF8E9BB4))),
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: colors.textMuted)),
                         ],
                       ),
                     ),
@@ -1158,7 +1167,7 @@ class _ConnectionState extends State<Connection> {
     );
   }
 
-  Widget _objectCards(DeviceModel node, _TerminalInfo? info) {
+  Widget _objectCards(DeviceModel node, _TerminalInfo? info, ConnectionColors colors) {
     final cfg = widget.configPvd;
     final String? type = info?.type;
 
@@ -1180,11 +1189,11 @@ class _ConnectionState extends State<Connection> {
         child: Center(
           child: Column(
             children: [
-              Icon(Icons.inventory_2_outlined, size: 30, color: Colors.grey.shade400),
+              Icon(Icons.inventory_2_outlined, size: 30, color: colors.textMuted),
               const SizedBox(height: 8),
               Text('No objects for this node yet.\nUse “Select Object Categories” above to choose available objects.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                  style: TextStyle(fontSize: 12, color: colors.textMuted, fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => showSelectObjectCategoriesDialog(
@@ -1217,8 +1226,8 @@ class _ConnectionState extends State<Connection> {
       horizontalGridMargin: 2,
       verticalGridMargin: 4,
       minItemWidth: 190,
-      shrinkWrap: true,
       listViewBuilderOptions: ListViewBuilderOptions(
+        shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
       ),
       children: cards.map((object) {
@@ -1235,9 +1244,9 @@ class _ConnectionState extends State<Connection> {
             padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              color: pinSelected ? color.withOpacity(0.2) : const Color(0xFF181C38),
+              color: pinSelected ? color.withValues(alpha: colors.isLight ? 0.15 : 0.2) : colors.innerSurface,
               border: Border.all(
-                color: onThisNode ? color : const Color(0xFF2B335C),
+                color: onThisNode ? color : colors.innerBorder,
                 width: pinSelected ? 1.8 : 1.0,
               ),
             ),
@@ -1249,7 +1258,7 @@ class _ConnectionState extends State<Connection> {
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF0A2035),
+                    color: colors.circleBg,
                     border: Border.all(color: color, width: 1.5),
                   ),
                   child: SvgPicture.asset(
@@ -1267,14 +1276,14 @@ class _ConnectionState extends State<Connection> {
                         object.name ?? object.objectName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: colors.textPrimary),
                       ),
                       Text(
                         onThisNode ? 'Wired · ${pinLabel(object)}' : 'Unassigned',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: onThisNode ? color : const Color(0xFF8E9BB4),
+                          color: onThisNode ? color : colors.textMuted,
                         ),
                       ),
                     ],
@@ -1301,7 +1310,7 @@ class _ConnectionState extends State<Connection> {
   }
 
   // ───────────────────────── mode toggle + auto list (unchanged logic) ─────────────────────────
-  Widget getSelectionCategory() {
+  Widget getSelectionCategory(ConnectionColors colors) {
     final primary = Theme.of(context).primaryColor;
     return SegmentedButton<SelectionMode>(
       showSelectedIcon: false,
@@ -1313,15 +1322,15 @@ class _ConnectionState extends State<Connection> {
           if (states.contains(WidgetState.selected)) {
             return primary;
           }
-          return const Color(0xFF181C38);
+          return colors.innerSurface;
         }),
         foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
           if (states.contains(WidgetState.selected)) {
             return Colors.white;
           }
-          return const Color(0xFF8E9BB4);
+          return colors.textMuted;
         }),
-        side: WidgetStateProperty.all(const BorderSide(color: Color(0xFF2B335C))),
+        side: WidgetStateProperty.all(BorderSide(color: colors.innerBorder)),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),

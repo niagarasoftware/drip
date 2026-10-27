@@ -1,12 +1,12 @@
 import 'dart:math' as math;
 import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
+import '../view/utils/config_maker_colors.dart';
 
 const _cyan = Color(0xff38BDF8);
 const _sky = Color(0xff0EA5E9);
 const _indigo = Color(0xff6366F1);
 const _purple = Color(0xffA855F7);
-const _bg = Color(0xff0B0F19);
 
 /// Loading overlay that "draws" the irrigation site diagram live:
 /// water sources -> pumps -> manifold -> tank -> main pump -> field valves.
@@ -85,12 +85,15 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
+    final isLight = colors.isLight;
+
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 500),
       opacity: _opacity,
       curve: Curves.easeOut,
       child: Container(
-        color: _bg,
+        color: colors.canvasBg,
         child: AnimatedBuilder(
           animation: Listenable.merge([_pulse, _progressAnim]),
           builder: (context, _) {
@@ -100,7 +103,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
             return Stack(
               children: [
                 Positioned.fill(
-                  child: CustomPaint(painter: _BackgroundPainter(pulse)),
+                  child: CustomPaint(painter: _BackgroundPainter(pulse: pulse, isLight: isLight)),
                 ),
                 SafeArea(
                   child: Column(
@@ -111,11 +114,11 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                           padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
                           child: CustomPaint(
                             size: Size.infinite,
-                            painter: _ScenePainter(pulse: pulse, progress: p),
+                            painter: _ScenePainter(pulse: pulse, progress: p, isLight: isLight),
                           ),
                         ),
                       ),
-                      _buildCard(p, pulse),
+                      _buildCard(p, pulse, colors),
                     ],
                   ),
                 ),
@@ -127,7 +130,10 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
     );
   }
 
-  Widget _buildCard(double p, double pulse) {
+  Widget _buildCard(double p, double pulse, ConfigMakerColors colors) {
+    final isLight = colors.isLight;
+    final primaryAccent = isLight ? const Color(0xff0284C7) : _cyan;
+
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 800),
@@ -141,12 +147,19 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
         margin: const EdgeInsets.fromLTRB(14, 6, 14, 14),
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
-          color: const Color(0xff161F30).withOpacity(0.88),
+          color: isLight
+              ? Colors.white.withValues(alpha: 0.95)
+              : const Color(0xff161F30).withValues(alpha: 0.88),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _cyan.withOpacity(0.3), width: 1.2),
+          border: Border.all(
+            color: isLight
+                ? const Color(0xff0284C7).withValues(alpha: 0.35)
+                : _cyan.withValues(alpha: 0.3),
+            width: 1.2,
+          ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xff0284C7).withOpacity(0.22),
+              color: const Color(0xff0284C7).withValues(alpha: isLight ? 0.12 : 0.22),
               blurRadius: 24,
               spreadRadius: 1,
             ),
@@ -160,11 +173,11 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
-                  const Color(0xff0284C7).withOpacity(0.2),
-                  _indigo.withOpacity(0.2),
+                  const Color(0xff0284C7).withValues(alpha: isLight ? 0.12 : 0.2),
+                  _indigo.withValues(alpha: isLight ? 0.12 : 0.2),
                 ]),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _cyan.withOpacity(0.5)),
+                border: Border.all(color: primaryAccent.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -173,15 +186,15 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                     angle: math.sin(pulse * 2 * math.pi) * 0.25,
                     child: Transform.scale(
                       scale: 1 + 0.12 * math.sin(pulse * 4 * math.pi),
-                      child: const Icon(Icons.auto_awesome_rounded,
-                          size: 13, color: _cyan),
+                      child: Icon(Icons.auto_awesome_rounded,
+                          size: 13, color: primaryAccent),
                     ),
                   ),
                   const SizedBox(width: 6),
-                  const Text(
+                  Text(
                     'AI SITE GENERATOR',
                     style: TextStyle(
-                      color: _cyan,
+                      color: primaryAccent,
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.1,
@@ -191,10 +204,10 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'Generating Site Diagram',
               style: TextStyle(
-                color: Colors.white,
+                color: colors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.2,
@@ -216,8 +229,8 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 _statusMessage(p),
                 key: ValueKey(_statusMessage(p)),
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xff94A3B8),
+                style: TextStyle(
+                  color: colors.textMuted,
                   fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   height: 1.25,
@@ -237,6 +250,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                     active: p < _stages[i].$2 &&
                         (i == 0 || p >= _stages[i - 1].$2),
                     pulse: pulse,
+                    isLight: isLight,
                   ),
               ],
             ),
@@ -249,15 +263,15 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 Text(
                   'Processing Layout',
                   style: TextStyle(
-                    color: Colors.grey.shade400,
+                    color: colors.textMuted,
                     fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(
                   '${(p * 100).toInt()}%',
-                  style: const TextStyle(
-                    color: _cyan,
+                  style: TextStyle(
+                    color: primaryAccent,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                   ),
@@ -273,7 +287,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 height: 6,
                 child: Stack(
                   children: [
-                    Container(color: Colors.white.withOpacity(0.08)),
+                    Container(color: isLight ? Colors.black.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.08)),
                     FractionallySizedBox(
                       widthFactor: p.clamp(0.02, 1.0),
                       child: Stack(
@@ -291,9 +305,9 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                               width: 40,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [
-                                  Colors.white.withOpacity(0),
-                                  Colors.white.withOpacity(0.55),
-                                  Colors.white.withOpacity(0),
+                                  Colors.white.withValues(alpha: 0),
+                                  Colors.white.withValues(alpha: 0.55),
+                                  Colors.white.withValues(alpha: 0),
                                 ]),
                               ),
                             ),
@@ -317,21 +331,23 @@ class _StageChip extends StatelessWidget {
   final bool done;
   final bool active;
   final double pulse;
+  final bool isLight;
 
   const _StageChip({
     required this.label,
     required this.done,
     required this.active,
     required this.pulse,
+    required this.isLight,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = done
-        ? const Color(0xff4ADE80)
+        ? (isLight ? const Color(0xff16A34A) : const Color(0xff4ADE80))
         : active
-        ? _cyan
-        : const Color(0xff64748B);
+        ? (isLight ? const Color(0xff0284C7) : _cyan)
+        : (isLight ? const Color(0xff94A3B8) : const Color(0xff64748B));
     final glow = active ? 0.12 + 0.1 * math.sin(pulse * 2 * math.pi) : 0.0;
 
     return AnimatedContainer(
@@ -339,9 +355,9 @@ class _StageChip extends StatelessWidget {
       curve: Curves.easeOut,
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(done ? 0.14 : 0.06 + glow),
+        color: color.withValues(alpha: done ? 0.14 : 0.06 + glow),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(done || active ? 0.7 : 0.3)),
+        border: Border.all(color: color.withValues(alpha: done || active ? 0.7 : 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -377,7 +393,8 @@ class _StageChip extends StatelessWidget {
 // ---------------------------------------------------------------------------
 class _BackgroundPainter extends CustomPainter {
   final double pulse;
-  _BackgroundPainter(this.pulse);
+  final bool isLight;
+  _BackgroundPainter({required this.pulse, required this.isLight});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -393,7 +410,9 @@ class _BackgroundPainter extends CustomPainter {
       PointMode.points,
       pts,
       Paint()
-        ..color = const Color(0xff334155).withOpacity(0.55)
+        ..color = isLight
+            ? const Color(0xffCBD5E1).withValues(alpha: 0.75)
+            : const Color(0xff334155).withValues(alpha: 0.55)
         ..strokeWidth = 2
         ..strokeCap = StrokeCap.round,
     );
@@ -407,7 +426,7 @@ class _BackgroundPainter extends CustomPainter {
           center: const Alignment(0, -0.35),
           radius: 0.9,
           colors: [
-            const Color(0xff0284C7).withOpacity(0.16),
+            const Color(0xff0284C7).withValues(alpha: isLight ? 0.08 : 0.16),
             Colors.transparent,
           ],
         ).createShader(rect),
@@ -419,14 +438,18 @@ class _BackgroundPainter extends CustomPainter {
       Paint()
         ..shader = RadialGradient(
           radius: 1.1,
-          colors: [Colors.transparent, Colors.black.withOpacity(0.55)],
+          colors: [
+            Colors.transparent,
+            Colors.black.withValues(alpha: isLight ? 0.08 : 0.55),
+          ],
           stops: const [0.55, 1.0],
         ).createShader(rect),
     );
   }
 
   @override
-  bool shouldRepaint(covariant _BackgroundPainter old) => old.pulse != pulse;
+  bool shouldRepaint(covariant _BackgroundPainter old) =>
+      old.pulse != pulse || old.isLight != isLight;
 }
 
 // ---------------------------------------------------------------------------
@@ -485,7 +508,8 @@ const _pipes = <_Pipe>[
 class _ScenePainter extends CustomPainter {
   final double pulse;
   final double progress;
-  _ScenePainter({required this.pulse, required this.progress});
+  final bool isLight;
+  _ScenePainter({required this.pulse, required this.progress, required this.isLight});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -515,9 +539,9 @@ class _ScenePainter extends CustomPainter {
       rect,
       Paint()
         ..shader = LinearGradient(colors: [
-          _cyan.withOpacity(0),
-          _cyan.withOpacity(0.10),
-          _cyan.withOpacity(0),
+          _cyan.withValues(alpha: 0),
+          _cyan.withValues(alpha: isLight ? 0.06 : 0.10),
+          _cyan.withValues(alpha: 0),
         ]).createShader(rect),
     );
   }
@@ -528,13 +552,15 @@ class _ScenePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = r * 0.42
-      ..color = const Color(0xff94A3B8).withOpacity(0.55);
+      ..color = isLight
+          ? const Color(0xff64748B).withValues(alpha: 0.45)
+          : const Color(0xff94A3B8).withValues(alpha: 0.55);
     final inner = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = r * 0.2
-      ..color = const Color(0xff0C4A6E);
+      ..color = isLight ? const Color(0xffBAE6FD) : const Color(0xff0C4A6E);
     final particle = Paint()
       ..color = _cyan
       ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.5);
@@ -592,7 +618,7 @@ class _ScenePainter extends CustomPainter {
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2
-          ..color = _cyan.withOpacity((1 - raw) * 0.7),
+          ..color = _cyan.withValues(alpha: (1 - raw) * 0.7),
       );
     }
 
@@ -622,7 +648,7 @@ class _ScenePainter extends CustomPainter {
       Offset.zero,
       radius,
       Paint()
-        ..color = color.withOpacity(0.35)
+        ..color = color.withValues(alpha: 0.35)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
     );
   }
@@ -644,7 +670,7 @@ class _ScenePainter extends CustomPainter {
     }
     wave.lineTo(r * 1.2, r);
     wave.close();
-    canvas.drawPath(wave, Paint()..color = _sky.withOpacity(0.85));
+    canvas.drawPath(wave, Paint()..color = _sky.withValues(alpha: 0.85));
     canvas.restore();
 
     canvas.drawRRect(
@@ -720,7 +746,7 @@ class _ScenePainter extends CustomPainter {
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [_cyan, _indigo.withOpacity(0.9)],
+          colors: [_cyan, _indigo.withValues(alpha: 0.9)],
         ).createShader(Rect.fromCenter(center: Offset.zero, width: r * 2.4, height: r * 2.6)),
     );
     canvas.restore();
@@ -759,5 +785,5 @@ class _ScenePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScenePainter old) =>
-      old.pulse != pulse || old.progress != progress;
+      old.pulse != pulse || old.progress != progress || old.isLight != isLight;
 }

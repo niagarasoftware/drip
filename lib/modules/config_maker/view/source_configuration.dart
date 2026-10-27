@@ -8,6 +8,7 @@ import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/object_manager_bar.dart';
 import '../../../utils/constants.dart';
+import 'utils/config_maker_colors.dart';
 import '../widget/painter/over_head_tank_painter.dart';
 import '../widget/painter/sump_painter.dart';
 import '../widget/painter/well_painter.dart';
@@ -31,10 +32,11 @@ class SourceConfiguration extends StatefulWidget {
   const SourceConfiguration({super.key, required this.configPvd});
 
   @override
-  State<SourceConfiguration> createState() => _SourceConfigurationState();
+  State<SourceConfiguration> createState() => SourceConfigurationState();
 }
 
-class _SourceConfigurationState extends State<SourceConfiguration> {
+class SourceConfigurationState extends State<SourceConfiguration> {
+  void addSource() => _addSource();
   // ── Design tokens ──
   static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _outletColor = Color(0xFF059669); // emerald green
@@ -169,11 +171,12 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final sources = widget.configPvd.source;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: LayoutBuilder(builder: (context, constraint) {
@@ -184,18 +187,6 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  ConfigPageHeading(
-                    title: 'Source configuration',
-                    subtitle: 'Configure pumps, valves and sensors for your sources',
-                    totalCount: sources.length,
-                    countUnitSingular: 'source',
-                    countUnitPlural: 'sources',
-                    primaryColor: primaryColor,
-                    icon: Icons.tune_rounded,
-                    onAddPressed: _addSource,
-                    addButtonLabel: 'Add Source',
-                  ),
-                  const SizedBox(height: 18),
                   if (sources.isEmpty)
                     ConfigEmptyState(
                       title: 'No Water Sources Added',
@@ -214,8 +205,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                       itemBuilder: (context, index) {
                         final source = sources[index];
                         return _isAquaculture
-                            ? _buildAquacultureSourceCard(source, primaryColor)
-                            : _buildStandardSourceCard(source, primaryColor);
+                            ? _buildAquacultureSourceCard(source, primaryColor, colors)
+                            : _buildStandardSourceCard(source, primaryColor, colors);
                       },
                     ),
                   const SizedBox(height: 16),
@@ -228,7 +219,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildSourcePainterBlock(int sourceType) {
+  Widget _buildSourcePainterBlock(int sourceType, ConfigMakerColors colors) {
     CustomPainter painter;
     switch (sourceType) {
       case 1:
@@ -259,7 +250,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       height: 80,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
@@ -319,14 +310,15 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     required String itemName,
     required VoidCallback onDelete,
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -349,19 +341,19 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                   Text(
                     'Delete $itemName',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to delete "$itemName"? This action cannot be undone.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -372,8 +364,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF8E9BB4),
-                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            foregroundColor: colors.textMuted,
+                            side: BorderSide(color: colors.innerBorder),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -416,6 +408,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     required SourceModel source,
     required _Progress progress,
     required Color primaryColor,
+    required ConfigMakerColors colors,
     Widget? typeSelector,
   }) {
     final itemName = source.commonDetails.name ?? 'Source';
@@ -423,7 +416,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -440,10 +433,10 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                       itemName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (typeSelector != null) ...[
@@ -473,7 +466,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
             ],
           ),
           const SizedBox(height: 8),
-          _buildSourcePainterBlock(source.sourceType),
+          _buildSourcePainterBlock(source.sourceType, colors),
         ],
       ),
     );
@@ -482,7 +475,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  AQUACULTURE SOURCE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildAquacultureSourceCard(SourceModel source, Color primaryColor) {
+  Widget _buildAquacultureSourceCard(SourceModel source, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(source);
 
     return ConfigCardShell(
@@ -490,6 +483,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
         source: source,
         progress: progress,
         primaryColor: primaryColor,
+        colors: colors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,
@@ -542,7 +536,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  STANDARD SOURCE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildStandardSourceCard(SourceModel source, Color primaryColor) {
+  Widget _buildStandardSourceCard(SourceModel source, Color primaryColor, ConfigMakerColors colors) {
     final isFertilizerSource = [6, 7].contains(source.sourceType);
     final isBoreOrPond = [4, 5].contains(source.sourceType);
     final hasAgitators = _hasObject(AppConstants.agitatorObjectId);
@@ -578,6 +572,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
         source: source,
         progress: progress,
         primaryColor: primaryColor,
+        colors: colors,
         typeSelector: typeSelector,
       ),
       isComplete: progress.complete,

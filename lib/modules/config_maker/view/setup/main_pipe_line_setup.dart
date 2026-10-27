@@ -32,7 +32,7 @@ class MainPipelineSetup extends SiteSetupBase {
       for (final sn in skidNodes) {
         maxY = math.max(maxY, sn.position.dy + sn.size.height + 60.0);
       }
-      return math.max(maxY, 420.0);
+      return math.max(maxY, 420.0).roundToDouble();
     }
 
     final double mainPipeY = calcMainPipeY();
@@ -284,25 +284,33 @@ class MainPipelineSetup extends SiteSetupBase {
         final Offset filterOutPt = lastFilterNode.getPort('outlet', isInput: false);
 
         if (skidNodes.isNotEmpty) {
+          final Map<double, NodeObject> skidOutMap = {};
+          final List<double> fertSiteSNos = data.fertSites
+              .map((s) => s.commonDetails.sNo ?? 0.0)
+              .toList();
+
+          NodeObject prevJn = lastFilterNode;
+          String? prevPort = 'outlet';
+
           for (int s = 0; s < skidNodes.length; s++) {
             final skidNode = skidNodes[s];
             final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
             final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
 
-            final double skidLeftX = skidNode.position.dx - 30.0;
+            final double skidLeftX = (skidNode.position.dx - 30.0).roundToDouble();
             final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
             final NodeObject jnSkidIn = newJunction(skidInJunctionPt);
 
-            final List<Offset> filterToSkidWps = [
-              Offset(filterOutPt.dx + 30.0, filterOutPt.dy),
-              Offset(filterOutPt.dx + 30.0, mainPipeY),
-            ];
+            final Offset prevPt = portPosition(prevJn, prevPort, isInput: false);
+            final List<Offset> wps = (prevJn.id == lastFilterNode.id)
+                ? [Offset((prevPt.dx + 30.0).roundToDouble(), prevPt.dy), Offset((prevPt.dx + 30.0).roundToDouble(), mainPipeY)]
+                : [];
             pipes.add(PipeConnection(
               id: nextId('pipe'),
-              fromNodeId: lastFilterNode.id,
-              fromPortId: 'outlet',
+              fromNodeId: prevJn.id,
+              fromPortId: prevPort,
               toNodeId: jnSkidIn.id,
-              waypoints: cleanWaypoints(filterOutPt, filterToSkidWps, skidInJunctionPt),
+              waypoints: cleanWaypoints(prevPt, wps, skidInJunctionPt),
             ));
 
             pipes.add(PipeConnection(
@@ -313,7 +321,7 @@ class MainPipelineSetup extends SiteSetupBase {
               waypoints: cleanWaypoints(skidInJunctionPt, [Offset(skidLeftX, skidInletPt.dy)], skidInletPt),
             ));
 
-            final double skidRightX = skidNode.position.dx + skidNode.size.width + 30.0;
+            final double skidRightX = (skidNode.position.dx + skidNode.size.width + 30.0).roundToDouble();
             final Offset skidOutJunctionPt = Offset(skidRightX, mainPipeY);
             final NodeObject jnSkidOut = newJunction(skidOutJunctionPt);
 
@@ -332,14 +340,21 @@ class MainPipelineSetup extends SiteSetupBase {
               waypoints: cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
             ));
 
-            irrigation.connect(
-              startJunction: jnSkidOut,
-              startPt: skidOutJunctionPt,
-              mainPipeY: mainPipeY,
-              skidRightX: skidRightX,
-              configPvd: configPvd,
-            );
+            if (s < fertSiteSNos.length) {
+              skidOutMap[fertSiteSNos[s]] = jnSkidOut;
+            }
+
+            prevJn = jnSkidOut;
+            prevPort = null;
           }
+
+          irrigation.connect(
+            defaultStartJunction: prevJn,
+            defaultStartPt: portPosition(prevJn, null, isInput: false),
+            mainPipeY: mainPipeY,
+            skidOutJunctionMap: skidOutMap,
+            configPvd: configPvd,
+          );
         } else {
           final Offset endPt = Offset(filterOutPt.dx + 30.0, mainPipeY);
           final NodeObject jnEnd = newJunction(endPt);
@@ -355,10 +370,10 @@ class MainPipelineSetup extends SiteSetupBase {
           ));
 
           irrigation.connect(
-            startJunction: jnEnd,
-            startPt: endPt,
+            defaultStartJunction: jnEnd,
+            defaultStartPt: endPt,
             mainPipeY: mainPipeY,
-            skidRightX: filterOutPt.dx,
+            skidOutJunctionMap: {},
             configPvd: configPvd,
           );
         }
@@ -443,6 +458,14 @@ class MainPipelineSetup extends SiteSetupBase {
         final Offset lastJnOutPt = portPosition(lastJnOut, null, isInput: false);
 
         if (skidNodes.isNotEmpty) {
+          final Map<double, NodeObject> skidOutMap = {};
+          final List<double> fertSiteSNos = data.fertSites
+              .map((s) => s.commonDetails.sNo ?? 0.0)
+              .toList();
+
+          NodeObject prevJn = lastJnOut;
+          String? prevPort = null;
+
           for (int s = 0; s < skidNodes.length; s++) {
             final skidNode = skidNodes[s];
             final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
@@ -452,11 +475,13 @@ class MainPipelineSetup extends SiteSetupBase {
             final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
             final NodeObject jnSkidIn = newJunction(skidInJunctionPt);
 
+            final Offset prevPt = portPosition(prevJn, prevPort, isInput: false);
             pipes.add(PipeConnection(
               id: nextId('pipe'),
-              fromNodeId: lastJnOut.id,
+              fromNodeId: prevJn.id,
+              fromPortId: prevPort,
               toNodeId: jnSkidIn.id,
-              waypoints: cleanWaypoints(lastJnOutPt, [], skidInJunctionPt),
+              waypoints: cleanWaypoints(prevPt, [], skidInJunctionPt),
             ));
 
             pipes.add(PipeConnection(
@@ -486,26 +511,40 @@ class MainPipelineSetup extends SiteSetupBase {
               waypoints: cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
             ));
 
-            irrigation.connect(
-              startJunction: jnSkidOut,
-              startPt: skidOutJunctionPt,
-              mainPipeY: mainPipeY,
-              skidRightX: skidRightX,
-              configPvd: configPvd,
-            );
+            if (s < fertSiteSNos.length) {
+              skidOutMap[fertSiteSNos[s]] = jnSkidOut;
+            }
+
+            prevJn = jnSkidOut;
+            prevPort = null;
           }
+
+          irrigation.connect(
+            defaultStartJunction: prevJn,
+            defaultStartPt: portPosition(prevJn, null, isInput: false),
+            mainPipeY: mainPipeY,
+            skidOutJunctionMap: skidOutMap,
+            configPvd: configPvd,
+          );
         } else {
           irrigation.connect(
-            startJunction: lastJnOut,
-            startPt: lastJnOutPt,
+            defaultStartJunction: lastJnOut,
+            defaultStartPt: lastJnOutPt,
             mainPipeY: mainPipeY,
-            skidRightX: lastJnOutPt.dx,
+            skidOutJunctionMap: {},
             configPvd: configPvd,
           );
         }
       }
     } else {
       if (skidNodes.isNotEmpty) {
+        final Map<double, NodeObject> skidOutMap = {};
+        final List<double> fertSiteSNos = data.fertSites
+            .map((s) => s.commonDetails.sNo ?? 0.0)
+            .toList();
+
+        NodeObject? prevJn;
+
         for (int s = 0; s < skidNodes.length; s++) {
           final skidNode = skidNodes[s];
           final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
@@ -515,14 +554,24 @@ class MainPipelineSetup extends SiteSetupBase {
           final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
           final NodeObject jnSkidIn = newJunction(skidInJunctionPt);
 
-          connectWaterSupplyTo(
-            supplyNodes: waterSupplyNodes,
-            targetNodeId: jnSkidIn.id,
-            targetPortId: null,
-            targetPt: skidInJunctionPt,
-            maxWaterX: maxWaterX,
-            maxWaterY: maxWaterY,
-          );
+          if (s == 0) {
+            connectWaterSupplyTo(
+              supplyNodes: waterSupplyNodes,
+              targetNodeId: jnSkidIn.id,
+              targetPortId: null,
+              targetPt: skidInJunctionPt,
+              maxWaterX: maxWaterX,
+              maxWaterY: maxWaterY,
+            );
+          } else if (prevJn != null) {
+            final Offset prevPt = portPosition(prevJn, null, isInput: false);
+            pipes.add(PipeConnection(
+              id: nextId('pipe'),
+              fromNodeId: prevJn.id,
+              toNodeId: jnSkidIn.id,
+              waypoints: cleanWaypoints(prevPt, [], skidInJunctionPt),
+            ));
+          }
 
           pipes.add(PipeConnection(
             id: nextId('pipe'),
@@ -551,11 +600,19 @@ class MainPipelineSetup extends SiteSetupBase {
             waypoints: cleanWaypoints(skidInJunctionPt, [], skidOutJunctionPt),
           ));
 
+          if (s < fertSiteSNos.length) {
+            skidOutMap[fertSiteSNos[s]] = jnSkidOut;
+          }
+
+          prevJn = jnSkidOut;
+        }
+
+        if (prevJn != null) {
           irrigation.connect(
-            startJunction: jnSkidOut,
-            startPt: skidOutJunctionPt,
+            defaultStartJunction: prevJn,
+            defaultStartPt: portPosition(prevJn, null, isInput: false),
             mainPipeY: mainPipeY,
-            skidRightX: skidRightX,
+            skidOutJunctionMap: skidOutMap,
             configPvd: configPvd,
           );
         }
@@ -574,10 +631,10 @@ class MainPipelineSetup extends SiteSetupBase {
         );
 
         irrigation.connect(
-          startJunction: jnEnd,
-          startPt: targetPt,
+          defaultStartJunction: jnEnd,
+          defaultStartPt: targetPt,
           mainPipeY: mainPipeY,
-          skidRightX: mainLineX,
+          skidOutJunctionMap: {},
           configPvd: configPvd,
         );
       }

@@ -307,6 +307,24 @@ class NodeWidget extends StatelessWidget {
     }
   }
 
+  double _getBadgeBottomOffset(NodeType type) {
+    if (type == NodeType.pressureSensor) {
+      return -38.0;
+    }
+    if (type == NodeType.waterMeter ||
+        type == NodeType.singleMainValve ||
+        type == NodeType.multiMainValve ||
+        type == NodeType.mainValve) {
+      return -10.0;
+    }
+    if (type == NodeType.ecSensor ||
+        type == NodeType.phSensor ||
+        type == NodeType.soilTemperatureSensor) {
+      return -26.0;
+    }
+    return -20.0;
+  }
+
   Widget _buildWrapper({
     required Widget child,
     BoxDecoration? decoration,
@@ -376,9 +394,7 @@ class NodeWidget extends StatelessWidget {
               node.type != NodeType.multiValve &&
               node.type != NodeType.lineHeader)
             Positioned(
-              bottom: (node.type == NodeType.ecSensor || node.type == NodeType.phSensor || node.type == NodeType.soilTemperatureSensor)
-                  ? -26
-                  : -20,
+              bottom: _getBadgeBottomOffset(node.type),
               left: -20,
               right: -20,
               child: Center(
@@ -820,12 +836,13 @@ class NodeWidget extends StatelessWidget {
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'single_main_valve_${node.isOn}_${node.showJoints}_$szKey',
+          cacheKey: 'single_main_valve_${node.isOn}_${node.showJoints}_${node.isHorizontal}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedSingleMainValvePainter(
             isOn: node.isOn,
             showJoints: node.showJoints,
+            isHorizontal: node.isHorizontal,
           ),
         ),
       );
@@ -835,12 +852,13 @@ class NodeWidget extends StatelessWidget {
       return _buildWrapper(
         padding: EdgeInsets.zero,
         child: CachedNodePainterWidget(
-          cacheKey: 'multi_main_valve_${node.isOn}_${node.showJoints}_$szKey',
+          cacheKey: 'multi_main_valve_${node.isOn}_${node.showJoints}_${node.isHorizontal}_$szKey',
           size: node.size,
           simplify: simplify,
           painter: DetailedMultiMainValvePainter(
             valves: [node.isOn, node.isOn, node.isOn, node.isOn],
             showJoints: node.showJoints,
+            isHorizontal: node.isHorizontal,
           ),
         ),
       );

@@ -7,6 +7,7 @@ import '../../../utils/constants.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/painter/moisture_sensor_painter.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -50,11 +51,12 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final moistureSensors = widget.configPvd.moisture;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
@@ -91,7 +93,7 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
                   itemCount: moistureSensors.length,
                   itemBuilder: (context, index) {
                     final moistureSensor = moistureSensors[index];
-                    return _buildMoistureCard(moistureSensor, primaryColor);
+                    return _buildMoistureCard(moistureSensor, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -105,14 +107,14 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  MOISTURE PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildMoisturePainterBlock(MoistureModel moistureSensor) {
+  Widget _buildMoisturePainterBlock(MoistureModel moistureSensor, ConfigMakerColors colors) {
     bool isAssigned = moistureSensor.valves.isNotEmpty || moistureSensor.soilTemperature.isNotEmpty;
     return Container(
       width: 90,
       height: 64,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(
@@ -132,26 +134,27 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
   Widget _buildMoistureHeaderBlock({
     required MoistureModel moistureSensor,
     required Color primaryColor,
+    required ConfigMakerColors colors,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          _buildMoisturePainterBlock(moistureSensor),
+          _buildMoisturePainterBlock(moistureSensor, colors),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               moistureSensor.commonDetails.name ?? 'Moisture Sensor',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
           ),
@@ -163,13 +166,14 @@ class _MoistureConfigurationState extends State<MoistureConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  MOISTURE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildMoistureCard(MoistureModel moistureSensor, Color primaryColor) {
+  Widget _buildMoistureCard(MoistureModel moistureSensor, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(moistureSensor);
 
     return ConfigCardShell(
       headerBlock: _buildMoistureHeaderBlock(
         moistureSensor: moistureSensor,
         primaryColor: primaryColor,
+        colors: colors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,

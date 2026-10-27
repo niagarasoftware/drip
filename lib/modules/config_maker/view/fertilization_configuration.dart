@@ -10,6 +10,7 @@ import '../widget/object_manager_bar.dart';
 import '../widget/painter/multi_injector_painter.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -27,10 +28,11 @@ class FertilizationConfiguration extends StatefulWidget {
   const FertilizationConfiguration({super.key, required this.configPvd});
 
   @override
-  State<FertilizationConfiguration> createState() => _FertilizationConfigurationState();
+  State<FertilizationConfiguration> createState() => FertilizationConfigurationState();
 }
 
-class _FertilizationConfigurationState extends State<FertilizationConfiguration> {
+class FertilizationConfigurationState extends State<FertilizationConfiguration> {
+  void addFertilizationSite() => _addFertilizationSite();
   // ── Design tokens (Matching filtration_configuration.dart) ──
   static const Color _channelColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _boosterColor = Color(0xFF059669); // emerald green
@@ -92,14 +94,15 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
     IconData icon = Icons.warning_amber_rounded,
     Color iconColor = const Color(0xFFF59E0B),
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -122,10 +125,10 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
                   Text(
                     title,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -269,11 +272,12 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final fertilizations = widget.configPvd.fertilization;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: LayoutBuilder(builder: (context, constraint) {
@@ -284,18 +288,6 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
               physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
-                  ConfigPageHeading(
-                    title: 'Fertilization configuration',
-                    subtitle: 'Configure site mode, channels, booster pumps, agitators, selectors, EC and pH sensors',
-                    totalCount: fertilizations.length,
-                    countUnitSingular: 'site',
-                    countUnitPlural: 'sites',
-                    primaryColor: primaryColor,
-                    icon: Icons.science_rounded,
-                    onAddPressed: _addFertilizationSite,
-                    addButtonLabel: 'Add Site',
-                  ),
-                  const SizedBox(height: 18),
                   if (fertilizations.isEmpty)
                     ConfigEmptyState(
                       title: 'No Fertigation Sites Added',
@@ -313,7 +305,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
                       separatorBuilder: (context, index) => const SizedBox(height: 14),
                       itemBuilder: (context, index) {
                         final site = fertilizations[index];
-                        return _buildFertilizationCard(site, primaryColor);
+                        return _buildFertilizationCard(site, primaryColor, colors);
                       },
                     ),
                   const SizedBox(height: 16),
@@ -326,7 +318,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
     );
   }
 
-  Widget _buildFertilizationPainterBlock(FertilizationModel site, Color primaryColor) {
+  Widget _buildFertilizationPainterBlock(FertilizationModel site, Color primaryColor, ConfigMakerColors colors) {
     if (site.channel.isNotEmpty) {
       final int count = site.channel.length;
       final List<String> names = site.channel
@@ -340,7 +332,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
         height: painterH + 20,
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF12162B),
+          color: colors.innerSurface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
@@ -363,7 +355,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
       height: 90,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
@@ -375,10 +367,10 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
               color: primaryColor,
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'No Injectors Assigned',
               style: TextStyle(
-                color: _subTextColor,
+                color: colors.textMuted,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w500,
               ),
@@ -437,14 +429,15 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
     required String itemName,
     required VoidCallback onDelete,
   }) {
+    final colors = ConfigMakerColors.of(context);
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF181C38),
+          backgroundColor: colors.isLight ? Colors.white : const Color(0xFF181C38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFF2B335C)),
+            side: BorderSide(color: colors.innerBorder),
           ),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 360),
@@ -467,19 +460,19 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
                   Text(
                     'Delete $itemName',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Are you sure you want to delete "$itemName"? This action cannot be undone.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13.5,
-                      color: Color(0xFF8E9BB4),
+                      color: colors.textMuted,
                       height: 1.4,
                     ),
                   ),
@@ -490,8 +483,8 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF8E9BB4),
-                            side: const BorderSide(color: Color(0xFF2B335C)),
+                            foregroundColor: colors.textMuted,
+                            side: BorderSide(color: colors.innerBorder),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -534,6 +527,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
     required FertilizationModel site,
     required _Progress progress,
     required Color primaryColor,
+    required ConfigMakerColors colors,
     Widget? typeSelector,
   }) {
     final itemName = site.commonDetails.name ?? 'Fertilization Site';
@@ -541,7 +535,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -558,10 +552,10 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
                       itemName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: colors.textPrimary,
                       ),
                     ),
                     if (typeSelector != null) ...[
@@ -591,13 +585,13 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
             ],
           ),
           const SizedBox(height: 8),
-          _buildFertilizationPainterBlock(site, primaryColor),
+          _buildFertilizationPainterBlock(site, primaryColor, colors),
         ],
       ),
     );
   }
 
-  Widget _buildFertilizationCard(FertilizationModel site, Color primaryColor) {
+  Widget _buildFertilizationCard(FertilizationModel site, Color primaryColor, ConfigMakerColors colors) {
     final currentType = getCentralLocalCodeToString(site.siteMode);
     const modeTypes = ['Central', 'Local'];
     const modeIcons = {
@@ -719,6 +713,7 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
         site: site,
         progress: progress,
         primaryColor: primaryColor,
+        colors: colors,
         typeSelector: typeSelector,
       ),
       isComplete: progress.complete,

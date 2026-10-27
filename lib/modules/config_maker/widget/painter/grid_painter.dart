@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 /// CustomPainter drawing the background grid lines on the site canvas.
 class GridPainter extends CustomPainter {
-  const GridPainter();
+  final bool isLight;
+  const GridPainter({this.isLight = false});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF20274B).withValues(alpha: 0.5)
+      ..color = (isLight
+              ? const Color(0xFFCBD5E1).withValues(alpha: 0.6)
+              : const Color(0xFF20274B).withValues(alpha: 0.5))
       ..strokeWidth = 1;
     const step = 40.0;
     for (double x = 0; x < size.width; x += step) {
@@ -19,5 +22,5 @@ class GridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant GridPainter oldDelegate) => oldDelegate.isLight != isLight;
 }

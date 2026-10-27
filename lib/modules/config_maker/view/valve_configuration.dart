@@ -7,6 +7,7 @@ import '../../../utils/constants.dart';
 import '../state_management/config_maker_provider.dart';
 import '../widget/config_template_widgets.dart';
 import '../widget/painter/single_valve_painter.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Simple holder for progress metrics.
 class _Progress {
@@ -50,11 +51,12 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
   // ───────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primaryColor = Theme.of(context).primaryColor;
     final valveConfigs = widget.configPvd.valveConfig;
 
     return Container(
-      color: const Color(0xFF0C0F1D),
+      color: colors.canvasBg,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         child: SingleChildScrollView(
@@ -91,7 +93,7 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
                   itemCount: valveConfigs.length,
                   itemBuilder: (context, index) {
                     final valve = valveConfigs[index];
-                    return _buildValveCard(valve, primaryColor);
+                    return _buildValveCard(valve, primaryColor, colors);
                   },
                 ),
               const SizedBox(height: 16),
@@ -105,13 +107,13 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  VALVE PAINTER LEADING & HEADER BLOCK
   // ───────────────────────────────────────────────────────────
-  Widget _buildValvePainterBlock() {
+  Widget _buildValvePainterBlock(ConfigMakerColors colors) {
     return Container(
       width: 90,
       height: 64,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: const Center(
@@ -131,26 +133,27 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
   Widget _buildValveHeaderBlock({
     required ValveConfigModel valveConfig,
     required Color primaryColor,
+    required ConfigMakerColors colors,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF181C38),
+        color: colors.innerSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          _buildValvePainterBlock(),
+          _buildValvePainterBlock(colors),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               valveConfig.commonDetails.name ?? 'Valve',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16, // unchanged
+              style: TextStyle(
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: colors.textPrimary,
               ),
             ),
           ),
@@ -162,13 +165,14 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  VALVE CARD
   // ───────────────────────────────────────────────────────────
-  Widget _buildValveCard(ValveConfigModel valveConfig, Color primaryColor) {
+  Widget _buildValveCard(ValveConfigModel valveConfig, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(valveConfig);
 
     return ConfigCardShell(
       headerBlock: _buildValveHeaderBlock(
         valveConfig: valveConfig,
         primaryColor: primaryColor,
+        colors: colors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,

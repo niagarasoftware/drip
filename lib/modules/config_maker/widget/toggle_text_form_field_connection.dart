@@ -4,6 +4,7 @@ import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../model/device_model.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../view/utils/connection_colors.dart';
 import 'connection_grid_list_tile.dart';
 import 'object_manager_bar.dart';
 
@@ -243,13 +244,14 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
     }
 
     int currentVal = int.tryParse(widget.initialValue) ?? 0;
+    final colors = ConnectionColors.of(context);
 
     return Container(
       height: 32,
       decoration: BoxDecoration(
-        color: const Color(0xFF12162B),
+        color: colors.stepperBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2A3258)),
+        border: Border.all(color: colors.stepperBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -264,11 +266,11 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
               child: Icon(
                 Icons.remove_rounded,
                 size: 15,
-                color: currentVal > 0 ? const Color(0xFF8E9BB4) : const Color(0xFF2A3258),
+                color: currentVal > 0 ? colors.stepperMinusActive : colors.stepperMinusDisabled,
               ),
             ),
           ),
-          Container(width: 1, height: 16, color: const Color(0xFF2A3258)),
+          Container(width: 1, height: 16, color: colors.stepperBorder),
           GestureDetector(
             onTap: toggleEditing,
             child: Container(
@@ -284,7 +286,7 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
                       ],
                       maxLength: 2,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colors.stepperValueEditingText),
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         counterText: '',
@@ -295,15 +297,15 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
                     )
                   : Text(
                       widget.initialValue,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFC084FC),
+                        color: colors.stepperValueText,
                       ),
                     ),
             ),
           ),
-          Container(width: 1, height: 16, color: const Color(0xFF2A3258)),
+          Container(width: 1, height: 16, color: colors.stepperBorder),
           InkWell(
             borderRadius: const BorderRadius.horizontal(right: Radius.circular(7)),
             onTap: () => _updateConnectionCount(currentVal + 1),

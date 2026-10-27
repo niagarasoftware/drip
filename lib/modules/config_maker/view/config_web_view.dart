@@ -40,8 +40,8 @@ import '../../../Constants/dialog_boxes.dart';
 import 'config_base_page.dart';
 import 'config_mobile_view.dart';
 import 'connection.dart';
-
 import 'draw_your_site.dart';
+import 'utils/config_maker_colors.dart';
 
 class ConfigWebView extends StatefulWidget {
   List<DeviceModel> listOfDevices;
@@ -261,32 +261,30 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: _onPopInvokedWithResult,
       child: Scaffold(
-        backgroundColor: _barColor,
+        backgroundColor: colors.mainBg,
         body: SafeArea(
           bottom: false,
           child: Column(
             children: [
-              _buildHeader(),
+              _buildHeader(colors),
               Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                  child: Container(
-                    width: double.infinity,
-                    color: const Color(0xFF0C0F1D),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 180),
-                      child: KeyedSubtree(
-                        key: ValueKey(configPvd.selectedTab),
-                        child: configPvd.selectedTab == ConfigMakerTabs.connection
-                            ? Connection(configPvd: configPvd)
-                            : configPvd.selectedTab == ConfigMakerTabs.siteConfigure
-                            ? SiteConfigure(configPvd: configPvd)
-                            : const DrawYourSiteScreen(fullAccess: false,),
-                      ),
+                child: Container(
+                  width: double.infinity,
+                  color: colors.canvasBg,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: KeyedSubtree(
+                      key: ValueKey(configPvd.selectedTab),
+                      child: configPvd.selectedTab == ConfigMakerTabs.connection
+                          ? Connection(configPvd: configPvd)
+                          : configPvd.selectedTab == ConfigMakerTabs.siteConfigure
+                          ? SiteConfigure(configPvd: configPvd)
+                          : const DrawYourSiteScreen(fullAccess: false,),
                     ),
                   ),
                 ),
@@ -302,7 +300,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   static const Color _sendGreen = Color(0xFF10B981);
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ConfigMakerColors colors) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final deviceId = '${configPvd.masterData['deviceId'] ?? ''}';
@@ -311,6 +309,16 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            primary,
+            Color.alphaBlend(Colors.black.withValues(alpha: 0.18), primary),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+      ),
       child: Row(
         children: [
           Tooltip(
@@ -323,8 +331,8 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF181C38),
-                  border: Border.all(color: const Color(0xFF2B335C)),
+                  color: Colors.white.withValues(alpha: 0.2),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
                 ),
                 child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
               ),
@@ -334,10 +342,10 @@ class _ConfigWebViewState extends State<ConfigWebView> {
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: primary,
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.developer_board_rounded, color: Colors.white, size: 18),
+            child: Icon(Icons.developer_board_rounded, color: primary, size: 18),
           ),
           const SizedBox(width: 8),
           const Text(
@@ -349,13 +357,13 @@ class _ConfigWebViewState extends State<ConfigWebView> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFF181C38),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2B335C)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
               ),
               child: Text(
                 deviceId,
-                style: const TextStyle(color: Color(0xFF8E9BB4), fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4),
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4),
               ),
             ),
           ],
@@ -372,12 +380,12 @@ class _ConfigWebViewState extends State<ConfigWebView> {
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFF181C38),
-                  border: Border.all(color: const Color(0xFF2B335C)),
+                  color: Colors.white.withValues(alpha: 0.2),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
                 ),
                 child: Icon(
                   isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                  color: isDark ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8),
+                  color: isDark ? const Color(0xFFF59E0B) : Colors.white,
                   size: 18,
                 ),
               ),
@@ -635,15 +643,19 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   Widget _barDivider() => Container(width: 1, height: 22, color: Colors.white.withOpacity(0.2));
 
   Widget _buildMqttChip() {
+    final colors = ConfigMakerColors.of(context);
+    const green = Color(0xFF059669);
+    const red = Color(0xFFDC2626);
+
     return StreamBuilder(
       stream: mqttService.mqttConnectionStream,
       initialData: MqttConnectionState.disconnected,
       builder: (context, snapShot) {
         final connected = mqttService.isConnected;
-        final dotColor = connected ? accentColor : Colors.redAccent;
-        final bgColor = connected
-            ? Color.alphaBlend(accentColor.withValues(alpha: 0.12), const Color(0xFF0C0F1D))
-            : Color.alphaBlend(Colors.redAccent.withValues(alpha: 0.12), const Color(0xFF0C0F1D));
+        final dotColor = connected ? green : red;
+        final bgColor = colors.isLight
+            ? Colors.white
+            : Color.alphaBlend(dotColor.withValues(alpha: 0.18), const Color(0xFF0C0F1D));
         final statusText = connected ? 'MQTT Connected' : 'MQTT Disconnected';
         return Tooltip(
           message: statusText,

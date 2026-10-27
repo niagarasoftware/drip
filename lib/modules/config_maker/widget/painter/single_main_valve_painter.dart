@@ -14,17 +14,34 @@ import 'main_valve_parts.dart';
 class DetailedSingleMainValvePainter extends CustomPainter {
   final bool isOn;
   final bool showJoints;
+  final bool isHorizontal;
 
   DetailedSingleMainValvePainter({
     required this.isOn,
     this.showJoints = true,
+    this.isHorizontal = false,
   });
 
-  static Offset inletPort(Size s) => Offset(s.width * 0.5, 0);
-  static Offset outletPort(Size s) => Offset(s.width * 0.5, s.height);
+  static Offset inletPort(Size s, {bool isHorizontal = false}) =>
+      isHorizontal ? Offset(0, s.height * 0.5) : Offset(s.width * 0.5, 0);
+  static Offset outletPort(Size s, {bool isHorizontal = false}) =>
+      isHorizontal ? Offset(s.width, s.height * 0.5) : Offset(s.width * 0.5, s.height);
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (isHorizontal) {
+      canvas.save();
+      canvas.translate(size.width / 2, size.height / 2);
+      canvas.rotate(-math.pi / 2);
+      canvas.translate(-size.height / 2, -size.width / 2);
+      _paintBody(canvas, Size(size.height, size.width));
+      canvas.restore();
+      return;
+    }
+    _paintBody(canvas, size);
+  }
+
+  void _paintBody(Canvas canvas, Size size) {
     final double w = size.width;
     final double h = size.height;
     final double cx = w * 0.5;
@@ -49,7 +66,7 @@ class DetailedSingleMainValvePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant DetailedSingleMainValvePainter old) =>
-      old.isOn != isOn || old.showJoints != showJoints;
+      old.isOn != isOn || old.showJoints != showJoints || old.isHorizontal != isHorizontal;
 }
 
 /// Widget wrapper for [DetailedSingleMainValvePainter].
