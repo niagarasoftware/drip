@@ -22,6 +22,21 @@ class MainPipelineSetup extends SiteSetupBase {
     final List<SupplyNodeRef> waterSupplyNodes = water.supplyNodes;
     final irrigation = IrrigationLineSetup(ctx);
 
+    // Calculate a main line Y that is guaranteed to run below all water sources,
+    // all filter stations and all fertigation skids without overlaying any equipment.
+    double calcMainPipeY() {
+      double maxY = maxWaterY + 80.0;
+      for (final fn in filterNodes) {
+        maxY = math.max(maxY, fn.position.dy + fn.size.height + 60.0);
+      }
+      for (final sn in skidNodes) {
+        maxY = math.max(maxY, sn.position.dy + sn.size.height + 60.0);
+      }
+      return math.max(maxY, 420.0);
+    }
+
+    final double mainPipeY = calcMainPipeY();
+
     NodeObject? findBlockingNode(Offset startPt, double targetX) {
       final lRect = Rect.fromLTRB(
         math.min(startPt.dx, targetX) + 10.0,
@@ -274,10 +289,6 @@ class MainPipelineSetup extends SiteSetupBase {
             final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
             final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
 
-            final double mainPipeY = math.max(
-              maxWaterY + 80.0,
-              math.max(lastFilterNode.position.dy + lastFilterNode.size.height + 50.0, skidNode.position.dy + skidNode.size.height + 50.0),
-            );
             final double skidLeftX = skidNode.position.dx - 30.0;
             final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
             final NodeObject jnSkidIn = newJunction(skidInJunctionPt);
@@ -330,7 +341,6 @@ class MainPipelineSetup extends SiteSetupBase {
             );
           }
         } else {
-          final double mainPipeY = math.max(maxWaterY + 80.0, lastFilterNode.position.dy + lastFilterNode.size.height + 50.0);
           final Offset endPt = Offset(filterOutPt.dx + 30.0, mainPipeY);
           final NodeObject jnEnd = newJunction(endPt);
           final List<Offset> filterOutWps = [
@@ -354,10 +364,6 @@ class MainPipelineSetup extends SiteSetupBase {
         }
       } else {
         // MULTIPLE FILTRATION SITES: Feed each site in PARALLEL via raw supply & clean collector headers
-        final double mainPipeY = math.max(
-          maxWaterY + 80.0,
-          filterNodes.last.position.dy + filterNodes.last.size.height + 50.0,
-        );
 
         // 1. Raw Water Supply Header across top inlets
         final List<NodeObject> supplyJunctions = [];
@@ -505,10 +511,6 @@ class MainPipelineSetup extends SiteSetupBase {
           final Offset skidInletPt = skidNode.getPort('inlet', isInput: true);
           final Offset skidOutletPt = skidNode.getPort('outlet', isInput: false);
 
-          final double mainPipeY = math.max(
-            maxWaterY + 60.0,
-            math.max(400.0, skidNode.position.dy + skidNode.size.height + 40.0),
-          );
           final double skidLeftX = skidNode.position.dx - 30.0;
           final Offset skidInJunctionPt = Offset(skidLeftX, mainPipeY);
           final NodeObject jnSkidIn = newJunction(skidInJunctionPt);
@@ -558,7 +560,6 @@ class MainPipelineSetup extends SiteSetupBase {
           );
         }
       } else {
-        final double mainPipeY = math.max(200.0, maxWaterY + 60.0);
         final double mainLineX = math.max(400.0, maxWaterX + 150.0);
         final Offset targetPt = Offset(mainLineX, mainPipeY);
         final NodeObject jnEnd = newJunction(targetPt);

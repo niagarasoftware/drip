@@ -464,7 +464,7 @@ class FertigationSetup extends SiteSetupBase {
               .toList();
           final List<bool> channelStates = List.filled(count, true);
 
-          final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0 + s * 340.0;
+          final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0 + s * 480.0;
           final skidNode = NodeObject(
             id: nextId('skid_${site.commonDetails.sNo?.toInt() ?? s}'),
             position: Offset(skidX, provisionalSkidY),
