@@ -702,9 +702,18 @@ class _SensorSectionState extends State<_SensorSection> {
         if (value <= 10) return Colors.red;
         if (value <= 20) return Colors.orange;
         return Colors.green;
+
       case _GaugeType.moisture:
+        if (value <= 10) return Colors.blue;
+        if (value <= 25) return Colors.lightBlueAccent;
+        if (value <= 100) return Colors.orange;
+        if (value <= 150) return Colors.redAccent;
+        return Colors.red;
+
       case _GaugeType.temperature:
-        return Colors.black87;
+        if (value < 20) return Colors.blue;
+        if (value < 35) return Colors.orange;
+        return Colors.red;
     }
   }
 
@@ -730,6 +739,7 @@ class _SensorSectionState extends State<_SensorSection> {
         }
 
         final chartData = _getSensorDataById(selected.sNo.toString(), widget.sensorData);
+
         final numericValue = double.tryParse(selected.value.toString()) ?? 0.0;
         final gaugeColor = _colorFor(numericValue);
 
@@ -801,17 +811,48 @@ class _SensorSectionState extends State<_SensorSection> {
                         RadialAxis(
                           minimum: 0,
                           maximum: widget.gaugeMax,
+
+                          // Background track
+                          axisLineStyle: AxisLineStyle(
+                            thickness: 0.12,
+                            thicknessUnit: GaugeSizeUnit.factor,
+                            color: Colors.grey.shade300,
+                          ),
+
+                          showTicks: false,
+                          showLabels: false,
+
                           pointers: <GaugePointer>[
-                            NeedlePointer(value: numericValue, needleEndWidth: 3, needleColor: Colors.black54),
+                            // Colored arc showing the current value
+                            RangePointer(
+                              value: numericValue.clamp(0.0, widget.gaugeMax),
+                              color: gaugeColor,
+                              width: 0.12,
+                              sizeUnit: GaugeSizeUnit.factor,
+                            ),
+
+                            NeedlePointer(
+                              value: numericValue.clamp(0.0, widget.gaugeMax),
+                              needleEndWidth: 3,
+                              needleColor: Colors.black54,
+                            ),
                           ],
-                          showFirstLabel: false,
-                          axisLabelStyle: const GaugeTextStyle(fontSize: 8, fontWeight: FontWeight.bold),
+
                           annotations: [
                             GaugeAnnotation(
                               widget: Text(
-                                MyFunction().getUnitByParameter(context, widget.unitParam, selected.value.toString()) ?? '',
+                                MyFunction().getUnitByParameter(
+                                  context,
+                                  widget.unitParam,
+                                  selected.value.toString(),
+                                ) ??
+                                    '',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: gaugeColor),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: gaugeColor,
+                                ),
                               ),
                               angle: 90,
                               positionFactor: 0.8,

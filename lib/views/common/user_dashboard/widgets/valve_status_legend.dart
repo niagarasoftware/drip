@@ -35,12 +35,12 @@ Widget buildValveStatusLegend(bool isAquaculture) {
     (const Color(0xFF16A34A), 'Running'),
     (const Color(0xFF2563EB), 'Completed'),
     (const Color(0xFFEAB308), 'Pending'),
-    (const Color(0xFFDC2626), 'Not Open'),
+    (const Color(0xFFEF861D), 'Not Open'),
     (const Color(0xFFB91C1C), 'Not Closed'),
     (const Color(0xFF7C3AED), 'On · Low Pressure'),
-    (const Color(0xFFA855F7), 'Off · High Pressure'),
-    (const Color(0xFF0891B2), 'On · Low Lateral Pressure'),
-    (const Color(0xFF22D3EE), 'Off · High Lateral Pressure'),
+    (const Color(0xFFE81FAF), 'Off · High Pressure'),
+    (const Color(0xFF7D50CA), 'On · Low Lateral Pressure'),
+    (const Color(0xFF634610), 'Off · High Lateral Pressure'),
   ];
 
   return Container(
