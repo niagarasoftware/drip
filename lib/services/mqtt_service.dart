@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
+import '../utils/enums.dart';
 import 'mqtt_client_factory_stub.dart'
     if (dart.library.io) 'mqtt_client_factory_io.dart'
     if (dart.library.js_interop) 'mqtt_client_factory_web.dart';
@@ -157,6 +158,7 @@ class MqttService {
     }
   }
 
+
   Future<void> topicToSubscribe(String topic) async {
     try {
       int retries = 0;
@@ -294,10 +296,12 @@ class MqttService {
   void onDisconnected() {
     debugPrint('MQTT disconnected');
     _connectionController.add(MqttConnectionState.disconnected);
+    providerState?.updateAppConnectionState(MQTTConnectionState.disconnected);
   }
 
   void onConnected() {
     debugPrint('MQTT connected');
     _connectionController.add(MqttConnectionState.connected);
+    providerState?.updateAppConnectionState(MQTTConnectionState.connected);
   }
 }
