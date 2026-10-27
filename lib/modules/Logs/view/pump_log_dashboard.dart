@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:developer';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +20,12 @@ import 'pump_log_excel_download_stub.dart'
 if (dart.library.html) 'pump_log_excel_download_web.dart';
 
 // ---------------------------------------------------------------------------
+class _BarSegment {
+  final double ratio;
+  final Color color;
+  const _BarSegment(this.ratio, this.color);
+}
+
 // Design tokens
 // ---------------------------------------------------------------------------
 const Color _kBg = Color(0xFFF7F9FA);
@@ -53,8 +61,15 @@ class PumpLogDashboardScreen extends StatefulWidget {
   State<PumpLogDashboardScreen> createState() => _PumpLogDashboardScreenState();
 }
 
-class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
+class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with WidgetsBindingObserver {
   static const bool _showSingleDeviceHeader = true;
+
+  /// How often live data is re-fetched while the dashboard is visible.
+  static const Duration _kAutoRefreshInterval = Duration(seconds: 15);
+
+  Timer? _autoRefreshTimer;
+  bool _silentBusy = false;
+  int _fetchGeneration = 0;
 
   late DateTime _selectedDate;
   late DateTime _weekStartDate;
@@ -122,9 +137,86 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       _activeNodeControllerId = widget.nodeControllerId;
     }
 
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAllData();
+      _startAutoRefresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _silentRefresh(); // catch up immediately after coming back to the app
+      _startAutoRefresh();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _autoRefreshTimer?.cancel();
+      _autoRefreshTimer = null;
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(_kAutoRefreshInterval, (_) => _silentRefresh());
+  }
+
+  bool _isTodaySelected() {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  /// Background refresh: no spinner, no flicker, existing data stays on screen until
+  /// the new data is ready. Skipped while a manual load is running or the tab is hidden.
+  Future<void> _silentRefresh() async {
+    if (!mounted || _isLoading || _silentBusy) return;
+    if (!TickerMode.of(context)) return;
+
+    final bool today = _isTodaySelected();
+    // Weekly / monthly power totals always end at "now", so they stay live too.
+    if (!today && _powerPeriodIndex == 0) return;
+
+    _silentBusy = true;
+    try {
+      final provider = context.read<PumpControllerProvider>();
+      provider.selectedDate = _selectedDate;
+      await Future.wait([
+        provider.getPumpControllerData(
+          userId: widget.userId,
+          controllerId: widget.controllerId,
+          nodeControllerId: _activeNodeControllerId,
+          selectedIndex: _powerPeriodIndex,
+          silent: true,
+        ),
+        if (today)
+          provider.getUserPumpLog(
+            widget.userId,
+            widget.controllerId,
+            _activeNodeControllerId,
+            widget.masterData,
+            true,
+          ),
+        if (today)
+          provider.getUserVoltageLog(
+            userId: widget.userId,
+            controllerId: widget.controllerId,
+            nodeControllerId: _activeNodeControllerId,
+            silent: true,
+          ),
+      ]);
+    } catch (e) {
+      log("Silent refresh error: $e");
+    } finally {
+      _silentBusy = false;
+    }
   }
 
   @override
@@ -155,6 +247,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
   Future<void> _fetchAllData() async {
     if (!mounted) return;
+    final int generation = ++_fetchGeneration;
     setState(() => _isLoading = true);
 
     final provider = context.read<PumpControllerProvider>();
@@ -181,7 +274,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         ),
       ]);
 
-      if (mounted) {
+      if (mounted && generation == _fetchGeneration) {
         final effective = getEffectiveSegments(provider);
         if (!_userChangedMotor) {
           if (effective.containsKey(provider.selectedIndex)) {
@@ -200,7 +293,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     } catch (e) {
       log("Error fetching pump dashboard data: $e");
     } finally {
-      if (mounted) {
+      // Only the most recent load may turn the spinner off.
+      if (mounted && generation == _fetchGeneration) {
         setState(() => _isLoading = false);
       }
     }
@@ -246,6 +340,17 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           duration: Duration(seconds: 2),
         ),
       );
+  }
+
+  void _goToPrevDay() {
+    _onDateSelected(_selectedDate.subtract(const Duration(days: 1)));
+  }
+
+  void _goToNextDay() {
+    final next = _selectedDate.add(const Duration(days: 1));
+    if (!_isFuture(next)) {
+      _onDateSelected(next);
+    }
   }
 
   void _pickMonth() async {
@@ -586,9 +691,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   }
 
   Map<int, String> getEffectiveSegments(PumpControllerProvider provider) {
-    if (provider.segments.length > 1) {
+    final int apiPumps = provider.motorDataList.isNotEmpty ? provider.motorDataList[0].numberOfPumps : 1;
+
+    if (provider.segments.length >= apiPumps && provider.segments.length > 1) {
       return provider.segments;
     }
+
+    final pumpNames = provider.getPumpNames(widget.masterData, _activeNodeControllerId, widget.controllerId);
 
     final targetControllerId = _activeNodeControllerId != 0 ? _activeNodeControllerId : widget.controllerId;
     var targetPumps = widget.masterData.configObjects
@@ -599,25 +708,28 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       targetPumps = widget.masterData.configObjects.where((e) => e.objectId == 5).toList();
     }
 
-    if (targetPumps.length > 1) {
+    int effectiveCount = apiPumps;
+    if (targetPumps.isNotEmpty && targetPumps.length > effectiveCount) {
+      effectiveCount = targetPumps.length;
+    }
+    if (provider.segments.length > effectiveCount) {
+      effectiveCount = provider.segments.length;
+    }
+
+    if (effectiveCount > 1) {
       final Map<int, String> segs = {};
-      for (var pump in targetPumps) {
-        final int key =
-        (pump.connectionNo >= 1 && pump.connectionNo <= 3) ? pump.connectionNo - 1 : segs.length;
-        segs[key] = pump.name.isNotEmpty
-            ? pump.name
-            : "Pump ${pump.connectionNo > 0 ? pump.connectionNo : segs.length + 1}";
+      for (int i = 0; i < effectiveCount && i < 3; i++) {
+        segs[i] = (pumpNames.length > i && pumpNames[i].isNotEmpty)
+            ? pumpNames[i]
+            : "Motor ${i + 1}";
       }
-      if (segs.length > 1) {
-        return segs;
-      }
+      return segs;
     }
 
     if (provider.segments.isNotEmpty) {
       return provider.segments;
     }
 
-    final pumpNames = provider.getPumpNames(widget.masterData, _activeNodeControllerId, widget.controllerId);
     return {0: pumpNames.isNotEmpty ? pumpNames[0] : "Motor 1"};
   }
 
@@ -981,7 +1093,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   }
 
   // ==========================================
-  // CARD 1: POWER GRAPH
+  // CARD 1: POWER GRAPH (Redesigned Breakdown View)
   // ==========================================
   Widget _buildPowerGraphCard(PumpControllerProvider provider, bool isWide) {
     final MotorDataHourly? motorData =
@@ -1025,69 +1137,79 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final String activeMotorName =
         segments[activeKey] ?? _pick(activeKey, "Motor 1", "Motor 2", "Motor 3");
 
-    final left = _buildPowerGraphLeftColumn(
+    final leftColumn = _buildNewPowerGraphLeft(
       totalPowerOnTime: totalPowerOnTime,
+      totalPowerOffTime: totalPowerOffTime,
       motorRunTime: motorRunTime,
       totalPowerRatio: totalPowerRatio,
       motorRatio: motorRatio,
       activeMotorName: activeMotorName,
       daysInMonth: daysInMonth,
     );
-    final center = _buildPowerGraphCenterColumn(
+
+    final centerMetrics = _buildNewPowerGraphCenter(
       motorData: motorData,
-      totalPowerOnTime: totalPowerOnTime,
-      totalPowerOffTime: totalPowerOffTime,
-      motorRunTime: motorRunTime,
       totalFlow: totalFlowToday,
+      motorRunTime: motorRunTime,
     );
-    final right = _buildPowerGraphRightTable(
+
+    final rightBreakdown = _buildNewPowerGraphRight(
       provider: provider,
       runTime: motorRunTime,
       idleTime: motorIdleTime,
       dryRunTime: dryRunTripTime,
       cyclicTime: cyclicTripTime,
       otherTime: otherTripTime,
-      totalFlow: totalFlowToday,
+      totalPowerOnTime: totalPowerOnTime,
       segments: segments,
       activeKey: activeKey,
       activeMotorName: activeMotorName,
     );
 
-    return _card(
-      child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBFDFD),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEDF2F4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: isWide
+          ? Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardTitle('POWER GRAPH'),
-          const SizedBox(height: 14),
-          if (isWide)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(flex: 5, child: left),
-                const SizedBox(width: 20),
-                Expanded(flex: 4, child: center),
-                const SizedBox(width: 20),
-                Expanded(flex: 5, child: right),
-              ],
-            )
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                left,
-                const SizedBox(height: 20),
-                center,
-                const SizedBox(height: 20),
-                right,
-              ],
-            ),
+          Expanded(flex: 7, child: leftColumn),
+          const SizedBox(width: 18),
+          Expanded(flex: 8, child: centerMetrics),
+          const SizedBox(width: 22),
+          Expanded(flex: 7, child: rightBreakdown),
+        ],
+      )
+          : Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          leftColumn,
+          const SizedBox(height: 20),
+          centerMetrics,
+          const SizedBox(height: 20),
+          rightBreakdown,
         ],
       ),
     );
   }
 
-  Widget _buildPowerGraphLeftColumn({
+  // ---------------------------------------------------------------------------
+  // LEFT COLUMN: Date, Daily/Weekly/Monthly, Date Picker bar, 24-hr Bars
+  // ---------------------------------------------------------------------------
+  Widget _buildNewPowerGraphLeft({
     required String totalPowerOnTime,
+    required String totalPowerOffTime,
     required String motorRunTime,
     required double totalPowerRatio,
     required double motorRatio,
@@ -1099,27 +1221,45 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         _selectedDate.month == now.month &&
         _selectedDate.day == now.day;
 
+    final String daySubtitle = DateFormat('EEEE').format(_selectedDate);
+    final String formattedDate = DateFormat ('EEEE, MMMM d').format(_selectedDate);
+
     final List<String> tickLabels = _powerPeriodIndex == 1
         ? const ['Day 1', 'Day 3', 'Day 5', 'Day 7']
         : (_powerPeriodIndex == 2
         ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
         : const ['00:00', '08:00', '16:00', '24:00']);
 
+    final String formattedDateBanner = _powerPeriodIndex == 1
+        ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d, yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
+        : (_powerPeriodIndex == 2
+        ? DateFormat('MMMM yyyy').format(_selectedDate)
+        : DateFormat('MMM d, yyyy').format(_selectedDate));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          DateFormat('EEEE, MMMM d').format(_selectedDate),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _kInk),
+          daySubtitle,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF8C98A4),
+          ),
         ),
         const SizedBox(height: 2),
         Text(
-          isToday ? 'Today' : DateFormat('yyyy').format(_selectedDate),
-          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+          formattedDate,
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+            letterSpacing: -0.3,
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
 
-        _buildToggle(
+        _buildPillToggle(
           labels: const ['Daily', 'Weekly', 'Monthly'],
           selected: _powerPeriodIndex,
           onChanged: (i) {
@@ -1127,263 +1267,636 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
             _fetchAllData();
           },
         ),
-        const SizedBox(height: 36),
+        const SizedBox(height: 16),
 
-        // Date banner
         Container(
           width: double.infinity,
-          height: 36,
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFD4EDF2),
-            borderRadius: BorderRadius.circular(6),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFEDF2F4)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x04000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
-          alignment: Alignment.center,
-          child: Text(
-            _powerPeriodIndex == 1
-                ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
-                : (_powerPeriodIndex == 2
-                ? DateFormat('MMMM yyyy').format(_selectedDate)
-                : DateFormat('MMM d yyyy').format(_selectedDate)),
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F4C5C)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              InkWell(
+                onTap: _goToPrevDay,
+                borderRadius: BorderRadius.circular(8),
+                child: const Padding(
+                  padding: EdgeInsets.all(6.0),
+                  child: Icon(Icons.chevron_left, size: 20, color: Color(0xFF64748B)),
+                ),
+              ),
+              InkWell(
+                onTap: _pickMonth,
+                child: Text(
+                  formattedDateBanner,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              InkWell(
+                onTap: _isFuture(_selectedDate.add(const Duration(days: 1))) ? null : _goToNextDay,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.all(6.0),
+                  child: Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: _isFuture(_selectedDate.add(const Duration(days: 1)))
+                        ? const Color(0xFFCBD5E1)
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
 
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: tickLabels
-              .map((t) => Text(t, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))))
-              .toList(),
-        ),
-        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEDF2F4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _powerPeriodIndex == 1
+                    ? 'Duration across the 7-day week'
+                    : (_powerPeriodIndex == 2
+                    ? 'Duration across the month'
+                    : 'Duration across the 24-hour day'),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF8C98A4),
+                ),
+              ),
+              const SizedBox(height: 8),
 
-        _buildProgressBar(
-          ratio: totalPowerRatio,
-          label: 'Total Power - ${_formatTime(totalPowerOnTime)}',
-          barColor: const Color(0xFF14BFE8),
-        ),
-        const SizedBox(height: 4),
-        _buildProgressBar(
-          ratio: motorRatio,
-          label: '$activeMotorName run time ${_formatTime(motorRunTime)}',
-          barColor: const Color(0xFFB8E3EE),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: tickLabels
+                    .map((t) => Text(t, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))))
+                    .toList(),
+              ),
+              const SizedBox(height: 10),
+
+              _buildDurationRowBar(
+                ratio: motorRatio,
+                label: '$activeMotorName run time  ${_formatTime(motorRunTime)} HH:MM',
+                fillColor: const Color(0xFF22C55E),
+                trackColor: const Color(0xFFE2E8F0), textColor: Colors.black,
+              ),
+              const SizedBox(height: 8),
+
+              _buildDurationRowBar(
+                ratio: totalPowerRatio,
+                label: 'Total power  ${_formatTime(totalPowerOnTime)} HH:MM',
+                fillColor: const Color(0xFF2563EB),
+                trackColor: const Color(0xFFE2E8F0),
+                textColor: Colors.black,
+              ),
+              const SizedBox(height: 8),
+
+              _buildFullColorBar(
+                label: 'Total power off Time· ${_formatTime(totalPowerOffTime)} HH:MM',
+                bgColor: const Color(0xFFFFECEE),
+                textColor: const Color(0xFFDC2626),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildProgressBar({
-    required double ratio,
-    required String label,
-    required Color barColor,
+  Widget _buildPillToggle({
+    required List<String> labels,
+    required int selected,
+    required ValueChanged<int> onChanged,
   }) {
     return Container(
-      height: 22,
+      padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFFEFF3F5),
-        borderRadius: BorderRadius.circular(4),
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: ratio > 0 ? ratio : 0.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: barColor,
-                  borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(labels.length, (i) {
+          final isSel = i == selected;
+          return InkWell(
+            onTap: () => onChanged(i),
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+              decoration: BoxDecoration(
+                color: isSel ? const Color(0xFF1E293B) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                labels[i],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                  color: isSel ? Colors.white : const Color(0xFF64748B),
                 ),
               ),
             ),
-          ),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _kInk),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildDurationRowBar({
+    required double ratio,
+    required String label,
+    required Color fillColor,
+    Color trackColor = const Color(0xFFE2E8F0),
+    Color textColor = Colors.black,
+  }) {
+    final clampedRatio = ratio.clamp(0.0, 1.0);
+    return Container(
+      height: 34,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: trackColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Stack(
+        alignment: Alignment.centerLeft,
+        children: [
+          if (clampedRatio > 0)
+            FractionallySizedBox(
+              widthFactor: clampedRatio,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: fillColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          Positioned.fill(
+            child: Center(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: textColor,
+                ),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPowerGraphCenterColumn({
+  Widget _buildFullColorBar({
+    required String label,
+    required Color bgColor,
+    required Color textColor,
+  }) {
+    return Container(
+      height: 34,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // CENTER COLUMN: Metrics Grid
+  // ---------------------------------------------------------------------------
+  Widget _buildNewPowerGraphCenter({
     required MotorDataHourly? motorData,
-    required String totalPowerOnTime,
-    required String totalPowerOffTime,
-    required String motorRunTime,
     required String totalFlow,
+    required String motorRunTime,
   }) {
     String clean(String? v) => (v != null && v != "-" && v.isNotEmpty) ? v : "0.0";
 
-    // Live flow rate if available, else average = total flow / run time (seconds).
     final flow = _resolveFlowRate(
       liveFlowRate: motorData?.flowRate,
       totalFlow: totalFlow,
       motorRunTime: motorRunTime,
     );
 
+    final String flowVal = (totalFlow.isNotEmpty && totalFlow != '-') ? totalFlow : "0";
+    final bool hasNoFlowToday = _toSeconds(motorRunTime) == 0 || flowVal == "0";
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildMetricItem('Cumulative flow', '${motorData?.overAllCumulativeFlow ?? "0"} Litres'),
-        const SizedBox(height: 14),
-        _buildMetricItem('Pressure', '${clean(motorData?.pressure)} bar'),
-        const SizedBox(height: 14),
-        _buildMetricItem(
-          flow.isAverage ? 'Avg flow rate' : 'Flow rate',
-          '${flow.value} Lps',
+        Row(
+          children: [
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Pressure',
+                value: clean(motorData?.pressure),
+                unit: 'bar',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildMetricTile(
+                title: flow.isAverage ? 'Avg flow rate' : 'Flow rate',
+                value: flow.value,
+                unit: 'Lps',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildMetricTile(
+                title: 'Level',
+                value: clean(motorData?.level),
+                unit: 'feet',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 14),
-        _buildMetricItem('Level', '${clean(motorData?.level)} feet'),
-        const SizedBox(height: 14),
-        _buildMetricItem('Total power on time', '${_formatTime(totalPowerOnTime)} (HH:MM)'),
-        const SizedBox(height: 14),
-        _buildMetricItem('Total power off time', '${_formatTime(totalPowerOffTime)} (HH:MM)'),
-        if (motorData?.totalInstantEnergy != null && _powerPeriodIndex == 0) ...[
-          const SizedBox(height: 14),
-          _buildMetricItem('Instant energy', '${motorData!.totalInstantEnergy} kW'),
-          const SizedBox(height: 14),
-          _buildMetricItem('Cumulative energy', '${motorData.cumulativeEnergy ?? ''} kW'),
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildFlowTile(
+                title: 'Cumulative flow',
+                value: motorData?.overAllCumulativeFlow ?? "0",
+                unit: 'Litres',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildFlowTile(
+                title: _powerPeriodIndex == 1
+                    ? 'Total flow this week'
+                    : (_powerPeriodIndex == 2 ? 'Total flow this month' : 'Total flow today'),
+                value: flowVal,
+                unit: 'Litres',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile({
+    required String title,
+    required String value,
+    required String unit,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEDF2F4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x04000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
         ],
-      ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF8C98A4), fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildMetricItem(String title, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(fontSize: 11, color: _kMuted)),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _kInk),
-        ),
-      ],
+  Widget _buildFlowTile({
+    required String title,
+    required String value,
+    required String unit,
+    String? badgeText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEDF2F4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x04000000),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.water_drop_outlined, size: 14, color: Color(0xFF64748B)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                unit,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (badgeText != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFECEE),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                badgeText,
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+            )
+          else
+            const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
-  Widget _buildPowerGraphRightTable({
+  // ---------------------------------------------------------------------------
+  // RIGHT COLUMN: Motor time breakdown, multi-colored bar, dot list
+  // ---------------------------------------------------------------------------
+  Widget _buildNewPowerGraphRight({
     required PumpControllerProvider provider,
     required String runTime,
     required String idleTime,
     required String dryRunTime,
     required String cyclicTime,
     required String otherTime,
-    required String totalFlow,
+    required String totalPowerOnTime,
     required Map<int, String> segments,
     required int activeKey,
     required String activeMotorName,
   }) {
-    final String totalFlowLabel = _powerPeriodIndex == 1
-        ? 'Weekly total flow'
-        : (_powerPeriodIndex == 2 ? 'Monthly total flow ' : 'Today total flow');
+    final int runSec = _toSeconds(runTime);
+    final int idleSec = _toSeconds(idleTime);
+    final int drySec = _toSeconds(dryRunTime);
+    final int cyclicSec = _toSeconds(cyclicTime);
+    final int otherSec = _toSeconds(otherTime);
+
+    final int totalPowerSec = _toSeconds(totalPowerOnTime);
+    final int sumCategorySec = runSec + idleSec + drySec + cyclicSec + otherSec;
+    final int denominator = totalPowerSec > 0 ? totalPowerSec : (sumCategorySec > 0 ? sumCategorySec : 1);
+
+    const colorRun = Color(0xFF22C55E); // Green
+    const colorIdle = Color(0xFFF59E0B); // Orange / Amber
+    const colorDry = Color(0xFFEF4444); // Red
+    const colorCyclic = Color(0xFF3B82F6); // Blue
+    const colorOther = Color(0xFF94A3B8); // Slate / Grey
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: 30,
-          child: Row(
-            children: [
-              Expanded(
-                flex: 4,
-                child: segments.length > 1
-                    ? Align(
-                  alignment: Alignment.centerLeft,
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      isDense: true,
-                      value: segments.containsKey(activeKey) ? activeKey : segments.keys.first,
-                      icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF64748B)),
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kInk),
-                      items: segments.entries
-                          .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null) _onMotorChanged(provider, val);
-                      },
-                    ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 2),
+                Text(
+                  'Motor time',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
                   ),
-                )
-                    : const SizedBox.shrink(),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  activeMotorName,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10, color: _kMuted),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                flex: 2,
-                child: Text(
-                  'Unit',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(fontSize: 10, color: _kMuted),
+              ],
+            ),
+            if (segments.length > 1)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    isDense: true,
+                    value: segments.containsKey(activeKey) ? activeKey : segments.keys.first,
+                    icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF64748B)),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                    items: segments.entries
+                        .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
+                        .toList(),
+                    onChanged: (val) {
+                      if (val != null) _onMotorChanged(provider, val);
+                    },
+                  ),
+                ),
+              )
+            else
+              Text(
+                activeMotorName,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
               ),
-            ],
-          ),
+          ],
         ),
-        const Divider(color: Color(0xFFE2E8F0), height: 1),
+        const SizedBox(height: 12),
 
-        _buildTableRow('Motor run time', _formatTime(runTime), 'HH:MM', _kTeal),
-        _buildTableRow('Motor idle time', _formatTime(idleTime), 'HH:MM', _kRed, unitColor: _kRed),
-        _buildTableRow('Dry run trip time', _formatTime(dryRunTime), 'HH:MM', _kTeal),
-        _buildTableRow('Cyclic trip time', _formatTime(cyclicTime), 'HH:MM', _kTeal),
-        _buildTableRow('Other trip time', _formatTime(otherTime), 'HH:MM', _kTeal),
-        _buildTableRow(totalFlowLabel, totalFlow, 'Litres', _kRed, unitColor: _kRed, showDivider: false),
+        _buildMultiSegmentBar(
+          segments: [
+            _BarSegment(runSec / denominator, colorRun),
+            _BarSegment(idleSec / denominator, colorIdle),
+            _BarSegment(cyclicSec / denominator, colorCyclic),
+            _BarSegment(drySec / denominator, colorDry),
+            _BarSegment(otherSec / denominator, colorOther),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        Text(
+          'Share of ${_formatTime(totalPowerOnTime)} total power-on time (HH:MM)',
+          style: const TextStyle(fontSize: 14, color: Color(0xFF000000), fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 16),
+
+        _buildBreakdownListItem('Motor run time', '${_formatTime(runTime)}  HH:MM', colorRun),
+        _buildBreakdownListItem('Motor idle time', '${_formatTime(idleTime)}  HH:MM', colorIdle),
+        _buildBreakdownListItem('Dry run trip time', '${_formatTime(dryRunTime)}  HH:MM', colorDry),
+        _buildBreakdownListItem('Cyclic trip time', '${_formatTime(cyclicTime)}  HH:MM', colorCyclic),
+        _buildBreakdownListItem('Other trip time', '${_formatTime(otherTime)}  HH:MM', colorOther, isLast: true),
       ],
     );
   }
 
-  Widget _buildTableRow(
-      String title,
-      String value,
-      String unit,
-      Color valueColor, {
-        Color unitColor = _kInk,
-        bool showDivider = true,
-      }) {
+  Widget _buildMultiSegmentBar({required List<_BarSegment> segments}) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      height: 12,
+      width: double.infinity,
       decoration: BoxDecoration(
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: Color(0xFFF1F5F9)))
-            : null,
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(6),
       ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: segments.map((s) {
+          if (s.ratio <= 0) return const SizedBox.shrink();
+          return Expanded(
+            flex: (s.ratio * 1000).toInt().clamp(1, 1000),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(
+                color: s.color,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildBreakdownListItem(
+      String label,
+      String timeStr,
+      Color dotColor, {
+        bool isLast = false,
+      }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 12.0),
       child: Row(
         children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            flex: 4,
             child: Text(
-              title,
-              style: const TextStyle(fontSize: 12, color: _kInk, fontWeight: FontWeight.w500),
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF334155),
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: valueColor),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: Text(
-              unit,
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: unitColor),
+          Text(
+            timeStr,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1E293B),
             ),
           ),
         ],
@@ -1410,12 +1923,14 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
     final int dryRunTrips = events.where((e) => e.offReason.toLowerCase().contains('dry run')).length;
 
+    // Total duration calculation for pump events
     Duration totalDuration = Duration.zero;
     for (final e in events) {
       try {
         totalDuration += Constants.parseTime(e.duration);
       } catch (_) {}
     }
+    // ignore: unused_local_variable
     final formattedDuration = Constants.formatTime(totalDuration);
 
     final activeMotorName = segments[activeKey] ?? "Pump ${activeKey + 1}";
@@ -1705,20 +2220,66 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       ) {
     return SplineSeries<Map<String, dynamic>, num>(
       dataSource: data,
-      xValueMapper: (d, i) => double.tryParse('${d['hour']}') ?? i.toDouble(),
-      yValueMapper: (d, _) => double.tryParse(d[key]?.toString() ?? '0.0') ?? 0.0,
+      xValueMapper: (d, i) => PumpControllerProvider.parseReading(d['hour']) ?? i.toDouble(),
+      // null (not 0) for a missing reading -> the line breaks instead of dropping to zero
+      yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]),
       name: name,
       color: color,
       width: 2,
+      // monotonic spline never overshoots the real readings (no fake dips below 0 A)
+      splineType: SplineType.monotonic,
+      markerSettings: const MarkerSettings(isVisible: true, height: 4, width: 4),
+      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
+      // a 15 s refresh must not replay the draw animation every time
+      animationDuration: 0,
     );
   }
 
+  /// Y-axis window fitted to the data that is actually plotted.
+  /// Voltage: zoomed to the readings (a 0-based axis flattens 390-420 V into a straight line).
+  /// Current: starts at 0 and tops out just above the highest reading.
+  ({double min, double max}) _voltageAxisRange(
+      List<Map<String, dynamic>> data,
+      List<String> keys,
+      bool isVoltage,
+      ) {
+    double? lo;
+    double? hi;
+    for (final row in data) {
+      for (final k in keys) {
+        final v = PumpControllerProvider.parseReading(row[k]);
+        if (v == null) continue;
+        lo = lo == null ? v : (v < lo ? v : lo);
+        hi = hi == null ? v : (v > hi ? v : hi);
+      }
+    }
+    if (lo == null || hi == null) {
+      return isVoltage ? (min: 0.0, max: 500.0) : (min: 0.0, max: 10.0);
+    }
+    if (isVoltage) {
+      final double pad = ((hi - lo) * 0.15) < 10 ? 10 : (hi - lo) * 0.15;
+      double min = ((lo - pad) / 10).floorToDouble() * 10;
+      if (min < 0) min = 0;
+      final double max = ((hi + pad) / 10).ceilToDouble() * 10;
+      return (min: min, max: max);
+    }
+    final double top = hi <= 0 ? 1 : hi * 1.2;
+    final double step = top <= 5 ? 1 : (top <= 20 ? 2 : 5);
+    return (min: 0, max: (top / step).ceilToDouble() * step);
+  }
+
   Widget _buildVoltageLogCard(PumpControllerProvider provider) {
-    final List<Map<String, dynamic>> voltageData = provider.voltageData;
+    final List<Map<String, dynamic>> voltageData = List.from(provider.voltageData)
+      ..sort((a, b) {
+        final aHour = int.tryParse('${a['hour']}') ?? 0;
+        final bHour = int.tryParse('${b['hour']}') ?? 0;
+        return aHour.compareTo(bHour);
+      });
+
     final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
 
     final List<String> toggleLabels = hasEnergyData
-        ? const ['Voltage', 'Current', 'Power Factor', 'Power']
+        ? const ['Voltage', 'Current',]
         : const ['Voltage', 'Current'];
 
     final int safeIndex = _voltageMetricIndex < toggleLabels.length ? _voltageMetricIndex : 0;
@@ -1733,9 +2294,17 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         showY = false;
         showB = true;
       } else if (safeIndex == 1) {
-        showR = true;
-        showY = false;
-        showB = false;
+        final hasCurrentB = voltageData.any((d) => (double.tryParse('${d['currentB']}') ?? 0) > 0);
+        final hasCurrentR = voltageData.any((d) => (double.tryParse('${d['currentR']}') ?? 0) > 0);
+        if (hasCurrentB && !hasCurrentR) {
+          showR = false;
+          showY = false;
+          showB = true;
+        } else {
+          showR = true;
+          showY = false;
+          showB = false;
+        }
       } else {
         showR = true;
         showY = true;
@@ -1746,20 +2315,28 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final String prefix = safeIndex == 0
         ? 'voltage'
         : (safeIndex == 1
-            ? 'current'
-            : (safeIndex == 2 ? 'powerFactor' : 'power'));
+        ? 'current'
+        : (safeIndex == 2 ? 'powerFactor' : 'power'));
 
     final String label = safeIndex == 0
         ? 'Voltage'
         : (safeIndex == 1
-            ? 'Current'
-            : (safeIndex == 2 ? 'Power Factor' : 'Power'));
+        ? 'Current'
+        : (safeIndex == 2 ? 'Power Factor' : 'Power'));
 
     final String yUnitFormat = safeIndex == 0
         ? '{value}V'
         : (safeIndex == 1
-            ? '{value}A'
-            : (safeIndex == 2 ? '{value}' : '{value}kW'));
+        ? '{value}A'
+        : (safeIndex == 2 ? '{value}' : '{value}kW'));
+
+    final List<String> plottedKeys = [
+      if (showR) '${prefix}R',
+      if (showY) '${prefix}Y',
+      if (showB) '${prefix}B',
+    ];
+    final axisRange = _voltageAxisRange(voltageData, plottedKeys, safeIndex == 0);
+    final String unit = safeIndex == 0 ? ' V' : (safeIndex == 1 ? ' A' : '');
 
     return _card(
       child: Column(
@@ -1790,10 +2367,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           SizedBox(
             height: 230,
             child: voltageData.isEmpty
-                ? const Center(
+                ? Center(
               child: Text(
-                'No voltage/current data recorded for this date.',
-                style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                provider.voltageMessage.isNotEmpty
+                    ? provider.voltageMessage
+                    : 'No voltage/current data recorded for this date.',
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               ),
             )
                 : SfCartesianChart(
@@ -1808,7 +2387,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 majorGridLines: MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
               ),
               primaryYAxis: NumericAxis(
-                minimum: 0,
+                minimum: axisRange.min,
+                maximum: axisRange.max,
                 labelFormat: yUnitFormat,
                 labelStyle: const TextStyle(fontSize: 9, color: Color(0xFF64748B)),
                 majorGridLines: const MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
@@ -1819,7 +2399,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 overflowMode: LegendItemOverflowMode.wrap,
                 textStyle: TextStyle(fontSize: 11, color: Color(0xFF334155)),
               ),
-              tooltipBehavior: TooltipBehavior(enable: true),
+              tooltipBehavior: TooltipBehavior(
+                enable: true,
+                format: 'series.name\nHour point.x : point.y$unit',
+              ),
               series: <CartesianSeries<Map<String, dynamic>, num>>[
                 if (showR) _voltageSeries(voltageData, '${prefix}R', '$label R', _kRed),
                 if (showY)
@@ -1837,6 +2420,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     );
   }
 
+  String _cellText(dynamic v) {
+    final d = PumpControllerProvider.parseReading(v);
+    return d == null ? '-' : '$v';
+  }
+
   Widget _buildVoltageTable(
       List<Map<String, dynamic>> voltageData,
       bool showR,
@@ -1848,8 +2436,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final String prefix = safeIndex == 0
         ? 'voltage'
         : (safeIndex == 1
-            ? 'current'
-            : (safeIndex == 2 ? 'powerFactor' : 'power'));
+        ? 'current'
+        : (safeIndex == 2 ? 'powerFactor' : 'power'));
 
     Widget headerCell(String text, Color color, int flex) {
       return Expanded(
@@ -1898,9 +2486,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 return Row(
                   children: [
                     bodyCell('${row['hour']}', 5),
-                    if (showR) bodyCell('${row['${prefix}R'] ?? "-"}', 4),
-                    if (showY) bodyCell('${row['${prefix}Y'] ?? "-"}', 4),
-                    if (showB) bodyCell('${row['${prefix}B'] ?? "-"}', 4),
+                    if (showR) bodyCell(_cellText(row['${prefix}R']), 4),
+                    if (showY) bodyCell(_cellText(row['${prefix}Y']), 4),
+                    if (showB) bodyCell(_cellText(row['${prefix}B']), 4),
                   ],
                 );
               },

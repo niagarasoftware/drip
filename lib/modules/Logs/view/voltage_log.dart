@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
@@ -24,6 +26,8 @@ class PumpVoltageLogScreen extends StatefulWidget {
 class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
   int selectedIndex = 0;
   late PumpControllerProvider pumpControllerProvider;
+  Timer? _autoRefreshTimer;
+  bool _silentBusy = false;
 
   @override
   void initState() {
@@ -32,6 +36,26 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
     pumpControllerProvider = Provider.of(context,listen: false);
     if(mounted) {
       pumpControllerProvider.getUserVoltageLog(userId: widget.userId, controllerId: widget.controllerId, nodeControllerId: widget.nodeControllerId);
+    }
+    // Live sync: re-fetch every 15 s while today's log is on screen.
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _silentRefresh());
+  }
+
+  Future<void> _silentRefresh() async {
+    if (!mounted || _silentBusy || !TickerMode.of(context)) return;
+    final now = DateTime.now();
+    final d = pumpControllerProvider.selectedDate;
+    if (d.year != now.year || d.month != now.month || d.day != now.day) return;
+    _silentBusy = true;
+    try {
+      await pumpControllerProvider.getUserVoltageLog(
+        userId: widget.userId,
+        controllerId: widget.controllerId,
+        nodeControllerId: widget.nodeControllerId,
+        silent: true,
+      );
+    } finally {
+      _silentBusy = false;
     }
   }
 
@@ -50,7 +74,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
 
   @override
   void dispose() {
-    // TODO: implement dispose
+    _autoRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -87,20 +111,47 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
     }
   }
 
+  /// Y-axis window fitted to the plotted data (voltage zoomed in, current from 0).
+  ({double min, double max}) _axisRange(List<String> keys) {
+    double? lo;
+    double? hi;
+    for (final row in pumpControllerProvider.voltageData) {
+      for (final k in keys) {
+        final x = PumpControllerProvider.parseReading(row[k]);
+        if (x == null) continue;
+        lo = lo == null ? x : (x < lo ? x : lo);
+        hi = hi == null ? x : (x > hi ? x : hi);
+      }
+    }
+    if (lo == null || hi == null) return (min: 0.0, max: selectedIndex == 0 ? 500.0 : 10.0);
+    if (selectedIndex == 0) {
+      final double pad = ((hi - lo) * 0.15) < 10 ? 10 : (hi - lo) * 0.15;
+      double min = ((lo - pad) / 10).floorToDouble() * 10;
+      if (min < 0) min = 0;
+      return (min: min, max: ((hi + pad) / 10).ceilToDouble() * 10);
+    }
+    if (selectedIndex == 1) {
+      final double top = hi <= 0 ? 1 : hi * 1.2;
+      final double step = top <= 5 ? 1 : (top <= 20 ? 2 : 5);
+      return (min: 0.0, max: (top / step).ceilToDouble() * step);
+    }
+    return (min: lo < 0 ? lo : 0.0, max: hi <= 0 ? 1.0 : hi * 1.1);
+  }
+
   bool get isSinglePhaseModel {
     int modelId = widget.masterData.modelId;
     return AppConstants.singlePhasePumpModel.contains(modelId) ||
-           AppConstants.singlePhasePumpPlusModel.contains(modelId) ||
-           AppConstants.singlePhaseShineModel.contains(modelId) ||
-           AppConstants.singlePhaseElitePlusModel.contains(modelId) ||
-           AppConstants.singlePhaseEcoGemModel.contains(modelId) ||
-           AppConstants.singlePhaseEcoGemPlusModel.contains(modelId);
+        AppConstants.singlePhasePumpPlusModel.contains(modelId) ||
+        AppConstants.singlePhaseShineModel.contains(modelId) ||
+        AppConstants.singlePhaseElitePlusModel.contains(modelId) ||
+        AppConstants.singlePhaseEcoGemModel.contains(modelId) ||
+        AppConstants.singlePhaseEcoGemPlusModel.contains(modelId);
   }
 
   @override
   Widget build(BuildContext context) {
     pumpControllerProvider = Provider.of(context);
-    
+
     bool showR = true;
     bool showY = true;
     bool showB = true;
@@ -117,13 +168,20 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
       }
     }
 
+    final String phasePrefix = selectedIndex == 0 ? 'voltage' : selectedIndex == 1 ? 'current' : selectedIndex == 2 ? 'powerFactor' : 'power';
+    final axisRange = _axisRange([
+      if (showR) '${phasePrefix}R',
+      if (showY) '${phasePrefix}Y',
+      if (showB) '${phasePrefix}B',
+    ]);
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: [...AppConstants.ecoGemAndPlusModelList, ...AppConstants.gemModelList].contains(widget.masterData.modelId) ? AppBar(
         title: const Text('Voltage log'),
       ) : PreferredSize(preferredSize: const Size(0, 0), child: Container()),
       body: SafeArea(
-        child: (pumpControllerProvider.voltageData.isNotEmpty || pumpControllerProvider.message.isNotEmpty) ? Column(
+        child: (pumpControllerProvider.voltageData.isNotEmpty || pumpControllerProvider.voltageMessage.isNotEmpty) ? Column(
           children: [
             if(kIsWeb ? widget.showMobileCalendar : true)
               MobileCustomCalendar(
@@ -146,7 +204,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                 },
               ),
             const SizedBox(height: 10),
-            if (pumpControllerProvider.voltageData.isNotEmpty && pumpControllerProvider.message.isEmpty)
+            if (pumpControllerProvider.voltageData.isNotEmpty && pumpControllerProvider.voltageMessage.isEmpty)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 10),
                 child: CustomSegmentedControl(
@@ -175,12 +233,12 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      if (pumpControllerProvider.message.isNotEmpty)
+                      if (pumpControllerProvider.voltageMessage.isNotEmpty)
                         Center(
                           child: Padding(
                             padding: const EdgeInsets.all(10),
                             child: Text(
-                              pumpControllerProvider.message,
+                              pumpControllerProvider.voltageMessage,
                               style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
                             ),
                           ),
@@ -200,6 +258,8 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                               majorGridLines: MajorGridLines(width: 0.5),
                             ),
                             primaryYAxis: NumericAxis(
+                              minimum: axisRange.min,
+                              maximum: axisRange.max,
                               labelFormat: selectedIndex == 0 ? '{value}V' : selectedIndex == 1 ?'{value}A' : selectedIndex == 2 ? '{value}' : '{value}kW',
                               majorGridLines: const MajorGridLines(width: 0.5),
                             ),
@@ -240,7 +300,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                             ],
                           ),
                         ),
-                      if (pumpControllerProvider.message.isEmpty)
+                      if (pumpControllerProvider.voltageMessage.isEmpty)
                         ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
@@ -277,11 +337,15 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
       xValueMapper: (data, _) => 'Hour ${data['hour']}',
       yValueMapper: (data, _) {
         final key = selectedIndex == 0 ? 'voltage$phase' : selectedIndex == 1 ? 'current$phase' : selectedIndex == 2 ? 'powerFactor$phase' : 'power$phase';
-        return double.tryParse(data[key] ?? '0.0') ?? 0.0;
+        // null (not 0) for a missing reading -> gap in the line instead of a false drop to zero
+        return PumpControllerProvider.parseReading(data[key]);
       },
       name: name,
       markerSettings: const MarkerSettings(isVisible: true),
       color: color,
+      splineType: SplineType.monotonic,
+      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
+      animationDuration: 0,
     );
   }
 
@@ -291,7 +355,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
     for (int i = 0; i < activePhases; i++) {
       widths[i + 1] = const FlexColumnWidth(1);
     }
-    
+
     return Card(
       margin: const EdgeInsets.all(10),
       elevation: 4,
@@ -358,7 +422,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  selectedIndex == 0 ? entry['voltageR'] : selectedIndex == 1 ? entry['currentR'] : selectedIndex == 2 ? entry['powerFactorR'] : entry['powerR'],
+                  '${(selectedIndex == 0 ? entry['voltageR'] : selectedIndex == 1 ? entry['currentR'] : selectedIndex == 2 ? entry['powerFactorR'] : entry['powerR']) ?? '-'}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -366,7 +430,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  selectedIndex == 0 ? entry['voltageY'] : selectedIndex == 1 ? entry['currentY'] : selectedIndex == 2 ? entry['powerFactorY'] : entry['powerY'],
+                  '${(selectedIndex == 0 ? entry['voltageY'] : selectedIndex == 1 ? entry['currentY'] : selectedIndex == 2 ? entry['powerFactorY'] : entry['powerY']) ?? '-'}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
@@ -374,7 +438,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: Text(
-                  selectedIndex == 0 ? entry['voltageB'] : selectedIndex == 1 ? entry['currentB'] : selectedIndex == 2 ? entry['powerFactorB'] : entry['powerB'],
+                  '${(selectedIndex == 0 ? entry['voltageB'] : selectedIndex == 1 ? entry['currentB'] : selectedIndex == 2 ? entry['powerFactorB'] : entry['powerB']) ?? '-'}',
                   style: const TextStyle(fontWeight: FontWeight.bold,),
                 ),
               ),
