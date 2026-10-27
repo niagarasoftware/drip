@@ -35,6 +35,9 @@ class PumpControllerProvider extends ChangeNotifier {
   /// when both are fetched at the same time.
   String voltageMessage = "";
 
+  /// Voltage feed has its own loading flag so other feeds can't switch its loader on/off.
+  bool isVoltageLoading = false;
+
   /// Last time each feed was refreshed successfully (useful for a "Updated hh:mm:ss" label).
   DateTime? lastPumpLogSync;
   DateTime? lastHourlySync;
@@ -310,6 +313,8 @@ class PumpControllerProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // VOLTAGE / CURRENT   (api/v1/user/log/pumpVoltage|nodePumpVoltage/get)
   // ---------------------------------------------------------------------------
+  /// Callers must NOT call this synchronously from initState/didUpdateWidget/build
+  /// (it notifies listeners immediately). Wrap in addPostFrameCallback there.
   Future<void> getUserVoltageLog({
     required int userId,
     required int controllerId,
@@ -318,23 +323,29 @@ class PumpControllerProvider extends ChangeNotifier {
   }) async {
     final int ticket = ++_voltageTicket;
     final DateTime requestedDate = selectedDate;
+    final String reqDateStr = _apiDate.format(requestedDate);
 
     final Map<String, dynamic> data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": _apiDate.format(requestedDate),
-      "toDate": _apiDate.format(requestedDate),
+      "fromDate": reqDateStr,
+      "toDate": reqDateStr,
     };
-    print("pump controller getUserVoltageLog $data ");
+    log("getUserVoltageLog request: $data silent=$silent");
+
+    if (!silent) {
+      isVoltageLoading = true;
+      voltageData = []; // never show the previous day's rows
+      voltageMessage = '';
+      notifyListeners(); // screen shows the loader immediately
+    }
 
     try {
-      if (!silent) isLoading = true;
       final res = await repository.getUserVoltageLog(data, nodeControllerId != 0);
       if (ticket != _voltageTicket) return;
 
       final response = jsonDecode(res.body);
-
       List<Map<String, dynamic>> newVoltage = [];
       String newMessage = '';
 
@@ -342,7 +353,6 @@ class PumpControllerProvider extends ChangeNotifier {
         final raw = response['data'];
         final bool isToday = _isSameDay(requestedDate, DateTime.now());
         final int nowHour = DateTime.now().hour;
-        final String reqDateStr = _apiDate.format(requestedDate);
 
         List<dynamic>? hourlyItems;
 
@@ -350,28 +360,34 @@ class PumpControllerProvider extends ChangeNotifier {
           hourlyItems = raw['voltageDetails'] as List;
         } else if (raw is List && raw.isNotEmpty) {
           final first = raw[0];
-          if (first is Map && (first.containsKey('hour') || first.containsKey('voltageR') || first.containsKey('voltage1'))) {
+          if (first is Map &&
+              (first.containsKey('hour') ||
+                  first.containsKey('voltageR') ||
+                  first.containsKey('voltage1'))) {
             hourlyItems = raw;
           } else {
             Map<String, dynamic>? targetEntry;
+            bool anyEntryHadDate = false;
+
             for (final entry in raw) {
               if (entry is! Map) continue;
-              final rawDate = entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
-              if (rawDate != null) {
-                final String dateStr = rawDate.toString().trim();
-                if (dateStr.startsWith(reqDateStr)) {
-                  targetEntry = Map<String, dynamic>.from(entry);
-                  break;
-                }
-                final parsed = DateTime.tryParse(dateStr);
-                if (parsed != null && _isSameDay(parsed, requestedDate)) {
-                  targetEntry = Map<String, dynamic>.from(entry);
-                  break;
-                }
+              final rawDate =
+                  entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
+              if (rawDate == null) continue;
+              anyEntryHadDate = true;
+
+              final String dateStr = rawDate.toString().trim();
+              final parsed = DateTime.tryParse(dateStr);
+              if (dateStr.startsWith(reqDateStr) ||
+                  (parsed != null && _isSameDay(parsed, requestedDate))) {
+                targetEntry = Map<String, dynamic>.from(entry);
+                break;
               }
             }
 
-            if (targetEntry == null) {
+            // Only fall back to "first entry" when the server gave NO date info at all.
+            // If dates exist but none match, that day simply has no data.
+            if (targetEntry == null && !anyEntryHadDate) {
               for (final entry in raw) {
                 if (entry is Map && entry['voltageDetails'] is List) {
                   targetEntry = Map<String, dynamic>.from(entry);
@@ -404,8 +420,11 @@ class PumpControllerProvider extends ChangeNotifier {
           }
           newVoltage = (byHour.keys.toList()..sort()).map((h) => byHour[h]!).toList();
 
-          if (newVoltage.isEmpty) newMessage = 'No data available for the selected date.';
-          lastVoltageSync = DateTime.now();
+          if (newVoltage.isEmpty) {
+            newMessage = 'No data available for the selected date.';
+          } else {
+            lastVoltageSync = DateTime.now();
+          }
         } else {
           newMessage = 'No data available for the selected date.';
         }
@@ -413,6 +432,7 @@ class PumpControllerProvider extends ChangeNotifier {
         newMessage = 'Failed to load data: ${response['message']}';
       }
 
+      log("getUserVoltageLog applied for $reqDateStr: ${newVoltage.length} rows, msg='$newMessage'");
       voltageData = newVoltage;
       voltageMessage = newMessage;
     } catch (e, stackTrace) {
@@ -424,7 +444,7 @@ class PumpControllerProvider extends ChangeNotifier {
       }
     } finally {
       if (ticket == _voltageTicket) {
-        if (!silent) isLoading = false;
+        if (!silent) isVoltageLoading = false;
         notifyListeners();
       }
     }
