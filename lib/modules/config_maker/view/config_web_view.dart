@@ -236,7 +236,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
           spacing: 20,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (configPvd.selectedTab == ConfigMakerTabs.deviceList) ...[
+            if (configPvd.selectedTab == ConfigMakerTabs.deviceList && AppConstants.gemModelList.contains(configPvd.masterData['modelId'])) ...[
               FilledButton.icon(
                 icon: const Icon(Icons.settings),
                 onPressed: () {

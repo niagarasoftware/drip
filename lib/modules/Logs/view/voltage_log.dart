@@ -29,15 +29,28 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
   Timer? _autoRefreshTimer;
   bool _silentBusy = false;
 
+  int get effectiveNodeControllerId {
+    if (widget.nodeControllerId != 0) return widget.nodeControllerId;
+    if (widget.masterData.nodeList.isNotEmpty &&
+        !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
+      return widget.masterData.nodeList.first.controllerId;
+    }
+    return 0;
+  }
+
   @override
   void initState() {
     // TODO: implement initState
     super.initState();
     pumpControllerProvider = Provider.of(context,listen: false);
     if(mounted) {
-      pumpControllerProvider.getUserVoltageLog(userId: widget.userId, controllerId: widget.controllerId, nodeControllerId: widget.nodeControllerId);
+      pumpControllerProvider.getUserVoltageLog(
+        userId: widget.userId,
+        controllerId: widget.controllerId,
+        nodeControllerId: effectiveNodeControllerId,
+      );
     }
-    // Live sync: re-fetch every 15 s while today's log is on screen.
+
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _silentRefresh());
   }
 
@@ -51,7 +64,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
       await pumpControllerProvider.getUserVoltageLog(
         userId: widget.userId,
         controllerId: widget.controllerId,
-        nodeControllerId: widget.nodeControllerId,
+        nodeControllerId: effectiveNodeControllerId,
         silent: true,
       );
     } finally {
@@ -67,7 +80,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
       pumpControllerProvider.getUserVoltageLog(
         userId: widget.userId,
         controllerId: widget.controllerId,
-        nodeControllerId: widget.nodeControllerId,
+        nodeControllerId: effectiveNodeControllerId,
       );
     }
   }
@@ -193,7 +206,11 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                     pumpControllerProvider.selectedDate = selectedDay;
                     pumpControllerProvider.focusedDay = focusedDay;
                   });
-                  pumpControllerProvider.getUserVoltageLog(userId: widget.userId, controllerId: widget.controllerId, nodeControllerId: widget.nodeControllerId);
+                  pumpControllerProvider.getUserVoltageLog(
+                    userId: widget.userId,
+                    controllerId: widget.controllerId,
+                    nodeControllerId: effectiveNodeControllerId,
+                  );
                 },
                 onFormatChanged: (format) {
                   if (pumpControllerProvider.calendarFormat != format) {
@@ -211,8 +228,6 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                     segmentTitles: pumpControllerProvider.voltageData[0]['totalInstantEnergy'] != null ? {
                       0: "Voltage",
                       1: "Current",
-                      2: "Power Factor",
-                      3: "Power",
                     } : {
                       0: "Voltage",
                       1: "Current",
@@ -253,6 +268,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: SfCartesianChart(
+                            key: ValueKey('voltage_chart_${pumpControllerProvider.selectedDate}_${filteredData.length}_$selectedIndex'),
                             primaryXAxis: const CategoryAxis(
                               labelRotation: 45,
                               majorGridLines: MajorGridLines(width: 0.5),

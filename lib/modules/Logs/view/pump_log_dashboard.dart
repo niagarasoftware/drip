@@ -88,7 +88,14 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
   bool _isLoading = false;
 
   bool get isSinglePhaseModel {
-    final int modelId = widget.masterData.modelId;
+    int modelId = widget.masterData.modelId;
+    final devices = effectiveDeviceList;
+    if (devices.isNotEmpty && _selectedPumpIndex < devices.length) {
+      final itemModel = devices[_selectedPumpIndex]['modelId'];
+      if (itemModel is int && itemModel > 0) {
+        modelId = itemModel;
+      }
+    }
     return AppConstants.singlePhasePumpModel.contains(modelId) ||
         AppConstants.singlePhasePumpPlusModel.contains(modelId) ||
         AppConstants.singlePhaseShineModel.contains(modelId) ||
@@ -2376,6 +2383,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
               ),
             )
                 : SfCartesianChart(
+              key: ValueKey('voltage_chart_${provider.selectedDate}_${voltageData.length}_$safeIndex'),
               margin: EdgeInsets.zero,
               primaryXAxis: const NumericAxis(
                 minimum: 0,

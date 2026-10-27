@@ -326,6 +326,7 @@ class PumpControllerProvider extends ChangeNotifier {
       "fromDate": _apiDate.format(requestedDate),
       "toDate": _apiDate.format(requestedDate),
     };
+    print("pump controller getUserVoltageLog $data ");
 
     try {
       if (!silent) isLoading = true;
@@ -339,11 +340,54 @@ class PumpControllerProvider extends ChangeNotifier {
 
       if (res.statusCode == 200) {
         final raw = response['data'];
-        if (raw is List && raw.isNotEmpty && raw[0] is Map && raw[0]['voltageDetails'] is List) {
-          final bool isToday = _isSameDay(requestedDate, DateTime.now());
-          final int nowHour = DateTime.now().hour;
+        final bool isToday = _isSameDay(requestedDate, DateTime.now());
+        final int nowHour = DateTime.now().hour;
+        final String reqDateStr = _apiDate.format(requestedDate);
 
-          for (final item in (raw[0]['voltageDetails'] as List)) {
+        List<dynamic>? hourlyItems;
+
+        if (raw is Map && raw['voltageDetails'] is List) {
+          hourlyItems = raw['voltageDetails'] as List;
+        } else if (raw is List && raw.isNotEmpty) {
+          final first = raw[0];
+          if (first is Map && (first.containsKey('hour') || first.containsKey('voltageR') || first.containsKey('voltage1'))) {
+            hourlyItems = raw;
+          } else {
+            Map<String, dynamic>? targetEntry;
+            for (final entry in raw) {
+              if (entry is! Map) continue;
+              final rawDate = entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
+              if (rawDate != null) {
+                final String dateStr = rawDate.toString().trim();
+                if (dateStr.startsWith(reqDateStr)) {
+                  targetEntry = Map<String, dynamic>.from(entry);
+                  break;
+                }
+                final parsed = DateTime.tryParse(dateStr);
+                if (parsed != null && _isSameDay(parsed, requestedDate)) {
+                  targetEntry = Map<String, dynamic>.from(entry);
+                  break;
+                }
+              }
+            }
+
+            if (targetEntry == null) {
+              for (final entry in raw) {
+                if (entry is Map && entry['voltageDetails'] is List) {
+                  targetEntry = Map<String, dynamic>.from(entry);
+                  break;
+                }
+              }
+            }
+
+            if (targetEntry != null && targetEntry['voltageDetails'] is List) {
+              hourlyItems = targetEntry['voltageDetails'] as List;
+            }
+          }
+        }
+
+        if (hourlyItems != null && hourlyItems.isNotEmpty) {
+          for (final item in hourlyItems) {
             if (item is! Map) continue;
             final row = Map<String, dynamic>.from(item);
             final int? hour = _parseHour(row['hour']);
