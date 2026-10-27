@@ -2,14 +2,12 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/modules/Preferences/view/preference_main_screen.dart';
 import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_screen.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
 import '../../../Screens/planning/FactoryReset.dart';
 import '../../../cropAdvisory/view/crop_list_screen.dart';
-import '../../../cropAdvisory/view/getUserInformationScreen.dart';
 import '../../../flavors.dart';
 import '../../../models/customer/site_model.dart';
 import '../../../modules/PumpController/view/node_settings.dart';
@@ -22,6 +20,7 @@ import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/enums.dart';
+import '../../../utils/helpers/mqtt_status_indicator.dart';
 import '../../../utils/helpers/screen_helper.dart';
 import '../../../utils/routes.dart';
 import '../../../utils/shared_preferences_helper.dart';
@@ -37,16 +36,16 @@ List<Widget> appBarActions(
   MasterControllerModel master,
   bool isNarrow,
 ) {
-  final loggedInUser =
-      Provider.of<UserProvider>(context, listen: false).loggedInUser;
-  final viewedCustomer =
-      Provider.of<UserProvider>(context, listen: false).viewedCustomer;
+  final loggedInUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
+  final viewedCustomer = Provider.of<UserProvider>(context, listen: false).viewedCustomer;
 
   final isGem = [...AppConstants.gemModelList, ...AppConstants.ecoGemModelList]
       .contains(master.modelId);
 
   List<Widget> gemActions() {
     return [
+      const MqttStatusIndicator(),
+      const SizedBox(width: 10),
       _buildProgramRunningIcon(vm),
       const SizedBox(width: 8),
       AlarmButton(
@@ -83,6 +82,8 @@ List<Widget> appBarActions(
       Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          const MqttStatusIndicator(),
+          const SizedBox(width: 10),
           _buildProgramRunningIcon(vm),
           const SizedBox(width: 10),
           if (vm.lineLiveMessage.isNotEmpty && master.irrigationLine.length > 1)

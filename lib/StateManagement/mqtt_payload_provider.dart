@@ -12,7 +12,7 @@ import '../utils/enums.dart';
 
 
 class MqttPayloadProvider with ChangeNotifier {
-   final MQTTConnectionState _appConnectionState = MQTTConnectionState.disconnected;
+   MQTTConnectionState _appConnectionState = MQTTConnectionState.disconnected;
 
   dynamic spa = '';
   String dashBoardPayload = '', schedulePayload = '';
@@ -203,6 +203,12 @@ class MqttPayloadProvider with ChangeNotifier {
    bool get isClassicConnected {
      return _connectedDeviceClassic != null &&
          _connectedDeviceClassic!.connectionState == BlueConnectionState.connected;
+   }
+
+   void updateAppConnectionState(MQTTConnectionState state) {
+     if (_appConnectionState == state) return;
+     _appConnectionState = state;
+     notifyListeners();
    }
 
 
