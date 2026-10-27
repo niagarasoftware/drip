@@ -177,10 +177,10 @@ class _GroupInfo {
 
   const _GroupInfo(
       {required this.key,
-        required this.count,
-        required this.totalTime,
-        required this.start,
-        required this.end});
+      required this.count,
+      required this.totalTime,
+      required this.start,
+      required this.end});
 
   String get summary => totalTime == null ? '' : '$totalTime H:M:S total';
 }
@@ -199,7 +199,7 @@ class _GroupHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) =>
+          BuildContext context, double shrinkOffset, bool overlapsContent) =>
       SizedBox(height: height, child: child);
 
   @override
@@ -299,7 +299,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: _buildMainCard(groups, sections)),
-                  if (widget.showSensorReport && widget.onSequenceClicked != null) ...[
+                  if (widget.showSensorReport &&
+                      widget.onSequenceClicked != null) ...[
                     SizedBox(width: _compact ? 8 : 14),
                     _buildSensorCard(groups),
                   ],
@@ -367,17 +368,44 @@ class _ScrollingTableState extends State<ScrollingTable> {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            height: _kBannerHeight + _kHeaderHeight,
-            child: SingleChildScrollView(
-              controller: _horizontalScroll1,
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [for (final s in sections) _sectionHeader(s)],
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, c) {
+              final w = contentWidth > c.maxWidth ? contentWidth : c.maxWidth;
+              return SizedBox(
+                width: c.maxWidth,
+                height: _kBannerHeight + _kHeaderHeight,
+                child: SingleChildScrollView(
+                  controller: _horizontalScroll1,
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: w,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final s in sections) _sectionHeader(s),
+                        if (w > contentWidth)
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Container(
+                                  height: _kBannerHeight,
+                                  color: _kBannerBg,
+                                ),
+                                Container(
+                                  height: _kHeaderHeight,
+                                  color: _kHeaderBg,
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
           Expanded(
             child: LayoutBuilder(
@@ -396,7 +424,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
                         slivers: _groupSlivers(
                           groups,
                           _mainGroupHeader,
-                              (a, b) => _mainRows(sections, a, b),
+                          (a, b) => _mainRows(sections, a, b,
+                              w: w, contentWidth: contentWidth),
                         ),
                       ),
                     ),
@@ -412,10 +441,10 @@ class _ScrollingTableState extends State<ScrollingTable> {
 
   /// One sliver group per date: pinned header + that date's rows.
   List<Widget> _groupSlivers(
-      List<_GroupInfo> groups,
-      Widget Function(_GroupInfo g) header,
-      Widget Function(int start, int end) body,
-      ) {
+    List<_GroupInfo> groups,
+    Widget Function(_GroupInfo g) header,
+    Widget Function(int start, int end) body,
+  ) {
     return [
       for (final g in groups)
         if (g.key == null)
@@ -436,7 +465,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
     ];
   }
 
-  Widget _mainRows(List<_Section> sections, int a, int b) {
+  Widget _mainRows(List<_Section> sections, int a, int b,
+      {double? w, double? contentWidth}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -445,6 +475,20 @@ class _ScrollingTableState extends State<ScrollingTable> {
             width: s.width,
             child: Column(
               children: [for (var i = a; i < b; i++) _sectionEntry(s, i)],
+            ),
+          ),
+        if (w != null && contentWidth != null && w > contentWidth)
+          Expanded(
+            child: Column(
+              children: [
+                for (var i = a; i < b; i++)
+                  Container(
+                    height: _rowHeight(i),
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: _kLine)),
+                    ),
+                  ),
+              ],
             ),
           ),
       ],
@@ -461,7 +505,7 @@ class _ScrollingTableState extends State<ScrollingTable> {
         animation: _horizontalScroll2,
         builder: (context, _) {
           final dx =
-          _horizontalScroll2.hasClients ? _horizontalScroll2.offset : 0.0;
+              _horizontalScroll2.hasClients ? _horizontalScroll2.offset : 0.0;
           return Transform.translate(
             offset: Offset(dx, 0),
             child: Padding(
@@ -478,17 +522,17 @@ class _ScrollingTableState extends State<ScrollingTable> {
                       color: _kTeal,
                     ),
                   ),
-                  if (g.summary.isNotEmpty) ...[
-                    const SizedBox(width: 18),
-                    Text(
-                      g.summary,
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: _kHeaderText,
-                      ),
-                    ),
-                  ],
+                  // if (g.summary.isNotEmpty) ...[
+                  //   const SizedBox(width: 18),
+                  //   Text(
+                  //     g.summary,
+                  //     maxLines: 1,
+                  //     style: const TextStyle(
+                  //       fontSize: 12.5,
+                  //       color: _kHeaderText,
+                  //     ),
+                  //   ),
+                  // ],
                 ],
               ),
             ),
@@ -506,15 +550,15 @@ class _ScrollingTableState extends State<ScrollingTable> {
       child: _compact
           ? null
           : Text(
-        g.key ?? '',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: _kTeal,
-        ),
-      ),
+              g.key ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: _kTeal,
+              ),
+            ),
     );
   }
 
@@ -525,7 +569,7 @@ class _ScrollingTableState extends State<ScrollingTable> {
       animation: _horizontalScroll1,
       builder: (context, _) {
         final off =
-        _horizontalScroll1.hasClients ? _horizontalScroll1.offset : 0.0;
+            _horizontalScroll1.hasClients ? _horizontalScroll1.offset : 0.0;
         final maxDx = s.width > 140 ? s.width - 140 : 0.0;
         final dx = (off - s.left).clamp(0.0, maxDx).toDouble();
         return Align(
@@ -555,7 +599,7 @@ class _ScrollingTableState extends State<ScrollingTable> {
         ? widget.generalColumn
         : s.columns.where((c) => c != 'Name').toList();
     final Border? divider =
-    s.divider ? const Border(left: BorderSide(color: _kSectionLine)) : null;
+        s.divider ? const Border(left: BorderSide(color: _kSectionLine)) : null;
     return SizedBox(
       width: s.width,
       child: Column(
@@ -597,13 +641,13 @@ class _ScrollingTableState extends State<ScrollingTable> {
   // ───────────────────────── rows ─────────────────────────
 
   BoxDecoration _rowDecorationFor(_Section s) => BoxDecoration(
-    border: Border(
-      left: s.divider
-          ? const BorderSide(color: _kSectionLine)
-          : BorderSide.none,
-      bottom: const BorderSide(color: _kLine),
-    ),
-  );
+        border: Border(
+          left: s.divider
+              ? const BorderSide(color: _kSectionLine)
+              : BorderSide.none,
+          bottom: const BorderSide(color: _kLine),
+        ),
+      );
 
   Widget _sectionEntry(_Section s, int i) {
     final h = _rowHeight(i);
@@ -622,9 +666,8 @@ class _ScrollingTableState extends State<ScrollingTable> {
       );
     }
 
-    final List rowData = (i < s.data.length && s.data[i] is List)
-        ? s.data[i] as List
-        : const [];
+    final List rowData =
+        (i < s.data.length && s.data[i] is List) ? s.data[i] as List : const [];
     final visibleCount = s.columns.where((c) => c != 'Name').length;
     return Container(
       width: s.width,
@@ -866,15 +909,15 @@ class _ScrollingTableState extends State<ScrollingTable> {
             alignment: Alignment.center,
             child: _compact
                 ? const Icon(Icons.bar_chart_rounded,
-                size: 20, color: _kHeaderText)
+                    size: 20, color: _kHeaderText)
                 : const Text(
-              'Sensor report',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: _kHeaderText,
-              ),
-            ),
+                    'Sensor report',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _kHeaderText,
+                    ),
+                  ),
           ),
           Expanded(
             child: Scrollbar(
@@ -885,7 +928,7 @@ class _ScrollingTableState extends State<ScrollingTable> {
                 slivers: _groupSlivers(
                   groups,
                   _sensorGroupHeader,
-                      (a, b) => Column(
+                  (a, b) => Column(
                     children: [for (var i = a; i < b; i++) _sensorRow(i)],
                   ),
                 ),
@@ -904,37 +947,37 @@ class _ScrollingTableState extends State<ScrollingTable> {
       alignment: Alignment.center,
       decoration: _kRowDecoration,
       child: _compact
-      // phone: icon only
+          // phone: icon only
           ? SizedBox(
-        width: 40,
-        height: 40,
-        child: ElevatedButton(
-          onPressed: () => _openSensors(i),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _kTeal,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: const CircleBorder(),
-            padding: EdgeInsets.zero,
-          ),
-          child: const Icon(Icons.bar_chart_rounded, size: 20),
-        ),
-      )
+              width: 40,
+              height: 40,
+              child: ElevatedButton(
+                onPressed: () => _openSensors(i),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kTeal,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.zero,
+                ),
+                child: const Icon(Icons.bar_chart_rounded, size: 20),
+              ),
+            )
           : ElevatedButton.icon(
-        onPressed: () => _openSensors(i),
-        icon: const Icon(Icons.bar_chart_rounded, size: 18),
-        label: const Text('Sensors'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _kTeal,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: const StadiumBorder(),
-          padding:
-          const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          textStyle:
-          const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        ),
-      ),
+              onPressed: () => _openSensors(i),
+              icon: const Icon(Icons.bar_chart_rounded, size: 18),
+              label: const Text('Sensors'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kTeal,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: const StadiumBorder(),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
     );
   }
 
@@ -991,7 +1034,9 @@ class _ScrollingTableState extends State<ScrollingTable> {
 
   dynamic _totalTimeFor(String key) {
     for (final item in widget.graphData) {
-      if (item is Map && '${item['name']}' == key && item['totalTime'] != null) {
+      if (item is Map &&
+          '${item['name']}' == key &&
+          item['totalTime'] != null) {
         return item['totalTime'];
       }
     }
@@ -1168,22 +1213,22 @@ Widget reasonCell(String raw, double height) {
               message: line,
               child: _isBlank(line)
                   ? const Text(
-                '–',
-                style: TextStyle(fontSize: 13.5, color: _kMutedText),
-              )
+                      '–',
+                      style: TextStyle(fontSize: 13.5, color: _kMutedText),
+                    )
                   : ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 180),
-                child: Text(
-                  line,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: reasonColor(line),
-                  ),
-                ),
-              ),
+                      constraints: const BoxConstraints(maxWidth: 180),
+                      child: Text(
+                        line,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: reasonColor(line),
+                        ),
+                      ),
+                    ),
             ),
           ),
       ],

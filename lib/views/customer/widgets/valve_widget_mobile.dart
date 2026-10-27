@@ -318,9 +318,9 @@ class _ValveWidgetMobileState extends State<ValveWidgetMobile> {
     if (status == 2) return Colors.orange;
     if (status == 3) return Colors.red;
     if (status == 4) return const Color(0xFF7C3AED);
-    if (status == 5) return const Color(0xFFA855F7);
-    if (status == 6) return const Color(0xFF0891B2);
-    return const Color(0xFF22D3EE);
+    if (status == 5) return const Color(0xFFE81FAF);
+    if (status == 6) return const Color(0xFF7D50CA);
+    return const Color(0xFF634610);
   }
 
 
