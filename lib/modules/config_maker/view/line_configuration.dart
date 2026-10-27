@@ -167,21 +167,10 @@ class _LineConfigurationState extends State<LineConfiguration> {
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: () {
-                      showModalBottomSheet(
-                        shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                        ),
-                        isScrollControlled: true,
+                      showEditObjectNamesSideSheet(
                         context: context,
-                        builder: (context) {
-                          return SizedBox(
-                            width: 700,
-                            child: ConfigObjectNameEditing(
-                              listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
-                              configPvd: widget.configPvd,
-                            ),
-                          );
-                        },
+                        configPvd: widget.configPvd,
+                        listOfObjectInLine: widget.configPvd.listOfGeneratedObject,
                       );
                     },
                     tooltip: 'Edit Object Names',
