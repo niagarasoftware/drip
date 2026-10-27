@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Floating right-side vertical overlay buttons (Undo, Redo, Hide Joints, Zoom +/- with scale %, Export, Clear).
+/// Floating right-side vertical overlay buttons (Undo, Redo, AI Auto Arrange, Hide Joints, Zoom +/- with scale %, Export, Clear).
 class DrawSiteControlsOverlay extends StatelessWidget {
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
+  final VoidCallback? onAiAutoArrange;
   final VoidCallback onToggleHideJoints;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
@@ -19,6 +20,7 @@ class DrawSiteControlsOverlay extends StatelessWidget {
     super.key,
     required this.onUndo,
     required this.onRedo,
+    this.onAiAutoArrange,
     required this.onToggleHideJoints,
     required this.onZoomIn,
     required this.onZoomOut,
@@ -96,6 +98,17 @@ class DrawSiteControlsOverlay extends StatelessWidget {
                 iconColor: Colors.white,
               ),
               _buildDivider(),
+            ],
+            if (onAiAutoArrange != null) ...[
+              _buildIconButton(
+                icon: Icons.auto_awesome_rounded,
+                tooltip: 'Generate AI Diagram',
+                onPressed: onAiAutoArrange,
+                iconColor: const Color(0xFFA855F7),
+              ),
+              _buildDivider(),
+            ],
+            if (fullAccess) ...[
               _buildIconButton(
                 icon: globalHideJoints ? Icons.layers_clear_rounded : Icons.layers_rounded,
                 tooltip: globalHideJoints ? 'Show Joints' : 'Hide Joints',

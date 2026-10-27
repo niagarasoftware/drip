@@ -11,6 +11,7 @@ import 'package:oro_drip_irrigation/services/mqtt_service.dart';
 import 'package:oro_drip_irrigation/services/communication_service.dart';
 import 'package:oro_drip_irrigation/utils/Theme/oro_theme.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
+import 'package:oro_drip_irrigation/providers/theme_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
 import '../../../Constants/properties.dart';
@@ -265,7 +266,6 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       onPopInvokedWithResult: _onPopInvokedWithResult,
       child: Scaffold(
         backgroundColor: _barColor,
-        bottomNavigationBar: _buildActionBar(),
         body: SafeArea(
           bottom: false,
           child: Column(
@@ -300,9 +300,11 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   // ───────────────────────────── header ──────────────────────────────────────
 
+  static const Color _sendGreen = Color(0xFF10B981);
+
   Widget _buildHeader() {
-    final tabs = _visibleTabs;
-    final selectedIndex = tabs.indexOf(configPvd.selectedTab);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final deviceId = '${configPvd.masterData['deviceId'] ?? ''}';
     final primary = Theme.of(context).primaryColor;
 
@@ -359,199 +361,40 @@ class _ConfigWebViewState extends State<ConfigWebView> {
           ],
           const SizedBox(width: 10),
           _buildMqttChip(),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: _buildStepper(tabs, selectedIndex),
+          const Spacer(),
+          Tooltip(
+            message: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme',
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () => themeProvider.toggleTheme(),
+              child: Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF181C38),
+                  border: Border.all(color: const Color(0xFF2B335C)),
+                ),
+                child: Icon(
+                  isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                  color: isDark ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8),
+                  size: 18,
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          _solidButton(
+            label: 'Send Config',
+            tooltip: 'Save & transmit configuration to device',
+            background: _sendGreen,
+            foreground: Colors.white,
+            leadingWidget: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+            onTap: _onSendConfig,
+          ),
+          const SizedBox(width: 4),
+          _moreMenu(),
         ],
-      ),
-    );
-  }
-
-  /// Config is a real sequence (devices → limits → connections → site),
-  /// so numbered steps with a "done" state show the user where they are.
-  Widget _buildStepper(List<ConfigMakerTabs> tabs, int selectedIndex) {
-    final children = <Widget>[];
-    final primary = Theme.of(context).primaryColor;
-    for (var i = 0; i < tabs.length; i++) {
-      final tab = tabs[i];
-      final selected = i == selectedIndex;
-      final done = i < selectedIndex;
-
-      if (i > 0) {
-        children.add(Container(
-          width: 20,
-          height: 2,
-          margin: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: i <= selectedIndex ? primary : const Color(0xFF20274B),
-            borderRadius: BorderRadius.circular(1),
-          ),
-        ));
-      }
-
-      children.add(
-        Tooltip(
-          message: getTabName(tab),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () => updateConfigMakerTabs(
-              context: context,
-              configPvd: configPvd,
-              setState: setState,
-              selectedTab: tab,
-            ),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: selected ? primary : const Color(0xFF181C38),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: selected ? primary : const Color(0xFF2B335C),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: selected
-                          ? Colors.white
-                          : done
-                          ? primary
-                          : const Color(0xFF2B335C),
-                    ),
-                    child: done
-                        ? const Icon(Icons.check, size: 13, color: Colors.white)
-                        : Text(
-                            '${i + 1}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: selected ? primary : const Color(0xFF8E9BB4),
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    getTabName(tab),
-                    style: TextStyle(
-                      color: selected ? Colors.white : const Color(0xFF8E9BB4),
-                      fontSize: 12.5,
-                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return Row(mainAxisSize: MainAxisSize.min, children: children);
-  }
-
-  // ───────────────────────────── bottom action bar ───────────────────────────
-
-  // ─────────────────────────────────────────────────────────────────────────────
-// REPLACE the old _buildActionBar(), _sectionLabel(), _barDivider() and
-// _barButton() in _ConfigWebViewState with everything below.
-// All existing logic (_goToStep, _onSendConfig, _openConstantPage,
-// _openPreferencePage, _showClearConfigDialog) is reused unchanged.
-// ─────────────────────────────────────────────────────────────────────────────
-
-  static const Color _sendGreen = Color(0xFF10B981);
-
-  Widget _buildActionBar() {
-    final tabs = _visibleTabs;
-    final index = tabs.indexOf(configPvd.selectedTab);
-    final isFirst = index <= 0;
-    final isLast = index >= tabs.length - 1;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF0C0F1D),
-        border: Border(top: BorderSide(color: Color(0xFF1E2545))),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: SafeArea(
-        top: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 950;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // ── LEFT : tools ─────────────────────────────────────────
-                    _toolsGroup(compact),
-
-                    // ── RIGHT : navigation + send ────────────────────────────
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _iconAction(
-                          icon: Icons.chevron_left_rounded,
-                          tooltip: 'Previous step',
-                          onTap: isFirst ? null : () => _goToStep(-1),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          child: Text(
-                            '${index + 1} / ${tabs.length}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ),
-                        _solidButton(
-                          label: (isLast || compact)
-                              ? 'Next'
-                              : 'Next: ${getTabName(tabs[index + 1])}',
-                          tooltip: isLast
-                              ? 'Last step'
-                              : 'Proceed to ${getTabName(tabs[index + 1])}',
-                          background: Theme.of(context).primaryColor,
-                          foreground: Colors.white,
-                          trailing: Icons.arrow_forward_rounded,
-                          onTap: isLast ? null : () => _goToStep(1),
-                        ),
-                        const SizedBox(width: 10),
-                        _solidButton(
-                          label: 'Send Config',
-                          tooltip: 'Save & transmit configuration to device',
-                          background: _sendGreen,
-                          foreground: Colors.white,
-                          leadingWidget: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-                          onTap: _onSendConfig,
-                        ),
-                        const SizedBox(width: 4),
-                        _moreMenu(),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
       ),
     );
   }
@@ -739,7 +582,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
   Widget _moreMenu() {
     return PopupMenuButton<String>(
       tooltip: 'More actions',
-      offset: const Offset(0, -56),
+      offset: const Offset(0, 42),
       color: Colors.white,
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

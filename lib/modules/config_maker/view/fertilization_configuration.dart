@@ -547,43 +547,48 @@ class _FertilizationConfigurationState extends State<FertilizationConfiguration>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -2),
-            title: Text(
-              itemName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (typeSelector != null) typeSelector,
-                const SizedBox(width: 8),
-                _buildCancelGradientButton(
-                  onTap: () {
-                    _confirmDelete(
-                      context: context,
-                      itemName: itemName,
-                      onDelete: () {
-                        setState(() {
-                          widget.configPvd.deleteGeneratedObject(
-                            site.commonDetails.sNo!,
-                            AppConstants.fertilizerSiteObjectId,
-                          );
-                        });
-                      },
-                    );
-                  },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      itemName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (typeSelector != null) ...[
+                      const SizedBox(height: 6),
+                      typeSelector,
+                    ],
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              _buildCancelGradientButton(
+                onTap: () {
+                  _confirmDelete(
+                    context: context,
+                    itemName: itemName,
+                    onDelete: () {
+                      setState(() {
+                        widget.configPvd.deleteGeneratedObject(
+                          site.commonDetails.sNo!,
+                          AppConstants.fertilizerSiteObjectId,
+                        );
+                      });
+                    },
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           _buildFertilizationPainterBlock(site, primaryColor),

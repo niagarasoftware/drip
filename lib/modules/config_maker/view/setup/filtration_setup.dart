@@ -51,7 +51,7 @@ class FiltrationSetup extends SiteSetupBase {
           portLabels: filterNames,
           showJoints: !globalHideJoints,
         );
-        filterNode.size = Size(DetailedMultiFilterPainter.calculateWidth(120, filterCount), 120);
+        filterNode.size = Size(DetailedMultiFilterPainter.calculateWidth(132, filterCount), 132);
         nodes.add(filterNode);
         filterNodes.add(filterNode);
       }

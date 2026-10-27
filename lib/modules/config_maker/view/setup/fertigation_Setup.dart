@@ -727,7 +727,7 @@ class FertigationSetup extends SiteSetupBase {
         final l = gLinks.first;
         final targetKey = '${l.skid.id}|${l.skidPort}';
         final targetJn = mergeJunctions[targetKey]!;
-        final Offset targetPos = Offset(targetJn.position.dx + 5, targetJn.position.dy + 5);
+        final Offset targetPos = portPosition(targetJn, null, isInput: true);
 
         if ((startPt.dx - targetPos.dx).abs() < 1.0) {
           pipes.add(PipeConnection(
@@ -771,7 +771,7 @@ class FertigationSetup extends SiteSetupBase {
         for (final l in gLinks) {
           final targetKey = '${l.skid.id}|${l.skidPort}';
           final targetJn = mergeJunctions[targetKey]!;
-          final Offset targetPos = Offset(targetJn.position.dx + 5, targetJn.position.dy + 5);
+          final Offset targetPos = portPosition(targetJn, null, isInput: true);
 
           if ((targetPos.dx - startPt.dx).abs() < 1.0) {
             pipes.add(PipeConnection(

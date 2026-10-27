@@ -23,7 +23,50 @@ import '../widget/node_editor_bottom_sheet.dart';
 import '../widget/node_widget.dart';
 import '../widget/painter/grid_painter.dart';
 import '../widget/painter/pipe_painter.dart';
+import 'package:flutter_svg/svg.dart';
 import '../widget/site_tab_bar.dart';
+
+import 'channel_configuration.dart';
+import 'connection.dart';
+import 'fertilization_configuration.dart';
+import 'filtration_configuration.dart';
+import 'line_configuration.dart';
+import 'moisture_configuration.dart';
+import 'pressure_configuration.dart';
+import 'pump_configuration.dart';
+import 'source_configuration.dart';
+import 'valve_configuration.dart';
+
+class _ConfigTabItem {
+  final int key;
+  final int? objectId;
+  final IconData? icon;
+  final String title;
+  final String shortName;
+  final Color accentColor;
+
+  const _ConfigTabItem({
+    required this.key,
+    this.objectId,
+    this.icon,
+    required this.title,
+    required this.shortName,
+    required this.accentColor,
+  });
+}
+
+const List<_ConfigTabItem> _configTabs = [
+  _ConfigTabItem(key: -1, icon: Icons.cable_rounded, title: 'Connection', shortName: 'Connection', accentColor: Color(0xFF10B981)),
+  _ConfigTabItem(key: 0, objectId: 1, title: 'Source Configuration', shortName: 'Source', accentColor: Color(0xFF0284C7)),
+  _ConfigTabItem(key: 1, objectId: 5, title: 'Pump Configuration', shortName: 'Pump', accentColor: Color(0xFF06B6D4)),
+  _ConfigTabItem(key: 2, objectId: 4, title: 'Filtration Configuration', shortName: 'Filtration', accentColor: Color(0xFFEA580C)),
+  _ConfigTabItem(key: 3, objectId: 10, title: 'Channel Configuration', shortName: 'Channel', accentColor: Color(0xFFF59E0B)),
+  _ConfigTabItem(key: 4, objectId: 3, title: 'Fertilization Configuration', shortName: 'Fertilization', accentColor: Color(0xFF8B5CF6)),
+  _ConfigTabItem(key: 8, objectId: 24, title: 'Pressure Configuration', shortName: 'Pressure', accentColor: Color(0xFFE11D48)),
+  _ConfigTabItem(key: 5, objectId: 25, title: 'Moisture Configuration', shortName: 'Moisture', accentColor: Color(0xFF3B82F6)),
+  _ConfigTabItem(key: 9, objectId: 13, title: 'Valve Configuration', shortName: 'Valve', accentColor: Color(0xFF10B981)),
+  _ConfigTabItem(key: 10, objectId: 2, title: 'Line Configuration', shortName: 'Line', accentColor: Color(0xFF06B6D4)),
+];
 
 const double kCanvasWidth = 3000;
 const double kCanvasHeight = 2000;
@@ -41,6 +84,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   final List<NodeObject> _nodes = [];
   final List<PipeConnection> _pipes = [];
   String _activeTabId = 'all';
+
+  int? _activeConfigTab;
+  bool _isConfigSheetOpen = false;
 
   // ---- Render / performance infrastructure ------------------------------
   final CanvasNotifier _canvasNotifier = CanvasNotifier();
@@ -189,7 +235,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     }
   }
 
-  void _generateFromSourceConfig({bool showSnackBar = true}) {
+  void _generateFromSourceConfig({bool showSnackBar = false}) {
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
 
     if (SiteSetupData(configPvd).isEmpty) {
@@ -1953,8 +1999,273 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     return handles;
   }
 
+  void _onConfigTabTap(int key) {
+    setState(() {
+      if (_isConfigSheetOpen && _activeConfigTab == key) {
+        _isConfigSheetOpen = false;
+      } else {
+        _activeConfigTab = key;
+        _isConfigSheetOpen = true;
+        final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+        configPvd.selectedConfigurationTab = key;
+      }
+    });
+  }
+
+  Widget _buildConfigSheetContent(ConfigMakerProvider configPvd) {
+    if (_activeConfigTab == null) return const SizedBox.shrink();
+    switch (_activeConfigTab!) {
+      case -1:
+        return Connection(configPvd: configPvd);
+      case 0:
+        return SourceConfiguration(configPvd: configPvd);
+      case 1:
+        return PumpConfiguration(configPvd: configPvd);
+      case 2:
+        return FiltrationConfiguration(configPvd: configPvd);
+      case 3:
+        return ChannelConfiguration(configPvd: configPvd);
+      case 4:
+        return FertilizationConfiguration(configPvd: configPvd);
+      case 8:
+        return PressureConfiguration(configPvd: configPvd);
+      case 5:
+        return MoistureConfiguration(configPvd: configPvd);
+      case 9:
+        return ValveConfiguration(configPvd: configPvd);
+      case 10:
+        return LineConfiguration(configPvd: configPvd);
+      default:
+        return SourceConfiguration(configPvd: configPvd);
+    }
+  }
+
+  Widget _buildConfigTabTile(_ConfigTabItem tab, ConfigMakerProvider configPvd) {
+    final bool isSelected = _isConfigSheetOpen && _activeConfigTab == tab.key;
+    final int count = tab.key == -1
+        ? configPvd.listOfObjectModelConnection.length
+        : configPvd.listOfGeneratedObject
+            .where((o) => o.objectId == configPvd.configurationTabObjectId[tab.key])
+            .length;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Tooltip(
+        message: '${tab.title}${count > 0 ? " ($count)" : ""}',
+        preferBelow: false,
+        verticalOffset: 32,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _onConfigTabTap(tab.key),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : null,
+                borderRadius: isSelected ? BorderRadius.circular(10) : null,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  tab.objectId != null
+                      ? SvgPicture.asset(
+                          'assets/Images/Svg/objectId_${tab.objectId}.svg',
+                          width: 22,
+                          height: 22,
+                          colorFilter: ColorFilter.mode(
+                            isSelected ? Colors.black : Colors.white,
+                            BlendMode.srcIn,
+                          ),
+                        )
+                      : Icon(
+                          tab.icon ?? Icons.cable_rounded,
+                          size: 22,
+                          color: isSelected ? Colors.black : Colors.white,
+                        ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tab.shortName,
+                    style: TextStyle(
+                      color: isSelected ? Colors.black : Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfigVerticalTabs(ConfigMakerProvider configPvd) {
+    final primaryColor = Theme.of(context).primaryColor;
+    return Container(
+      width: 82,
+      decoration: BoxDecoration(
+        color: primaryColor,
+        border: const Border(
+          right: BorderSide(color: Color(0xFF334155), width: 1.0),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final tab in _configTabs)
+              _buildConfigTabTile(tab, configPvd),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfigSideSheet(BoxConstraints constraints, ConfigMakerProvider configPvd) {
+    final double sheetWidth = constraints.maxWidth * 0.9;
+    final activeTabItem = _configTabs.firstWhere(
+      (t) => t.key == _activeConfigTab,
+      orElse: () => _configTabs.first,
+    );
+
+    final count = activeTabItem.key == -1
+        ? configPvd.listOfObjectModelConnection.length
+        : configPvd.listOfGeneratedObject
+            .where((o) => o.objectId == configPvd.configurationTabObjectId[activeTabItem.key])
+            .length;
+
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      left: _isConfigSheetOpen ? 0 : -sheetWidth,
+      top: 0,
+      bottom: 0,
+      width: sheetWidth,
+      child: Material(
+        elevation: 16,
+        color: Colors.transparent,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0F172A),
+            border: Border(
+              right: BorderSide(color: Color(0xFF334155), width: 1.0),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 15,
+                offset: Offset(4, 0),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                height: 56,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF1E293B),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF334155), width: 1.0),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: activeTabItem.objectId != null
+                          ? SvgPicture.asset(
+                              'assets/Images/Svg/objectId_${activeTabItem.objectId}.svg',
+                              width: 20,
+                              height: 20,
+                              colorFilter: const ColorFilter.mode(
+                                Colors.black,
+                                BlendMode.srcIn,
+                              ),
+                            )
+                          : Icon(
+                              activeTabItem.icon ?? Icons.cable_rounded,
+                              color: Colors.black,
+                              size: 20,
+                            ),
+                    ),
+                      const SizedBox(width: 12),
+                      Text(
+                        activeTabItem.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (count > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context).primaryColor.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          child: Text(
+                            '$count items',
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xFF8E9BB4)),
+                        hoverColor: Colors.white12,
+                        tooltip: 'Close',
+                        onPressed: () {
+                          setState(() {
+                            _isConfigSheetOpen = false;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                // Body
+                Expanded(
+                  child: KeyedSubtree(
+                    key: ValueKey(_activeConfigTab),
+                    child: _buildConfigSheetContent(configPvd),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final configPvd = Provider.of<ConfigMakerProvider>(context);
+
     return Scaffold(
       body: KeyboardListener(
         focusNode: _focus,
@@ -1984,7 +2295,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                     });
                     Future.delayed(const Duration(milliseconds: 300), () {
                       if (mounted) {
-                        _generateFromSourceConfig(showSnackBar: true);
+                        _generateFromSourceConfig(showSnackBar: false);
                       }
                     });
                   },
@@ -2003,178 +2314,210 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
             Expanded(
               child: Container(
                 color: const Color(0xFF12162B),
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Listener(
-                            key: _viewKey,
-                            onPointerSignal: _onCanvasPointerSignal,
-                            child: InteractiveViewer(
-                              transformationController: _tc,
-                              constrained: false,
-                              scaleEnabled: false,
-                              minScale: 0.4,
-                              maxScale: 2.0,
-                              boundaryMargin: const EdgeInsets.all(100),
-                              child: SizedBox(
-                                width: _canvasWidth,
-                                height: _canvasHeight,
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTapUp: _onCanvasTapUp,
-                                  onDoubleTapDown: _onCanvasDoubleTapDown,
-                                  onDoubleTap: () {},
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: RepaintBoundary(
-                                          child: CustomPaint(painter: const GridPainter()),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildConfigVerticalTabs(configPvd),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Stack(
+                            children: [
+                              Positioned.fill(
+                                child: Listener(
+                                  key: _viewKey,
+                                  onPointerSignal: _onCanvasPointerSignal,
+                                  child: InteractiveViewer(
+                                    transformationController: _tc,
+                                    constrained: false,
+                                    scaleEnabled: false,
+                                    minScale: 0.4,
+                                    maxScale: 2.0,
+                                    boundaryMargin: const EdgeInsets.all(100),
+                                    child: SizedBox(
+                                      width: _canvasWidth,
+                                      height: _canvasHeight,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTapUp: _onCanvasTapUp,
+                                        onDoubleTapDown: _onCanvasDoubleTapDown,
+                                        onDoubleTap: () {},
+                                        child: Stack(
+                                          children: [
+                                            Positioned.fill(
+                                              child: RepaintBoundary(
+                                                child: CustomPaint(painter: const GridPainter()),
+                                              ),
+                                            ),
+                                            ListenableBuilder(
+                                              listenable: _canvasNotifier,
+                                              builder: (context, _) {
+                                                return Stack(
+                                                  children: [
+                                                    Positioned.fill(
+                                                      child: RepaintBoundary(
+                                                        child: ListenableBuilder(
+                                                          listenable: _dragNotifier,
+                                                          builder: (context, _) {
+                                                            return CustomPaint(
+                                                              painter: PipePainter(
+                                                                nodes: _nodes,
+                                                                pipes: _pipes,
+                                                                selectedPipeId: _selectedPipeId,
+                                                                pendingConnectFromId: _connectFromId,
+                                                                pendingFromPortId: _connectFromPortId,
+                                                                pendingDragPos: _pendingDragConnectionPos,
+                                                                pendingIsInput: _pendingDragIsInput,
+                                                                simplify: _simplifyPaint,
+                                                                cullRect: _builtRect,
+                                                                repaint: Listenable.merge(
+                                                                    [_canvasNotifier, _dragNotifier, _simplifyPaint]),
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    for (final node in _nodes)
+                                                      if (_isBuilt(node))
+                                                        if (node.type == NodeType.junction)
+                                                          ListenableBuilder(
+                                                            key: ValueKey('host_${node.id}'),
+                                                            listenable: _posTick(node.id),
+                                                            builder: (context, _) => _buildJunctionDot(node),
+                                                          )
+                                                        else
+                                                          _buildNodeHost(node),
+                                                  ],
+                                                );
+                                              },
+                                            ),
+                                            ListenableBuilder(
+                                              listenable: Listenable.merge([_canvasNotifier, _dragNotifier]),
+                                              builder: (context, _) {
+                                                return Positioned.fill(
+                                                  child: Stack(
+                                                    children: [
+                                                      if (!_globalHideJoints)
+                                                        for (final pipe in _pipes)
+                                                          if (pipe.id == _selectedPipeId)
+                                                            for (int i = 0; i < pipe.waypoints.length; i++)
+                                                              WaypointHandle(
+                                                                key: ValueKey('wp_${pipe.id}_$i'),
+                                                                position: pipe.waypoints[i],
+                                                                onPanStart: (d) => _saveToHistory(),
+                                                                onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
+                                                                onLongPress: () => _removeWaypoint(pipe, i),
+                                                                color: Colors.deepOrange,
+                                                              ),
+                                                      ..._buildPortHandles(),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      ListenableBuilder(
-                                        listenable: _canvasNotifier,
-                                        builder: (context, _) {
-                                          return Stack(
-                                            children: [
-                                              Positioned.fill(
-                                                child: RepaintBoundary(
-                                                  child: ListenableBuilder(
-                                                    listenable: _dragNotifier,
-                                                    builder: (context, _) {
-                                                      return CustomPaint(
-                                                        painter: PipePainter(
-                                                          nodes: _nodes,
-                                                          pipes: _pipes,
-                                                          selectedPipeId: _selectedPipeId,
-                                                          pendingConnectFromId: _connectFromId,
-                                                          pendingFromPortId: _connectFromPortId,
-                                                          pendingDragPos: _pendingDragConnectionPos,
-                                                          pendingIsInput: _pendingDragIsInput,
-                                                          simplify: _simplifyPaint,
-                                                          cullRect: _builtRect,
-                                                          repaint: Listenable.merge(
-                                                              [_canvasNotifier, _dragNotifier, _simplifyPaint]),
-                                                        ),
-                                                      );
-                                                    },
-                                                  ),
-                                                ),
-                                              ),
-                                              for (final node in _nodes)
-                                                if (_isBuilt(node))
-                                                  if (node.type == NodeType.junction)
-                                                    ListenableBuilder(
-                                                      key: ValueKey('host_${node.id}'),
-                                                      listenable: _posTick(node.id),
-                                                      builder: (context, _) => _buildJunctionDot(node),
-                                                    )
-                                                  else
-                                                    _buildNodeHost(node),
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                      ListenableBuilder(
-                                        listenable: Listenable.merge([_canvasNotifier, _dragNotifier]),
-                                        builder: (context, _) {
-                                          return Positioned.fill(
-                                            child: Stack(
-                                              children: [
-                                                if (!_globalHideJoints)
-                                                  for (final pipe in _pipes)
-                                                    if (pipe.id == _selectedPipeId)
-                                                      for (int i = 0; i < pipe.waypoints.length; i++)
-                                                        WaypointHandle(
-                                                          key: ValueKey('wp_${pipe.id}_$i'),
-                                                          position: pipe.waypoints[i],
-                                                          onPanStart: (d) => _saveToHistory(),
-                                                          onPanUpdate: (d) => _onWaypointPanUpdate(pipe, i, d),
-                                                          onLongPress: () => _removeWaypoint(pipe, i),
-                                                          color: Colors.deepOrange,
-                                                        ),
-                                                ..._buildPortHandles(),
-                                              ],
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                        Positioned.fill(
-                          bottom: 36,
-                          child: AttractiveScrollbars(
-                            tc: _tc,
-                            viewportWidth: constraints.maxWidth,
-                            viewportHeight: constraints.maxHeight - 36,
-                            canvasWidth: _canvasWidth,
-                            canvasHeight: _canvasHeight,
-                          ),
-                        ),
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          height: 36,
-                          child: _buildGoogleSheetTabBar(),
-                        ),
-                        Positioned(
-                          top: 16,
-                          right: 22,
-                          child: DrawSiteControlsOverlay(
-                            onUndo: _undo,
-                            onRedo: _redo,
-                            canUndo: _undoStack.isNotEmpty,
-                            canRedo: _redoStack.isNotEmpty,
-                            globalHideJoints: _globalHideJoints,
-                            transformationController: _tc,
-                            fullAccess: widget.fullAccess,
-                            onToggleHideJoints: () {
-                              setState(() {
-                                _globalHideJoints = !_globalHideJoints;
-                                for (final node in _nodes) {
-                                  node.showJoints = !_globalHideJoints;
-                                }
-                              });
-                              _canvasNotifier.notify();
-                            },
-                            onZoomIn: () => _zoomBy(1.1),
-                            onZoomOut: () => _zoomBy(0.9),
-                            onExportJson: _showExportDialog,
-                            onClearCanvas: () {
-                              _saveToHistory();
-                              setState(() {
-                                _nodes.clear();
-                                _pipes.clear();
-                                _selectedNodeId = null;
-                                _selectedPipeId = null;
-                                _connectFromId = null;
-                              });
-                              _canvasNotifier.notify();
-                            },
-                          ),
-                        ),
-                        if (_isAiLoading)
-                          Positioned.fill(
-                            child: AiDiagramLoadingOverlay(
-                              onComplete: () {
-                                if (mounted) {
-                                  setState(() {
-                                    _isAiLoading = false;
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                      ],
-                    );
-                  },
+                              Positioned.fill(
+                                bottom: 36,
+                                child: AttractiveScrollbars(
+                                  tc: _tc,
+                                  viewportWidth: constraints.maxWidth,
+                                  viewportHeight: constraints.maxHeight - 36,
+                                  canvasWidth: _canvasWidth,
+                                  canvasHeight: _canvasHeight,
+                                ),
+                              ),
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                height: 36,
+                                child: _buildGoogleSheetTabBar(),
+                              ),
+                              Positioned(
+                                top: 16,
+                                right: 22,
+                                child: DrawSiteControlsOverlay(
+                                  onUndo: _undo,
+                                  onRedo: _redo,
+                                  canUndo: _undoStack.isNotEmpty,
+                                  canRedo: _redoStack.isNotEmpty,
+                                  globalHideJoints: _globalHideJoints,
+                                  transformationController: _tc,
+                                  fullAccess: widget.fullAccess,
+                                  onAiAutoArrange: () {
+                                    setState(() {
+                                      _isAiLoading = true;
+                                    });
+                                    Future.delayed(const Duration(milliseconds: 300), () {
+                                      if (mounted) {
+                                        _generateFromSourceConfig(showSnackBar: false);
+                                      }
+                                    });
+                                  },
+                                  onToggleHideJoints: () {
+                                    setState(() {
+                                      _globalHideJoints = !_globalHideJoints;
+                                      for (final node in _nodes) {
+                                        node.showJoints = !_globalHideJoints;
+                                      }
+                                    });
+                                    _canvasNotifier.notify();
+                                  },
+                                  onZoomIn: () => _zoomBy(1.1),
+                                  onZoomOut: () => _zoomBy(0.9),
+                                  onExportJson: _showExportDialog,
+                                  onClearCanvas: () {
+                                    _saveToHistory();
+                                    setState(() {
+                                      _nodes.clear();
+                                      _pipes.clear();
+                                      _selectedNodeId = null;
+                                      _selectedPipeId = null;
+                                      _connectFromId = null;
+                                    });
+                                    _canvasNotifier.notify();
+                                  },
+                                ),
+                              ),
+                              if (_isConfigSheetOpen)
+                                Positioned.fill(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _isConfigSheetOpen = false;
+                                      });
+                                    },
+                                    child: Container(
+                                      color: Colors.black.withValues(alpha: 0.5),
+                                    ),
+                                  ),
+                                ),
+                              _buildConfigSideSheet(constraints, configPvd),
+                              if (_isAiLoading)
+                                Positioned.fill(
+                                  child: AiDiagramLoadingOverlay(
+                                    onComplete: () {
+                                      if (mounted) {
+                                        setState(() {
+                                          _isAiLoading = false;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

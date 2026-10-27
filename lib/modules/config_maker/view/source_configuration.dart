@@ -429,43 +429,48 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -2),
-            title: Text(
-              itemName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (typeSelector != null) typeSelector,
-                const SizedBox(width: 8),
-                _buildCancelGradientButton(
-                  onTap: () {
-                    _confirmDelete(
-                      context: context,
-                      itemName: itemName,
-                      onDelete: () {
-                        setState(() {
-                          widget.configPvd.deleteGeneratedObject(
-                            source.commonDetails.sNo!,
-                            AppConstants.sourceObjectId,
-                          );
-                        });
-                      },
-                    );
-                  },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      itemName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (typeSelector != null) ...[
+                      const SizedBox(height: 6),
+                      typeSelector,
+                    ],
+                  ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              _buildCancelGradientButton(
+                onTap: () {
+                  _confirmDelete(
+                    context: context,
+                    itemName: itemName,
+                    onDelete: () {
+                      setState(() {
+                        widget.configPvd.deleteGeneratedObject(
+                          source.commonDetails.sNo!,
+                          AppConstants.sourceObjectId,
+                        );
+                      });
+                    },
+                  );
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           _buildSourcePainterBlock(source.sourceType),

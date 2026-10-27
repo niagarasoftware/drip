@@ -134,20 +134,20 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
       curve: Curves.easeOutCubic,
       builder: (context, v, child) => Opacity(
         opacity: v,
-        child: Transform.translate(offset: Offset(0, 30 * (1 - v)), child: child),
+        child: Transform.translate(offset: Offset(0, 20 * (1 - v)), child: child),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 460),
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
+        constraints: const BoxConstraints(maxWidth: 380),
+        margin: const EdgeInsets.fromLTRB(14, 6, 14, 14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         decoration: BoxDecoration(
           color: const Color(0xff161F30).withOpacity(0.88),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _cyan.withOpacity(0.3), width: 1.4),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: _cyan.withOpacity(0.3), width: 1.2),
           boxShadow: [
             BoxShadow(
               color: const Color(0xff0284C7).withOpacity(0.22),
-              blurRadius: 30,
+              blurRadius: 24,
               spreadRadius: 1,
             ),
           ],
@@ -157,13 +157,13 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
           children: [
             // Badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
                   const Color(0xff0284C7).withOpacity(0.2),
                   _indigo.withOpacity(0.2),
                 ]),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: _cyan.withOpacity(0.5)),
               ),
               child: Row(
@@ -174,33 +174,33 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                     child: Transform.scale(
                       scale: 1 + 0.12 * math.sin(pulse * 4 * math.pi),
                       child: const Icon(Icons.auto_awesome_rounded,
-                          size: 15, color: _cyan),
+                          size: 13, color: _cyan),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   const Text(
                     'AI SITE GENERATOR',
                     style: TextStyle(
                       color: _cyan,
-                      fontSize: 11,
+                      fontSize: 10,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.1,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             const Text(
               'Generating Site Diagram',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 19,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 0.3,
+                letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 350),
               transitionBuilder: (child, anim) => FadeTransition(
@@ -218,13 +218,13 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Color(0xff94A3B8),
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w500,
-                  height: 1.3,
+                  height: 1.25,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Stage chips
             Row(
@@ -240,7 +240,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Progress label
             Row(
@@ -250,7 +250,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   'Processing Layout',
                   style: TextStyle(
                     color: Colors.grey.shade400,
-                    fontSize: 11.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -258,19 +258,19 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   '${(p * 100).toInt()}%',
                   style: const TextStyle(
                     color: _cyan,
-                    fontSize: 14,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
             // Progress bar with shimmer
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                height: 8,
+                height: 6,
                 child: Stack(
                   children: [
                     Container(color: Colors.white.withOpacity(0.08)),
@@ -288,7 +288,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                           Align(
                             alignment: Alignment(pulse * 4 - 2, 0),
                             child: Container(
-                              width: 50,
+                              width: 40,
                               decoration: BoxDecoration(
                                 gradient: LinearGradient(colors: [
                                   Colors.white.withOpacity(0),
@@ -489,8 +489,15 @@ class _ScenePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = math.min(size.width * 0.045, size.height * 0.075).clamp(9.0, 20.0);
-    final scene = Rect.fromLTWH(r * 1.5, r * 1.5, size.width - r * 3, size.height - r * 3);
+    final double maxW = math.min(size.width * 0.70, 560.0);
+    final double maxH = math.min(size.height * 0.50, 200.0);
+    final scene = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height / 2),
+      width: maxW,
+      height: maxH,
+    );
+    final r = math.min(scene.width * 0.035, scene.height * 0.07).clamp(6.0, 12.0);
+
     Offset map(Offset n) =>
         Offset(scene.left + n.dx * scene.width, scene.top + n.dy * scene.height);
 

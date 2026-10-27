@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
 import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/state_management/ble_service.dart';
 import 'package:oro_drip_irrigation/providers/button_loading_provider.dart';
+import 'package:oro_drip_irrigation/providers/theme_provider.dart';
 import 'package:oro_drip_irrigation/providers/user_provider.dart';
 import 'package:oro_drip_irrigation/repository/repository.dart';
 import 'package:oro_drip_irrigation/services/bluetooth/bluetooth_ble_service.dart';
@@ -166,6 +167,7 @@ FutureOr<void> main() async {
           ChangeNotifierProvider(create: (_) => BleProvider()),
           ChangeNotifierProvider(create: (_) => SearchProvider()),
           ChangeNotifierProvider(create: (_) => ButtonLoadingProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
           ProxyProvider2<MqttPayloadProvider, CustomerProvider, CommunicationService>(
             update: (BuildContext context, MqttPayloadProvider mqttProvider,
                 CustomerProvider customer, CommunicationService? previous) {

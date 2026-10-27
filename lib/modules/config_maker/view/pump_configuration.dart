@@ -171,21 +171,31 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            visualDensity: const VisualDensity(vertical: -2),
-            title: Text(
-              pump.commonDetails.name ?? 'Pump',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pump.commonDetails.name ?? 'Pump',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    if (typeSelector != null) ...[
+                      const SizedBox(height: 6),
+                      typeSelector,
+                    ],
+                  ],
+                ),
               ),
-            ),
-            trailing: typeSelector,
+            ],
           ),
           const SizedBox(height: 8),
           Expanded(child: _buildPumpPainterBlock()),
