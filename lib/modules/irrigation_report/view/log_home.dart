@@ -1222,6 +1222,7 @@ class _LogHomeState extends State<LogHome> {
                   if(graphMode == false)
                     Expanded(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if(dataToShow.isNotEmpty)
                             ScrollingTable(
