@@ -304,66 +304,68 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
     final deviceId = '${configPvd.masterData['deviceId'] ?? ''}';
-    final primary = Theme.of(context).primaryColor;
 
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            primary,
-            Color.alphaBlend(Colors.black.withValues(alpha: 0.18), primary),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+        color: colors.headerBg,
+        border: Border(
+          bottom: BorderSide(color: colors.headerBorder, width: 1.0),
         ),
       ),
       child: Row(
         children: [
           Tooltip(
-            message: 'Back',
+            message: 'Menu',
             child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.2),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                ),
-                child: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {},
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(Icons.menu_rounded, color: colors.headerIconColor, size: 20),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(Icons.developer_board_rounded, color: primary, size: 18),
+            child: Icon(
+              Icons.water_drop_rounded,
+              color: isDark ? const Color(0xFF3B82F6) : const Color(0xFF2563EB),
+              size: 18,
+            ),
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Config Maker',
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           if (deviceId.isNotEmpty) ...[
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                color: colors.deviceIdBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.deviceIdBorder),
               ),
               child: Text(
                 deviceId,
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.4),
+                style: TextStyle(
+                  color: colors.deviceIdText,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.3,
+                ),
               ),
             ),
           ],
@@ -371,37 +373,39 @@ class _ConfigWebViewState extends State<ConfigWebView> {
           _buildMqttChip(),
           const Spacer(),
           Tooltip(
-            message: isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme',
+            message: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
             child: InkWell(
-              customBorder: const CircleBorder(),
+              borderRadius: BorderRadius.circular(8),
               onTap: () => themeProvider.toggleTheme(),
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withValues(alpha: 0.2),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                ),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
                 child: Icon(
-                  isDark ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                  color: isDark ? const Color(0xFFF59E0B) : Colors.white,
-                  size: 18,
+                  isDark ? Icons.nightlight_round : Icons.wb_sunny_outlined,
+                  color: isDark ? const Color(0xFF60A5FA) : colors.headerIconColor,
+                  size: 20,
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          _solidButton(
-            label: 'Send Config',
-            tooltip: 'Save & transmit configuration to device',
-            background: _sendGreen,
-            foreground: Colors.white,
-            leadingWidget: const Icon(Icons.send_rounded, size: 16, color: Colors.white),
-            onTap: _onSendConfig,
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+            label: const Text(
+              'Send Config',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            onPressed: _onSendConfig,
           ),
           const SizedBox(width: 4),
           _moreMenu(),
+          const SizedBox(width: 4),
         ],
       ),
     );
@@ -588,13 +592,14 @@ class _ConfigWebViewState extends State<ConfigWebView> {
 
   /// Overflow menu: keeps the destructive action away from Send.
   Widget _moreMenu() {
+    final colors = ConfigMakerColors.of(context);
     return PopupMenuButton<String>(
       tooltip: 'More actions',
       offset: const Offset(0, 42),
-      color: Colors.white,
+      color: colors.cardBg,
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      icon: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
+      icon: Icon(Icons.more_vert_rounded, color: colors.headerIconColor, size: 20),
       onSelected: (value) {
         if (value == 'clear') _showClearConfigDialog();
       },
@@ -621,31 +626,10 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     );
   }
 
-  Widget _sectionLabel(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Colors.white.withOpacity(0.6),
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.6,
-        ),
-      ),
-    );
-  }
-
-  Widget _barDivider() => Container(width: 1, height: 22, color: Colors.white.withOpacity(0.2));
-
   Widget _buildMqttChip() {
     final colors = ConfigMakerColors.of(context);
-    const green = Color(0xFF059669);
-    const red = Color(0xFFDC2626);
+    const green = Color(0xFF10B981);
+    const red = Color(0xFFEF4444);
 
     return StreamBuilder(
       stream: mqttService.mqttConnectionStream,
@@ -653,37 +637,37 @@ class _ConfigWebViewState extends State<ConfigWebView> {
       builder: (context, snapShot) {
         final connected = mqttService.isConnected;
         final dotColor = connected ? green : red;
-        final bgColor = colors.isLight
-            ? Colors.white
-            : Color.alphaBlend(dotColor.withValues(alpha: 0.18), const Color(0xFF0C0F1D));
         final statusText = connected ? 'MQTT Connected' : 'MQTT Disconnected';
+
         return Tooltip(
           message: statusText,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: bgColor,
+              color: colors.isLight ? const Color(0xFFECFDF5) : const Color(0xFF064E3B),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: dotColor, width: 1.2),
+              border: Border.all(
+                color: colors.isLight ? const Color(0xFFA7F3D0) : const Color(0xFF059669),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 8,
-                  height: 8,
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: dotColor,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   statusText,
                   style: TextStyle(
-                    color: dotColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11.5,
+                    color: colors.isLight ? const Color(0xFF047857) : const Color(0xFF34D399),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
                   ),
                 ),
               ],

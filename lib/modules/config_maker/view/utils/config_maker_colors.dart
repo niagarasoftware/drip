@@ -19,22 +19,29 @@ class ConfigMakerColors {
   Color get workAreaCardBg => isLight ? const Color(0xFFFAFAFA) : const Color(0xFF0C0F1D);
 
   // ── Header & App Bar ──
-  Color get headerBg => isLight ? Colors.white : const Color(0xFF0C0F1D);
-  Color get headerButtonBg => isLight ? Colors.white : const Color(0xFF181C38);
-  Color get headerButtonBorder => isLight ? const Color(0xFFCBD5E1) : const Color(0xFF2B335C);
-  Color get headerIconColor => isLight ? const Color(0xFF0F172A) : Colors.white;
+  Color get headerBg => isLight ? Colors.white : const Color(0xFF0F172A);
+  Color get headerBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
+  Color get headerButtonBg => isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  Color get headerButtonBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF334155);
+  Color get headerIconColor => isLight ? const Color(0xFF475467) : const Color(0xFF94A3B8);
 
   // ── Text & Typography ──
   Color get textPrimary => isLight ? const Color(0xFF0F172A) : Colors.white;
   Color get textSecondary => isLight ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
   Color get textMuted => isLight ? const Color(0xFF64748B) : const Color(0xFF8E9BB4);
-  Color get deviceIdText => isLight ? const Color(0xFF7E22CE) : const Color(0xFFC084FC);
+  Color get deviceIdText => isLight ? const Color(0xFF334155) : const Color(0xFF94A3B8);
+  Color get deviceIdBg => isLight ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+  Color get deviceIdBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF334155);
 
   // ── Navigation & Tabs ──
-  Color get sideTabBorder => isLight ? const Color(0xFFCBD5E1) : const Color(0xFF334155);
-  Color get sideTabUnselectedText => isLight ? const Color(0xFFE2E8F0) : Colors.white;
-  Color get sideTabSelectedBg => Colors.white;
-  Color get sideTabSelectedText => isLight ? const Color(0xFF0F172A) : Colors.black;
+  Color get sideTabNavBg => isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0B1120);
+  Color get sideTabNavBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
+  Color get sideTabBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
+  Color get sideTabUnselectedText => isLight ? const Color(0xFF475467) : const Color(0xFF94A3B8);
+  Color get sideTabUnselectedIcon => isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
+  Color get sideTabSelectedBg => isLight ? const Color(0xFFEEF2FF) : const Color(0xFF1E3A8A);
+  Color get sideTabSelectedText => isLight ? const Color(0xFF2563EB) : const Color(0xFF60A5FA);
+  Color get sideTabSelectedIcon => isLight ? const Color(0xFF2563EB) : const Color(0xFF60A5FA);
 
   // ── Bottom Sheet / Site Tab Bar ──
   Color get bottomTabBarBg => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF0F172A);

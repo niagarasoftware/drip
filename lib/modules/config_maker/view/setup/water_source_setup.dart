@@ -812,8 +812,23 @@ class WaterSourceSetup extends SiteSetupBase {
     // split pumps into columns
     final cols = <List<double>>[];
     int curRows = 0;
+    // Tanks that an earlier pump of this group already fills. A pump that only
+    // adds an EXTRA feed to such a tank places no tank row of its own, so it
+    // must stay in the same column as the tank's pumps. If it were pushed into
+    // a column to the right of the tank, its pipe back to the tank inlet would
+    // run through the tank (and every node in between).
+    final claimed = <double>{};
     for (final pNo in pumpNos) {
-      final int w = _hPumpRows(s, pNo);
+      final allTanks = s.pumpToTanks[pNo] ?? const <SourceModel>[];
+      final newTanks = allTanks.where((t) {
+        final double k = t.commonDetails.sNo ?? 0.0;
+        return !s.doneSources.contains(k) && !claimed.contains(k);
+      }).toList();
+      final bool onlyExtraFeed = allTanks.isNotEmpty && newTanks.isEmpty;
+      final int w = onlyExtraFeed ? 0 : _hPumpRows(s, pNo);
+      for (final t in newTanks) {
+        claimed.add(t.commonDetails.sNo ?? 0.0);
+      }
       if (cols.isEmpty || (curRows > 0 && curRows + w > _hMaxColRows)) {
         cols.add(<double>[]);
         curRows = 0;

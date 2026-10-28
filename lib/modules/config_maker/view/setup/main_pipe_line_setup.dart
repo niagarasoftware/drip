@@ -75,7 +75,7 @@ class MainPipelineSetup extends SiteSetupBase {
       final bool isTargetOnRight = targetPt.dx >= maxWaterX;
 
       if (isTargetOnRight) {
-        final double trunkX = math.max(maxWaterX + 60.0, targetPt.dx - 80.0);
+        final double trunkX = math.max(maxWaterX + 60.0, targetPt.dx);
 
         if (supplyNodes.length == 1) {
           final termRef = supplyNodes.first;
@@ -464,7 +464,7 @@ class MainPipelineSetup extends SiteSetupBase {
               .toList();
 
           NodeObject prevJn = lastJnOut;
-          String? prevPort = null;
+          String? prevPort;
 
           for (int s = 0; s < skidNodes.length; s++) {
             final skidNode = skidNodes[s];
@@ -617,7 +617,8 @@ class MainPipelineSetup extends SiteSetupBase {
           );
         }
       } else {
-        final double mainLineX = math.max(400.0, maxWaterX + 150.0);
+        final double maxIrrigationX = IrrigationLineSetup.requiredRightX(configPvd);
+        final double mainLineX = math.max(maxWaterX + 150.0, maxIrrigationX + 140.0).roundToDouble();
         final Offset targetPt = Offset(mainLineX, mainPipeY);
         final NodeObject jnEnd = newJunction(targetPt);
 

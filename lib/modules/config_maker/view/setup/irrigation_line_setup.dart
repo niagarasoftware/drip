@@ -10,6 +10,43 @@ import 'site_layout_context.dart';
 class IrrigationLineSetup extends SiteSetupBase {
   IrrigationLineSetup(super.ctx);
 
+  /// Horizontal space ONE valve takes in a multi-valve bank as it is DRAWN
+  /// (icon + label). The painter spaces valves wider than the node's
+  /// `size.width`, so widths must be calculated from this value, not from
+  /// `node.size`. If valves still reach the riser, increase this number.
+  static const double kValveSlot = 115.0;
+
+  /// Same for one fogger of a multi-fogger system.
+  static const double kFoggerSlot = 110.0;
+
+  /// Left X of every valve bank / fogger system.
+  static const double kBankLeftX = 70.0;
+
+  /// Valves per bank row (a line with more valves gets several rows).
+  static const int kBankMaxValves = 15;
+
+  /// Right-most X reached by any irrigation line equipment (all lines).
+  /// Used by this class to place the riser and by the main pipeline to know how
+  /// far the main pipe has to extend.
+  static double requiredRightX(ConfigMakerProvider configPvd) {
+    double maxX = 300.0;
+    for (final lineSpec in configPvd.line) {
+      int lValves = lineSpec.valve.length;
+      if (lValves == 0) {
+        lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
+      }
+      final int lFoggers = lineSpec.fogger.length;
+      if (lValves > 0) {
+        final int rowValves = math.min(lValves, kBankMaxValves);
+        maxX = math.max(maxX, kBankLeftX + math.max(120.0, kValveSlot * rowValves + 40.0));
+      }
+      if (lFoggers > 0) {
+        maxX = math.max(maxX, kBankLeftX + math.max(100.0, kFoggerSlot * lFoggers + 20.0));
+      }
+    }
+    return maxX;
+  }
+
   /// Draws every irrigation line starting at the assigned fertigation site or [defaultStartJunction].
   void connect({
     required NodeObject defaultStartJunction,
@@ -31,30 +68,14 @@ class IrrigationLineSetup extends SiteSetupBase {
     // If no irrigation line has any valves or foggers configured, do not draw irrigation lines
     if (totalValves == 0 && totalFoggers == 0) return;
 
-    // Calculate actual maximum right edge across all irrigation line equipment
-    double maxLineEquipmentX = 300.0;
+    // Width needed by ALL irrigation lines (widest valve bank / fogger system),
+    // plus a clearance so the riser and fertigation risers always run to the
+    // RIGHT of every valve row.
+    final double maxLineEquipmentX = requiredRightX(configPvd) + 60.0;
     double maxRightX = defaultStartPt.dx;
     for (final jn in skidOutJunctionMap.values) {
       final p = portPosition(jn, null, isInput: false);
       maxRightX = math.max(maxRightX, p.dx);
-    }
-
-    for (int i = 0; i < lines.length; i++) {
-      final lineSpec = lines[i];
-      int lValves = lineSpec.valve.length;
-      if (lValves == 0) {
-        lValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
-      }
-      int lFoggers = lineSpec.fogger.length;
-      if (lValves > 0) {
-        final int bankValves = math.min(lValves, kMaxValvesPerRow);
-        final double bankWidth = math.max(200.0, 60.0 * bankValves + 90.0);
-        maxLineEquipmentX = math.max(maxLineEquipmentX, 70.0 + bankWidth + 30.0);
-      }
-      if (lFoggers > 0) {
-        final double foggerWidth = math.max(120.0, 50.0 * lFoggers + 30.0);
-        maxLineEquipmentX = math.max(maxLineEquipmentX, 70.0 + foggerWidth + 30.0);
-      }
     }
 
     maxRightX = math.max(maxRightX, maxLineEquipmentX);
@@ -122,7 +143,7 @@ class IrrigationLineSetup extends SiteSetupBase {
       lineHeaderNode.size = Size(math.max(120.0, 9.0 * lineName.length + 32.0), 30);
       nodes.add(lineHeaderNode);
 
-      final double valveBankStartY = topPipeY + 45.0;
+      final double valveBankStartY = topPipeY + 75.0;
 
       // Split lValves into rows/banks of at most kMaxValvesPerRow (15) valves
       final int bankCount = lValves > 0 ? (lValves / kMaxValvesPerRow).ceil() : 0;

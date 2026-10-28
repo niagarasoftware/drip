@@ -2048,18 +2048,21 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   Widget _buildConfigTabTile(_ConfigTabItem tab, ConfigMakerProvider configPvd, ConfigMakerColors colors) {
     final bool isSelected = _isConfigSheetOpen && _activeConfigTab == tab.key;
+    final primaryColor = Theme.of(context).primaryColor;
     final int count = tab.key == -1
         ? configPvd.listOfObjectModelConnection.length
         : configPvd.listOfGeneratedObject
             .where((o) => o.objectId == configPvd.configurationTabObjectId[tab.key])
             .length;
 
+    final textColor = isSelected ? Colors.white : colors.sideTabUnselectedText;
+    final iconColor = isSelected ? Colors.white : colors.sideTabUnselectedIcon;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Tooltip(
         message: '${tab.title}${count > 0 ? " ($count)" : ""}',
         preferBelow: false,
-        verticalOffset: 32,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -2067,41 +2070,58 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
             onTap: () => _onConfigTabTap(tab.key),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
               decoration: BoxDecoration(
-                color: isSelected ? colors.sideTabSelectedBg : null,
-                borderRadius: isSelected ? BorderRadius.circular(10) : null,
+                gradient: isSelected
+                    ? LinearGradient(
+                        colors: [
+                          primaryColor,
+                          Color.alphaBlend(Colors.black.withValues(alpha: 0.18), primaryColor),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: primaryColor.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
                   tab.objectId != null
                       ? SvgPicture.asset(
                           'assets/Images/Svg/objectId_${tab.objectId}.svg',
-                          width: 22,
-                          height: 22,
+                          width: 18,
+                          height: 18,
                           colorFilter: ColorFilter.mode(
-                            isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
+                            iconColor,
                             BlendMode.srcIn,
                           ),
                         )
                       : Icon(
                           tab.icon ?? Icons.cable_rounded,
-                          size: 22,
-                          color: isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
+                          size: 18,
+                          color: iconColor,
                         ),
-                  const SizedBox(height: 4),
-                  Text(
-                    tab.shortName,
-                    style: TextStyle(
-                      color: isSelected ? colors.sideTabSelectedText : colors.sideTabUnselectedText,
-                      fontSize: 10.5,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      tab.shortName,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -2113,26 +2133,19 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
   }
 
   Widget _buildConfigVerticalTabs(ConfigMakerProvider configPvd, ConfigMakerColors colors) {
-    final primaryColor = Theme.of(context).primaryColor;
     return Container(
-      width: 82,
+      width: 140,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            primaryColor,
-            Color.alphaBlend(Colors.black.withValues(alpha: 0.18), primaryColor),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+        color: colors.sideTabNavBg,
         border: Border(
-          right: BorderSide(color: colors.sideTabBorder, width: 1.0),
+          right: BorderSide(color: colors.sideTabNavBorder, width: 1.0),
         ),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final tab in _configTabs)
@@ -2181,7 +2194,7 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
       bottom: 0,
       width: sheetWidth,
       child: Material(
-        elevation: 16,
+        elevation: 0,
         color: Colors.transparent,
         child: Container(
           decoration: BoxDecoration(
@@ -2191,9 +2204,9 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: colors.isLight ? 0.12 : 0.5),
-                blurRadius: 15,
-                offset: const Offset(4, 0),
+                color: Colors.black.withValues(alpha: colors.isLight ? 0.05 : 0.2),
+                blurRadius: 6,
+                offset: const Offset(2, 0),
               ),
             ],
           ),
@@ -2212,29 +2225,6 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: activeTabItem.objectId != null
-                          ? SvgPicture.asset(
-                              'assets/Images/Svg/objectId_${activeTabItem.objectId}.svg',
-                              width: 20,
-                              height: 20,
-                              colorFilter: const ColorFilter.mode(
-                                Colors.black,
-                                BlendMode.srcIn,
-                              ),
-                            )
-                          : Icon(
-                              activeTabItem.icon ?? Icons.cable_rounded,
-                              color: Colors.black,
-                              size: 20,
-                            ),
-                    ),
-                    const SizedBox(width: 12),
                     Text(
                       activeTabItem.title,
                       style: TextStyle(

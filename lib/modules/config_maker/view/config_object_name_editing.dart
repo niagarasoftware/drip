@@ -3,6 +3,7 @@ import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
 import '../model/device_object_model.dart';
 import '../state_management/config_maker_provider.dart';
+import 'utils/config_maker_colors.dart';
 
 /// Opens the Edit Object Names screen as a smooth right Side Sheet.
 Future<void> showEditObjectNamesSideSheet({
@@ -10,11 +11,14 @@ Future<void> showEditObjectNamesSideSheet({
   required ConfigMakerProvider configPvd,
   required List<DeviceObjectModel> listOfObjectInLine,
 }) async {
+  final isLight = Theme.of(context).brightness == Brightness.light;
   await showGeneralDialog(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Dismiss',
-    barrierColor: Colors.black.withOpacity(0.45),
+    barrierColor: isLight
+        ? Colors.black.withValues(alpha: 0.25)
+        : Colors.black.withValues(alpha: 0.5),
     transitionDuration: const Duration(milliseconds: 280),
     pageBuilder: (context, anim1, anim2) {
       return Align(
@@ -118,6 +122,7 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = ConfigMakerColors.of(context);
     final primary = Theme.of(context).primaryColor;
     final filtered = _editedObjects.where(_matchesFilter).toList();
     final mediaWidth = MediaQuery.of(context).size.width;
@@ -129,15 +134,15 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
         width: sheetWidth,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: const Color(0xFF0C0F1D),
+          color: colors.sideSheetBg,
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(20),
             bottomLeft: Radius.circular(20),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 24,
+              color: Colors.black.withValues(alpha: colors.isLight ? 0.08 : 0.35),
+              blurRadius: colors.isLight ? 12 : 24,
               offset: const Offset(-4, 0),
             ),
           ],
@@ -147,13 +152,13 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
             // ───────────────────────── Header Bar ─────────────────────────
             Container(
               padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF13172E),
-                borderRadius: BorderRadius.only(
+              decoration: BoxDecoration(
+                color: colors.sideSheetHeaderBg,
+                borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(20),
                 ),
                 border: Border(
-                  bottom: BorderSide(color: Color(0xFF20274B)),
+                  bottom: BorderSide(color: colors.sideSheetBorder),
                 ),
               ),
               child: Row(
@@ -161,7 +166,7 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: primary.withValues(alpha: 0.15),
+                      color: primary.withValues(alpha: colors.isLight ? 0.1 : 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(Icons.edit_note_rounded, size: 22, color: primary),
@@ -171,20 +176,20 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Edit Object Names',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: colors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
+                        Text(
                           'Customize display names for sources, lines, valves and sensors',
                           style: TextStyle(
                             fontSize: 11.5,
-                            color: Color(0xFF8E9BB4),
+                            color: colors.textMuted,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -195,7 +200,7 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                     decoration: BoxDecoration(
-                      color: primary.withValues(alpha: 0.18),
+                      color: primary.withValues(alpha: colors.isLight ? 0.12 : 0.18),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(
@@ -211,7 +216,7 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded, size: 20),
-                    color: const Color(0xFF8E9BB4),
+                    color: colors.textMuted,
                     tooltip: 'Close',
                     constraints: const BoxConstraints(),
                     padding: const EdgeInsets.all(6),
@@ -222,21 +227,21 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
 
             // ───────────────────────── Search & Category Filters ─────────────────────────
             Container(
-              color: const Color(0xFF13172E),
+              color: colors.sideSheetHeaderBg,
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
               child: Column(
                 children: [
                   TextField(
                     controller: _searchController,
                     onChanged: (v) => setState(() => _searchQuery = v),
-                    style: const TextStyle(fontSize: 12.5, color: Colors.white),
+                    style: TextStyle(fontSize: 12.5, color: colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Search object by name...',
-                      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF8E9BB4)),
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E9BB4)),
+                      hintStyle: TextStyle(fontSize: 12, color: colors.textMuted),
+                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.textMuted),
                       suffixIcon: _searchQuery.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear_rounded, size: 16, color: Color(0xFF8E9BB4)),
+                              icon: Icon(Icons.clear_rounded, size: 16, color: colors.textMuted),
                               onPressed: () {
                                 _searchController.clear();
                                 setState(() => _searchQuery = '');
@@ -245,15 +250,15 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                           : null,
                       isDense: true,
                       filled: true,
-                      fillColor: const Color(0xFF181C38),
+                      fillColor: colors.cardBg,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFF2B335C)),
+                        borderSide: BorderSide(color: colors.innerBorder),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFF2B335C)),
+                        borderSide: BorderSide(color: colors.innerBorder),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -286,15 +291,15 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                               side: BorderSide(
-                                color: active ? primary : const Color(0xFF2B335C),
+                                color: active ? primary : colors.innerBorder,
                               ),
                             ),
                             labelStyle: TextStyle(
-                              color: active ? Colors.white : const Color(0xFF8E9BB4),
+                              color: active ? Colors.white : colors.textMuted,
                               fontWeight: active ? FontWeight.bold : FontWeight.w600,
                               fontSize: 11,
                             ),
-                            backgroundColor: const Color(0xFF181C38),
+                            backgroundColor: colors.cardBg,
                           ),
                         );
                       }).toList(),
@@ -304,7 +309,7 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
               ),
             ),
 
-            const Divider(height: 1, color: Color(0xFF20274B)),
+            Divider(height: 1, color: colors.innerBorder),
 
             // ───────────────────────── Object Names List ─────────────────────────
             Expanded(
@@ -315,16 +320,16 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.search_off_rounded, size: 40, color: Color(0xFF8E9BB4)),
+                            Icon(Icons.search_off_rounded, size: 40, color: colors.textMuted),
                             const SizedBox(height: 10),
-                            const Text(
+                            Text(
                               'No Matching Objects Found',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: colors.textPrimary),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'No objects match "$_searchQuery".',
-                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF8E9BB4)),
+                              style: TextStyle(fontSize: 11.5, color: colors.textMuted),
                             ),
                           ],
                         ),
@@ -341,9 +346,9 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF181C38),
+                            color: colors.cardBg,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFF2B335C)),
+                            border: Border.all(color: colors.cardBorder),
                           ),
                           child: Row(
                             children: [
@@ -353,9 +358,9 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                                 height: 36,
                                 padding: const EdgeInsets.all(7),
                                 decoration: BoxDecoration(
-                                  color: primary.withValues(alpha: 0.15),
+                                  color: primary.withValues(alpha: colors.isLight ? 0.08 : 0.15),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: primary.withValues(alpha: 0.3)),
+                                  border: Border.all(color: primary.withValues(alpha: colors.isLight ? 0.2 : 0.3)),
                                 ),
                                 child: SizedImage(
                                   imagePath: '${AppConstants.svgObjectPath}objectId_${item.objectId}.svg',
@@ -372,10 +377,10 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                                   children: [
                                     Text(
                                       item.objectName,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: colors.textPrimary,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -386,9 +391,9 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF12162B),
+                                            color: colors.innerSurface,
                                             borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: const Color(0xFF2B335C)),
+                                            border: Border.all(color: colors.innerBorder),
                                           ),
                                           child: Text(
                                             category,
@@ -403,9 +408,9 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                                           const SizedBox(width: 6),
                                           Text(
                                             'sNo: ${item.sNo}',
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 10,
-                                              color: Color(0xFF8E9BB4),
+                                              color: colors.textMuted,
                                             ),
                                           ),
                                         ],
@@ -422,25 +427,25 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                                 flex: 5,
                                 child: TextFormField(
                                   initialValue: item.name,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w600,
-                                    color: Colors.white,
+                                    color: colors.textPrimary,
                                   ),
                                   decoration: InputDecoration(
                                     hintText: item.objectName,
-                                    hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                                    hintStyle: TextStyle(fontSize: 12, color: colors.textMuted),
                                     isDense: true,
                                     filled: true,
-                                    fillColor: const Color(0xFF12162B),
+                                    fillColor: colors.innerSurface,
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: Color(0xFF2B335C)),
+                                      borderSide: BorderSide(color: colors.innerBorder),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: Color(0xFF2B335C)),
+                                      borderSide: BorderSide(color: colors.innerBorder),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
@@ -462,10 +467,10 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
             // ───────────────────────── Footer Action Bar ─────────────────────────
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF13172E),
+              decoration: BoxDecoration(
+                color: colors.sideSheetHeaderBg,
                 border: Border(
-                  top: BorderSide(color: Color(0xFF20274B)),
+                  top: BorderSide(color: colors.sideSheetBorder),
                 ),
               ),
               child: Row(
@@ -474,8 +479,8 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF8E9BB4),
-                        side: const BorderSide(color: Color(0xFF2B335C)),
+                        foregroundColor: colors.textSecondary,
+                        side: BorderSide(color: colors.cardBorder),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -500,8 +505,8 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primary,
                         foregroundColor: Colors.white,
+                        elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 12),
-                        elevation: 1,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -514,26 +519,6 @@ class _EditObjectNamesSideSheetState extends State<EditObjectNamesSideSheet> {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Class wrapper for backwards compatibility with any existing callers.
-class ConfigObjectNameEditing extends StatelessWidget {
-  final ConfigMakerProvider configPvd;
-  final List<DeviceObjectModel> listOfObjectInLine;
-
-  const ConfigObjectNameEditing({
-    super.key,
-    required this.listOfObjectInLine,
-    required this.configPvd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return EditObjectNamesSideSheet(
-      configPvd: configPvd,
-      listOfObjectInLine: listOfObjectInLine,
     );
   }
 }
