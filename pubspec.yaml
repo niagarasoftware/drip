@@ -90,6 +90,7 @@ dependencies:
   fl_chart: ^1.2.0
   easy_pdf_viewer: ^1.0.8
   pdfrx: ^2.4.5
+  web: ^1.0.0
 #  audioplayers: ^6.5.0
 #  record: ^6.0.0
 
