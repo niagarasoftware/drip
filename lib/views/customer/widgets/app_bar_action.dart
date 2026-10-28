@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_screen.dart';
+import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_web.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
@@ -213,12 +213,16 @@ Widget _buildHelpMenu(
 
                   if (master.userManualLink?.isNotEmpty == true) {
                     final pdfUrl = AppConstants.buildUserManualUrl(master.userManualLink);
+                    print("pdfUrl:$pdfUrl");
+
+
 
                     if (pdfUrl.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
+                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
                         ),
                       );
                     }
