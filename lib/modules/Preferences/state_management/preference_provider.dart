@@ -102,8 +102,9 @@ class PreferenceProvider extends ChangeNotifier {
         if (individualPumpSetting != null) {
           for (var individualPump in individualPumpSetting!) {
             int minSeconds =
-                (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
-                        individualPump.pumpType == 2)
+                (AppConstants.eliteAndShineModelList.contains(modelId) ||
+                        (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
+                            individualPump.pumpType == 2))
                     ? 30
                     : 5;
 

@@ -292,8 +292,12 @@ class PumpControllerProvider extends ChangeNotifier {
         log(res.statusCode == 200 ? 'Hourly data is not a List' : 'Failed to load hourly data');
       }
 
-      motorDataList = newList;
-      chartData = newChart;
+      if (!silent || newList.isNotEmpty) {
+        motorDataList = newList;
+        if (newChart.isNotEmpty || !silent) {
+          chartData = newChart;
+        }
+      }
     } catch (e, stackTrace) {
       if (ticket != _hourlyTicket) return;
       log("getPumpControllerData error: $e\n$stackTrace");

@@ -1024,6 +1024,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                       AppConstants.additionalSetting
                           .contains(settingList[categoryIndex].type))
                     Container()
+                  else if ((AppConstants.shineModelList.contains(widget.masterData['modelId']) ||
+                            AppConstants.eliteModelList.contains(widget.masterData['modelId']) ||
+                            AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId'])) &&
+                      AppConstants.twoPhaseSetting.contains(settingList[categoryIndex].type))
+                    Container()
+                  else if (AppConstants.shineModelList.contains(widget.masterData['modelId']) &&
+                      AppConstants.otherCalibration.contains(settingList[categoryIndex].type))
+                    Container()
                   else if ((AppConstants.levelSetting
                               .contains(settingList[categoryIndex].type) &&
                           isToGem)
@@ -1159,6 +1167,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                                         value: settingList[categoryIndex]
                                             .setting[settingIndex]
                                             .value,
+                                        title: settingList[categoryIndex]
+                                            .setting[settingIndex]
+                                            .title,
                                       ),
                                       subTitle: _getSubTitle(categoryIndex,
                                           settingIndex, settingList, pumpIndex),
@@ -1557,9 +1568,13 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       ...AppConstants.singlePhaseEcoGemModel,
       ...AppConstants.singlePhaseEcoGemPlusModel
     ].contains(widget.masterData['modelId']);
+    bool isShineOrEliteOrNovaModel = [
+      ...AppConstants.eliteAndShineModelList,
+      ...AppConstants.ecoGemAndPlusModelList
+    ].contains(widget.masterData['modelId']);
     bool showTitle = true;
     bool showPumpList = true;
-    if (singlePhaseModel) {
+    if (singlePhaseModel || isShineOrEliteOrNovaModel) {
       if (settingList[categoryIndex]
           .setting[settingIndex]
           .title
@@ -1782,12 +1797,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   String? validateAllOnDelaySettings() {
     if (preferenceProvider.individualPumpSetting != null) {
+      int modelId = widget.masterData['modelId'] ?? 0;
+      bool isEliteOrShine = AppConstants.eliteAndShineModelList.contains(modelId);
       for (var individualPump in preferenceProvider.individualPumpSetting!) {
-        int minSeconds =
-            (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                    individualPump.pumpType == 2)
-                ? 30
-                : 5;
+        int minSeconds = (isEliteOrShine ||
+            (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
+                individualPump.pumpType == 2))
+            ? 30
+            : 5;
         for (var settingCategory in individualPump.settingList) {
           if (AppConstants.timerSetting.contains(settingCategory.type)) {
             for (var setting in settingCategory.setting) {
@@ -1824,11 +1841,13 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         pumpType =
             preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
       }
-      int minSeconds =
-          (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                  pumpType == 2)
-              ? 30
-              : 5;
+      int modelId = widget.masterData['modelId'] ?? 0;
+      bool isEliteOrShine = AppConstants.eliteAndShineModelList.contains(modelId);
+      int minSeconds = (isEliteOrShine ||
+          (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
+              pumpType == 2))
+          ? 30
+          : 5;
       if (val is String && val.isNotEmpty) {
         int curSeconds = _rtcTimeToSeconds(val);
         if (curSeconds < minSeconds) {
@@ -1864,11 +1883,13 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             pumpType = preferenceProvider.individualPumpSetting![idx].pumpType;
           }
         }
-        int minSeconds =
-            AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                    (pumpType == 2)
-                ? 30
-                : 5;
+        int modelId = widget.masterData['modelId'] ?? 0;
+        bool isEliteOrShine = AppConstants.eliteAndShineModelList.contains(modelId);
+        int minSeconds = (isEliteOrShine ||
+            (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
+                pumpType == 2))
+            ? 30
+            : 5;
         if (finalValue is String) {
           int selectedSec = _rtcTimeToSeconds(finalValue);
           if (selectedSec < minSeconds) {
@@ -2003,8 +2024,86 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     'peakHour': false,
   };
 
+  bool isSettingHidden(
+      int modelId, int categoryType, int serialNumber, String title) {
+    bool isShine3Phase = AppConstants.shine3PhaseModel.contains(modelId);
+    bool isShineSinglePhase = AppConstants.singlePhaseShineModel.contains(modelId);
+    bool isElite3Phase = AppConstants.elite3PhaseModel.contains(modelId);
+    bool isEliteSinglePhase = AppConstants.singlePhaseElitePlusModel.contains(modelId);
+    bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
+
+    final titleUpper = title.toUpperCase();
+
+    // 1. 2 Phase settings / Auto restart 2 phase
+    if (AppConstants.twoPhaseSetting.contains(categoryType) ||
+        titleUpper.contains("2 PHASE") ||
+        titleUpper == "AUTO RESTART 2 PHASE" ||
+        (titleUpper == "AUTO RESTART" && serialNumber == 8)) {
+      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
+        return true;
+      }
+    }
+
+    // 2. Voltage settings 2 phase settings (sNo 4, 5, 9, 10)
+    if (AppConstants.voltageSetting.contains(categoryType) &&
+        [4, 5, 9, 10].contains(serialNumber)) {
+      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
+        return true;
+      }
+    }
+
+    // 3. Current settings 2 phase settings: dry run 2 phase (sNo 4), overload 2 phase (sNo 14)
+    if (AppConstants.currentSetting.contains(categoryType) &&
+        (serialNumber == 4 || serialNumber == 14)) {
+      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
+        return true;
+      }
+    }
+
+    // 4. Pressure sensor settings
+    if (titleUpper.contains("PRESSURE")) {
+      if (isShineSinglePhase) {
+        return true;
+      }
+    }
+
+    // 5. Light on/off
+    if (titleUpper.contains("LIGHT")) {
+      if (isShineSinglePhase) {
+        return true;
+      }
+    }
+
+    // 6. Starting capacitor on/off (sNo 3, 4)
+    // 7. Maximum run time on/off (sNo 7, 8) & Cyclic timer on/off (sNo 9, 10, 11)
+    if (AppConstants.timerSetting.contains(categoryType) &&
+        ([3, 4, 7, 8, 9, 10, 11].contains(serialNumber) ||
+            titleUpper.contains("STARTING CAPACITOR") ||
+            titleUpper.contains("CYCLIC") ||
+            titleUpper.contains("MAXIMUM RUN TIME") ||
+            titleUpper.contains("MAX RUN TIME"))) {
+      if (isShine3Phase || isShineSinglePhase) {
+        return true;
+      }
+    }
+
+    // 8. Other calibration
+    if (AppConstants.otherCalibration.contains(categoryType)) {
+      if (isShine3Phase || isShineSinglePhase) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   bool getConditionToShow(
-      {required int type, required int serialNumber, required value}) {
+      {required int type, required int serialNumber, required value, String? title}) {
+    int modelId = widget.masterData['modelId'] ?? 0;
+    if (isSettingHidden(modelId, type, serialNumber, title ?? '')) {
+      return false;
+    }
+
     bool result = true;
     void setCondition(String key) {
       conditions[key] = value;
@@ -2843,12 +2942,22 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   dynamic getSettingValue(settingCategory, {bool? controlToOroGem}) {
     debugPrint('settingCategory.name ::: ${settingCategory.name}');
     List<String> values = [];
+    int modelId = widget.masterData['modelId'] ?? 0;
     List<WidgetSetting> filterList =
         List<WidgetSetting>.from(settingCategory.setting)
           ..sort((a, b) => a.payloadIndex.compareTo(b.payloadIndex));
     for (var setting in filterList) {
       String? value;
-      if (setting.value is bool) {
+      if (isSettingHidden(
+          modelId, settingCategory.type, setting.serialNumber, setting.title)) {
+        if (setting.widgetTypeId == 3) {
+          value = setting.title.toUpperCase().contains("LIGHT")
+              ? "00,00"
+              : "00,00,00";
+        } else {
+          value = "0";
+        }
+      } else if (setting.value is bool) {
         if (setting.title.toUpperCase() != 'RTC') {
           if (settingCategory.type == 211) {
             if (preferenceProvider.mode == "Duration" &&
