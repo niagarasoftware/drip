@@ -511,54 +511,6 @@ class FertigationSetup extends SiteSetupBase {
             }
           }
         }
-      } else if (fertTanks.isNotEmpty || channelConfigs.isNotEmpty) {
-        // Create 1 default Multi-Injector Skid if channels exist but no site object
-        final double skidX = tankStartX + (totalAreaW - 308.0) / 2.0;
-        final int channelCount = math.max(1, channelConfigs.length);
-        final List<String> portLabels = channelConfigs
-            .map((ch) => getObjectName(ch.commonDetails.sNo ?? 0.0, configPvd).name ?? '')
-            .toList();
-        final List<bool> channelStates = List.filled(channelCount, true);
-
-        final skidNode = NodeObject(
-          id: nextId('skid_0'),
-          position: Offset(skidX, provisionalSkidY),
-          type: NodeType.multiInjector,
-          label: 'Multi-Injector Skid',
-          outletPortCount: channelCount,
-          channelStates: channelStates,
-          portLabels: portLabels,
-          showJoints: !globalHideJoints,
-        );
-        skidNode.size = skidNode.defaultSize;
-        nodes.add(skidNode);
-        skidNodes.add(skidNode);
-
-        final valves = fertTankValveNodeMap.values.toSet().toList();
-        for (int c = 0; c < channelCount; c++) {
-          final String targetPort = 'channel_$c';
-          final cConfig = c < channelConfigs.length ? channelConfigs[c] : null;
-
-          bool linkAdded = false;
-          if (cConfig != null && cConfig.outletTankValve.isNotEmpty) {
-            for (final double vSNo in cConfig.outletTankValve) {
-              if (fertTankValveNodeMap.containsKey(vSNo)) {
-                final targetValveNode = fertTankValveNodeMap[vSNo]!;
-                final sourcePort = fertTankValvePortMap[vSNo] ?? 'outlet';
-                fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
-                linkAdded = true;
-              }
-            }
-          }
-
-          if (!linkAdded && valves.isNotEmpty) {
-            final targetValveNode = valves[c % valves.length];
-            final String sourcePort = targetValveNode.type == NodeType.multiOutletTankValve
-                ? 'channel_${c % math.max(1, targetValveNode.outletPortCount)}'
-                : 'outlet';
-            fertLinks.add(_FertLink(targetValveNode, sourcePort, skidNode, targetPort));
-          }
-        }
       }
 
       _routeFertilizerLinks(fertLinks, skidNodes, maxValveBottom);

@@ -166,6 +166,7 @@ class IrrigationLineSetup extends SiteSetupBase {
         }
       }
 
+      double accumulatedBanksH = 0.0;
       for (int b = 0; b < bankCount; b++) {
         final int startIdx = b * kMaxValvesPerRow;
         final int endIdx = math.min(startIdx + kMaxValvesPerRow, lValves);
@@ -175,7 +176,39 @@ class IrrigationLineSetup extends SiteSetupBase {
           math.min(endIdx, allValveNames.length),
         );
 
-        final double bankY = valveBankStartY + b * (190.0 + 35.0);
+        final bool isLastBank = (b == bankCount - 1);
+        int linkedMoistureCount = 0;
+        if (isLastBank) {
+          for (final m in configPvd.moisture) {
+            if (m.valves.any((vSno) => lineSpec.valve.contains(vSno)) || lineSpec.moisture.contains(m.commonDetails.sNo)) {
+              linkedMoistureCount++;
+            }
+          }
+        }
+
+        int lineMaxValves = math.min(15, lineSpec.valve.length);
+        if (lineMaxValves == 0) {
+          lineMaxValves = lineSpec.mainValve.length + lineSpec.flowControlValve.length;
+        }
+        final double maxLineBankW = math.max(120.0, 60.0 * lineMaxValves + 60.0);
+
+        final double bankArtworkW = math.max(120.0, 60.0 * bankValves + 60.0);
+        final double bankW = (isLastBank && linkedMoistureCount > 0)
+            ? math.max(bankArtworkW, maxLineBankW)
+            : bankArtworkW;
+
+        int cols = math.max(1, (bankW / 200.0).floor());
+        cols = math.min(cols, math.max(1, linkedMoistureCount));
+        int gridRowsCount = (linkedMoistureCount / cols).ceil();
+
+        double extraH = 0.0;
+        if (gridRowsCount > 0) {
+          extraH = gridRowsCount * 78.0 + (gridRowsCount - 1) * 6.0 + 12.0;
+        }
+        final double bankH = 180.0 + extraH;
+
+        final double bankY = valveBankStartY + accumulatedBanksH;
+        accumulatedBanksH += bankH + 35.0;
 
         final bankNode = NodeObject(
           id: nextId('multi_valve_line_${i}_bank_$b'),
@@ -186,15 +219,13 @@ class IrrigationLineSetup extends SiteSetupBase {
           showJoints: !globalHideJoints,
           portLabels: bankValveNames,
         );
-        bankNode.size = Size(math.max(120.0, 60.0 * bankValves + 60.0), 180);
+        bankNode.size = Size(bankW, bankH);
         nodes.add(bankNode);
         lineValveBanks.add(bankNode);
       }
 
       // Height occupied by all valve banks in Line i
-      final double valveBanksTotalH = bankCount > 0
-          ? (bankCount * 190.0 + (bankCount - 1) * 35.0)
-          : 0.0;
+      final double valveBanksTotalH = accumulatedBanksH;
 
       // Create Multi-Fogger System for Line i (below last valve bank row)
       NodeObject? foggerSystemNode;
@@ -509,10 +540,14 @@ class IrrigationLineSetup extends SiteSetupBase {
       }
 
       final double lineSetupBottom = foggerSystemNode != null
-          ? (foggerSystemNode.position.dy + 112.0)
-          : (lineValveBanks.isNotEmpty ? lineValveBanks.last.position.dy + 190.0 : valveBankStartY + 190.0);
+          ? (foggerSystemNode.position.dy + foggerSystemNode.size.height)
+          : (lineValveBanks.isNotEmpty ? lineValveBanks.last.position.dy + lineValveBanks.last.size.height : valveBankStartY + 190.0);
 
-      currentY = lineSetupBottom + 60.0;
+      final double dynamicLineGap = (lineValveBanks.isNotEmpty && lineValveBanks.last.size.height > 180.0)
+          ? 80.0
+          : 60.0;
+
+      currentY = lineSetupBottom + dynamicLineGap;
     }
   }
 }

@@ -101,16 +101,6 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
           physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              ConfigPageHeading(
-                title: 'Pump configuration',
-                subtitle: 'Configure pump modes, pressure sensors, floats and levels',
-                totalCount: pumps.length,
-                countUnitSingular: 'pump',
-                countUnitPlural: 'pumps',
-                primaryColor: primaryColor,
-                icon: Icons.speed_rounded,
-              ),
-              const SizedBox(height: 18),
               if (pumps.isEmpty)
                 ConfigEmptyState(
                   title: 'No Pumps Configured',

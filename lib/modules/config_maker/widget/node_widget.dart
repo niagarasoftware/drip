@@ -31,6 +31,284 @@ import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/water_me
 import 'package:oro_drip_irrigation/modules/config_maker/widget/painter/well_painter.dart';
 import '../model/node_type_model.dart';
 import '../model/irrigation_line_model.dart';
+import '../model/moisture_model.dart';
+
+class LinkedMoistureInfo {
+  final MoistureModel moisture;
+  final List<double> linkedValveSNos;
+  final List<String> linkedValveNames;
+  final List<String> soilTempNames;
+
+  LinkedMoistureInfo({
+    required this.moisture,
+    required this.linkedValveSNos,
+    required this.linkedValveNames,
+    required this.soilTempNames,
+  });
+}
+
+List<LinkedMoistureInfo> _findLinkedMoistureForNode(NodeObject node, ConfigMakerProvider configPvd) {
+  final List<LinkedMoistureInfo> result = [];
+  if (configPvd.moisture.isEmpty) return result;
+
+  final lineModel = _findLineForNode(node, configPvd);
+
+  // Check if node is part of a multi-bank irrigation line layout
+  final bankMatch = RegExp(r'multi_valve_line_(\d+)_bank_(\d+)').firstMatch(node.id);
+  if (bankMatch != null && lineModel != null) {
+    final int bankIdx = int.tryParse(bankMatch.group(2)!) ?? 0;
+    const int kMaxValvesPerRow = 15;
+    final int totalValves = lineModel.valve.length;
+    final int totalBanks = totalValves > 0 ? (totalValves / kMaxValvesPerRow).ceil() : 1;
+
+    // ONLY place the moisture grid card under the LAST valve row of the line!
+    if (bankIdx < totalBanks - 1) {
+      return result;
+    }
+  }
+
+  final List<double> lineValves = lineModel != null ? lineModel.valve : [];
+  final List<double> lineMoisture = lineModel != null ? lineModel.moisture : [];
+
+  for (final m in configPvd.moisture) {
+    List<double> matchedValves = [];
+    if (lineValves.isNotEmpty) {
+      matchedValves = m.valves.where((vSno) => lineValves.contains(vSno)).toList();
+    } else {
+      matchedValves = m.valves;
+    }
+
+    bool isAssignedToLine = matchedValves.isNotEmpty;
+    if (!isAssignedToLine && lineModel != null) {
+      if (lineMoisture.contains(m.commonDetails.sNo)) {
+        isAssignedToLine = true;
+        matchedValves = m.valves;
+      }
+    }
+
+    if (isAssignedToLine) {
+      final List<String> vNames = matchedValves
+          .map((vSno) => _getDeviceName(vSno, configPvd))
+          .toList();
+      final List<String> stNames = m.soilTemperature
+          .map((stSno) => _getDeviceName(stSno, configPvd))
+          .toList();
+
+      result.add(LinkedMoistureInfo(
+        moisture: m,
+        linkedValveSNos: matchedValves,
+        linkedValveNames: vNames,
+        soilTempNames: stNames,
+      ));
+    }
+  }
+
+  return result;
+}
+
+Widget _buildLinkedMoistureCard(LinkedMoistureInfo info, BuildContext context) {
+  final isLight = Theme.of(context).brightness == Brightness.light;
+
+  final cardBg = isLight ? Colors.white : const Color(0xEE0F172A);
+  final cardBorder = isLight
+      ? const Color(0xFF0284C7).withValues(alpha: 0.35)
+      : const Color(0xFF0284C7).withValues(alpha: 0.55);
+  final innerSurface = isLight ? const Color(0xFFF1F5F9) : const Color(0xFF181C38);
+  final innerBorder = isLight
+      ? const Color(0xFFCBD5E1)
+      : const Color(0xFF0284C7).withValues(alpha: 0.35);
+
+  final titleColor = isLight ? const Color(0xFF0F172A) : Colors.white;
+  final labelColor = isLight ? const Color(0xFF475569) : const Color(0xFF94A3B8);
+  final valueColor = isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8);
+  final dividerColor = isLight ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B);
+
+  final moistureName = (info.moisture.commonDetails.name?.isNotEmpty == true &&
+          info.moisture.commonDetails.name != '-')
+      ? info.moisture.commonDetails.name!
+      : 'Moisture Sensor';
+
+  final valveText = info.linkedValveNames.isNotEmpty
+      ? info.linkedValveNames.join(', ')
+      : 'No valves linked';
+
+  final hasSoilTemp = info.soilTempNames.isNotEmpty;
+  final soilTempText = hasSoilTemp ? info.soilTempNames.join(', ') : '';
+
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: cardBg,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: cardBorder, width: 1.2),
+      boxShadow: [
+        BoxShadow(
+          color: isLight
+              ? Colors.black.withValues(alpha: 0.06)
+              : const Color(0xFF0284C7).withValues(alpha: 0.18),
+          blurRadius: 5,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // ── EMBEDDED MOISTURE SENSOR PAINTER BLOCK ──
+        Container(
+          width: 44,
+          height: 64,
+          padding: const EdgeInsets.all(3.5),
+          decoration: BoxDecoration(
+            color: innerSurface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: innerBorder, width: 0.8),
+          ),
+          child: const Center(
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: MoistureSensorView(
+                isOn: true,
+                size: Size(100, 180),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        // ── CARD CONTENT DETAILS ──
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                moistureName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Divider(color: dividerColor, height: 1, thickness: 1),
+              const SizedBox(height: 4),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.vibration_rounded,
+                    color: isLight ? const Color(0xFF0284C7) : const Color(0xFF38BDF8),
+                    size: 13,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Valves: ',
+                    style: TextStyle(
+                      color: labelColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      valveText,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: valueColor,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (hasSoilTemp) ...[
+                const SizedBox(height: 3),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.thermostat_rounded,
+                      color: Color(0xFFD97706),
+                      size: 13,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Soil Temp: ',
+                      style: TextStyle(
+                        color: labelColor,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        soilTempText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFFD97706),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildMoistureCardsGrid(
+  List<LinkedMoistureInfo> linkedMoistureList,
+  BuildContext context,
+  double availableWidth,
+) {
+  const double minCardWidth = 200.0;
+  final int maxCols = math.max(1, (availableWidth / minCardWidth).floor());
+  final int cols = math.min(maxCols, linkedMoistureList.length);
+
+  final List<Widget> gridRows = [];
+  for (int i = 0; i < linkedMoistureList.length; i += cols) {
+    final List<Widget> rowCards = [];
+    for (int c = 0; c < cols; c++) {
+      if (i + c < linkedMoistureList.length) {
+        final cardInfo = linkedMoistureList[i + c];
+        rowCards.add(Expanded(child: _buildLinkedMoistureCard(cardInfo, context)));
+      } else {
+        rowCards.add(const Expanded(child: SizedBox.shrink()));
+      }
+      if (c < cols - 1) {
+        rowCards.add(const SizedBox(width: 6));
+      }
+    }
+
+    gridRows.add(
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: rowCards,
+      ),
+    );
+    if (i + cols < linkedMoistureList.length) {
+      gridRows.add(const SizedBox(height: 6));
+    }
+  }
+
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: gridRows,
+  );
+}
 
 String _getDeviceName(double sNo, ConfigMakerProvider configPvd) {
   for (final obj in configPvd.listOfGeneratedObject) {
@@ -788,6 +1066,8 @@ class NodeWidget extends StatelessWidget {
     if (node.type == NodeType.multiValve) {
       int effectiveValves = node.outletPortCount;
       List<String> valveNames = [];
+      List<LinkedMoistureInfo> linkedMoistureList = [];
+
       try {
         final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
 
@@ -806,28 +1086,93 @@ class NodeWidget extends StatelessWidget {
           }
         }
 
+        linkedMoistureList = _findLinkedMoistureForNode(node, configPvd);
+
+        // Artwork width for multi-valve bank (depends on number of valves in THIS bank)
+        final double artworkW = math.max(180.0, 60.0 * effectiveValves + 60.0);
+
+        // Find maximum valve count across all banks of this line to calculate full available line width
+        int maxValvesInLine = effectiveValves;
+        final lineModel = _findLineForNode(node, configPvd);
+        if (lineModel != null && lineModel.valve.isNotEmpty) {
+          maxValvesInLine = math.min(15, lineModel.valve.length);
+        }
+
         node.outletPortCount = effectiveValves;
-        final double targetW = math.max(180.0, 60.0 * effectiveValves + 60.0);
-        if (node.size.width != targetW) {
-          node.size = Size(targetW, 180);
+        final double lineMaxW = math.max(180.0, 60.0 * maxValvesInLine + 60.0);
+        final double targetW = linkedMoistureList.isNotEmpty ? math.max(artworkW, lineMaxW) : artworkW;
+
+        const double minCardWidth = 200.0;
+        final int maxCols = math.max(1, (targetW / minCardWidth).floor());
+        final int cols = math.min(maxCols, math.max(1, linkedMoistureList.length));
+
+        int gridRowsCount = (linkedMoistureList.length / cols).ceil();
+        double cardsHeight = 0.0;
+        for (int i = 0; i < linkedMoistureList.length; i += cols) {
+          bool rowHasSoilTemp = false;
+          for (int c = 0; c < cols; c++) {
+            if (i + c < linkedMoistureList.length) {
+              if (linkedMoistureList[i + c].soilTempNames.isNotEmpty) {
+                rowHasSoilTemp = true;
+                break;
+              }
+            }
+          }
+          cardsHeight += rowHasSoilTemp ? 92.0 : 78.0;
+        }
+        if (gridRowsCount > 1) {
+          cardsHeight += (gridRowsCount - 1) * 6.0;
+        }
+        if (cardsHeight > 0) {
+          cardsHeight += 12.0;
+        }
+
+        final double targetH = 180.0 + cardsHeight;
+        if (node.size.width != targetW || node.size.height != targetH) {
+          node.size = Size(targetW, targetH);
         }
       } catch (_) {}
 
       if (effectiveValves <= 0) return const SizedBox.shrink();
 
       final String vNamesKey = valveNames.join('_');
+      final String mNamesKey = linkedMoistureList
+          .map((e) => '${e.moisture.commonDetails.sNo}_${e.linkedValveSNos.join(",")}')
+          .join('_');
+
+      // Artwork width for valves
+      final double artworkW = math.max(180.0, 60.0 * effectiveValves + 60.0);
+
       return _buildWrapper(
         padding: EdgeInsets.zero,
-        child: CachedNodePainterWidget(
-          cacheKey: 'multi_valve_${node.id}_${node.isOn}_${node.showJoints}_${effectiveValves}_${vNamesKey}_$szKey',
-          size: node.size,
-          simplify: simplify,
-          painter: DetailedMultiValvePainter(
-            isOn: node.isOn,
-            showJoints: node.showJoints,
-            valves: effectiveValves,
-            valveNames: valveNames,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: artworkW,
+              height: 180.0,
+              child: CachedNodePainterWidget(
+                cacheKey: 'multi_valve_${node.id}_${node.isOn}_${node.showJoints}_${effectiveValves}_${vNamesKey}_${mNamesKey}_$szKey',
+                size: Size(artworkW, 180.0),
+                simplify: simplify,
+                painter: DetailedMultiValvePainter(
+                  isOn: node.isOn,
+                  showJoints: node.showJoints,
+                  valves: effectiveValves,
+                  valveNames: valveNames,
+                ),
+              ),
+            ),
+            if (linkedMoistureList.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: SizedBox(
+                  width: node.size.width,
+                  child: _buildMoistureCardsGrid(linkedMoistureList, context, node.size.width),
+                ),
+              ),
+          ],
         ),
       );
     }

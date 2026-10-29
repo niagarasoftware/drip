@@ -61,16 +61,6 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
           physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              ConfigPageHeading(
-                title: 'Pressure configuration',
-                subtitle: 'Configure main valves for pressure sensors',
-                totalCount: pressureSensors.length,
-                countUnitSingular: 'sensor',
-                countUnitPlural: 'sensors',
-                primaryColor: primaryColor,
-                icon: Icons.speed_rounded,
-              ),
-              const SizedBox(height: 18),
               if (pressureSensors.isEmpty)
                 ConfigEmptyState(
                   title: 'No Pressure Sensors Configured',
@@ -83,10 +73,10 @@ class _PressureConfigurationState extends State<PressureConfiguration> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 360,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    mainAxisExtent: 215,
+                    maxCrossAxisExtent: 460,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    mainAxisExtent: 225,
                   ),
                   itemCount: pressureSensors.length,
                   itemBuilder: (context, index) {

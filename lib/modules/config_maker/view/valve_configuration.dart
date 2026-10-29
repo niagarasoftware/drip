@@ -63,16 +63,6 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
           physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              ConfigPageHeading(
-                title: 'Valve configuration',
-                subtitle: 'Configure input and lateral pressure sensors for valves',
-                totalCount: valveConfigs.length,
-                countUnitSingular: 'valve',
-                countUnitPlural: 'valves',
-                primaryColor: primaryColor,
-                icon: Icons.vibration_rounded,
-              ),
-              const SizedBox(height: 18),
               if (valveConfigs.isEmpty)
                 ConfigEmptyState(
                   title: 'No Valves Configured',
@@ -85,9 +75,9 @@ class _ValveConfigurationState extends State<ValveConfiguration> {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 360, // was 460 → more cards per row
-                    mainAxisSpacing: 10, // was 14
-                    crossAxisSpacing: 10, // was 14
+                    maxCrossAxisExtent: 460,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
                     mainAxisExtent: 336,
                   ),
                   itemCount: valveConfigs.length,

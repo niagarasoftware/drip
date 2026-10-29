@@ -122,7 +122,7 @@ class NodeObject {
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiValve) {
-      final p = DetailedMultiValvePainter.inletPort(size);
+      final p = DetailedMultiValvePainter.inletPort(Size(size.width, 180.0));
       return Offset(position.dx + p.dx, position.dy + p.dy);
     }
     if (type == NodeType.multiAgitator) {

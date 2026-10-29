@@ -70,16 +70,6 @@ class _ChannelConfigurationState extends State<ChannelConfiguration> {
           physics: const BouncingScrollPhysics(),
           child: Column(
             children: [
-              ConfigPageHeading(
-                title: 'Channel configuration',
-                subtitle: 'Configure dosing meters and outlet tank valves for channels',
-                totalCount: channels.length,
-                countUnitSingular: 'channel',
-                countUnitPlural: 'channels',
-                primaryColor: primaryColor,
-                icon: Icons.alt_route_rounded,
-              ),
-              const SizedBox(height: 18),
               if (channels.isEmpty)
                 ConfigEmptyState(
                   title: 'No Channels Configured',

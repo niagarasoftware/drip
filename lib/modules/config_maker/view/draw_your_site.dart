@@ -245,6 +245,18 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
 
     if (SiteSetupData(configPvd).isEmpty) {
+      _saveToHistory();
+      _nodes.clear();
+      _pipes.clear();
+      _idCounter = 0;
+      _builtRect = null;
+      setState(() {
+        _selectedNodeId = null;
+        _selectedPipeId = null;
+        _connectFromId = null;
+      });
+      _canvasNotifier.notify();
+
       if (showSnackBar && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -745,35 +757,46 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
 
   Widget _buildGoogleSheetTabBar() {
     final configPvd = Provider.of<ConfigMakerProvider>(context, listen: false);
+    final siteData = SiteSetupData(configPvd);
+
+    if (siteData.isEmpty || _nodes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     final lines = configPvd.line;
     final filtrations = configPvd.filtration;
     final fertilizations = configPvd.fertilization;
+    final waterSources = siteData.waterSources;
 
     final List<SiteTabItem> tabs = [];
 
-    // 1. All Tab
-    tabs.add(SiteTabItem(
-      id: 'all',
-      title: 'All',
-      icon: Icons.grid_view_rounded,
-      accentColor: const Color(0xFF10B981), // Emerald Green
-      onTap: () {
-        setState(() => _activeTabId = 'all');
-        _focusOnAllNodes();
-      },
-    ));
+    // 1. All Tab (show if nodes exist)
+    if (_nodes.isNotEmpty) {
+      tabs.add(SiteTabItem(
+        id: 'all',
+        title: 'All',
+        icon: Icons.grid_view_rounded,
+        accentColor: const Color(0xFF10B981), // Emerald Green
+        onTap: () {
+          setState(() => _activeTabId = 'all');
+          _focusOnAllNodes();
+        },
+      ));
+    }
 
-    // 2. Water Source Tab
-    tabs.add(SiteTabItem(
-      id: 'water_source',
-      title: 'Water Source',
-      icon: Icons.water_drop_rounded,
-      accentColor: const Color(0xFF0284C7), // Sky Blue
-      onTap: () {
-        setState(() => _activeTabId = 'water_source');
-        _focusOnWaterSource();
-      },
-    ));
+    // 2. Water Source Tab (show ONLY IF water sources exist)
+    if (waterSources.isNotEmpty) {
+      tabs.add(SiteTabItem(
+        id: 'water_source',
+        title: 'Water Source',
+        icon: Icons.water_drop_rounded,
+        accentColor: const Color(0xFF0284C7), // Sky Blue
+        onTap: () {
+          setState(() => _activeTabId = 'water_source');
+          _focusOnWaterSource();
+        },
+      ));
+    }
 
     // 3. Filtration Site Tabs
     for (int f = 0; f < filtrations.length; f++) {
@@ -830,6 +853,10 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
           _focusOnLine(i);
         },
       ));
+    }
+
+    if (tabs.isEmpty) {
+      return const SizedBox.shrink();
     }
 
     return SiteTabBar(
@@ -2307,6 +2334,28 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
     final configPvd = Provider.of<ConfigMakerProvider>(context);
     final colors = ConfigMakerColors.of(context);
 
+    if (SiteSetupData(configPvd).isEmpty && (_nodes.isNotEmpty || _pipes.isNotEmpty)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _nodes.clear();
+            _pipes.clear();
+            _selectedNodeId = null;
+            _selectedPipeId = null;
+            _connectFromId = null;
+            _builtRect = null;
+          });
+          _canvasNotifier.notify();
+        }
+      });
+    } else if (!SiteSetupData(configPvd).isEmpty && _nodes.isEmpty && _pipes.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _generateFromSourceConfig(showSnackBar: false);
+        }
+      });
+    }
+
     return Scaffold(
       body: KeyboardListener(
         focusNode: _focus,
@@ -2464,22 +2513,33 @@ class _DrawYourSiteScreenState extends State<DrawYourSiteScreen> with TickerProv
                                   ),
                                 ),
                               ),
-                              Positioned.fill(
-                                bottom: 36,
-                                child: AttractiveScrollbars(
-                                  tc: _tc,
-                                  viewportWidth: constraints.maxWidth,
-                                  viewportHeight: constraints.maxHeight - 36,
-                                  canvasWidth: _canvasWidth,
-                                  canvasHeight: _canvasHeight,
-                                ),
-                              ),
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                height: 36,
-                                child: _buildGoogleSheetTabBar(),
+                              Builder(
+                                builder: (context) {
+                                  final bool hasTabBar = !SiteSetupData(configPvd).isEmpty && _nodes.isNotEmpty;
+                                  final double tabBarHeight = hasTabBar ? 36.0 : 0.0;
+                                  return Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        bottom: tabBarHeight,
+                                        child: AttractiveScrollbars(
+                                          tc: _tc,
+                                          viewportWidth: constraints.maxWidth,
+                                          viewportHeight: constraints.maxHeight - tabBarHeight,
+                                          canvasWidth: _canvasWidth,
+                                          canvasHeight: _canvasHeight,
+                                        ),
+                                      ),
+                                      if (hasTabBar)
+                                        Positioned(
+                                          left: 0,
+                                          right: 0,
+                                          bottom: 0,
+                                          height: 36,
+                                          child: _buildGoogleSheetTabBar(),
+                                        ),
+                                    ],
+                                  );
+                                },
                               ),
                               Positioned(
                                 top: 16,

@@ -404,28 +404,34 @@ class ConfigComponentTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     if (isAssigned)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          for (final name in names)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: colors.unassignedBadgeBg,
-                                borderRadius: BorderRadius.circular(7),
-                                border: Border.all(color: accent.withValues(alpha: 0.4)),
-                              ),
-                              child: Text(
-                                name,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: accent,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 90),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              for (final name in names)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: colors.unassignedBadgeBg,
+                                    borderRadius: BorderRadius.circular(7),
+                                    border: Border.all(color: accent.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: accent,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                        ],
+                            ],
+                          ),
+                        ),
                       )
                     else
                       Text(
