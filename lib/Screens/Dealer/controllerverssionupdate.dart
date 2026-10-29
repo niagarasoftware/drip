@@ -107,6 +107,9 @@ class _ResetVerssionState extends State<ResetVerssion> {
     ...AppConstants.shine2V,
     ...AppConstants.shine4V,
     ...AppConstants.elite10V,
+    ...AppConstants.pumpList,
+    ...AppConstants.pumpPlusModelList,
+    ...AppConstants.pumpModelList,
   ].map((e) => e.toString()).contains(widget.modeID.toString());
 
   void _onMqttPayload() {

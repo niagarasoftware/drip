@@ -11,6 +11,7 @@ import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dar
 import 'zone_log_pdf_builder.dart' if (dart.library.html) 'zone_log_exporter_web.dart';
 
 import 'widgets/program_wise_view.dart';
+import 'widgets/fertigation_table_view.dart';
 
 class FertigationCardListPage extends StatefulWidget {
   final dynamic serverData;
@@ -33,6 +34,7 @@ class _FertigationCardListPageState
     extends State<FertigationCardListPage> {
   bool _isLoading = false;
   String? _fetchError;
+  bool _isTableView = false;
 
   dynamic dataSource = {};
   List<FertigationCardModel> allCards = [];
@@ -712,7 +714,123 @@ class _FertigationCardListPageState
       return _buildErrorView();
     }
 
-    return ProgramWiseView(cards: allCards);
+    if (allCards.isEmpty) {
+      return const Center(
+        child: Text(
+          'No Fertigation Records Found',
+          style: TextStyle(
+            color: Color(0xFF637D7A),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
+    int running = allCards.where((c) => c.status.toLowerCase().contains('run')).length;
+    int skipped = allCards.where((c) => c.status.toLowerCase().contains('skip')).length;
+    int completed = allCards.where((c) => c.status.toLowerCase().contains('complet')).length;
+    int pending = allCards.where((c) => c.status.toLowerCase().contains('pend')).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Overall Fertigation Status Summary at the top
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF006573).withValues(alpha: 0.2), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Fertigation Status Summary',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDF4F4),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statusCountItem('Running', running, Colors.orange),
+                      _statusCountItem('Skipped', skipped, Colors.blueGrey),
+                      _statusCountItem('Completed', completed, Colors.green),
+                      _statusCountItem('Pending', pending, Colors.grey),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 2. Card View | Table View toggle
+          Center(
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Card View'),
+                  icon: Icon(Icons.grid_view),
+                ),
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('Table View'),
+                  icon: Icon(Icons.table_chart),
+                ),
+              ],
+              selected: {_isTableView},
+              onSelectionChanged: (Set<bool> newSelection) {
+                setState(() {
+                  _isTableView = newSelection.first;
+                });
+              },
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const Color(0xFF006573);
+                  }
+                  return Colors.white;
+                }),
+                foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return Colors.white;
+                  }
+                  return const Color(0xFF006573);
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 3. Selected report view
+          _isTableView
+              ? FertigationTableView(cards: allCards)
+              : ProgramWiseView(cards: allCards),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusCountItem(String label, int count, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text('$count', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
   }
 
   @override
@@ -740,11 +858,11 @@ class _FertigationCardListPageState
               child: Text(
                 _selectedDateStr,
                 style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                ),
+                color: Colors.white70,
+                fontSize: 12,
               ),
             ),
+          ),
           ),
           IconButton(
             icon: const Icon(
@@ -760,7 +878,7 @@ class _FertigationCardListPageState
               color: Colors.white,
             ),
             tooltip: 'Download Report',
-            enabled: !_isLoading && allCards.isNotEmpty,
+            enabled: !_isLoading && allCards.isEmpty == false,
             onSelected: (value) {
               if (value == 'excel') _downloadExcel();
               if (value == 'pdf') _downloadPdf();
