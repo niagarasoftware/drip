@@ -11,7 +11,7 @@ class StatusWiseView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cards.isEmpty) {
       return const Center(
-        child: Text('No status records available', style: TextStyle(color: Colors.black54)),
+        child: Text('No Fertigation Records Found', style: TextStyle(color: Color(0xFF637D7A), fontSize: 14, fontWeight: FontWeight.w500)),
       );
     }
 
@@ -42,8 +42,7 @@ class StatusWiseView extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Categorized Record Sections
-        if (completedCards.isNotEmpty) ...[
-          _buildCategoryHeader('Completed Records', Colors.green, completedCards.length),
+        if (completedCards.isNotEmpty) ...[_buildCategoryHeader('Completed Records', Colors.green, completedCards.length),
           const SizedBox(height: 8),
           _buildCategoryList(completedCards),
           const SizedBox(height: 16),

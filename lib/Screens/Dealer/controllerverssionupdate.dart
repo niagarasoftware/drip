@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -72,14 +71,10 @@ class _ResetVerssionState extends State<ResetVerssion> {
       final Repository repository = Repository(HttpService());
       var response = await repository.getUserDeviceFirmwareDetails({"userId": widget.userId,"controllerId": widget.controllerId});
       if (response.statusCode == 200) {
-        setState(() {
-          AppLog.log("widget.userId:${widget.userId}");
-          var jsondata = jsonDecode(response.body);
-          AppLog.log('jsondata:$jsondata');
-          valAssing(jsondata['data']);
-
-          MqttService().connect();
-        });
+        final jsondata = jsonDecode(response.body);
+        if (!mounted) return;
+        setState(() => valAssing(jsondata['data'] ?? []));
+        MqttService().connect();
       } else {
         //_showSnackBar(response.body);
       }
@@ -96,14 +91,155 @@ class _ResetVerssionState extends State<ResetVerssion> {
   void initState() {
     // TODO: implement initState
     super.initState();
-     mqttPayloadProvider =
+    mqttPayloadProvider =
         Provider.of<MqttPayloadProvider>(context, listen: false);
+    mqttPayloadProvider.addListener(_onMqttPayload);
     fetchData();
     checkrole().then((role) {
-      setState(() {
-        userRole = role;
-      });
+      if (mounted) setState(() => userRole = role);
     });
+  }
+
+  bool _specialUpdateBusy = false;
+
+  bool get _isSpecialModel => [
+    ...AppConstants.ecoGemModelList,
+    ...AppConstants.shine2V,
+    ...AppConstants.shine4V,
+    ...AppConstants.elite10V,
+  ].map((e) => e.toString()).contains(widget.modeID.toString());
+
+  void _onMqttPayload() {
+    if (!mounted || selectindex == null ||
+        selectindex! < 0 || selectindex! >= mergedList.length) return;
+    setState(() => status());
+  }
+
+  Future<void> showAdminPasswordDialog(int index) async {
+    if (_specialUpdateBusy || index < 0 || index >= mergedList.length) return;
+    setState(() => _specialUpdateBusy = true);
+    final passwordController = TextEditingController();
+    bool loading = false;
+    bool hidden = true;
+    String? error;
+    bool verified = false;
+    try {
+      verified = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, updateDialog) => AlertDialog(
+            title: const Text('Admin Confirmation'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Enter admin password to update firmware.'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: hidden,
+                  enabled: !loading,
+                  decoration: InputDecoration(
+                    labelText: 'Admin Password',
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    errorText: error,
+                    suffixIcon: IconButton(
+                      icon: Icon(hidden ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => updateDialog(() => hidden = !hidden),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: loading ? null : () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: loading ? null : () async {
+                  final userPsw = passwordController.text;
+                  if (userPsw.trim().isEmpty) {
+                    updateDialog(() => error = 'Please enter admin password');
+                    return;
+                  }
+                  updateDialog(() { loading = true; error = null; });
+                  try {
+                    final repository = Repository(HttpService());
+                    final response = await repository.checkpassword({'passkey': userPsw});
+                    if (!dialogContext.mounted) return;
+                    if (response.statusCode == 200) {
+                      final jsonData = jsonDecode(response.body);
+                      if (jsonData['code'] == 200) {
+                        Navigator.pop(dialogContext, true);
+                        return;
+                      }
+                      updateDialog(() => error =
+                          jsonData['message']?.toString() ?? 'Incorrect password');
+                    } else {
+                      updateDialog(() => error = 'Password verification failed');
+                    }
+                  } catch (_) {
+                    if (dialogContext.mounted) {
+                      updateDialog(() => error = 'Unable to verify password');
+                    }
+                  } finally {
+                    if (dialogContext.mounted) updateDialog(() => loading = false);
+                  }
+                },
+                child: loading
+                    ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Text('Verify'),
+              ),
+            ],
+          ),
+        ),
+      ) ?? false;
+      if (verified && mounted) {
+        await showFirmwareUpdateConfirmation(index);
+      }
+    } finally {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      passwordController.dispose();
+      if (mounted) setState(() => _specialUpdateBusy = false);
+    }
+  }
+
+  Future<void> showFirmwareUpdateConfirmation(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Firmware Update Confirmation'),
+        content: const Text('Admin verified successfully.\n\n'
+            'Are you sure you want to update the controller firmware?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) sendSpecialFirmwareUpdate(index);
+  }
+
+  void sendSpecialFirmwareUpdate(int index) {
+    if (index < 0 || index >= mergedList.length) return;
+    final deviceId = mergedList[index]['deviceId']?.toString() ?? '';
+    if (deviceId.isEmpty) {
+      _showSnackBar('Device ID missing');
+      return;
+    }
+    final topic = '${Environment.mqttPublishTopic}/$deviceId';
+    MqttService().topicToPublishAndItsMessage('FW\$', topic);
+    _showSnackBar('Firmware update command published');
   }
 
   ResetAll(int index) async {
@@ -176,19 +312,21 @@ class _ResetVerssionState extends State<ResetVerssion> {
   }
 
   @override
+  void dispose() {
+    mqttPayloadProvider.removeListener(_onMqttPayload);
+    frequency1Controller.dispose();
+    frequency2Controller.dispose();
+    sf1Controller.dispose();
+    sf2Controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    bool checkRole = false;
-    checkrole().then((role) {
-      if (role == 'admin') {
-        checkRole = true;
-      } else {
-        checkRole = false;
-      }
-    });
-    mqttPayloadProvider =
-        Provider.of<MqttPayloadProvider>(context, listen: true);
-    status();
-    double progressValue = double.parse(mqttPayloadProvider.proogressstatus.replaceAll('%', '')) / 100;
+    mqttPayloadProvider = Provider.of<MqttPayloadProvider>(context, listen: true);
+    final progressValue = (double.tryParse(
+      mqttPayloadProvider.proogressstatus.replaceAll('%', '').trim(),
+    ) ?? 0).clamp(0, 100).toDouble() / 100;
 
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -254,9 +392,9 @@ class _ResetVerssionState extends State<ResetVerssion> {
                               icon: const Icon(Icons.arrow_circle_right_outlined),
                             ),
                           ),
-                    if(![...AppConstants.ecoGemModelList,
-                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
-                    .contains(widget.modeID))...[   Padding(
+                          if(![...AppConstants.ecoGemModelList,
+                            ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                              .contains(widget.modeID))...[   Padding(
                             padding: const EdgeInsets.all(8.0),
                             child: Tooltip(
                               message: "Config Hardware",
@@ -388,9 +526,9 @@ class _ResetVerssionState extends State<ResetVerssion> {
                         const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
-                    if(![...AppConstants.ecoGemModelList,
-                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
-                    .contains(widget.modeID))...[ Text(
+                      if(![...AppConstants.ecoGemModelList,
+                        ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                          .contains(widget.modeID))...[ Text(
                         'Server version:${mergedList[index]['latestVersion']!}',
                         style:
                         const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
@@ -408,9 +546,9 @@ class _ResetVerssionState extends State<ResetVerssion> {
                       )
                           : Container()
                           : Container(),
-                    if(![...AppConstants.ecoGemModelList,
-                ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
-                    .contains(widget.modeID))...[  imeicheck != mergedList[index]['deviceId']!
+                      if(![...AppConstants.ecoGemModelList,
+                        ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
+                          .contains(widget.modeID))...[  imeicheck != mergedList[index]['deviceId']!
                           ? Text(
                         '${mergedList[index]['status']}',
                         style: const TextStyle(
@@ -455,56 +593,65 @@ class _ResetVerssionState extends State<ResetVerssion> {
                         height: 1,
                         color: Colors.grey,
                       ),
-                      if(![...AppConstants.ecoGemModelList,
-                        ...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V]
-                          .contains(widget.modeID))...[
-
-                        Padding(
-                          padding: const EdgeInsets.all(0.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
+                      Padding(
+                        padding: EdgeInsets.zero,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            if (!_isSpecialModel) ...[
                               FilledButton(
-                                style: ButtonStyle(
-                                    backgroundColor: checkupdatediable == 0
-                                        ? MaterialStateProperty.all(Colors.red)
-                                        : MaterialStateProperty.all(Colors.grey)),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: checkupdatediable == 0
+                                      ? Colors.red : Colors.grey,
+                                ),
                                 onPressed: () {
-                                  selectindex = index;
-                                  checkupdatediable == 0
-                                      ? resetItem(index)
-                                      : _showSnackBar("Please wait ....");
+                                  if (checkupdatediable == 0) {
+                                    resetItem(index);
+                                  } else {
+                                    _showSnackBar('Please wait ....');
+                                  }
                                 },
                                 child: const Text('Restart'),
                               ),
                               const SizedBox(width: 10),
                               FilledButton(
-                                style: ButtonStyle(
-                                    backgroundColor: checkupdatediable == 0
-                                        ? MaterialStateProperty.all(Colors.green)
-                                        : MaterialStateProperty.all(Colors.grey)),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: checkupdatediable == 0
+                                      ? Colors.green : Colors.grey,
+                                ),
                                 onPressed: () {
-                                  selectindex = index;
-                                  checkupdatediable == 0
-                                      ? updateItem(index)
-                                      : _showSnackBar("Please wait ....");
+                                  if (checkupdatediable == 0) {
+                                    updateItem(index);
+                                  } else {
+                                    _showSnackBar('Please wait ....');
+                                  }
                                 },
-                                child: checkupdatediable == 0
-                                    ? mergedList[index]['currentVersion'] !=
-                                    mergedList[index]['latestVersion']
+                                child: checkupdatediable == 0 &&
+                                    mergedList[index]['currentVersion'] !=
+                                        mergedList[index]['latestVersion']
                                     ? const BlinkingText(
-                                  text: 'Update!', // Provide text here
+                                  text: 'Update!',
                                   style: TextStyle(color: Colors.white),
-                                  blinkDuration:
-                                  Duration(milliseconds: 500),
+                                  blinkDuration: Duration(milliseconds: 500),
                                 )
-                                    : const Text("Update")
-                                    : const Text("Update"),
+                                    : const Text('Update'),
+                              ),
+                            ] else ...[
+                              FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: _specialUpdateBusy
+                                    ? null
+                                    : () => showAdminPasswordDialog(index),
+                                icon: const Icon(Icons.system_update_alt),
+                                label: const Text('Update'),
                               ),
                             ],
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
 
                       // SizedBox(height: 10),
                     ],
@@ -559,7 +706,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
     if (selectindex != null) {
       Map<String, dynamic>? ctrldata = mqttPayloadProvider.messageFromHw;
       if ((ctrldata != null && ctrldata.isNotEmpty)) {
-        var name = ctrldata['Name'];
+        var name = ctrldata['Name']?.toString() ?? '';
         // String message = ctrldata['Message'];
         var code = ctrldata['Code'];
         // imeicheck = ctrldata['DeviceId'];
@@ -736,6 +883,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
+                if (mounted) setState(() => checkupdatediable = 0);
               },
               child: const Text('Cancel'),
             ),
