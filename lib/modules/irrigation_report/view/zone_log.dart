@@ -168,6 +168,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   late final ScrollController _pinnedLeftVerticalController;
   late final ScrollController _verticalScrollController;
   late final ScrollController _pinnedTotalVerticalController;
+  final ScrollController _zoneGraphScrollController = ScrollController();
+  final ScrollController _cumGraphScrollController = ScrollController();
+  final ScrollController _seqDialogGraphScrollController = ScrollController();
+  final ScrollController _chanDialogGraphScrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -180,9 +184,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   List<SequenceRowData> _sequenceRows = [];
   List<DateTime> _dateColumns = [];
   List<String> _programDropdownOptions = ['All Programs'];
+  // ignore: prefer_final_fields
   int _selectedViewTab = 0; // 0 = Table View, 1 = Graph View
   String _selectedGraphMetric =
       'Duration'; // 'Duration' (Green) or 'Quantity' (Orange)
+  // ignore: prefer_final_fields
   String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
   final Set<String> _expandedBreakdownKeys = {};
   int _selectedLogTypeTab = 0; // 0 = Zone Log, 1 = Cumulative Log
@@ -214,6 +220,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     _pinnedLeftVerticalController.dispose();
     _verticalScrollController.dispose();
     _pinnedTotalVerticalController.dispose();
+    _zoneGraphScrollController.dispose();
+    _cumGraphScrollController.dispose();
+    _seqDialogGraphScrollController.dispose();
+    _chanDialogGraphScrollController.dispose();
     super.dispose();
   }
 
@@ -1889,118 +1899,120 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 padding: const EdgeInsets.all(2),
+                // ignore: prefer_const_constructors
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  // ignore: prefer_const_literals_to_create_immutables
                   children: [
-                    InkWell(
-                      onTap: () {
-                        if (_selectedViewTab != 0) {
-                          setState(() {
-                            _selectedViewTab = 0;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedViewTab == 0
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedViewTab == 0
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.table_rows_outlined,
-                              size: 14,
-                              color: _selectedViewTab == 0
-                                  ? const Color(0xFF00695C)
-                                  : Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              "Table View",
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: _selectedViewTab == 0
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: _selectedViewTab == 0
-                                    ? const Color(0xFF00695C)
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    InkWell(
-                      onTap: () {
-                        if (_selectedViewTab != 1) {
-                          setState(() {
-                            _selectedViewTab = 1;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedViewTab == 1
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedViewTab == 1
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.bar_chart_rounded,
-                              size: 14,
-                              color: _selectedViewTab == 1
-                                  ? const Color(0xFF00695C)
-                                  : Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              "Graph View",
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: _selectedViewTab == 1
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: _selectedViewTab == 1
-                                    ? const Color(0xFF00695C)
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    // InkWell(
+                    //   onTap: () {
+                    //     if (_selectedViewTab != 0) {
+                    //       setState(() {
+                    //         _selectedViewTab = 0;
+                    //       });
+                    //     }
+                    //   },
+                    //   borderRadius: BorderRadius.circular(4),
+                    //   child: Container(
+                    //     padding: const EdgeInsets.symmetric(
+                    //         horizontal: 10, vertical: 5),
+                    //     decoration: BoxDecoration(
+                    //       color: _selectedViewTab == 0
+                    //           ? Colors.white
+                    //           : Colors.transparent,
+                    //       borderRadius: BorderRadius.circular(4),
+                    //       boxShadow: _selectedViewTab == 0
+                    //           ? const [
+                    //               BoxShadow(
+                    //                 color: Colors.black12,
+                    //                 blurRadius: 2,
+                    //                 offset: Offset(0, 1),
+                    //               )
+                    //             ]
+                    //           : null,
+                    //     ),
+                    //     child: Row(
+                    //       mainAxisSize: MainAxisSize.min,
+                    //       children: [
+                    //         Icon(
+                    //           Icons.table_rows_outlined,
+                    //           size: 14,
+                    //           color: _selectedViewTab == 0
+                    //               ? const Color(0xFF00695C)
+                    //               : Colors.white,
+                    //         ),
+                    //         const SizedBox(width: 5),
+                    //         Text(
+                    //           "Table View",
+                    //           style: TextStyle(
+                    //             fontSize: 11.5,
+                    //             fontWeight: _selectedViewTab == 0
+                    //                 ? FontWeight.bold
+                    //                 : FontWeight.w500,
+                    //             color: _selectedViewTab == 0
+                    //                 ? const Color(0xFF00695C)
+                    //                 : Colors.white,
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
+                    // const SizedBox(width: 2),
+                    // InkWell(
+                    //   onTap: () {
+                    //     if (_selectedViewTab != 1) {
+                    //       setState(() {
+                    //         _selectedViewTab = 1;
+                    //       });
+                    //     }
+                    //   },
+                    //   borderRadius: BorderRadius.circular(4),
+                    //   child: Container(
+                    //     padding: const EdgeInsets.symmetric(
+                    //         horizontal: 10, vertical: 5),
+                    //     decoration: BoxDecoration(
+                    //       color: _selectedViewTab == 1
+                    //           ? Colors.white
+                    //           : Colors.transparent,
+                    //       borderRadius: BorderRadius.circular(4),
+                    //       boxShadow: _selectedViewTab == 1
+                    //           ? const [
+                    //               BoxShadow(
+                    //                 color: Colors.black12,
+                    //                 blurRadius: 2,
+                    //                 offset: Offset(0, 1),
+                    //               )
+                    //             ]
+                    //           : null,
+                    //     ),
+                    //     child: Row(
+                    //       mainAxisSize: MainAxisSize.min,
+                    //       children: [
+                    //         Icon(
+                    //           Icons.bar_chart_rounded,
+                    //           size: 14,
+                    //           color: _selectedViewTab == 1
+                    //               ? const Color(0xFF00695C)
+                    //               : Colors.white,
+                    //         ),
+                    //         const SizedBox(width: 5),
+                    //         Text(
+                    //           "Graph View",
+                    //           style: TextStyle(
+                    //             fontSize: 11.5,
+                    //             fontWeight: _selectedViewTab == 1
+                    //                 ? FontWeight.bold
+                    //                 : FontWeight.w500,
+                    //             color: _selectedViewTab == 1
+                    //                 ? const Color(0xFF00695C)
+                    //                 : Colors.white,
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -2049,7 +2061,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : null,
                         ),
                         child: Text(
-                          "Zone Log",
+                          "Zone",
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: _selectedLogTypeTab == 0
@@ -2098,7 +2110,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : null,
                         ),
                         child: Text(
-                          "Channel Log",
+                          "Channel",
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: _selectedLogTypeTab == 1
@@ -2251,7 +2263,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2304,7 +2316,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFF0FDF4),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2316,6 +2329,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -2422,6 +2436,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                             rIdx < rows.length;
                                             rIdx++)
                                           Container(
+                                            height: 52,
                                             decoration: BoxDecoration(
                                               color: rIdx % 2 == 0
                                                   ? Colors.white
@@ -2458,6 +2473,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               dailyTotalQuantities,
                               colDateWidth,
                             ),
+                            const SizedBox(height: 15),
                           ],
                         ),
                       ),
@@ -2494,7 +2510,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2550,7 +2566,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFDCFCE7),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: Text(
@@ -2558,13 +2575,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF15803D),
+                          color: const Color(0xFF15803D),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -2720,6 +2738,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     colDateWidth,
                     colTotalWidth,
                   ),
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -2779,7 +2798,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -2822,7 +2842,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -2831,7 +2851,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF166534),
                   ),
@@ -2852,7 +2872,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12.5,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF15803D),
               ),
@@ -2882,37 +2902,70 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Text(
-            row.channelCategory,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1E293B),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  row.channelCategory,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFFC8E6C9), width: 1),
+                  ),
+                  child: Text(
+                    row.channelName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-            ),
-            child: Text(
-              row.channelName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2E7D32),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showIndividualChannelGraphDialog(context, row),
+              borderRadius: BorderRadius.circular(4),
+              child: Tooltip(
+                message: "Open ${row.channelName} Graph",
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(4),
+                    border:
+                        Border.all(color: const Color(0xFFB2DFDB), width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    size: 15,
+                    color: Color(0xFF00695C),
+                  ),
+                ),
               ),
             ),
           ),
@@ -2975,15 +3028,30 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Text(
-        formattedText,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF15803D),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showIndividualChannelGraphDialog(context, row),
+          borderRadius: BorderRadius.circular(4),
+          child: Tooltip(
+            message: "Tap to view ${row.channelName} graph",
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                formattedText,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: MediaQuery.of(context).size.width < 650
+                      ? 12.0
+                      : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF15803D),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2999,7 +3067,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -3016,6 +3085,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       : "$daySumQty L")
                   : '-';
 
+              final double screenWidth = MediaQuery.of(context).size.width;
+              final double fontSize = screenWidth < 650
+                  ? 12.0
+                  : (screenWidth < 1100 ? 12.5 : 13.0);
+
               return Container(
                 width: colDateWidth,
                 height: 46,
@@ -3023,7 +3097,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -3031,10 +3105,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF166534),
+                    color: const Color(0xFF166534),
                   ),
                 ),
               );
@@ -3155,72 +3229,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             ],
                           ),
                         ),
-                        // Chart type selector
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          padding: const EdgeInsets.all(2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildGraphTypeIcon(
-                                icon: Icons.bar_chart,
-                                tooltip: "Column Chart",
-                                isSelected: _graphChartType == 'Column',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Column'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.show_chart,
-                                tooltip: "Line Chart",
-                                isSelected: _graphChartType == 'Spline',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Spline'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.area_chart,
-                                tooltip: "Area Chart",
-                                isSelected: _graphChartType == 'Area',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Area'),
-                              ),
-                            ],
-                          ),
-                        ),
+
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // SfCartesianChart with horizontal scrolling for date range
-                    LayoutBuilder(
-                      builder: (context, chartConstraints) {
-                        const double minWidthPerDate = 45.0;
-                        final double totalCalculatedWidth =
-                            _dateColumns.length * minWidthPerDate;
-                        final double chartWidth = math.max(
-                            chartConstraints.maxWidth, totalCalculatedWidth);
-
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: chartWidth,
-                              height: 320,
-                              child: _buildCumulativeSfChart(filteredRows),
-                            ),
-                          ),
-                        );
-                      },
+                    // SfCartesianChart with static Y-axis and horizontal scrolling for date range
+                    SizedBox(
+                      height: 320,
+                      child: _buildCumulativeSfChart(
+                        filteredRows,
+                        overrideScrollController: _cumGraphScrollController,
+                      ),
                     ),
                   ],
                 ),
@@ -3250,12 +3270,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildCumulativeSfChart(List<CumulativeRowData> rows) {
+  Widget _buildCumulativeSfChart(
+    List<CumulativeRowData> rows, {
+    String? overrideMetric,
+    String? overrideChartType,
+    ScrollController? overrideScrollController,
+  }) {
     List<_ZoneChartPoint> dataPoints = [];
 
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
-      String label = DateFormat('dd/MM').format(d);
+      String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
       int sumSec = 0;
       num sumQty = 0;
       for (var r in rows) {
@@ -3273,109 +3298,20 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ));
     }
 
-    final bool isDuration = _selectedGraphMetric == 'Duration';
+    final String metric = overrideMetric ?? _selectedGraphMetric;
+    final String chartType = overrideChartType ?? _graphChartType;
+    final bool isDuration = metric == 'Duration';
+    final ScrollController scrollController =
+        overrideScrollController ?? _cumGraphScrollController;
 
-    return SfCartesianChart(
-      legend: const Legend(
-        isVisible: true,
-        toggleSeriesVisibility: false,
-        position: LegendPosition.top,
-        alignment: ChartAlignment.center,
-        textStyle: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
-      ),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        shared: false,
-        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
-            int seriesIndex) {
-          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
-            return const SizedBox();
-          }
-          final p = dataPoints[pointIndex];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.xLabel,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11.5),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDuration
-                          ? Icons.timer_outlined
-                          : Icons.water_drop_outlined,
-                      size: 12,
-                      color: isDuration
-                          ? const Color(0xFF2DD4BF)
-                          : const Color(0xFF4ADE80),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isDuration
-                          ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
-                      style: TextStyle(
-                        color: isDuration
-                            ? const Color(0xFF2DD4BF)
-                            : const Color(0xFF4ADE80),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      primaryXAxis: CategoryAxis(
-        labelRotation: dataPoints.length > 7 ? -45 : 0,
-        labelStyle: const TextStyle(
-          fontSize: 10.5,
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
-        ),
-        majorGridLines: const MajorGridLines(width: 0),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-      ),
-      primaryYAxis: NumericAxis(
-        title: AxisTitle(
-          text: isDuration ? "Duration (mins)" : "Quantity",
-          textStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFF166534),
-          ),
-        ),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-        majorGridLines: const MajorGridLines(
-          color: Color(0xFFF1F5F9),
-          width: 1,
-        ),
-        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-      ),
-      series: _buildChartSeries(dataPoints, isDuration),
+    return _buildResponsiveStaticAxisChart(
+      dataPoints: dataPoints,
+      isDuration: isDuration,
+      chartType: chartType,
+      scrollController: scrollController,
     );
   }
+
 
   Widget _buildCumulativeChannelBreakdownCard(
       CumulativeRowData row, int grandTotalSeconds, num grandTotalQuantity) {
@@ -3925,7 +3861,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -3980,7 +3916,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFF0FDF4),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -3992,6 +3929,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -4115,6 +4053,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               dailyTotalQuantities,
                               colDateWidth,
                             ),
+                            const SizedBox(height: 15),
                           ],
                         ),
                       ),
@@ -4151,7 +4090,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -4209,7 +4148,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFDCFCE7),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: Text(
@@ -4217,13 +4157,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11.5,
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF15803D),
+                          color: const Color(0xFF15803D),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -4387,6 +4328,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     colDateWidth,
                     colTotalWidth,
                   ),
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -4446,7 +4388,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -4485,7 +4428,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -4494,7 +4437,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF166534),
                   ),
@@ -4515,7 +4458,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12.5,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF15803D),
               ),
@@ -4545,10 +4488,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         textAlign: TextAlign.center,
         softWrap: true,
         maxLines: 2,
-        style: const TextStyle(
-          fontSize: 10.5,
+        style: TextStyle(
+          fontSize: MediaQuery.of(context).size.width < 650 ? 11.0 : 11.5,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF0F766E),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -4573,39 +4516,72 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          if (row.progName.isNotEmpty && row.progName != row.seqName) ...[
-            Text(
-              row.progName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1E293B),
-              ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (row.progName.isNotEmpty && row.progName != row.seqName) ...[
+                  Text(
+                    row.progName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFFC8E6C9), width: 1),
+                  ),
+                  child: Text(
+                    row.seqName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-          ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-            ),
-            child: Text(
-              row.seqName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2E7D32),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showIndividualSequenceGraphDialog(context, row),
+              borderRadius: BorderRadius.circular(4),
+              child: Tooltip(
+                message: "Open ${row.seqName} Graph",
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(4),
+                    border:
+                        Border.all(color: const Color(0xFFB2DFDB), width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    size: 15,
+                    color: Color(0xFF00695C),
+                  ),
+                ),
               ),
             ),
           ),
@@ -4622,6 +4598,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
     return Container(
+      height: 52,
       decoration: BoxDecoration(
         color: rowBg,
         border: const Border(
@@ -4674,15 +4651,30 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
-        child: Text(
-          formattedText,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF15803D),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showIndividualSequenceGraphDialog(context, row),
+            borderRadius: BorderRadius.circular(4),
+            child: Tooltip(
+              message: "Tap to view ${row.seqName} graph",
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  formattedText,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width < 650
+                        ? 12.0
+                        : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -4704,10 +4696,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         textAlign: TextAlign.center,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 11,
+        style: TextStyle(
+          fontSize: MediaQuery.of(context).size.width < 650
+              ? 12.0
+              : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
           fontWeight: FontWeight.bold,
-          color: Color(0xFF15803D),
+          color: const Color(0xFF15803D),
         ),
       ),
     );
@@ -4748,6 +4742,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     bool isBold = false,
     int maxLines = 2,
   }) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = screenWidth < 650
+        ? 12.0
+        : (screenWidth < 1100 ? 12.5 : 13.0);
+
     return Container(
       width: width,
       height: 52,
@@ -4763,7 +4762,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 10.5,
+          fontSize: fontSize,
           fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
           color: (text == '-' ||
                   text == '- /\n-' ||
@@ -4787,7 +4786,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -4800,6 +4800,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               String dayTotalFormatted = _formatDuration(daySumSec);
               String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
 
+              final double screenWidth = MediaQuery.of(context).size.width;
+              final double fontSize = screenWidth < 650
+                  ? 12.0
+                  : (screenWidth < 1100 ? 12.5 : 13.0);
+
               return Container(
                 width: colDateWidth,
                 height: 46,
@@ -4807,7 +4812,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -4815,10 +4820,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF166534),
+                    color: const Color(0xFF166534),
                   ),
                 ),
               );
@@ -4942,72 +4947,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             ],
                           ),
                         ),
-                        // Chart type selector
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          padding: const EdgeInsets.all(2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildGraphTypeIcon(
-                                icon: Icons.bar_chart,
-                                tooltip: "Column Chart",
-                                isSelected: _graphChartType == 'Column',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Column'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.show_chart,
-                                tooltip: "Line Chart",
-                                isSelected: _graphChartType == 'Spline',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Spline'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.area_chart,
-                                tooltip: "Area Chart",
-                                isSelected: _graphChartType == 'Area',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Area'),
-                              ),
-                            ],
-                          ),
-                        ),
+
                       ],
                     ),
                     const SizedBox(height: 12),
 
-                    // SfCartesianChart with horizontal scrolling for 1 month or constrained width
-                    LayoutBuilder(
-                      builder: (context, chartConstraints) {
-                        const double minWidthPerDate = 45.0;
-                        final double totalCalculatedWidth =
-                            _dateColumns.length * minWidthPerDate;
-                        final double chartWidth = math.max(
-                            chartConstraints.maxWidth, totalCalculatedWidth);
-
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: chartWidth,
-                              height: 320,
-                              child: _buildSfChart(filteredRows),
-                            ),
-                          ),
-                        );
-                      },
+                    // SfCartesianChart with static Y-axis and horizontal scrolling for date range
+                    SizedBox(
+                      height: 320,
+                      child: _buildSfChart(
+                        filteredRows,
+                        overrideScrollController: _zoneGraphScrollController,
+                      ),
                     ),
                   ],
                 ),
@@ -5259,50 +5210,449 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildGraphTypeIcon({
+
+
+  Widget _buildSummaryBadge({
     required IconData icon,
-    required String tooltip,
-    required bool isSelected,
-    required VoidCallback onTap,
+    required String label,
+    required String value,
+    required Color color,
+    required Color bgColor,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: isSelected
-                ? const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 2,
-                      offset: Offset(0, 1),
-                    )
-                  ]
-                : null,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            "$label: ",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color:
-                isSelected ? const Color(0xFF00695C) : const Color(0xFF64748B),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildSfChart(List<SequenceRowData> rows) {
+  void _showIndividualSequenceGraphDialog(
+    BuildContext context,
+    SequenceRowData row,
+  ) {
+    String localMetric = _selectedGraphMetric;
+    String localChartType = _graphChartType;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double dialogWidth = math.min(
+              MediaQuery.of(context).size.width * 0.92,
+              750.0,
+            );
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: math.min(
+                    MediaQuery.of(context).size.height * 0.85,
+                    540.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 20,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  row.progName.isNotEmpty &&
+                                          row.progName != row.seqName
+                                      ? "${row.progName} - ${row.seqName}"
+                                      : row.seqName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${DateFormat('dd/MM/yyyy').format(_fromDate)} - ${DateFormat('dd/MM/yyyy').format(_toDate)}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+
+                      // Metric Summary Badges
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSummaryBadge(
+                            icon: Icons.timer_outlined,
+                            label: "Total Duration",
+                            value: _formatDuration(row.totalDurationSeconds),
+                            color: const Color(0xFF00897B),
+                            bgColor: const Color(0xFFE0F2F1),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.water_drop_outlined,
+                            label: "Total Quantity",
+                            value: row.totalQuantity > 0
+                                ? "${row.totalQuantity} L"
+                                : "-",
+                            color: const Color(0xFF166534),
+                            bgColor: const Color(0xFFF0FDF4),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: "Total Days",
+                            value: "${_dateColumns.length} Days",
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Controls: Metric & Chart Type Selector
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildMetricTab(
+                                  label: "Duration (mins)",
+                                  icon: Icons.timer_outlined,
+                                  activeColor: const Color(0xFF0D9488),
+                                  isSelected: localMetric == 'Duration',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Duration');
+                                  },
+                                ),
+                                _buildMetricTab(
+                                  label: "Quantity",
+                                  icon: Icons.water_drop_outlined,
+                                  activeColor: const Color(0xFF16A34A),
+                                  isSelected: localMetric == 'Quantity',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Quantity');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Chart Area: Static Y-axis and horizontal scrolling
+                      Expanded(
+                        child: _buildSfChart(
+                          [row],
+                          overrideMetric: localMetric,
+                          overrideChartType: localChartType,
+                          overrideScrollController:
+                              _seqDialogGraphScrollController,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showIndividualChannelGraphDialog(
+    BuildContext context,
+    CumulativeRowData row,
+  ) {
+    String localMetric = _selectedGraphMetric;
+    String localChartType = _graphChartType;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double dialogWidth = math.min(
+              MediaQuery.of(context).size.width * 0.92,
+              750.0,
+            );
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: math.min(
+                    MediaQuery.of(context).size.height * 0.85,
+                    540.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 20,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${row.channelCategory} - ${row.channelName}",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${DateFormat('dd/MM/yyyy').format(_fromDate)} - ${DateFormat('dd/MM/yyyy').format(_toDate)}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+
+                      // Metric Summary Badges
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSummaryBadge(
+                            icon: Icons.timer_outlined,
+                            label: "Total Duration",
+                            value: _formatDuration(row.totalDurationSeconds),
+                            color: const Color(0xFF00897B),
+                            bgColor: const Color(0xFFE0F2F1),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.water_drop_outlined,
+                            label: "Total Quantity",
+                            value: row.totalQuantity > 0
+                                ? (row.totalQuantity % 1 == 0
+                                    ? "${row.totalQuantity.toInt()} L"
+                                    : "${row.totalQuantity} L")
+                                : "-",
+                            color: const Color(0xFF166534),
+                            bgColor: const Color(0xFFF0FDF4),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: "Total Days",
+                            value: "${_dateColumns.length} Days",
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Controls: Metric & Chart Type Selector
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildMetricTab(
+                                  label: "Duration (mins)",
+                                  icon: Icons.timer_outlined,
+                                  activeColor: const Color(0xFF0D9488),
+                                  isSelected: localMetric == 'Duration',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Duration');
+                                  },
+                                ),
+                                _buildMetricTab(
+                                  label: "Quantity",
+                                  icon: Icons.water_drop_outlined,
+                                  activeColor: const Color(0xFF16A34A),
+                                  isSelected: localMetric == 'Quantity',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Quantity');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Chart Area: Static Y-axis and horizontal scrolling
+                      Expanded(
+                        child: _buildCumulativeSfChart(
+                          [row],
+                          overrideMetric: localMetric,
+                          overrideChartType: localChartType,
+                          overrideScrollController:
+                              _chanDialogGraphScrollController,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSfChart(
+    List<SequenceRowData> rows, {
+    String? overrideMetric,
+    String? overrideChartType,
+    ScrollController? overrideScrollController,
+  }) {
     List<_ZoneChartPoint> dataPoints = [];
 
     // Always Date Wise
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
-      String label = DateFormat('dd/MM').format(d);
+      String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
       int sumSec = 0;
       int sumQty = 0;
       for (var r in rows) {
@@ -5320,141 +5670,289 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ));
     }
 
-    final bool isDuration = _selectedGraphMetric == 'Duration';
+    final String metric = overrideMetric ?? _selectedGraphMetric;
+    final String chartType = overrideChartType ?? _graphChartType;
+    final bool isDuration = metric == 'Duration';
+    final ScrollController scrollController =
+        overrideScrollController ?? _zoneGraphScrollController;
 
-    return SfCartesianChart(
-      legend: const Legend(
-        isVisible: true,
-        toggleSeriesVisibility: false,
-        position: LegendPosition.top,
-        alignment: ChartAlignment.center,
-        textStyle: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
-      ),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        shared: false,
-        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
-            int seriesIndex) {
-          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
-            return const SizedBox();
-          }
-          final p = dataPoints[pointIndex];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.xLabel,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11.5),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDuration
-                          ? Icons.timer_outlined
-                          : Icons.water_drop_outlined,
-                      size: 12,
-                      color: isDuration
-                          ? const Color(0xFF2DD4BF)
-                          : const Color(0xFF4ADE80),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isDuration
-                          ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? '${p.quantity.toInt()} L' : '-'}",
-                      style: TextStyle(
-                        color: isDuration
-                            ? const Color(0xFF2DD4BF)
-                            : const Color(0xFF4ADE80),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      primaryXAxis: CategoryAxis(
-        labelRotation: dataPoints.length > 7 ? -45 : 0,
-        labelStyle: const TextStyle(
-          fontSize: 10.5,
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
-        ),
-        majorGridLines: const MajorGridLines(width: 0),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-      ),
-      primaryYAxis: NumericAxis(
-        title: AxisTitle(
-          text: isDuration ? "Duration (mins)" : "Quantity",
-          textStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFF166534),
-          ),
-        ),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-        majorGridLines: const MajorGridLines(
-          color: Color(0xFFF1F5F9),
-          width: 1,
-        ),
-        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-      ),
-      series: _buildChartSeries(dataPoints, isDuration),
+    return _buildResponsiveStaticAxisChart(
+      dataPoints: dataPoints,
+      isDuration: isDuration,
+      chartType: chartType,
+      scrollController: scrollController,
     );
   }
 
-  List<CartesianSeries<_ZoneChartPoint, String>> _buildChartSeries(
-      List<_ZoneChartPoint> data, bool isDuration) {
-    if (isDuration) {
-      // Duration: Green / Teal
-      if (_graphChartType == 'Spline') {
-        return [
-          SplineSeries<_ZoneChartPoint, String>(
-            name: 'Duration (mins)',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
-            color: const Color(0xFF0D9488),
-            width: 3,
-            markerSettings: const MarkerSettings(isVisible: true),
-          ),
-        ];
-      } else if (_graphChartType == 'Area') {
-        return [
-          SplineAreaSeries<_ZoneChartPoint, String>(
-            name: 'Duration (mins)',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
-            color: const Color(0xFF0D9488).withValues(alpha: 0.3),
-            borderColor: const Color(0xFF0D9488),
-            borderWidth: 2,
-          ),
-        ];
-      }
+  Widget _buildResponsiveStaticAxisChart({
+    required List<_ZoneChartPoint> dataPoints,
+    required bool isDuration,
+    required String chartType,
+    required ScrollController scrollController,
+  }) {
+    double rawMax = 0;
+    for (var p in dataPoints) {
+      double val = isDuration ? p.durationMinutes : p.quantity;
+      if (val > rawMax) rawMax = val;
+    }
+    if (rawMax <= 0) rawMax = 10;
+    double targetMax = rawMax * 1.15;
+    double magnitude =
+        math.pow(10, (math.log(targetMax) / math.ln10).floor()).toDouble();
+    if (magnitude <= 0) magnitude = 1;
+    double fraction = targetMax / magnitude;
+    double niceStep;
+    if (fraction <= 1.2) {
+      niceStep = 0.2 * magnitude;
+    } else if (fraction <= 2.5) {
+      niceStep = 0.5 * magnitude;
+    } else if (fraction <= 5.0) {
+      niceStep = 1.0 * magnitude;
+    } else {
+      niceStep = 2.0 * magnitude;
+    }
+    double maxY = (targetMax / niceStep).ceil() * niceStep;
+    double intervalY = niceStep;
 
-      // Default: Column series in Green
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Static Top Legend
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: isDuration
+                    ? const Color(0xFF0D9488)
+                    : const Color(0xFF16A34A),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              isDuration ? "Duration (mins)" : "Quantity",
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // 2. Chart Body: Static Left Y-Axis + Scrollable Right Plot Area
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double yAxisWidth = 56.0;
+              final double availablePlotWidth =
+                  math.max(0, constraints.maxWidth - yAxisWidth);
+              const double minWidthPerDate = 45.0;
+              final double calculatedPlotWidth =
+                  dataPoints.length * minWidthPerDate;
+              final double plotWidth =
+                  math.max(availablePlotWidth, calculatedPlotWidth);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // STATIC LEFT Y-AXIS (Title, Numbers, Ticks)
+                  SizedBox(
+                    width: yAxisWidth,
+                    child: SfCartesianChart(
+                      margin: const EdgeInsets.only(bottom: 22),
+                      plotAreaBorderWidth: 0,
+                      primaryYAxis: NumericAxis(
+                        minimum: 0,
+                        maximum: maxY,
+                        interval: intervalY,
+                        title: AxisTitle(
+                          text: isDuration ? "Duration (mins)" : "Quantity",
+                          textStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDuration
+                                ? const Color(0xFF0F766E)
+                                : const Color(0xFF166534),
+                          ),
+                        ),
+                        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+                        majorTickLines: const MajorTickLines(
+                            size: 4, color: Color(0xFFCBD5E1)),
+                        majorGridLines: const MajorGridLines(width: 0),
+                        labelStyle: const TextStyle(
+                            fontSize: 10, color: Color(0xFF64748B)),
+                      ),
+                      primaryXAxis: CategoryAxis(
+                        isVisible: true,
+                        labelRotation: dataPoints.length > 7 ? -45 : 0,
+                        labelStyle: const TextStyle(
+                            fontSize: 10.5, color: Colors.transparent),
+                        axisLine: const AxisLine(width: 0),
+                        majorTickLines: const MajorTickLines(size: 0),
+                        majorGridLines: const MajorGridLines(width: 0),
+                      ),
+                      series: <CartesianSeries<_ZoneChartPoint, String>>[
+                        ColumnSeries<_ZoneChartPoint, String>(
+                          dataSource: dataPoints.isNotEmpty
+                              ? [dataPoints.first]
+                              : [],
+                          xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+                          yValueMapper: (_ZoneChartPoint p, _) => 0,
+                          color: Colors.transparent,
+                          width: 0,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // SCROLLABLE RIGHT PLOT AREA & X-AXIS
+                  Expanded(
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.mouse,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
+                      ),
+                      child: RawScrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        trackVisibility: true,
+                        thickness: 6.0,
+                        radius: const Radius.circular(3),
+                        thumbColor: const Color(0xFF00695C),
+                        trackColor: const Color(0xFFE2E8F0),
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const ClampingScrollPhysics(),
+                          child: SizedBox(
+                            width: plotWidth,
+                            child: SfCartesianChart(
+                              margin: const EdgeInsets.only(bottom: 22),
+                              plotAreaBorderWidth: 0,
+                              tooltipBehavior: TooltipBehavior(
+                                enable: true,
+                                shared: false,
+                                builder: (dynamic data, dynamic point,
+                                    dynamic series, int pointIndex,
+                                    int seriesIndex) {
+                                  if (pointIndex < 0 ||
+                                      pointIndex >= dataPoints.length) {
+                                    return const SizedBox();
+                                  }
+                                  final p = dataPoints[pointIndex];
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E293B),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.xLabel,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11.5),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              isDuration
+                                                  ? Icons.timer_outlined
+                                                  : Icons.water_drop_outlined,
+                                              size: 12,
+                                              color: isDuration
+                                                  ? const Color(0xFF2DD4BF)
+                                                  : const Color(0xFF4ADE80),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isDuration
+                                                  ? "Duration: ${p.durationFormatted}"
+                                                  : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
+                                              style: TextStyle(
+                                                color: isDuration
+                                                    ? const Color(0xFF2DD4BF)
+                                                    : const Color(0xFF4ADE80),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              primaryXAxis: CategoryAxis(
+                                labelRotation: dataPoints.length > 7 ? -45 : 0,
+                                labelStyle: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                majorGridLines: const MajorGridLines(width: 0),
+                                axisLine:
+                                    const AxisLine(color: Color(0xFFCBD5E1)),
+                              ),
+                              primaryYAxis: NumericAxis(
+                                minimum: 0,
+                                maximum: maxY,
+                                interval: intervalY,
+                                isVisible: true,
+                                labelsExtent: 0,
+                                labelStyle: const TextStyle(
+                                    fontSize: 0, color: Colors.transparent),
+                                title: const AxisTitle(text: ''),
+                                axisLine: const AxisLine(
+                                    color: Color(0xFFCBD5E1), width: 1),
+                                majorTickLines: const MajorTickLines(size: 0),
+                                majorGridLines: const MajorGridLines(
+                                  color: Color(0xFFF1F5F9),
+                                  width: 1,
+                                ),
+                              ),
+                              series: _buildChartSeries(
+                                  dataPoints, isDuration, chartType),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+
+  List<CartesianSeries<_ZoneChartPoint, String>> _buildChartSeries(
+      List<_ZoneChartPoint> data, bool isDuration,
+      [String? overrideChartType]) {
+    if (isDuration) {
+      // Duration: Column series in Green / Teal
       return [
         ColumnSeries<_ZoneChartPoint, String>(
           name: 'Duration (mins)',
@@ -5467,34 +5965,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         ),
       ];
     } else {
-      // Quantity: Green
-      if (_graphChartType == 'Spline') {
-        return [
-          SplineSeries<_ZoneChartPoint, String>(
-            name: 'Quantity',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFF16A34A),
-            width: 3,
-            markerSettings: const MarkerSettings(isVisible: true),
-          ),
-        ];
-      } else if (_graphChartType == 'Area') {
-        return [
-          SplineAreaSeries<_ZoneChartPoint, String>(
-            name: 'Quantity',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFF16A34A).withValues(alpha: 0.25),
-            borderColor: const Color(0xFF16A34A),
-            borderWidth: 2,
-          ),
-        ];
-      }
-
-      // Default: Column series in Green
+      // Quantity: Column series in Green
       return [
         ColumnSeries<_ZoneChartPoint, String>(
           name: 'Quantity',

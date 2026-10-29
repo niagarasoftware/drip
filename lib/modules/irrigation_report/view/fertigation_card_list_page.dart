@@ -8,11 +8,9 @@ import '../model/fertigation_card_model.dart';
 import '../repository/irrigation_repository.dart';
 import '../services/fertigation_card_mapper.dart';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
+import 'zone_log_pdf_builder.dart' if (dart.library.html) 'zone_log_exporter_web.dart';
 
 import 'widgets/program_wise_view.dart';
-import 'widgets/sequence_wise_view.dart';
-import 'widgets/line_wise_view.dart';
-import 'widgets/status_wise_view.dart';
 
 class FertigationCardListPage extends StatefulWidget {
   final dynamic serverData;
@@ -32,10 +30,7 @@ class FertigationCardListPage extends StatefulWidget {
 }
 
 class _FertigationCardListPageState
-    extends State<FertigationCardListPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
+    extends State<FertigationCardListPage> {
   bool _isLoading = false;
   String? _fetchError;
 
@@ -44,8 +39,7 @@ class _FertigationCardListPageState
 
   String _selectedDateStr = '';
 
-  DateTime _fromDate =
-  DateTime.now();
+  DateTime _fromDate = DateTime.now();
   DateTime _toDate = DateTime.now();
 
   int _requestId = 0;
@@ -53,12 +47,6 @@ class _FertigationCardListPageState
   @override
   void initState() {
     super.initState();
-
-    _tabController = TabController(
-      length: 4,
-      vsync: this,
-    );
-
     _updateDateLabel();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,7 +59,6 @@ class _FertigationCardListPageState
   @override
   void dispose() {
     _requestId++;
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -725,15 +712,7 @@ class _FertigationCardListPageState
       return _buildErrorView();
     }
 
-    return TabBarView(
-      controller: _tabController,
-      children: [
-        ProgramWiseView(cards: allCards),
-        SequenceWiseView(cards: allCards),
-        LineWiseView(cards: allCards),
-        StatusWiseView(cards: allCards),
-      ],
-    );
+    return ProgramWiseView(cards: allCards);
   }
 
   @override
@@ -818,20 +797,6 @@ class _FertigationCardListPageState
             onPressed: _isLoading ? null : _fetchData,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Program'),
-            Tab(text: 'Sequence'),
-            Tab(text: 'Line'),
-            Tab(text: 'Status'),
-          ],
-        ),
       ),
       body: _buildBody(),
     );
