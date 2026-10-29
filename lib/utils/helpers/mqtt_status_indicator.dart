@@ -22,7 +22,7 @@ class MqttStatusIndicator extends StatelessWidget {
             padding: EdgeInsets.symmetric(
                 horizontal: compact ? 6 : 10, vertical: 4),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: color.withValues(alpha: 0.5), width: 0.8),
             ),

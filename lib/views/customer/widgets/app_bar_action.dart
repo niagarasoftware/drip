@@ -44,10 +44,10 @@ List<Widget> appBarActions(
 
   List<Widget> gemActions() {
     return [
-      const MqttStatusIndicator(),
-      const SizedBox(width: 10),
       _buildProgramRunningIcon(vm),
       const SizedBox(width: 8),
+      const MqttStatusIndicator(),
+      const SizedBox(width: 10),
       AlarmButton(
         alarmPayload: vm.alarmDL,
         deviceID: master.deviceId,
@@ -82,9 +82,9 @@ List<Widget> appBarActions(
       Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          const MqttStatusIndicator(),
-          const SizedBox(width: 10),
           _buildProgramRunningIcon(vm),
+          const SizedBox(width: 10),
+          const MqttStatusIndicator(),
           const SizedBox(width: 10),
           if (vm.lineLiveMessage.isNotEmpty && master.irrigationLine.length > 1)
             _buildPauseResumeButton(context, vm),
