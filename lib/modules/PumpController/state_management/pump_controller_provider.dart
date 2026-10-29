@@ -140,7 +140,7 @@ class PumpControllerProvider extends ChangeNotifier {
       if (!silent) {
         isLoading = true;
       }
-      final res = await repository.getUserPumpLog(data, nodeControllerId != 0);
+      final res = await repository.getUserPumpLog(data, nodeControllerId != 0 && nodeControllerId != controllerId);
       if (ticket != _pumpLogTicket) return; // a newer request owns the state now
 
       final response = jsonDecode(res.body);
@@ -151,10 +151,23 @@ class PumpControllerProvider extends ChangeNotifier {
       String newMessage = "";
       int newSelectedIndex = 0;
 
-      if (res.statusCode == 200) {
-        if (response['data'] is List) {
-          newLog = (response['data'] as List).map((i) => PumpLogData.fromJson(i)).toList();
-          final pumpNames = getPumpNames(masterData, nodeControllerId, controllerId);
+      if (res.statusCode == 200 && response['data'] != null) {
+        final rawData = response['data'];
+        List rawList = [];
+        if (rawData is List) {
+          rawList = rawData;
+        } else if (rawData is Map) {
+          if (rawData['log'] is List) {
+            rawList = rawData['log'];
+          } else if (rawData['data'] is List) {
+            rawList = rawData['data'];
+          } else {
+            rawList = [rawData];
+          }
+        }
+
+        newLog = rawList.map((i) => PumpLogData.fromJson(Map<String, dynamic>.from(i as Map))).toList();
+        final pumpNames = getPumpNames(masterData, nodeControllerId, controllerId);
 
           int numPumps = pumpNames.length;
           for (final entry in newLog) {
@@ -179,9 +192,6 @@ class PumpControllerProvider extends ChangeNotifier {
           } else if (newSegments.isNotEmpty) {
             newSelectedIndex = newSegments.keys.first;
           }
-        } else {
-          newMessage = '${response['message']}';
-        }
       } else {
         newMessage = 'Failed to load data: ${response['message']}';
       }
@@ -262,7 +272,7 @@ class PumpControllerProvider extends ChangeNotifier {
 
     try {
       if (!silent) isLoading = true;
-      final res = await repository.getUserPumpHourlyLog(data, nodeControllerId != 0);
+      final res = await repository.getUserPumpHourlyLog(data, nodeControllerId != 0 && nodeControllerId != controllerId);
       if (ticket != _hourlyTicket) return;
 
       final response = jsonDecode(res.body);
@@ -270,9 +280,23 @@ class PumpControllerProvider extends ChangeNotifier {
       List<MotorDataHourly> newList = [];
       final List<MotorData> newChart = [];
 
-      if (res.statusCode == 200 && response['data'] is List) {
-        newList = (response['data'] as List)
-            .map((item) => MotorDataHourly.fromJson(item as Map<String, dynamic>))
+      if (res.statusCode == 200 && response['data'] != null) {
+        final rawData = response['data'];
+        List rawList = [];
+        if (rawData is List) {
+          rawList = rawData;
+        } else if (rawData is Map) {
+          if (rawData['log'] is List) {
+            rawList = rawData['log'];
+          } else if (rawData['data'] is List) {
+            rawList = rawData['data'];
+          } else {
+            rawList = [rawData];
+          }
+        }
+
+        newList = rawList
+            .map((item) => MotorDataHourly.fromJson(Map<String, dynamic>.from(item as Map)))
             .toList();
 
         if (newList.isNotEmpty) {
@@ -289,7 +313,7 @@ class PumpControllerProvider extends ChangeNotifier {
         }
         lastHourlySync = DateTime.now();
       } else {
-        log(res.statusCode == 200 ? 'Hourly data is not a List' : 'Failed to load hourly data');
+        log(res.statusCode == 200 ? 'Hourly data is empty' : 'Failed to load hourly data');
       }
 
       if (!silent || newList.isNotEmpty) {
@@ -346,7 +370,7 @@ class PumpControllerProvider extends ChangeNotifier {
     }
 
     try {
-      final res = await repository.getUserVoltageLog(data, nodeControllerId != 0);
+      final res = await repository.getUserVoltageLog(data, nodeControllerId != 0 && nodeControllerId != controllerId);
       if (ticket != _voltageTicket) return;
 
       final response = jsonDecode(res.body);
@@ -360,48 +384,47 @@ class PumpControllerProvider extends ChangeNotifier {
 
         List<dynamic>? hourlyItems;
 
-        if (raw is Map && raw['voltageDetails'] is List) {
-          hourlyItems = raw['voltageDetails'] as List;
+        if (raw is Map) {
+          if (raw['voltageDetails'] is List) {
+            hourlyItems = raw['voltageDetails'] as List;
+          } else if (raw['data'] is List) {
+            hourlyItems = raw['data'] as List;
+          } else {
+            hourlyItems = [raw];
+          }
         } else if (raw is List && raw.isNotEmpty) {
           final first = raw[0];
           if (first is Map &&
               (first.containsKey('hour') ||
                   first.containsKey('voltageR') ||
-                  first.containsKey('voltage1'))) {
+                  first.containsKey('voltage1') ||
+                  first.containsKey('vR'))) {
             hourlyItems = raw;
           } else {
             Map<String, dynamic>? targetEntry;
-            bool anyEntryHadDate = false;
 
             for (final entry in raw) {
               if (entry is! Map) continue;
-              final rawDate =
-                  entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
-              if (rawDate == null) continue;
-              anyEntryHadDate = true;
-
-              final String dateStr = rawDate.toString().trim();
-              final parsed = DateTime.tryParse(dateStr);
-              if (dateStr.startsWith(reqDateStr) ||
-                  (parsed != null && _isSameDay(parsed, requestedDate))) {
-                targetEntry = Map<String, dynamic>.from(entry);
-                break;
-              }
-            }
-
-            // Only fall back to "first entry" when the server gave NO date info at all.
-            // If dates exist but none match, that day simply has no data.
-            if (targetEntry == null && !anyEntryHadDate) {
-              for (final entry in raw) {
-                if (entry is Map && entry['voltageDetails'] is List) {
+              if (entry['voltageDetails'] is List) {
+                final rawDate =
+                    entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
+                if (rawDate == null) {
                   targetEntry = Map<String, dynamic>.from(entry);
                   break;
                 }
+                final String dateStr = rawDate.toString().trim();
+                if (dateStr.contains(reqDateStr)) {
+                  targetEntry = Map<String, dynamic>.from(entry);
+                  break;
+                }
+                targetEntry ??= Map<String, dynamic>.from(entry);
               }
             }
 
             if (targetEntry != null && targetEntry['voltageDetails'] is List) {
               hourlyItems = targetEntry['voltageDetails'] as List;
+            } else {
+              hourlyItems = raw;
             }
           }
         }

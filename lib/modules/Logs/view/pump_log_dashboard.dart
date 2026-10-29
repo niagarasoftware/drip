@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -11,16 +9,11 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:oro_drip_irrigation/Constants/constants.dart';
 import 'package:oro_drip_irrigation/models/customer/site_model.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
-import 'package:oro_drip_irrigation/utils/environment.dart';
-import 'package:oro_drip_irrigation/services/mqtt_service.dart';
-import 'package:oro_drip_irrigation/services/http_service.dart';
-import 'package:oro_drip_irrigation/repository/repository.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/event_log_model.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/motor_data_hourly.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/valve_log.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/widgets/custom_segmented_control.dart';
-import '../model/motor_data.dart';
 import 'pump_log_excel_builder.dart';
 import 'pump_log_excel_download_stub.dart'
 if (dart.library.html) 'pump_log_excel_download_web.dart';
@@ -67,15 +60,9 @@ class PumpLogDashboardScreen extends StatefulWidget {
   State<PumpLogDashboardScreen> createState() => _PumpLogDashboardScreenState();
 }
 
-class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with WidgetsBindingObserver {
+class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   static const bool _showSingleDeviceHeader = true;
 
-  /// How often live data is re-fetched while the dashboard is visible.
-  static const Duration _kAutoRefreshInterval = Duration(seconds: 15);
-
-  Timer? _autoRefreshTimer;
-  StreamSubscription? _mqttSubscription;
-  bool _silentBusy = false;
   int _fetchGeneration = 0;
 
   late DateTime _selectedDate;
@@ -93,16 +80,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
   int _voltageMetricIndex = 0; // 0: Voltage, 1: Current
 
   bool _isLoading = false;
-  bool _isSendingRefreshPayload = false;
-
-  // ---------------------------------------------------------------------------
-  // LIVE (MQTT) HOURLY DATA
-  // ---------------------------------------------------------------------------
-  // The live message from the controller is kept HERE, not in the provider, so that
-  // an API response can never overwrite it behind our back. The screen decides
-  // which one to show in [_effectiveMotorData].
-  MotorDataHourly? _liveHourly;
-  DateTime? _liveHourlyAt;
 
   bool get isSinglePhaseModel {
     int modelId = widget.masterData.modelId;
@@ -147,6 +124,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
     return widget.masterData.deviceName;
   }
 
+  int _extractControllerId(Map<String, dynamic> item) {
+    final val = item['controllerId'] ?? item['nodeControllerId'] ?? item['controllerID'] ?? item['id'] ?? item['nodeId'];
+    if (val is int) return val;
+    if (val != null) return int.tryParse(val.toString()) ?? 0;
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -160,421 +144,31 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
         _activeNodeControllerId = 0;
         _selectedPumpIndex = 0;
       } else if (widget.nodeControllerId != 0) {
-        final idx = devices.indexWhere((d) => d['controllerId'] == widget.nodeControllerId);
+        final idx = devices.indexWhere((d) => _extractControllerId(d) == widget.nodeControllerId);
         if (idx != -1) {
           _selectedPumpIndex = idx;
           _activeNodeControllerId = widget.nodeControllerId;
         } else {
           _selectedPumpIndex = 0;
-          _activeNodeControllerId = devices[0]['controllerId'] ?? widget.nodeControllerId;
+          _activeNodeControllerId = _extractControllerId(devices[0]);
+          if (_activeNodeControllerId == 0) _activeNodeControllerId = widget.nodeControllerId;
         }
       } else {
         _selectedPumpIndex = 0;
-        _activeNodeControllerId = devices[0]['controllerId'] ?? 0;
+        _activeNodeControllerId = _extractControllerId(devices[0]);
       }
     } else {
       _activeNodeControllerId = widget.nodeControllerId;
     }
 
-    WidgetsBinding.instance.addObserver(this);
-    _listenToMqtt();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAllData();
     });
   }
 
-  @override
-  void dispose() {
-    _autoRefreshTimer?.cancel();
-    _mqttSubscription?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _silentRefresh(); // catch up immediately after coming back to the app
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      _autoRefreshTimer?.cancel();
-      _autoRefreshTimer = null;
-    }
-  }
-
-  void _listenToMqtt() {
-    _mqttSubscription?.cancel();
-    _mqttSubscription = MqttService().payloadController.listen((payload) {
-      if (!mounted || payload == null) return;
-      _handleDeviceMqttPayload(payload);
-    });
-    _subscribeToCurrentDeviceMqtt();
-  }
-
-  void _subscribeToCurrentDeviceMqtt() {
-    final devId = currentDeviceId;
-    if (devId.isNotEmpty) {
-      final topic = '${Environment.mqttSubscribeTopic}/$devId';
-      MqttService().topicToSubscribe(topic);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // LIVE DATA: which source is shown?
-  // ---------------------------------------------------------------------------
-
-  /// Live data only makes sense for "Daily" on today's date.
-  bool get _liveAllowed => _powerPeriodIndex == 0 && _isTodaySelected();
-
-  /// Seconds elapsed in the day as reported by the controller
-  /// (power-on + power-off). It only ever grows during a day, so it tells us
-  /// which of two snapshots is the newer one.
-  int _elapsedSec(MotorDataHourly d) =>
-      _toSeconds(d.totalPowerOnTime) + _toSeconds(d.totalPowerOffTime);
-
-  void _clearLive() {
-    _liveHourly = null;
-    _liveHourlyAt = null;
-  }
-
-  /// The data the whole screen should render.
-  ///  - Live message newer or equal to the API data  -> live data stays on screen.
-  ///  - API data newer (e.g. the hourly data arrived) -> API data is shown.
-  /// A stale API response can therefore never wipe out a fresher live message.
+  /// The data the whole screen should render (API data).
   MotorDataHourly? _effectiveMotorData(PumpControllerProvider provider) {
-    final MotorDataHourly? api =
-    provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null;
-    final live = _liveHourly;
-    if (live == null || !_liveAllowed) return api;
-    if (api == null) return live;
-    return _elapsedSec(api) > _elapsedSec(live) ? api : live;
-  }
-
-  void _handleDeviceMqttPayload(Map<String, dynamic> payload) {
-    try {
-      final code = payload['mC']?.toString().toUpperCase();
-      // Only the hourly / timer messages carry hourly-log fields.
-      // (LD01 = live dashboard payload and 4200 = acknowledgement do NOT,
-      //  applying them here produced zero-filled data.)
-      if (code == 'TMR' || code == '1HR' || code == 'ONEHR') {
-        final payloadCc = payload['cC']?.toString();
-        final currentDev = currentDeviceId;
-        final targetCtrlId = (_activeNodeControllerId != 0 ? _activeNodeControllerId : widget.controllerId).toString();
-
-        if (payloadCc != null && payloadCc.isNotEmpty) {
-          final matchDev = currentDev.isNotEmpty && payloadCc.toLowerCase() == currentDev.toLowerCase();
-          final matchCtrl = payloadCc == targetCtrlId || payloadCc == widget.controllerId.toString();
-          if (!matchDev && !matchCtrl) {
-            // Message is for a different controller/device, ignore
-            return;
-          }
-        }
-
-        if (!_liveAllowed) return;
-
-        final cM = payload['cM'];
-        final cD = payload['cD']?.toString();
-        if (cM is String && cM.isNotEmpty) {
-          _applyHourlyPayloadString(cM, dateStr: cD);
-        } else if (cM is Map) {
-          _applyHourlyPayloadMap(Map<String, dynamic>.from(cM), dateStr: cD);
-        }
-
-        // Also pull the server copy. It can NOT overwrite the live data unless
-        // it is actually newer (see _effectiveMotorData).
-        _silentRefresh();
-      }
-    } catch (e) {
-      log("Error processing MQTT payload in pump_log_dashboard: $e");
-    }
-  }
-
-  void _storeLive(MotorDataHourly hourly) {
-    if (!mounted) return;
-    setState(() {
-      _liveHourly = hourly;
-      _liveHourlyAt = DateTime.now();
-    });
-  }
-
-  void _applyHourlyPayloadMap(Map<String, dynamic> cM, {String? dateStr}) {
-    try {
-      final provider = context.read<PumpControllerProvider>();
-      final base = _effectiveMotorData(provider);
-      final String date = dateStr ?? DateFormat('yyyy-MM-dd').format(_selectedDate);
-
-      final Map<String, dynamic> merged = {
-        if (base != null) ..._hourlyToMap(base),
-        ...cM,
-        'date': date,
-      };
-      _storeLive(MotorDataHourly.fromJson(merged));
-    } catch (e) {
-      log("Error applying parsed hourly payload map: $e");
-    }
-  }
-
-  void _applyHourlyPayloadString(String cM, {String? dateStr}) {
-    try {
-      final provider = context.read<PumpControllerProvider>();
-      final base = _effectiveMotorData(provider);
-      final Map<String, dynamic> parsed = _parseHourlyPayload(cM, dateStr: dateStr, base: base);
-      _storeLive(MotorDataHourly.fromJson(parsed));
-    } catch (e) {
-      log("Error applying parsed hourly payload: $e");
-    }
-  }
-
-  /// Turns an existing snapshot back into the JSON shape MotorDataHourly.fromJson reads,
-  /// so a live message that only contains some fields keeps the rest of the values.
-  Map<String, dynamic> _hourlyToMap(MotorDataHourly d) {
-    return {
-      'date': d.date,
-      'numberOfPumps': d.numberOfPumps,
-      'twoPhasePowerOnTime': d.twoPhasePowerOnTime,
-      'twoPhaseLastPowerOnTime': d.twoPhaseLastPowerOnTime,
-      'threePhasePowerOnTime': d.threePhasePowerOnTime,
-      'threePhaseLastPowerOnTime': d.threePhaseLastPowerOnTime,
-      'powerOffTime': d.powerOffTime,
-      'lastPowerOnTime': d.lastPowerOnTime,
-      'totalPowerOnTime': d.totalPowerOnTime,
-      'totalPowerOffTime': d.totalPowerOffTime,
-      'overAllCumulativeFlow': d.overAllCumulativeFlow,
-      'flowRate': d.flowRate,
-      'pressure': d.pressure,
-      'level': d.level,
-      'totalInstantEnergy': d.totalInstantEnergy,
-      'cumulativeEnergy': d.cumulativeEnergy,
-      'powerFactorR': d.powerFactorR,
-      'powerFactorY': d.powerFactorY,
-      'powerFactorB': d.powerFactorB,
-      'powerR': d.powerR,
-      'powerY': d.powerY,
-      'powerB': d.powerB,
-      'motorRunTime1': d.motorRunTime1,
-      'motorIdleTime1': d.motorIdleTime1,
-      'lastDateRunTime1': d.lastDateRunTime1,
-      'lastDateRunFlow1': d.lastDateRunFlow1,
-      'dryRunTripTime1': d.dryRunTripTime1,
-      'cyclicTripTime1': d.cyclicTripTime1,
-      'otherTripTime1': d.otherTripTime1,
-      'totalFlowToday1': d.totalFlowToday1,
-      'motorRunTime2': d.motorRunTime2,
-      'motorIdleTime2': d.motorIdleTime2,
-      'lastDateRunTime2': d.lastDateRunTime2,
-      'lastDateRunFlow2': d.lastDateRunFlow2,
-      'dryRunTripTime2': d.dryRunTripTime2,
-      'cyclicTripTime2': d.cyclicTripTime2,
-      'otherTripTime2': d.otherTripTime2,
-      'totalFlowToday2': d.totalFlowToday2,
-      'motorRunTime3': d.motorRunTime3,
-      'motorIdleTime3': d.motorIdleTime3,
-      'lastDateRunTime3': d.lastDateRunTime3,
-      'lastDateRunFlow3': d.lastDateRunFlow3,
-      'dryRunTripTime3': d.dryRunTripTime3,
-      'cyclicTripTime3': d.cyclicTripTime3,
-      'otherTripTime3': d.otherTripTime3,
-      'totalFlowToday3': d.totalFlowToday3,
-    };
-  }
-
-  Map<String, dynamic> _parseHourlyPayload(String cM, {String? dateStr, MotorDataHourly? base}) {
-    // Start from the current snapshot (if any) so fields missing in this message are kept,
-    // otherwise start from zero defaults.
-    final Map<String, dynamic> json = base != null
-        ? _hourlyToMap(base)
-        : {
-      'numberOfPumps': 1,
-      'twoPhasePowerOnTime': '00:00:00',
-      'twoPhaseLastPowerOnTime': '00:00:00',
-      'threePhasePowerOnTime': '00:00:00',
-      'threePhaseLastPowerOnTime': '00:00:00',
-      'powerOffTime': '00:00:00',
-      'lastPowerOnTime': '00:00:00',
-      'totalPowerOnTime': '00:00:00',
-      'totalPowerOffTime': '00:00:00',
-      'overAllCumulativeFlow': '0',
-      'flowRate': '0.0',
-      'pressure': '0.0',
-      'level': '0.0',
-      'motorRunTime1': '00:00:00',
-      'motorIdleTime1': '00:00:00',
-      'lastDateRunTime1': '00:00:00',
-      'lastDateRunFlow1': '0',
-      'dryRunTripTime1': '00:00:00',
-      'cyclicTripTime1': '00:00:00',
-      'otherTripTime1': '00:00:00',
-      'totalFlowToday1': '0',
-      'motorRunTime2': '00:00:00',
-      'motorIdleTime2': '00:00:00',
-      'lastDateRunTime2': '00:00:00',
-      'lastDateRunFlow2': '0',
-      'dryRunTripTime2': '00:00:00',
-      'cyclicTripTime2': '00:00:00',
-      'otherTripTime2': '00:00:00',
-      'totalFlowToday2': '0',
-      'motorRunTime3': '00:00:00',
-      'motorIdleTime3': '00:00:00',
-      'lastDateRunTime3': '00:00:00',
-      'lastDateRunFlow3': '0',
-      'dryRunTripTime3': '00:00:00',
-      'cyclicTripTime3': '00:00:00',
-      'otherTripTime3': '00:00:00',
-      'totalFlowToday3': '0',
-    };
-    json['date'] = dateStr ?? DateFormat('yyyy-MM-dd').format(_selectedDate);
-
-    final sections = cM.split('-');
-    for (final section in sections) {
-      final trimmedSec = section.trim();
-      if (trimmedSec.isEmpty) continue;
-
-      if (!trimmedSec.contains('=') && !trimmedSec.contains(':')) {
-        continue;
-      }
-
-      final items = trimmedSec.split(RegExp(r',(?![^=]*;)'));
-      for (final item in items) {
-        final pair = item.trim();
-        if (pair.isEmpty) continue;
-
-        if (pair.contains('=')) {
-          final idx = pair.indexOf('=');
-          final key = pair.substring(0, idx).trim();
-          final val = pair.substring(idx + 1).trim();
-
-          switch (key) {
-            case 'NP':
-              final np = int.tryParse(val) ?? 1;
-              json['numberOfPumps'] = np;
-              break;
-            case '2PPONTIM':
-              json['twoPhasePowerOnTime'] = val;
-              break;
-            case '3PPONTIM':
-              json['threePhasePowerOnTime'] = val;
-              break;
-            case 'POFFTIM':
-              json['powerOffTime'] = val;
-              break;
-            case 'TPONTIM':
-              json['totalPowerOnTime'] = val;
-              break;
-            case 'TPOFTIM':
-              json['totalPowerOffTime'] = val;
-              break;
-            case 'RTIM':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['motorRunTime1'] = vals[0].trim();
-              if (vals.length > 1) json['motorRunTime2'] = vals[1].trim();
-              if (vals.length > 2) json['motorRunTime3'] = vals[2].trim();
-              break;
-            case 'MIDLEPTIM':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['motorIdleTime1'] = vals[0].trim();
-              if (vals.length > 1) json['motorIdleTime2'] = vals[1].trim();
-              if (vals.length > 2) json['motorIdleTime3'] = vals[2].trim();
-              break;
-            case 'DTRIPTIM':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['dryRunTripTime1'] = vals[0].trim();
-              if (vals.length > 1) json['dryRunTripTime2'] = vals[1].trim();
-              if (vals.length > 2) json['dryRunTripTime3'] = vals[2].trim();
-              break;
-            case 'CYCTRIPTIM':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['cyclicTripTime1'] = vals[0].trim();
-              if (vals.length > 1) json['cyclicTripTime2'] = vals[1].trim();
-              if (vals.length > 2) json['cyclicTripTime3'] = vals[2].trim();
-              break;
-            case 'OTRIPTIM':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['otherTripTime1'] = vals[0].trim();
-              if (vals.length > 1) json['otherTripTime2'] = vals[1].trim();
-              if (vals.length > 2) json['otherTripTime3'] = vals[2].trim();
-              break;
-            case 'RFLO':
-              final vals = val.split(';');
-              if (vals.isNotEmpty) json['totalFlowToday1'] = vals[0].trim();
-              if (vals.length > 1) json['totalFlowToday2'] = vals[1].trim();
-              if (vals.length > 2) json['totalFlowToday3'] = vals[2].trim();
-              break;
-          }
-        } else if (pair.contains(':')) {
-          final idx = pair.indexOf(':');
-          final key = pair.substring(0, idx).trim();
-          final val = pair.substring(idx + 1).trim();
-
-          switch (key) {
-            case 'CF':
-              json['overAllCumulativeFlow'] = val;
-              break;
-            case 'FL':
-              json['flowRate'] = val;
-              break;
-            case 'PR':
-              json['pressure'] = val;
-              break;
-            case 'LV':
-              json['level'] = val;
-              break;
-          }
-        }
-      }
-    }
-
-    return json;
-  }
-
-  bool _isTodaySelected() {
-    final now = DateTime.now();
-    return _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
-  }
-
-  /// Background refresh: no spinner, no flicker, existing data stays on screen until
-  /// the new data is ready. Skipped while a manual load is running or the tab is hidden.
-  Future<void> _silentRefresh() async {
-    if (!mounted || _isLoading || _silentBusy) return;
-    if (!TickerMode.of(context)) return;
-
-    final bool today = _isTodaySelected();
-    // Weekly / monthly power totals always end at "now", so they stay live too.
-    if (!today && _powerPeriodIndex == 0) return;
-
-    _silentBusy = true;
-    try {
-      final provider = context.read<PumpControllerProvider>();
-      provider.selectedDate = _selectedDate;
-      await Future.wait([
-        provider.getPumpControllerData(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          nodeControllerId: _activeNodeControllerId,
-          selectedIndex: _powerPeriodIndex,
-          silent: true,
-        ),
-        if (today)
-          provider.getUserPumpLog(
-            widget.userId,
-            widget.controllerId,
-            _activeNodeControllerId,
-            widget.masterData,
-            true,
-          ),
-        if (today)
-          provider.getUserVoltageLog(
-            userId: widget.userId,
-            controllerId: widget.controllerId,
-            nodeControllerId: _activeNodeControllerId,
-            silent: true,
-          ),
-      ]);
-    } catch (e) {
-      log("Silent refresh error: $e");
-    } finally {
-      _silentBusy = false;
-    }
+    return provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null;
   }
 
   @override
@@ -585,12 +179,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
     final pumpListChanged = widget.pumpList != oldWidget.pumpList;
 
     if (controllerChanged || pumpListChanged) {
-      _clearLive(); // live data belonged to the previous controller
       _selectedPumpIndex = 0;
       final devices = effectiveDeviceList;
       if (devices.isNotEmpty) {
         final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
-        _activeNodeControllerId = isEcoGem ? 0 : (devices[0]['controllerId'] ?? widget.nodeControllerId);
+        _activeNodeControllerId = isEcoGem ? 0 : _extractControllerId(devices[0]);
+        if (_activeNodeControllerId == 0 && !isEcoGem) _activeNodeControllerId = widget.nodeControllerId;
       } else {
         _activeNodeControllerId = widget.nodeControllerId;
       }
@@ -604,6 +198,22 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
     _weekStartDate = DateTime(date.year, date.month, date.day).subtract(Duration(days: diff));
   }
 
+  int get effectiveUserId {
+    if (widget.userId != 0) return widget.userId;
+    final uid = widget.userData['customerId'] ?? widget.userData['userId'] ?? widget.userData['user_id'];
+    if (uid is int) return uid;
+    if (uid != null) return int.tryParse(uid.toString()) ?? 0;
+    return 0;
+  }
+
+  int get effectiveControllerId {
+    if (widget.controllerId != 0) return widget.controllerId;
+    final cid = widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    if (cid is int) return cid;
+    if (cid != null) return int.tryParse(cid.toString()) ?? widget.masterData.controllerId;
+    return widget.masterData.controllerId;
+  }
+
   Future<void> _fetchAllData() async {
     if (!mounted) return;
     final int generation = ++_fetchGeneration;
@@ -612,23 +222,26 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
     final provider = context.read<PumpControllerProvider>();
     provider.selectedDate = _selectedDate;
 
+    final userId = effectiveUserId;
+    final controllerId = effectiveControllerId;
+
     try {
       await Future.wait([
         provider.getPumpControllerData(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
+          userId: userId,
+          controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
           selectedIndex: _powerPeriodIndex,
         ),
         provider.getUserPumpLog(
-          widget.userId,
-          widget.controllerId,
+          userId,
+          controllerId,
           _activeNodeControllerId,
           widget.masterData,
         ),
         provider.getUserVoltageLog(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
+          userId: userId,
+          controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
         ),
       ]);
@@ -661,7 +274,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
 
   void _onDateSelected(DateTime date) {
     setState(() {
-      _clearLive(); // live data belongs to "today" only
       _selectedDate = date;
       _alignWeekStartDate(date);
     });
@@ -685,7 +297,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
         !DateTime(today.year, today.month, today.day).isAfter(DateTime(newEnd.year, newEnd.month, newEnd.day));
 
     setState(() {
-      _clearLive();
       _weekStartDate = newStart;
       _selectedDate = todayInWeek ? today : newStart;
     });
@@ -701,86 +312,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
           duration: Duration(seconds: 2),
         ),
       );
-  }
-
-  Future<void> _sendOneHourRefreshPayload() async {
-    if (_isSendingRefreshPayload) return;
-
-    setState(() {
-      _isSendingRefreshPayload = true;
-    });
-
-    final targetControllerId = _activeNodeControllerId != 0
-        ? _activeNodeControllerId
-        : widget.controllerId;
-    final targetDeviceId = currentDeviceId;
-
-    _subscribeToCurrentDeviceMqtt();
-
-    final Map<String, dynamic> payloadMap = {"sentSms": "onehr"};
-    final String rawPayload = jsonEncode(payloadMap);
-    final String payLoadString = AppConstants.wlcModelList.contains(widget.masterData.modelId)
-        ? '*$rawPayload#'
-        : rawPayload;
-
-    try {
-      final topic = '${Environment.mqttPublishTopic}/$targetDeviceId';
-      log("Publishing 1hr refresh payload $payLoadString to $topic for controller $targetControllerId");
-
-      await MqttService().topicToPublishAndItsMessage(payLoadString, topic);
-
-      final Map<String, dynamic> body = {
-        "userId": widget.userId,
-        "controllerId": targetControllerId,
-        "messageStatus": "Requested 1hr log refresh",
-        "hardware": payloadMap,
-        "data": payLoadString,
-        "createUser": widget.userId,
-      };
-
-      await Repository(HttpService()).sendManualOperationToServer(body);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Refresh request sent successfully'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-      }
-
-      // Wait for the controller's live reply (it is applied by the MQTT listener and
-      // is protected from being overwritten), then sync the server data.
-      // The server data only replaces the live data if it is actually newer.
-      await Future.delayed(const Duration(milliseconds: 2500));
-      if (mounted) {
-        await _fetchAllData();
-      }
-      await Future.delayed(const Duration(seconds: 3));
-      if (mounted) {
-        await _fetchAllData();
-      }
-    } catch (e) {
-      log("Error sending 1hr refresh payload: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text('Failed to send refresh command: $e'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSendingRefreshPayload = false;
-        });
-      }
-    }
   }
 
   void _goToPrevDay() {
@@ -1042,15 +573,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
                   _buildCalendarHeader(isWide),
 
                   Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _fetchAllData,
-                      color: _kTeal,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                             _buildDeviceHeader(),
                             _buildPumpSegmentControl(provider),
 
@@ -1085,7 +612,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
                         ),
                       ),
                     ),
-                  ),
                 ],
               );
             },
@@ -1305,39 +831,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: _isSendingRefreshPayload ? null : _sendOneHourRefreshPayload,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _kTeal,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_isSendingRefreshPayload)
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  else
-                    const Icon(Icons.refresh_rounded, color: Colors.white, size: 14),
-                  const SizedBox(width: 4),
-                  const Text(
-                    'Refresh',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -1423,11 +916,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
                 child: InkWell(
                   onTap: () {
                     setState(() {
-                      _clearLive(); // live data belonged to the previous device
                       _selectedPumpIndex = index;
-                      _activeNodeControllerId = pumpItem['controllerId'] ?? 0;
+                      _activeNodeControllerId = _extractControllerId(pumpItem);
                     });
-                    _subscribeToCurrentDeviceMqtt();
                     _fetchAllData();
                   },
                   borderRadius: BorderRadius.circular(12),
@@ -1698,7 +1189,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
                 selected: _powerPeriodIndex,
                 onChanged: (i) {
                   setState(() {
-                    _clearLive(); // live data is a "Daily / today" snapshot only
                     _powerPeriodIndex = i;
                   });
                   _fetchAllData();
@@ -2241,16 +1731,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
           ],
         ),
 
-        const SizedBox(height: 12),
-
-        Text(
-          'Share of ${_formatTime(totalPowerOnTime)} total power-on time (HH:MM)',
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
-          ),
-        ),
 
         const SizedBox(height: 14),
 

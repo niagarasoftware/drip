@@ -2026,10 +2026,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   bool isSettingHidden(
       int modelId, int categoryType, int serialNumber, String title) {
-    bool isShine3Phase = AppConstants.shine3PhaseModel.contains(modelId);
-    bool isShineSinglePhase = AppConstants.singlePhaseShineModel.contains(modelId);
-    bool isElite3Phase = AppConstants.elite3PhaseModel.contains(modelId);
-    bool isEliteSinglePhase = AppConstants.singlePhaseElitePlusModel.contains(modelId);
+    bool isShine = AppConstants.shineModelList.contains(modelId);
+    bool isElite = AppConstants.eliteModelList.contains(modelId);
     bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
 
     final titleUpper = title.toUpperCase();
@@ -2039,57 +2037,35 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         titleUpper.contains("2 PHASE") ||
         titleUpper == "AUTO RESTART 2 PHASE" ||
         (titleUpper == "AUTO RESTART" && serialNumber == 8)) {
-      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
+      if (isShine || isElite || isNova) {
         return true;
       }
     }
 
-    // 2. Voltage settings 2 phase settings (sNo 4, 5, 9, 10)
-    if (AppConstants.voltageSetting.contains(categoryType) &&
-        [4, 5, 9, 10].contains(serialNumber)) {
-      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
-        return true;
-      }
-    }
-
-    // 3. Current settings 2 phase settings: dry run 2 phase (sNo 4), overload 2 phase (sNo 14)
+    // 2. Current settings 2 phase settings: dry run 2 phase (sNo 4), overload 2 phase (sNo 14)
     if (AppConstants.currentSetting.contains(categoryType) &&
         (serialNumber == 4 || serialNumber == 14)) {
-      if (isShine3Phase || isShineSinglePhase || isElite3Phase || isEliteSinglePhase || isNova) {
+      if (isShine || isElite || isNova) {
         return true;
       }
     }
 
-    // 4. Pressure sensor settings
-    if (titleUpper.contains("PRESSURE")) {
-      if (isShineSinglePhase) {
-        return true;
-      }
-    }
-
-    // 5. Light on/off
-    if (titleUpper.contains("LIGHT")) {
-      if (isShineSinglePhase) {
-        return true;
-      }
-    }
-
-    // 6. Starting capacitor on/off (sNo 3, 4)
-    // 7. Maximum run time on/off (sNo 7, 8) & Cyclic timer on/off (sNo 9, 10, 11)
+    // 3. Starting capacitor on/off (sNo 3, 4)
+    // 4. Maximum run time on/off (sNo 7, 8) & Cyclic timer on/off (sNo 9, 10, 11)
     if (AppConstants.timerSetting.contains(categoryType) &&
         ([3, 4, 7, 8, 9, 10, 11].contains(serialNumber) ||
             titleUpper.contains("STARTING CAPACITOR") ||
             titleUpper.contains("CYCLIC") ||
             titleUpper.contains("MAXIMUM RUN TIME") ||
             titleUpper.contains("MAX RUN TIME"))) {
-      if (isShine3Phase || isShineSinglePhase) {
+      if (isShine) {
         return true;
       }
     }
 
-    // 8. Other calibration
+    // 5. Other calibration
     if (AppConstants.otherCalibration.contains(categoryType)) {
-      if (isShine3Phase || isShineSinglePhase) {
+      if (isShine) {
         return true;
       }
     }
@@ -2110,7 +2086,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     }
 
     if (AppConstants.otherSetting.contains(type)) {
-      // if (serialNumber == 1) setCondition('phaseValue');
+      if (serialNumber == 1) setCondition('phaseValue');
       if (serialNumber == 9) setCondition('light');
       if (serialNumber == 12) setCondition('peakHour');
       if ([10, 11].contains(serialNumber)) result = conditions['light']!;
@@ -2118,14 +2094,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     } else if (AppConstants.voltageSetting.contains(type)) {
       if (serialNumber == 1) setCondition('lowVoltage');
       if (serialNumber == 6) setCondition('highVoltage');
-      if ([2, 3].contains(serialNumber)) result = conditions['lowVoltage']!;
-      if ([4, 5].contains(serialNumber)) {
-        result = conditions['phaseValue']! && conditions['lowVoltage']!;
-      }
-      if ([7, 8].contains(serialNumber)) result = conditions['highVoltage']!;
-      if ([9, 10].contains(serialNumber)) {
-        result = conditions['phaseValue']! && conditions['highVoltage']!;
-      }
+      if ([2, 3, 4, 5].contains(serialNumber)) result = conditions['lowVoltage']!;
+      if ([7, 8, 9, 10].contains(serialNumber)) result = conditions['highVoltage']!;
     } else if (AppConstants.timerSetting.contains(type)) {
       if (serialNumber == 3) setCondition('startingCapacitor');
       if (serialNumber == 4) result = conditions['startingCapacitor']!;
@@ -2139,10 +2109,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       if (serialNumber == 13) result = conditions['rtc']!;
     } else if (AppConstants.currentSetting.contains(type)) {
       if (serialNumber == 1) setCondition('dryRun');
-      if (serialNumber == 4) {
-        result = conditions['phaseValue']! && conditions['dryRun']!;
-      }
-      if ([2, 3, 5, 6, 7, 8, 9, 10].contains(serialNumber)) {
+      if ([2, 3, 4, 5, 6, 7, 8, 9, 10].contains(serialNumber)) {
         result = conditions['dryRun']!;
       }
       if (serialNumber == 5) setCondition('dryRunRestart');
@@ -2154,10 +2121,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         result = conditions['dryRun']! && conditions['dryRunOcc']!;
       }
       if (serialNumber == 11) setCondition('overLoad');
-      if (serialNumber == 14) {
-        result = conditions['phaseValue']! && conditions['overLoad']!;
-      }
-      if ([12, 13, 15].contains(serialNumber)) result = conditions['overLoad']!;
+      if ([12, 13, 14, 15].contains(serialNumber)) result = conditions['overLoad']!;
     } else if (AppConstants.additionalSetting.contains(type)) {
       if (serialNumber == 3) setCondition('schedule');
       if ([4, 5].contains(serialNumber)) result = conditions['schedule']!;

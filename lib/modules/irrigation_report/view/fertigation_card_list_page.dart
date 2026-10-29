@@ -45,7 +45,7 @@ class _FertigationCardListPageState
   String _selectedDateStr = '';
 
   DateTime _fromDate =
-  DateTime.now().subtract(const Duration(days: 7));
+  DateTime.now();
   DateTime _toDate = DateTime.now();
 
   int _requestId = 0;
