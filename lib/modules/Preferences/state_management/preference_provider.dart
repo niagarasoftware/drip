@@ -94,7 +94,7 @@ class PreferenceProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
         individualPumpSetting = List.from(result['data']
-                ['individualPumpSetting']
+        ['individualPumpSetting']
             .map((json) => IndividualPumpSetting.fromJson(json)));
         commonPumpSettings = List.from(result['data']['commonPumpSetting']
             .map((json) => CommonPumpSetting.fromJson(json)));
@@ -102,11 +102,10 @@ class PreferenceProvider extends ChangeNotifier {
         if (individualPumpSetting != null) {
           for (var individualPump in individualPumpSetting!) {
             int minSeconds =
-                (AppConstants.eliteAndShineModelList.contains(modelId) ||
-                        (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
-                            individualPump.pumpType == 2))
-                    ? 30
-                    : 5;
+            (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
+                individualPump.pumpType == 2)
+                ? 30
+                : 5;
 
             print("minSeconds ==> $minSeconds");
             for (var category in individualPump.settingList) {
@@ -149,13 +148,13 @@ class PreferenceProvider extends ChangeNotifier {
 
   Future<void> getStandAloneSettings(
       {required int userId,
-      required int controllerId,
-      required int selectedIndex}) async {
+        required int controllerId,
+        required int selectedIndex}) async {
     final userData = {"userId": userId, "controllerId": controllerId};
 
     try {
       final standAloneResponse =
-          await repository.getUserPreferenceValveStandaloneSetting(userData);
+      await repository.getUserPreferenceValveStandaloneSetting(userData);
       if (standAloneResponse.statusCode == 200) {
         // final result = standAloneSettingsSample;
         final result = jsonDecode(standAloneResponse.body);
@@ -207,12 +206,12 @@ class PreferenceProvider extends ChangeNotifier {
       {required String key, required int oroPumpIndex, required bool failed}) {
     if (key.contains("100")) {
       commonPumpSettings![oroPumpIndex].settingList[0].controllerReadStatus =
-          "1";
+      "1";
       individualPumpSetting![oroPumpIndex].settingList[0].changed = false;
     }
     if (key.contains("200")) {
       commonPumpSettings![oroPumpIndex].settingList[1].controllerReadStatus =
-          "1";
+      "1";
       individualPumpSetting![oroPumpIndex].settingList[1].changed = false;
     }
     int pumpIndex = 0;
@@ -258,7 +257,7 @@ class PreferenceProvider extends ChangeNotifier {
     if (passwordValidationCode == 200 && calibrationSetting!.isNotEmpty) {
       if (key.contains("900")) {
         calibrationSetting![oroPumpIndex].settingList[1].controllerReadStatus =
-            "1";
+        "1";
         calibrationSetting![oroPumpIndex].settingList[0].changed = false;
       }
     }
@@ -283,7 +282,7 @@ class PreferenceProvider extends ChangeNotifier {
 
   void updateSettingValue(String title, String newValue) {
     final setting =
-        standaloneSettings?.setting.firstWhere((e) => e.title == title);
+    standaloneSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       if (setting.value.toString().contains(',')) {
         final parts = setting.value.split(',');
@@ -299,7 +298,7 @@ class PreferenceProvider extends ChangeNotifier {
 
   void updateMoistureSettingValue(String title, String newValue, bool part1) {
     final setting =
-        moistureSettings?.setting.firstWhere((e) => e.title == title);
+    moistureSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       if (part1) {
         if (setting.value.toString().contains(',')) {
@@ -321,7 +320,7 @@ class PreferenceProvider extends ChangeNotifier {
 
   void updateSwitchValue(String title, bool newValue) {
     final setting =
-        standaloneSettings?.setting.firstWhere((e) => e.title == title);
+    standaloneSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       if (setting.value.toString().contains(',')) {
         final parts = setting.value.split(',');
@@ -345,7 +344,7 @@ class PreferenceProvider extends ChangeNotifier {
 
   void updateMoistureSwitchValue(String title, bool newValue) {
     final setting =
-        moistureSettings?.setting.firstWhere((e) => e.title == title);
+    moistureSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       setting.value = newValue;
       setting.isChanged = true;
