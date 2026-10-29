@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_screen.dart';
+import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_web.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
@@ -44,10 +44,10 @@ List<Widget> appBarActions(
 
   List<Widget> gemActions() {
     return [
-      const MqttStatusIndicator(),
-      const SizedBox(width: 10),
       _buildProgramRunningIcon(vm),
       const SizedBox(width: 8),
+      const MqttStatusIndicator(),
+      const SizedBox(width: 10),
       AlarmButton(
         alarmPayload: vm.alarmDL,
         deviceID: master.deviceId,
@@ -82,9 +82,9 @@ List<Widget> appBarActions(
       Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          const MqttStatusIndicator(),
-          const SizedBox(width: 10),
           _buildProgramRunningIcon(vm),
+          const SizedBox(width: 10),
+          const MqttStatusIndicator(),
           const SizedBox(width: 10),
           if (vm.lineLiveMessage.isNotEmpty && master.irrigationLine.length > 1)
             _buildPauseResumeButton(context, vm),
@@ -213,12 +213,16 @@ Widget _buildHelpMenu(
 
                   if (master.userManualLink?.isNotEmpty == true) {
                     final pdfUrl = AppConstants.buildUserManualUrl(master.userManualLink);
+                    print("pdfUrl:$pdfUrl");
+
+
 
                     if (pdfUrl.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
+                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
                         ),
                       );
                     }
