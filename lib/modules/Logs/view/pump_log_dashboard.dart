@@ -452,16 +452,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> with Wi
   // ==========================================
 
   String _formatTime(String? rawTime) {
-    if (rawTime == null || rawTime.isEmpty || rawTime == '-' || rawTime == '0' || rawTime == 'null') {
-      return '00:00';
-    }
-    final parts = rawTime.trim().split(':');
-    if (parts.length >= 3) {
-      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
-    } else if (parts.length == 2) {
-      return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
-    }
-    return rawTime;
+    return formatHms(rawTime);
   }
 
   /// Parses "HH:MM" or "HH:MM:SS" into seconds.

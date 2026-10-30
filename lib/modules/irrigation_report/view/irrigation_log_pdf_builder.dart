@@ -12,6 +12,23 @@ class _PdfColumnGroup {
   _PdfColumnGroup(this.columnKey, this.dataKey, {this.labelBuilder, this.cellTransform});
 }
 
+// ---- Layout helpers (compact layout) ----
+const double _fsBody = 6.5;
+const double _tableW = 762.0;
+const double _firstColW = 58.0;
+const int _maxDataColsPerPage = 14;
+const double _summaryBandH = 24.0;
+// Table-la kaatta vendaam nu nenaikkura general columns (summary mattum varum)
+const _hiddenColumns = {'Status'};
+
+double _otherColW(int numCols) =>
+    numCols <= 1 ? _tableW : (_tableW - _firstColW) / (numCols - 1);
+double _colW(int c, int numCols) => c == 0 ? _firstColW : _otherColW(numCols);
+double _colX(int c, int numCols) =>
+    c == 0 ? 40.0 : 40.0 + _firstColW + (c - 1) * _otherColW(numCols);
+int _maxChars(int c, int numCols, double fs) =>
+    ((_colW(c, numCols) - 6) / (fs * 0.52)).floor().clamp(6, 40);
+
 const _reasonCodeColumns = {
   'Start Stop Reason',
   'Pause Resume Reason',
@@ -225,7 +242,7 @@ String _computeColumnSummary(List<List<String>> rows, int c) {
   return '-';
 }
 
-Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
+Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName, {String? reportSheet}) {
   final List<int> pdfBytes = [];
   final List<int> offsets = [0];
 
@@ -266,11 +283,18 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
     }
   }
 
+  // Orey oru report mattum: reportSheet kudutha adhu, illana first sheet
+  if (sheets.length > 1) {
+    final keepKey = (reportSheet != null && sheets.containsKey(reportSheet)) ? reportSheet : sheets.keys.first;
+    final keepData = sheets[keepKey]!;
+    sheets.clear();
+    sheets[keepKey] = keepData;
+  }
+
   // 1. PDF Header
   writeString("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
 
   List<Map<String, dynamic>> allPages = [];
-  const int dataColsPerPage = 6; // Fixed col + 6 data cols per chunk = 7 cols max
 
   sheets.forEach((sheetName, sheetData) {
     String fixedColName = sheetData['fixedColumn']?.toString() ?? 'Date';
@@ -281,10 +305,12 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
 
     List<String> headers = [fixedColName];
     Map<_PdfColumnGroup, int> columnCounts = {};
+    final List<int> groupSizes = [];
 
     for (var group in activeGroups) {
       final labels = sheetData[group.columnKey] as List;
       columnCounts[group] = labels.length;
+      groupSizes.add(labels.length);
       for (var j = 0; j < labels.length; j++) {
         final label = '${labels[j]}';
         headers.add(group.labelBuilder != null ? group.labelBuilder!(label) : label);
@@ -296,6 +322,7 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
       final genGroup = _PdfColumnGroup('generalColumn', 'generalColumnData', cellTransform: _pdfCellTransform);
       activeGroups.add(genGroup);
       columnCounts[genGroup] = labels.length;
+      groupSizes.add(labels.length);
       for (var label in labels) {
         headers.add('$label');
       }
@@ -329,67 +356,99 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
       rows.add(List.filled(headers.isNotEmpty ? headers.length : 1, '-'));
     }
 
-    int totalDataCols = headers.length - 1;
-    if (totalDataCols < 1) totalDataCols = 1;
+    // Status summary (first page-ku mattum) + status column table-la irundhu remove
+    final Map<String, int> statusCounts = {};
+    if (activeGroups.isNotEmpty &&
+        activeGroups.first.columnKey == 'generalColumn' &&
+        groupSizes.isNotEmpty) {
+      final int genSize = groupSizes[0];
+      final List<int> hideIdx = [];
+      for (int i = 1; i <= genSize && i < headers.length; i++) {
+        if (_hiddenColumns.contains(headers[i])) hideIdx.add(i);
+      }
+      for (final i in hideIdx) {
+        if (headers[i] != 'Status') continue;
+        for (final r in rows) {
+          if (i >= r.length) continue;
+          final v = r[i].trim();
+          if (v.isEmpty || v == '-') continue;
+          statusCounts[v] = (statusCounts[v] ?? 0) + 1;
+        }
+      }
+      for (final i in hideIdx.reversed) {
+        headers.removeAt(i);
+        for (final r in rows) {
+          if (i < r.length) r.removeAt(i);
+        }
+        groupSizes[0]--;
+      }
+    }
 
-    int colChunks = (totalDataCols / dataColsPerPage).ceil();
-    if (colChunks < 1) colChunks = 1;
+    // Group-aware column packing
+    final List<List<int>> chunks = [];
+    List<int> cur = [];
+    int colPtr = 1;
+    for (final size in groupSizes) {
+      final idxs = List.generate(size, (i) => colPtr + i);
+      colPtr += size;
+      // group poga edam illana next page-ku
+      if (cur.isNotEmpty && cur.length + size > _maxDataColsPerPage) {
+        chunks.add(cur);
+        cur = [];
+      }
+      for (final i in idxs) {
+        if (cur.length >= _maxDataColsPerPage) {
+          chunks.add(cur);
+          cur = [];
+        }
+        cur.add(i);
+      }
+    }
+    if (cur.isNotEmpty) chunks.add(cur);
+    if (chunks.isEmpty) chunks.add([]);
+    final int colChunks = chunks.length;
 
     for (int cc = 0; cc < colChunks; cc++) {
-      int colStart = 1 + (cc * dataColsPerPage);
-      int colEnd = colStart + dataColsPerPage;
-      if (colEnd > headers.length) colEnd = headers.length;
+      final List<int> chunkColIndices = [0, ...chunks[cc]];
+      final List<String> chunkHeaders = chunkColIndices.map((i) => headers[i]).toList();
+      final int chunkNumCols = chunkColIndices.length;
 
-      List<String> chunkHeaders = [headers[0]];
-      List<int> chunkColIndices = [0];
-      for (int c = colStart; c < colEnd; c++) {
-        chunkHeaders.add(headers[c]);
-        chunkColIndices.add(c);
-      }
+      List<String> chunkSummaryRow = [
+        for (final i in chunkColIndices) _computeColumnSummary(rows, i)
+      ];
 
-      List<String> chunkSummaryRow = [];
-      for (int i = 0; i < chunkColIndices.length; i++) {
-        chunkSummaryRow.add(_computeColumnSummary(rows, chunkColIndices[i]));
-      }
-
-      // Pagination based on dynamic row heights
       List<List<List<String>>> chunkPageRows = [];
       List<List<String>> currentPage = [];
-      double pageAvailableY = 445.0; // Y space from 490 down to 45
-      double currentY = pageAvailableY;
+      double pageAvailableY = 425.0; // summary row-ku space vittu
+      // First page-la status summary band-ku space kammi
+      double firstPageAvailableY =
+      (cc == 0 && statusCounts.isNotEmpty) ? pageAvailableY - _summaryBandH : pageAvailableY;
+      double currentY = firstPageAvailableY;
 
       for (int r = 0; r < rows.length; r++) {
         List<String> fullRow = rows[r];
         List<String> chunkRow = [];
         int maxLinesInRow = 1;
 
-        for (int i = 0; i < chunkColIndices.length; i++) {
+        for (int i = 0; i < chunkNumCols; i++) {
           int idx = chunkColIndices[i];
           String val = idx < fullRow.length ? fullRow[idx] : '-';
           chunkRow.add(val);
-
-          int maxChars = (i == 0) ? 18 : 22;
-          List<String> lines = wrapTextLines(val, maxChars);
-          if (lines.length > maxLinesInRow) {
-            maxLinesInRow = lines.length;
-          }
+          final lines = wrapTextLines(val, _maxChars(i, chunkNumCols, _fsBody));
+          if (lines.length > maxLinesInRow) maxLinesInRow = lines.length;
         }
 
-        double rowHeight = 13.0 + (maxLinesInRow * 10.0);
+        double rowHeight = 4.0 + (maxLinesInRow * 7.5);
 
         if (currentPage.isNotEmpty && (currentY - rowHeight < 0)) {
           chunkPageRows.add(currentPage);
           currentPage = [];
           currentY = pageAvailableY;
         }
-
         currentPage.add(chunkRow);
         currentY -= rowHeight;
       }
-
-      if (currentPage.isNotEmpty) {
-        chunkPageRows.add(currentPage);
-      }
+      if (currentPage.isNotEmpty) chunkPageRows.add(currentPage);
 
       int totalSheetPages = chunkPageRows.length;
       for (int p = 0; p < totalSheetPages; p++) {
@@ -402,6 +461,7 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
           'pageIndex': p + 1,
           'totalPages': totalSheetPages,
           'colChunk': cc + 1,
+          'statusSummary': (cc == 0 && p == 0 && statusCounts.isNotEmpty) ? statusCounts : null,
           'totalColChunks': colChunks,
         });
       }
@@ -469,37 +529,42 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
     // Title Header
     streamBuf.write("0.00 0.40 0.45 rg\n");
     String subtitle = totalColChunks > 1 ? " (Cols $colChunk/$totalColChunks)" : "";
-    streamBuf.write("BT /F1 14 Tf 40 555 Td (${sanitizePdfText("$fileName - $sheetName$subtitle")}) Tj ET\n");
+    streamBuf.write("BT /F1 14 Tf 40 555 Td (${sanitizePdfText("$fileName$subtitle")}) Tj ET\n");
     streamBuf.write("0.4 0.4 0.4 rg\n");
     streamBuf.write("BT /F2 9 Tf 40 540 Td (${sanitizePdfText("Generated on: $nowStr  |  Page ${p + 1} of $numPages")}) Tj ET\n");
 
     int numCols = headers.isNotEmpty ? headers.length : 1;
+    const double startX = 40.0;
+    const double tableWidth = _tableW;
 
-    double startX = 40.0;
-    double tableWidth = 762.0;
-    double colWidth = tableWidth / numCols;
+    // Header background (3 lines varaikkum)
+    streamBuf.write("0.90 0.95 0.95 rg 40 500 762 28 re f\n");
+    streamBuf.write("0.70 0.80 0.80 RG 0.8 w 40 500 762 28 re S\n");
 
-    // Header Background
-    streamBuf.write("0.90 0.95 0.95 rg 40 508 762 20 re f\n");
-    streamBuf.write("0.70 0.80 0.80 RG 0.8 w 40 508 762 20 re S\n");
-
-    // Header Labels (wrapped if necessary)
     streamBuf.write("0.1 0.1 0.1 rg\n");
     for (int c = 0; c < numCols; c++) {
-      double cx = startX + (c * colWidth) + 4;
-      String hText = headers[c];
-      int maxChars = (c == 0) ? 18 : 22;
-      List<String> hLines = wrapTextLines(hText, maxChars, maxLines: 2);
-      if (hLines.length == 1) {
-        streamBuf.write("BT /F1 8 Tf $cx 514 Td (${sanitizePdfText(hLines[0])}) Tj ET\n");
-      } else {
-        streamBuf.write("BT /F1 7.5 Tf $cx 518 Td (${sanitizePdfText(hLines[0])}) Tj ET\n");
-        streamBuf.write("BT /F1 7.5 Tf $cx 510 Td (${sanitizePdfText(hLines[1])}) Tj ET\n");
+      double cx = _colX(c, numCols) + 3;
+      final hLines = wrapTextLines(headers[c], _maxChars(c, numCols, _fsBody), maxLines: 3);
+      for (int l = 0; l < hLines.length; l++) {
+        double ly = 521.0 - (l * 7.5);
+        streamBuf.write("BT /F1 $_fsBody Tf $cx $ly Td (${sanitizePdfText(hLines[l])}) Tj ET\n");
       }
     }
 
-    // Rows with dynamic height and text wrapping
-    double currentY = 490.0;
+    double currentY = 498.0;
+
+    // Status summary band (first page only)
+    final Map<String, int>? statusSummary =
+    pageData['statusSummary'] != null ? Map<String, int>.from(pageData['statusSummary']) : null;
+    if (statusSummary != null && statusSummary.isNotEmpty) {
+      final text = 'Status Summary:  ' + statusSummary.entries.map((e) => '${e.key}: ${e.value}').join('   |   ');
+      streamBuf.write("0.85 0.92 0.94 rg $startX 474 $tableWidth 20 re f\n");
+      streamBuf.write("0.60 0.75 0.80 RG 0.8 w $startX 474 $tableWidth 20 re S\n");
+      streamBuf.write("0.00 0.25 0.35 rg\n");
+      final sLine = wrapTextLines(text, 190, maxLines: 1).first;
+      streamBuf.write("BT /F1 7.5 Tf ${startX + 4} 481 Td (${sanitizePdfText(sLine)}) Tj ET\n");
+      currentY -= _summaryBandH;
+    }
 
     for (int r = 0; r < rows.length; r++) {
       final row = rows[r];
@@ -508,15 +573,12 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
 
       for (int c = 0; c < numCols; c++) {
         String valText = c < row.length ? row[c] : '-';
-        int maxChars = (c == 0) ? 18 : 22;
-        List<String> lines = wrapTextLines(valText, maxChars);
+        final lines = wrapTextLines(valText, _maxChars(c, numCols, _fsBody));
         cellLinesList.add(lines);
-        if (lines.length > maxLinesInRow) {
-          maxLinesInRow = lines.length;
-        }
+        if (lines.length > maxLinesInRow) maxLinesInRow = lines.length;
       }
 
-      double rowHeight = 13.0 + (maxLinesInRow * 10.0);
+      double rowHeight = 4.0 + (maxLinesInRow * 7.5);
       double drawTopY = currentY - rowHeight;
 
       if (r % 2 == 1) {
@@ -526,33 +588,28 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
 
       streamBuf.write("0.2 0.2 0.2 rg\n");
       for (int c = 0; c < numCols; c++) {
-        double cx = startX + (c * colWidth) + 4;
-        List<String> lines = cellLinesList[c];
-
-        for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-          double lineY = currentY - 12.0 - (lineIdx * 9.5);
-          streamBuf.write("BT /F2 8 Tf $cx $lineY Td (${sanitizePdfText(lines[lineIdx])}) Tj ET\n");
+        double cx = _colX(c, numCols) + 3;
+        final lines = cellLinesList[c];
+        for (int li = 0; li < lines.length; li++) {
+          double lineY = currentY - 8.0 - (li * 7.5);
+          streamBuf.write("BT /F2 $_fsBody Tf $cx $lineY Td (${sanitizePdfText(lines[li])}) Tj ET\n");
         }
       }
-
       currentY -= rowHeight;
     }
 
-    // BOTTOM TOTAL SUMMARY ROW
+    // SUMMARY ROW
     if (isLastPage && summaryRow.isNotEmpty) {
       int maxSummaryLines = 1;
       List<List<String>> summaryCellLines = [];
       for (int c = 0; c < numCols; c++) {
         String sumText = c < summaryRow.length ? summaryRow[c] : '-';
-        int maxChars = (c == 0) ? 18 : 22;
-        List<String> lines = wrapTextLines(sumText, maxChars, maxLines: 2);
+        final lines = wrapTextLines(sumText, _maxChars(c, numCols, _fsBody), maxLines: 2);
         summaryCellLines.add(lines);
-        if (lines.length > maxSummaryLines) {
-          maxSummaryLines = lines.length;
-        }
+        if (lines.length > maxSummaryLines) maxSummaryLines = lines.length;
       }
 
-      double footerHeight = 14.0 + (maxSummaryLines * 9.5);
+      double footerHeight = 5.0 + (maxSummaryLines * 7.5);
       double drawTopY = currentY - footerHeight;
 
       streamBuf.write("0.85 0.92 0.94 rg $startX $drawTopY $tableWidth $footerHeight re f\n");
@@ -560,14 +617,13 @@ Uint8List generateIrrigationLogPdfBytes(dynamic dataInput, String fileName) {
 
       streamBuf.write("0.00 0.25 0.35 rg\n");
       for (int c = 0; c < numCols; c++) {
-        double cx = startX + (c * colWidth) + 4;
-        List<String> lines = summaryCellLines[c];
-        for (int lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-          double lineY = currentY - 12.0 - (lineIdx * 9.5);
-          streamBuf.write("BT /F1 7.5 Tf $cx $lineY Td (${sanitizePdfText(lines[lineIdx])}) Tj ET\n");
+        double cx = _colX(c, numCols) + 3;
+        final lines = summaryCellLines[c];
+        for (int li = 0; li < lines.length; li++) {
+          double lineY = currentY - 8.0 - (li * 7.5);
+          streamBuf.write("BT /F1 $_fsBody Tf $cx $lineY Td (${sanitizePdfText(lines[li])}) Tj ET\n");
         }
       }
-
       currentY -= footerHeight;
     }
 

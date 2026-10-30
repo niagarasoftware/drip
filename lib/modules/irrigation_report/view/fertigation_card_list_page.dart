@@ -759,7 +759,7 @@ class _FertigationCardListPageState
 
     int running = allCards.where((c) => c.status.toLowerCase().contains('run')).length;
     int skipped = allCards.where((c) => c.status.toLowerCase().contains('skip')).length;
-    int completed = allCards.where((c) => c.status.toLowerCase().contains('complet')).length;
+    int completed = allCards.where((c) => c.status.toLowerCase().contains('complete')).length;
     int pending = allCards.where((c) => c.status.toLowerCase().contains('pend')).length;
 
     return SingleChildScrollView(
@@ -768,45 +768,6 @@ class _FertigationCardListPageState
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 1. Overall Fertigation Status Summary at the top
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF006573).withValues(alpha: 0.2), width: 1),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Fertigation Status Summary',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF4F4),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _statusCountItem('Running', running, Colors.orange),
-                      _statusCountItem('Skipped', skipped, Colors.blueGrey),
-                      _statusCountItem('Completed', completed, Colors.green),
-                      _statusCountItem('Pending', pending, Colors.grey),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // 2. Card View | Table View toggle
           Center(
             child: SegmentedButton<bool>(
               segments: const [
@@ -843,7 +804,47 @@ class _FertigationCardListPageState
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF006573).withValues(alpha: 0.2), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  ' Fertigation Status Summary',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
+                ),
+                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDF4F4),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statusCountItem('Running', running, Colors.orange),
+                      _statusCountItem('Skipped', skipped, Colors.blueGrey),
+                      _statusCountItem('Completed', completed, Colors.green),
+                      _statusCountItem('Pending', pending, Colors.grey),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 5),
+          // 2. Card View | Table View toggle
+
           // 3. Selected report view
           _isTableView
               ? FertigationTableView(cards: allCards)

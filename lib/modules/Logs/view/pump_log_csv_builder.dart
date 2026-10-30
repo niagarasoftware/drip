@@ -33,11 +33,11 @@ String generatePumpLogCsvString(PumpLogExportData exportData) {
     if (key == 2) events = exportData.motor3Events;
 
     if (events.isEmpty) {
-      sb.writeln('${escapeCsv(motorName)},-,-,-,"No events recorded",-');
+      sb.writeln('${escapeCsv(motorName)},00:00:00,00:00:00,00:00:00,"No events recorded",-');
     } else {
       for (final e in events) {
         sb.writeln(
-          '${escapeCsv(motorName)},${escapeCsv(e.onTime)},${escapeCsv(e.offTime)},${escapeCsv(e.duration)},${escapeCsv(e.onReason)},${escapeCsv(e.offReason)}',
+          '${escapeCsv(motorName)},${escapeCsv(formatHms(e.onTime))},${escapeCsv(formatHms(e.offTime))},${escapeCsv(formatHms(e.duration))},${escapeCsv(e.onReason)},${escapeCsv(e.offReason)}',
         );
       }
     }
@@ -66,8 +66,8 @@ String generatePumpLogCsvString(PumpLogExportData exportData) {
   sb.writeln('Metric,Value,Unit');
 
   final motorData = exportData.motorData;
-  sb.writeln('Total Power On Time,${escapeCsv(motorData?.totalPowerOnTime ?? "00:00:00")},HH:MM:SS');
-  sb.writeln('Total Power Off Time,${escapeCsv(motorData?.totalPowerOffTime ?? "00:00:00")},HH:MM:SS');
+  sb.writeln('Total Power On Time,${escapeCsv(formatHms(motorData?.totalPowerOnTime))},HH:MM:SS');
+  sb.writeln('Total Power Off Time,${escapeCsv(formatHms(motorData?.totalPowerOffTime))},HH:MM:SS');
   sb.writeln('Cumulative Flow,${escapeCsv(motorData?.overAllCumulativeFlow ?? "0")},Litres');
   sb.writeln('Pressure,${escapeCsv(motorData?.pressure ?? "0.0")},bar');
   sb.writeln('Flow Rate,${escapeCsv(motorData?.flowRate ?? "0.0")},Lps');
@@ -97,11 +97,11 @@ String generatePumpLogCsvString(PumpLogExportData exportData) {
       totalFlow = motorData.totalFlowToday3;
     }
 
-    sb.writeln('${escapeCsv("$motorName Run Time")},${escapeCsv(runTime)},HH:MM:SS');
-    sb.writeln('${escapeCsv("$motorName Idle Time")},${escapeCsv(idleTime)},HH:MM:SS');
-    sb.writeln('${escapeCsv("$motorName Dry Run Trip Time")},${escapeCsv(dryRun)},HH:MM:SS');
-    sb.writeln('${escapeCsv("$motorName Cyclic Trip Time")},${escapeCsv(cyclic)},HH:MM:SS');
-    sb.writeln('${escapeCsv("$motorName Other Trip Time")},${escapeCsv(other)},HH:MM:SS');
+    sb.writeln('${escapeCsv("$motorName Run Time")},${escapeCsv(formatHms(runTime))},HH:MM:SS');
+    sb.writeln('${escapeCsv("$motorName Idle Time")},${escapeCsv(formatHms(idleTime))},HH:MM:SS');
+    sb.writeln('${escapeCsv("$motorName Dry Run Trip Time")},${escapeCsv(formatHms(dryRun))},HH:MM:SS');
+    sb.writeln('${escapeCsv("$motorName Cyclic Trip Time")},${escapeCsv(formatHms(cyclic))},HH:MM:SS');
+    sb.writeln('${escapeCsv("$motorName Other Trip Time")},${escapeCsv(formatHms(other))},HH:MM:SS');
     sb.writeln('${escapeCsv("$motorName Total Flow")},${escapeCsv(totalFlow)},Litres');
   });
 

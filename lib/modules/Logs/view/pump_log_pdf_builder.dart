@@ -65,29 +65,6 @@ int? _minutes(String t) {
   return h * 60 + m;
 }
 
-String _axisLabel(num v) {
-  final d = v.toDouble();
-  return d == d.roundToDouble() ? d.toInt().toString() : d.toStringAsFixed(d.abs() < 10 ? 2 : 1);
-}
-
-String _fixed(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
-
-/// Axis ticks with a "nice" step (about 5 divisions) covering [lo, hi].
-List<double> _niceTicks(double lo, double hi) {
-  if (hi <= lo) hi = lo + 1;
-  final raw = (hi - lo) / 5;
-  const steps = <double>[0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000];
-  final step = steps.firstWhere((s) => s >= raw, orElse: () => steps.last);
-  final start = (lo / step).floorToDouble() * step;
-  var end = (hi / step).ceilToDouble() * step;
-  if (end <= start) end = start + step;
-  final ticks = <double>[];
-  for (var v = start; v <= end + step / 1000; v += step) {
-    ticks.add(double.parse(v.toStringAsFixed(4)));
-  }
-  return ticks;
-}
-
 class _Phase {
   final String label;
   final String suffix;
@@ -100,31 +77,6 @@ const _allPhases = <_Phase>[
   _Phase('Y', 'Y', _amber),
   _Phase('B', 'B', _blue),
 ];
-
-class _Metric {
-  final String title;
-  final String prefix;
-  final String unit;
-  const _Metric(this.title, this.prefix, this.unit);
-}
-
-const _metrics = <_Metric>[
-  _Metric('Voltage', 'voltage', 'V'),
-  _Metric('Current', 'current', 'A'),
-  _Metric('Power Factor', 'powerFactor', ''),
-  _Metric('Power', 'power', 'kW'),
-];
-
-/// Phases that actually carry data for a metric (single-phase pumps only have one).
-List<_Phase> _activePhases(List<Map<String, dynamic>> rows, String prefix) {
-  bool any(_Phase p, bool nonZero) => rows.any((r) {
-    final v = _num(r['$prefix${p.suffix}']);
-    return v != null && (!nonZero || v != 0);
-  });
-  var list = _allPhases.where((p) => any(p, true)).toList();
-  if (list.isEmpty) list = _allPhases.where((p) => any(p, false)).toList();
-  return list;
-}
 
 // -----------------------------------------------------------------------------
 // Reusable widgets
@@ -198,165 +150,6 @@ pw.Widget _cell(String text, {bool header = false, pw.Alignment align = pw.Align
   );
 }
 
-pw.Widget _table(List<String> headers, List<List<String>> rows, {List<double>? flex}) {
-  final widths = <int, pw.TableColumnWidth>{
-    for (var i = 0; i < headers.length; i++) i: pw.FlexColumnWidth(flex != null && i < flex.length ? flex[i] : 1),
-  };
-  return pw.Table(
-    border: pw.TableBorder.all(color: _border, width: 0.5),
-    columnWidths: widths,
-    children: [
-      pw.TableRow(
-        repeat: true,
-        decoration: const pw.BoxDecoration(color: _teal),
-        children: headers.map((h) => _cell(h, header: true)).toList(),
-      ),
-      for (var r = 0; r < rows.length; r++)
-        pw.TableRow(
-          decoration: pw.BoxDecoration(color: r.isEven ? PdfColors.white : _tealLight),
-          children: rows[r].map((c) => _cell(c)).toList(),
-        ),
-    ],
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Charts
-// -----------------------------------------------------------------------------
-pw.Widget _metricChart(List<Map<String, dynamic>> rows, _Metric m, List<_Phase> phases) {
-  final values = <double>[];
-  for (final r in rows) {
-    for (final p in phases) {
-      final v = _num(r['${m.prefix}${p.suffix}']);
-      if (v != null) values.add(v);
-    }
-  }
-  final double minV = values.reduce(math.min);
-  final double maxV = values.reduce(math.max);
-
-  double lo;
-  double hi;
-  if (m.prefix == 'voltage') {
-    final pad = math.max(10.0, (maxV - minV) * 0.15);
-    lo = math.max(0, minV - pad);
-    hi = maxV + pad;
-  } else if (m.prefix == 'powerFactor') {
-    lo = math.min(0, minV);
-    hi = math.max(1.0, maxV);
-  } else {
-    lo = math.min(0, minV);
-    hi = maxV <= 0 ? 1 : maxV * 1.15;
-  }
-  final yTicks = _niceTicks(lo, hi);
-
-  final datasets = <pw.Dataset>[];
-  for (final p in phases) {
-    // A missing reading breaks the line (gap) instead of dropping to zero.
-    final segments = <List<pw.PointChartValue>>[];
-    var current = <pw.PointChartValue>[];
-    for (final r in rows) {
-      final h = _num(r['hour']);
-      final v = _num(r['${m.prefix}${p.suffix}']);
-      if (h == null || v == null) {
-        if (current.isNotEmpty) {
-          segments.add(current);
-          current = <pw.PointChartValue>[];
-        }
-        continue;
-      }
-      current.add(pw.PointChartValue(h, v));
-    }
-    if (current.isNotEmpty) segments.add(current);
-
-    for (final seg in segments) {
-      datasets.add(pw.LineDataSet(
-        data: seg,
-        color: p.color,
-        lineWidth: 1.8,
-        drawPoints: true,
-        pointSize: 3,
-        drawSurface: false,
-      ));
-    }
-  }
-
-  return pw.Chart(
-    grid: pw.CartesianGrid(
-      xAxis: pw.FixedAxis(
-        List<num>.generate(24, (i) => i),
-        format: (v) => v.toInt().isEven ? '${v.toInt().toString().padLeft(2, '0')}:00' : '',
-        ticks: true,
-        marginStart: 6,
-        marginEnd: 6,
-      ),
-      yAxis: pw.FixedAxis(
-        yTicks,
-        format: (v) => _axisLabel(v),
-        divisions: true,
-      ),
-    ),
-    datasets: datasets,
-  );
-}
-
-pw.Widget _statsTable(List<Map<String, dynamic>> rows, _Metric m, List<_Phase> phases) {
-  final out = <List<String>>[];
-  for (final p in phases) {
-    final vals = rows.map((r) => _num(r['${m.prefix}${p.suffix}'])).whereType<double>().toList();
-    if (vals.isEmpty) continue;
-    final avg = vals.reduce((a, b) => a + b) / vals.length;
-    out.add([
-      'Phase ${p.label}',
-      '${_fixed(vals.reduce(math.min))} ${m.unit}'.trim(),
-      '${avg.toStringAsFixed(1)} ${m.unit}'.trim(),
-      '${_fixed(vals.reduce(math.max))} ${m.unit}'.trim(),
-    ]);
-  }
-  return _table(['Phase', 'Minimum', 'Average', 'Maximum'], out, flex: [2, 2, 2, 2]);
-}
-
-/// 24-hour strip: green blocks are the periods the motor was ON.
-pw.Widget _timeline(List<EventLog> events, {required bool isToday}) {
-  final now = DateTime.now();
-  final nowMin = now.hour * 60 + now.minute;
-
-  return pw.LayoutBuilder(builder: (ctx, cons) {
-    final w = cons!.maxWidth;
-    const barH = 16.0;
-    final bars = <pw.Widget>[];
-    for (final e in events) {
-      final s = _minutes(e.onTime);
-      if (s == null) continue;
-      var f = _minutes(e.offTime) ?? (isToday ? nowMin : 1440);
-      if (f < s) f = isToday ? nowMin : 1440; // crossed midnight / still running
-      if (f < s) f = s;
-      bars.add(pw.Positioned(
-        left: w * s / 1440,
-        top: 0,
-        child: pw.Container(width: math.max(1.5, w * (f - s) / 1440), height: barH, color: _green),
-      ));
-    }
-    final labels = <pw.Widget>[];
-    for (final h in const [0, 3, 6, 9, 12, 15, 18, 21, 24]) {
-      labels.add(pw.Positioned(
-        left: math.min(w - 18, math.max(0, w * h / 24 - 8)),
-        top: barH + 3,
-        child: pw.Text('${h.toString().padLeft(2, '0')}:00',
-            style: const pw.TextStyle(fontSize: 7, color: _muted)),
-      ));
-    }
-    return pw.SizedBox(
-      width: w,
-      height: barH + 16,
-      child: pw.Stack(children: [
-        pw.Container(width: w, height: barH, color: PdfColors.grey200),
-        ...bars,
-        ...labels,
-      ]),
-    );
-  });
-}
-
 // -----------------------------------------------------------------------------
 // Data access
 // -----------------------------------------------------------------------------
@@ -372,15 +165,33 @@ _MotorStats _motorStats(MotorDataHourly? m, int key) {
   const z = '00:00:00';
   if (m == null) return const _MotorStats(z, z, z, z, z, '0');
   if (key == 1) {
-    return _MotorStats(m.motorRunTime2, m.motorIdleTime2, m.dryRunTripTime2, m.cyclicTripTime2,
-        m.otherTripTime2, m.totalFlowToday2);
+    return _MotorStats(
+      _hms(_secs(m.motorRunTime2)),
+      _hms(_secs(m.motorIdleTime2)),
+      _hms(_secs(m.dryRunTripTime2)),
+      _hms(_secs(m.cyclicTripTime2)),
+      _hms(_secs(m.otherTripTime2)),
+      m.totalFlowToday2,
+    );
   }
   if (key == 2) {
-    return _MotorStats(m.motorRunTime3, m.motorIdleTime3, m.dryRunTripTime3, m.cyclicTripTime3,
-        m.otherTripTime3, m.totalFlowToday3);
+    return _MotorStats(
+      _hms(_secs(m.motorRunTime3)),
+      _hms(_secs(m.motorIdleTime3)),
+      _hms(_secs(m.dryRunTripTime3)),
+      _hms(_secs(m.cyclicTripTime3)),
+      _hms(_secs(m.otherTripTime3)),
+      m.totalFlowToday3,
+    );
   }
-  return _MotorStats(m.motorRunTime1, m.motorIdleTime1, m.dryRunTripTime1, m.cyclicTripTime1,
-      m.otherTripTime1, m.totalFlowToday1);
+  return _MotorStats(
+    _hms(_secs(m.motorRunTime1)),
+    _hms(_secs(m.motorIdleTime1)),
+    _hms(_secs(m.dryRunTripTime1)),
+    _hms(_secs(m.cyclicTripTime1)),
+    _hms(_secs(m.otherTripTime1)),
+    m.totalFlowToday1,
+  );
 }
 
 String _reasonText(String reason, String motorName) {
@@ -447,8 +258,8 @@ Future<Uint8List> generatePumpLogPdfBytes(PumpLogExportData data, String name) a
   slides.addAll([
     _slideTitle('Overview', subtitle: '${data.deviceName}  |  ${data.dateStr}  |  ${data.periodStr}'),
     pw.Wrap(spacing: 12, runSpacing: 12, children: [
-      _kpi('Total power ON time', motor?.totalPowerOnTime ?? '00:00:00', 'HH:MM:SS', accent: _green),
-      _kpi('Total power OFF time', motor?.totalPowerOffTime ?? '00:00:00', 'HH:MM:SS', accent: _red),
+      _kpi('Total power ON time', _hms(_secs(motor?.totalPowerOnTime ?? '00:00:00')), 'HH:MM:SS', accent: _green),
+      _kpi('Total power OFF time', _hms(_secs(motor?.totalPowerOffTime ?? '00:00:00')), 'HH:MM:SS', accent: _red),
       _kpi('Cumulative flow', motor?.overAllCumulativeFlow ?? '0', 'Litres'),
       _kpi('Pressure', motor?.pressure ?? '0.0', 'bar'),
       _kpi('Flow rate', motor?.flowRate ?? '0.0', 'Lps'),
@@ -554,9 +365,9 @@ Future<Uint8List> generatePumpLogPdfBytes(PumpLogExportData data, String name) a
             for (var i = 0; i < events.length; i++)
               [
                 '${i + 1}',
-                events[i].onTime.isNotEmpty ? events[i].onTime : '-',
-                events[i].offTime.isNotEmpty ? events[i].offTime : '-',
-                events[i].duration.isNotEmpty ? events[i].duration : '-',
+                events[i].onTime.isNotEmpty && events[i].onTime != '-' ? _hms(_secs(events[i].onTime)) : '-',
+                events[i].offTime.isNotEmpty && events[i].offTime != '-' ? _hms(_secs(events[i].offTime)) : '-',
+                events[i].duration.isNotEmpty && events[i].duration != '-' ? _hms(_secs(events[i].duration)) : '-',
                 _reasonText(events[i].onReason, e.value),
                 _reasonText(events[i].offReason, e.value),
               ],
@@ -568,102 +379,145 @@ Future<Uint8List> generatePumpLogPdfBytes(PumpLogExportData data, String name) a
   }
 
   // Voltage / current (and power factor / power when the device reports them)
-  final rows = <Map<String, dynamic>>[
-    for (final r in data.voltageData)
-      if (_num(r['hour']) != null) r,
-  ]..sort((a, b) => (_num(a['hour']) ?? 0).compareTo(_num(b['hour']) ?? 0));
-
-  final tableMetrics = <_Metric>[];
-  final tablePhases = <String, List<_Phase>>{};
-
-  if (rows.isEmpty) {
+  final voltageRows = data.voltageData;
+  if (voltageRows.isNotEmpty) {
     slides.add(pw.NewPage());
     slides.addAll([
-      _slideTitle('Voltage & Current', subtitle: data.dateStr),
-      pw.Text('No voltage/current data recorded for this date.',
-          style: const pw.TextStyle(fontSize: 11, color: _muted)),
+      _slideTitle('Voltage & Current Hourly Log', subtitle: '${data.deviceName}  |  ${data.dateStr}'),
+      pw.SizedBox(height: 4),
+      _voltageTable(voltageRows),
     ]);
-  } else {
-    for (final m in _metrics) {
-      final phases = _activePhases(rows, m.prefix);
-      if (phases.isEmpty) continue;
-      tableMetrics.add(m);
-      tablePhases[m.prefix] = phases;
-
-      slides.add(pw.NewPage());
-      slides.addAll([
-        _slideTitle('${m.title} Graph', subtitle: '${data.deviceName}  |  ${data.dateStr}  |  hourly readings'),
-        pw.Wrap(children: [
-          for (final p in phases)
-            _legendDot('${m.title} ${p.label}${m.unit.isEmpty ? '' : ' (${m.unit})'}', p.color),
-        ]),
-        pw.SizedBox(height: 6),
-        pw.SizedBox(height: 255, child: _metricChart(rows, m, phases)),
-        pw.SizedBox(height: 14),
-        _statsTable(rows, m, phases),
-      ]);
-    }
-
-    // Full hourly table
-    if (tableMetrics.isNotEmpty) {
-      final headers = <String>['Hour'];
-      final flex = <double>[1];
-      for (final m in tableMetrics) {
-        for (final p in tablePhases[m.prefix]!) {
-          headers.add('${m.title == 'Power Factor' ? 'PF' : m.title} ${p.label}${m.unit.isEmpty ? '' : ' (${m.unit})'}');
-          flex.add(1.3);
-        }
-      }
-      final body = <List<String>>[];
-      for (final r in rows) {
-        final line = <String>['${(_num(r['hour']) ?? 0).toInt().toString().padLeft(2, '0')}:00'];
-        for (final m in tableMetrics) {
-          for (final p in tablePhases[m.prefix]!) {
-            final v = _num(r['${m.prefix}${p.suffix}']);
-            line.add(v == null ? '-' : '${r['${m.prefix}${p.suffix}']}');
-          }
-        }
-        body.add(line);
-      }
-      slides.add(pw.NewPage());
-      slides.addAll([
-        _slideTitle('Hourly Readings', subtitle: '${data.deviceName}  |  ${data.dateStr}'),
-        _table(headers, body, flex: flex),
-      ]);
-    }
   }
 
   doc.addPage(pw.MultiPage(
     pageFormat: fmt,
-    margin: const pw.EdgeInsets.fromLTRB(30, 26, 30, 26),
-    header: (ctx) => pw.Container(
-      padding: const pw.EdgeInsets.only(bottom: 6),
-      margin: const pw.EdgeInsets.only(bottom: 12),
-      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _teal, width: 1.2))),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(data.deviceName,
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _teal)),
-          pw.Text('Pump Log Report  |  ${data.dateStr}',
-              style: const pw.TextStyle(fontSize: 9, color: _muted)),
-        ],
-      ),
-    ),
-    footer: (ctx) => pw.Container(
-      margin: const pw.EdgeInsets.only(top: 8),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text('Niagara Automations  |  Generated $generatedOn',
-              style: const pw.TextStyle(fontSize: 8, color: _muted)),
-          pw.Text('Page ${ctx.pageNumber} of ${ctx.pagesCount}',
-              style: const pw.TextStyle(fontSize: 8, color: _muted)),
-        ],
-      ),
+    margin: const pw.EdgeInsets.fromLTRB(40, 40, 40, 40),
+    header: (ctx) => ctx.pageNumber == 1
+        ? pw.SizedBox.shrink()
+        : pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Pump Log Report — ${data.deviceName}', style: const pw.TextStyle(fontSize: 9, color: _muted)),
+              pw.Text('Date: ${data.dateStr}', style: const pw.TextStyle(fontSize: 9, color: _muted)),
+            ],
+          ),
+    footer: (ctx) => pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        pw.Text('Page ${ctx.pageNumber}', style: const pw.TextStyle(fontSize: 9, color: _muted)),
+        pw.Text('Niagara Automations', style: const pw.TextStyle(fontSize: 9, color: _muted)),
+      ],
     ),
     build: (ctx) => slides,
   ));
 
-  return Uint8List.fromList(await doc.save());
+  return await doc.save();
+}
+
+pw.Widget _timeline(List<EventLog> events, {required bool isToday}) {
+  const double w = 722; // Printable width on landscape A4 (842 - 80)
+  const double barH = 24;
+  final now = DateTime.now();
+  final nowMin = now.hour * 60 + now.minute;
+
+  final bars = <pw.Widget>[];
+  final labels = <pw.Widget>[];
+
+  for (final e in events) {
+    final s = _minutes(e.onTime);
+    if (s == null) continue;
+    var f = _minutes(e.offTime) ?? (isToday ? nowMin : 1440);
+    if (f < s) f = s; // midnight wrap safeguard
+    final leftFrac = s / 1440.0;
+    final widthFrac = (f - s) / 1440.0;
+    if (widthFrac <= 0) continue;
+
+    bars.add(pw.Positioned(
+      left: leftFrac * w,
+      top: 0,
+      child: pw.SizedBox(
+        width: math.max(2.0, widthFrac * w),
+        height: barH,
+        child: pw.Container(
+          decoration: pw.BoxDecoration(
+            color: _teal,
+            borderRadius: pw.BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    ));
+  }
+
+  // Hour markers
+  for (int h = 0; h <= 24; h += 3) {
+    final x = (h / 24.0) * w;
+    labels.add(pw.Positioned(
+      left: x - 15,
+      top: barH + 4,
+      child: pw.SizedBox(
+        width: 30,
+        child: pw.Text(
+          '${h.toString().padLeft(2, '0')}:00',
+          textAlign: pw.TextAlign.center,
+          style: const pw.TextStyle(fontSize: 8, color: _muted),
+        ),
+      ),
+    ));
+  }
+
+  return pw.SizedBox(
+    width: w,
+    height: barH + 16,
+    child: pw.Stack(children: [
+      pw.Container(width: w, height: barH, color: PdfColors.grey200),
+      ...bars,
+      ...labels,
+    ]),
+  );
+}
+
+pw.Widget _table(List<String> headers, List<List<String>> rows, {List<double>? flex}) {
+  return pw.Table(
+    border: pw.TableBorder.all(color: _border, width: 0.6),
+    columnWidths: flex == null
+        ? null
+        : {for (int i = 0; i < flex.length; i++) i: pw.FlexColumnWidth(flex[i])},
+    children: [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: _teal),
+        children: [for (final h in headers) _cell(h, header: true)],
+      ),
+      for (int r = 0; r < rows.length; r++)
+        pw.TableRow(
+          decoration: pw.BoxDecoration(color: r.isEven ? PdfColors.white : PdfColors.grey50),
+          children: [for (final c in rows[r]) _cell(c)],
+        ),
+    ],
+  );
+}
+
+pw.Widget _voltageTable(List<Map<String, dynamic>> rows) {
+  final headers = ['Hour', 'Voltage R (V)', 'Voltage Y (V)', 'Voltage B (V)', 'Current R (A)', 'Current Y (A)', 'Current B (A)'];
+  return pw.Table(
+    border: pw.TableBorder.all(color: _border, width: 0.6),
+    children: [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(color: _teal),
+        children: [for (final h in headers) _cell(h, header: true)],
+      ),
+      for (int r = 0; r < rows.length; r++)
+        pw.TableRow(
+          decoration: pw.BoxDecoration(color: r.isEven ? PdfColors.white : PdfColors.grey50),
+          children: [
+            _cell('${rows[r]['hour'] ?? '-'}'),
+            _cell('${rows[r]['voltageR'] ?? '-'}'),
+            _cell('${rows[r]['voltageY'] ?? '-'}'),
+            _cell('${rows[r]['voltageB'] ?? '-'}'),
+            _cell('${rows[r]['currentR'] ?? '-'}'),
+            _cell('${rows[r]['currentY'] ?? '-'}'),
+            _cell('${rows[r]['currentB'] ?? '-'}'),
+          ],
+        ),
+    ],
+  );
 }
