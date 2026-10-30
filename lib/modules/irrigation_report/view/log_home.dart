@@ -101,7 +101,7 @@ class _LogHomeState extends State<LogHome> {
       'ProgramName' : ['Program',true,1],
       'Status' : ['Status',true,1],
       'ZoneS_No' : ['Sequence',true,1],
-      'SequenceData' : ['Valves',true,1],
+      'SequenceData' : ['Valve',true,1],
       // 'ZoneName' : ['Sequence',true,1],
       'Date' : ['Date',true,1],
       'ProgramCategoryName' : ['Line',true,1],
@@ -110,7 +110,6 @@ class _LogHomeState extends State<LogHome> {
       'ActualStartReason' : ['Actual Start Reason',true,1],
       'ActualStopReason' : ['Actual Stop Reason',true,1],
       'Pump' : ['Pump',true,1],
-      'ScheduledStartTime' : ['Start Time',false,1],
       'overAll' : ['over all',true,1],
     },
     'irrigation' : {
