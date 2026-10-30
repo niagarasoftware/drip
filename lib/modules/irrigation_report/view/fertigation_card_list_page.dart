@@ -34,6 +34,7 @@ class _FertigationCardListPageState
     extends State<FertigationCardListPage> {
   bool _isLoading = false;
   String? _fetchError;
+  String? _noDataMessage;
   bool _isTableView = false;
 
   dynamic dataSource = {};
@@ -202,6 +203,9 @@ class _FertigationCardListPageState
     setState(() {
       _isLoading = true;
       _fetchError = null;
+      _noDataMessage = null;
+      allCards = [];
+      dataSource = {};
     });
 
     try {
@@ -326,6 +330,17 @@ class _FertigationCardListPageState
       debugPrint('API CODE: ${jsonData['code']}');
       debugPrint('API MESSAGE: ${jsonData['message']}');
 
+      if (response.statusCode == 200 && jsonData['code'].toString() != '200') {
+        if (!mounted || currentRequest != _requestId) return;
+        setState(() {
+          dataSource = {};
+          allCards = [];
+          _fetchError = null;
+          _noDataMessage = jsonData['message']?.toString() ?? 'User irrigation log not found';
+        });
+        return;
+      }
+
       if (response.statusCode != 200 ||
           jsonData['code'].toString() != '200') {
         throw Exception(
@@ -411,6 +426,7 @@ class _FertigationCardListPageState
         dataSource = rawData;
         allCards = mappedCards;
         _fetchError = null;
+        _noDataMessage = null;
       });
     } catch (e, stackTrace) {
       debugPrint(
@@ -426,6 +442,7 @@ class _FertigationCardListPageState
 
       setState(() {
         _fetchError = e.toString();
+        _noDataMessage = null;
       });
     } finally {
       if (mounted && currentRequest == _requestId) {
@@ -710,6 +727,19 @@ class _FertigationCardListPageState
       );
     }
 
+    if (_noDataMessage != null) {
+      return Center(
+        child: Text(
+          _noDataMessage!,
+          style: const TextStyle(
+            color: Color(0xFF637D7A),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     if (_fetchError != null) {
       return _buildErrorView();
     }
@@ -858,11 +888,11 @@ class _FertigationCardListPageState
               child: Text(
                 _selectedDateStr,
                 style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
+                  color: Colors.white70,
+                  fontSize: 12,
+                ),
               ),
             ),
-          ),
           ),
           IconButton(
             icon: const Icon(
@@ -878,7 +908,7 @@ class _FertigationCardListPageState
               color: Colors.white,
             ),
             tooltip: 'Download Report',
-            enabled: !_isLoading && allCards.isEmpty == false,
+            enabled: !_isLoading && allCards.isNotEmpty,
             onSelected: (value) {
               if (value == 'excel') _downloadExcel();
               if (value == 'pdf') _downloadPdf();
