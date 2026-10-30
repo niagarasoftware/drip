@@ -45,13 +45,23 @@ String formatMultiReason(dynamic val) {
   return formatted.join('\n');
 }
 
+bool isGeneralParameterRequired(String payloadKey, [String? uiKey]) {
+  final pLower = payloadKey.toLowerCase().trim();
+  final uLower = (uiKey ?? '').toLowerCase().trim();
+  return pLower == 'programname' || uLower == 'program' ||
+         pLower == 'status' || uLower == 'status' ||
+         pLower == 'programcategoryname' || pLower == 'programcategory' || uLower == 'line' ||
+         pLower == 'date' || uLower == 'date' ||
+         pLower == 'sequencedata' || uLower == 'valve' || uLower == 'valves';
+}
+
 Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
   Map<String, dynamic> defaults = {
     'general' : {
       'ProgramName' : ['Program',true,1],
       'Status' : ['Status',true,1],
       'ZoneS_No' : ['Sequence',true,1],
-      'SequenceData' : ['Valves',true,1],
+      'SequenceData' : ['Valve',true,1],
       'Date' : ['Date',true,1],
       'ProgramCategoryName' : ['Line',true,1],
       'ActualStartTime' : ['Actual Start Time',true,1],
@@ -59,7 +69,6 @@ Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
       'ActualStartReason' : ['Actual Start Reason',true,1],
       'ActualStopReason' : ['Actual Stop Reason',true,1],
       'Pump' : ['Pump',true,1],
-      'ScheduledStartTime' : ['Start Time',false,1],
       'overAll' : ['over all',true,1],
     },
     'irrigation' : {
@@ -161,8 +170,29 @@ Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
 
   if (merged['general'] is Map) {
     Map<String, dynamic> genMap = Map<String, dynamic>.from(merged['general']);
+    genMap.remove('ScheduledStartTime');
+    genMap.remove('HeadUnit');
     if (genMap.containsKey('ProgramCategory') && genMap.containsKey('ProgramCategoryName')) {
       genMap.remove('ProgramCategory');
+    }
+    String? lineKeyFound;
+    List<String> keysToRemove = [];
+    genMap.forEach((k, v) {
+      if (v is List && v.isNotEmpty) {
+        String ui = v[0].toString().toLowerCase().trim();
+        if (ui == 'start time') {
+          keysToRemove.add(k);
+        } else if (ui == 'line') {
+          if (lineKeyFound == null) {
+            lineKeyFound = k;
+          } else {
+            keysToRemove.add(k);
+          }
+        }
+      }
+    });
+    for (var k in keysToRemove) {
+      genMap.remove(k);
     }
     if (genMap.containsKey('SequenceData') && genMap.containsKey('ZoneName')) {
       genMap.remove('ZoneName');
@@ -199,7 +229,6 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
     'ActualStartReason',
     'ActualStopReason',
     'Pump',
-    'ScheduledStartTime',
     'overAll',
   ];
 
@@ -207,15 +236,7 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
 
   for (final key in preferredOrder) {
     if (generalMap.containsKey(key)) {
-      if (key == 'ScheduledStartTime') {
-        var startTimeVal = generalMap[key] is List ? List.from(generalMap[key]) : generalMap[key];
-        if (startTimeVal is List && startTimeVal.length > 1) {
-          startTimeVal[1] = false;
-        }
-        reordered[key] = startTimeVal;
-      } else {
-        reordered[key] = generalMap[key];
-      }
+      reordered[key] = generalMap[key];
     }
   }
 
@@ -258,11 +279,13 @@ class IrrigationLogModel {
   List<GeneralParameterModel> getListOfGeneralParameterModel({required name,required keyList,required data}){
     List<GeneralParameterModel> list = [];
     for(var i in keyList){
+      final bool isReq = (name == 'general') && isGeneralParameterRequired('$i', '${data[name]['$i'][0]}');
       list.add(
           GeneralParameterModel(
               payloadKey: '$i',
               uiKey: '${data[name]['$i'][0]}',
-              show: data[name]['$i'][1]
+              show: isReq ? true : data[name]['$i'][1],
+              isRequired: isReq,
           )
       );
     }
