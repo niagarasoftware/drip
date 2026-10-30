@@ -14,6 +14,7 @@ class PumpModel{
   double bottomSumpFloat;
   int pumpType;
   bool automateFloatSelection;
+  double controlledBySource;
 
   PumpModel({
     required this.commonDetails,
@@ -28,6 +29,7 @@ class PumpModel{
     this.bottomSumpFloat = 0.0,
     this.pumpType = 1,
     this.automateFloatSelection = false,
+    this.controlledBySource = 0.0,
   });
 
   void updateObjectIdIfDeletedInProductLimit(List<double> objectIdToBeDeleted){
@@ -40,6 +42,7 @@ class PumpModel{
     bottomTankFloat = objectIdToBeDeleted.contains(bottomTankFloat) ? 0.0 : bottomTankFloat;
     topSumpFloat = objectIdToBeDeleted.contains(topSumpFloat) ? 0.0 : topSumpFloat;
     bottomSumpFloat = objectIdToBeDeleted.contains(bottomSumpFloat) ? 0.0 : bottomSumpFloat;
+    controlledBySource = objectIdToBeDeleted.contains(controlledBySource) ? 0.0 : controlledBySource;
   }
 
   factory PumpModel.fromJson(dynamic data){
@@ -56,7 +59,8 @@ class PumpModel{
         topSumpFloat: intOrDoubleValidate(data['topSumpFloat'] ?? 0.0),
         bottomSumpFloat: intOrDoubleValidate(data['bottomSumpFloat'] ?? 0.0),
         pumpType: data['pumpType'],
-        automateFloatSelection: data['automateFloatSelection'] ?? false
+        automateFloatSelection: data['automateFloatSelection'] ?? false,
+        controlledBySource: intOrDoubleValidate(data['controlledBySource'] ?? 0.0),
     );
   }
 
@@ -74,6 +78,7 @@ class PumpModel{
       'bottomSumpFloat' : bottomSumpFloat,
       'pumpType' : pumpType,
       'automateFloatSelection' : automateFloatSelection,
+      'controlledBySource' : controlledBySource,
     });
     return commonInfo;
   }

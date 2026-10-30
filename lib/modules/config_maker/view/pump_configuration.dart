@@ -34,8 +34,6 @@ class PumpConfiguration extends StatefulWidget {
 class _PumpConfigurationState extends State<PumpConfiguration> {
   // ── Design tokens (Matching source_configuration.dart) ──
   static const Color _inletColor = Color(0xFF0284C7); // ocean sky blue
-  static const Color _outletColor = Color(0xFF059669); // emerald green
-  static const Color _agitatorColor = Color(0xFFEA580C); // orange
   static const Color _doneColor = Color(0xFF059669); // emerald green
 
   List<int> pumpModelList = [5, 6, 7, 8, 9, 10];
@@ -50,38 +48,13 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   //  PROGRESS CALCULATION
   // ───────────────────────────────────────────────────────────
   _Progress _calcProgress(PumpModel pump) {
-    int total = 9;
+    int total = 3;
     int filled = 0;
     if (pump.pressureIn != 0.0) filled++;
     if (pump.pressureOut != 0.0) filled++;
     if (pump.waterMeter != 0.0) filled++;
-    if (pump.topSumpFloat != 0.0) filled++;
-    if (pump.bottomSumpFloat != 0.0) filled++;
-    if (pump.topTankFloat != 0.0) filled++;
-    if (pump.bottomTankFloat != 0.0) filled++;
-    if (pump.lowerLevel != 0.0) filled++;
-    if (pump.upperLevel != 0.0) filled++;
 
     return _Progress(filled, total, filled);
-  }
-
-  double _getFloatSno(PumpModel pump, int mode) {
-    switch (mode) {
-      case 1:
-        return pump.topSumpFloat;
-      case 2:
-        return pump.bottomSumpFloat;
-      case 3:
-        return pump.topTankFloat;
-      case 4:
-        return pump.bottomTankFloat;
-      default:
-        return 0.0;
-    }
-  }
-
-  double _getLevelSno(PumpModel pump, int mode) {
-    return mode == 1 ? pump.lowerLevel : pump.upperLevel;
   }
 
   // ───────────────────────────────────────────────────────────
@@ -227,9 +200,103 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
   // ───────────────────────────────────────────────────────────
   //  PUMP CARD
   // ───────────────────────────────────────────────────────────
+  Widget _buildControlledBySourceTile(
+    PumpModel pump,
+    List<SourceModel> matchingSources,
+    Color accent,
+    ConfigMakerColors colors,
+  ) {
+    return ConfigFlowSection(
+      title: 'Select the source that controls the filling operation.',
+      icon: Icons.alt_route_rounded,
+      accent: accent,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: RadioGroup<double>(
+            groupValue: pump.controlledBySource,
+            onChanged: (double? value) {
+              if (value != null) {
+                setState(() {
+                  pump.controlledBySource = value;
+                });
+              }
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var source in matchingSources) ...[
+                  Builder(
+                    builder: (context) {
+                      final double sourceSno = source.commonDetails.sNo ?? 0.0;
+                      final bool isSelected = pump.controlledBySource == sourceSno;
+                      final String sourceTitle = (source.commonDetails.name?.isNotEmpty == true)
+                          ? source.commonDetails.name!
+                          : getObjectName(sourceSno, widget.configPvd).name ?? 'Source ${sourceSno.toInt()}';
+
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              pump.controlledBySource = sourceSno;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                            child: Row(
+                              children: [
+                                Radio<double>(
+                                  value: sourceSno,
+                                  activeColor: accent,
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    sourceTitle,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                      color: isSelected ? colors.textPrimary : colors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildPumpCard(PumpModel pump, Color primaryColor, ConfigMakerColors colors) {
     final progress = _calcProgress(pump);
     final showModeDropdown = !pumpModelList.contains(widget.configPvd.masterData['modelId']);
+
+    final matchingSources = widget.configPvd.source
+        .where((s) => s.inletPump.contains(pump.commonDetails.sNo))
+        .toList();
+
+    if (matchingSources.isEmpty) {
+      pump.controlledBySource = 0.0;
+    } else if (matchingSources.length == 1) {
+      pump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
+    } else {
+      if (!matchingSources.any((s) => s.commonDetails.sNo == pump.controlledBySource)) {
+        pump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
+      }
+    }
 
     String currentTypeStr = getPumpTypeCodeToString(pump.pumpType);
     String currentTypeFormatted = currentTypeStr[0].toUpperCase() + currentTypeStr.substring(1);
@@ -275,6 +342,8 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       isComplete: progress.complete,
       completeColor: _doneColor,
       body: [
+        if (matchingSources.isNotEmpty)
+          _buildControlledBySourceTile(pump, matchingSources, primaryColor, colors),
         ConfigFlowSection(
           title: 'Pressure & Flow Sensors',
           icon: Icons.speed_rounded,
@@ -283,28 +352,6 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
             _buildCompactGrid([
               for (var mode in [1, 2, 3])
                 _buildPressureAndWaterMeterTile(pump, mode, _inletColor),
-            ]),
-          ],
-        ),
-        ConfigFlowSection(
-          title: 'Float Switches',
-          icon: Icons.waves_rounded,
-          accent: _outletColor,
-          children: [
-            _buildCompactGrid([
-              for (var mode in [1, 2, 3, 4])
-                _buildFloatTile(pump, mode, _outletColor),
-            ]),
-          ],
-        ),
-        ConfigFlowSection(
-          title: 'Level Sensors',
-          icon: Icons.unfold_more_rounded,
-          accent: _agitatorColor,
-          children: [
-            _buildCompactGrid([
-              for (var mode in [1, 2])
-                _buildLevelTile(pump, mode, _agitatorColor),
             ]),
           ],
         ),
@@ -379,131 +426,6 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
                 currentPump.pressureOut = widget.configPvd.selectedSno;
               } else {
                 currentPump.waterMeter = widget.configPvd.selectedSno;
-              }
-              widget.configPvd.selectedSno = 0.0;
-            });
-            Navigator.pop(context);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildFloatTile(PumpModel currentPump, int mode, Color accent) {
-    int objectId = AppConstants.floatObjectId;
-    Map<int, String> controlBy = {
-      1: 'Top Float (Sump)',
-      2: 'Bottom Float (Sump)',
-      3: 'Top Float (Tank)',
-      4: 'Bottom Float (Tank)',
-    };
-    String objectName = controlBy[mode] ?? 'Float Switch';
-    double currentSno = _getFloatSno(currentPump, mode);
-    bool isAssigned = currentSno != 0.0;
-    String assignedName = isAssigned ? getObjectName(currentSno, widget.configPvd).name ?? '-' : '';
-
-    return _buildComponentTile(
-      title: objectName,
-      imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      names: isAssigned ? [assignedName] : const [],
-      isAssigned: isAssigned,
-      accent: accent,
-      onTap: () {
-        List<double> validateFloat = [];
-        List<double> topTankFloatSnoForAllSource = [];
-        List<double> bottomTankFloatSnoForAllSource = [];
-        List<double> topSumpFloatSnoForAllSource = [];
-        List<double> bottomSumpFloatSnoForAllSource = [];
-        Map<int, List<double>> validateFloatAvailableInSource = {
-          1: topSumpFloatSnoForAllSource,
-          2: bottomSumpFloatSnoForAllSource,
-          3: topTankFloatSnoForAllSource,
-          4: bottomTankFloatSnoForAllSource,
-        };
-        for (var src in widget.configPvd.source) {
-          if (src.outletPump.contains(currentPump.commonDetails.sNo)) {
-            topSumpFloatSnoForAllSource.add(src.topFloatForOutletPump);
-            bottomSumpFloatSnoForAllSource.add(src.bottomFloatForOutletPump);
-          } else if (src.inletPump.contains(currentPump.commonDetails.sNo)) {
-            topTankFloatSnoForAllSource.add(src.topFloatForInletPump);
-            bottomTankFloatSnoForAllSource.add(src.bottomFloatForInletPump);
-          }
-        }
-        setState(() {
-          widget.configPvd.selectedSno = currentSno;
-        });
-        selectionDialogBox(
-          context: context,
-          title: 'Select $objectName',
-          singleSelection: true,
-          listOfObject: widget.configPvd.listOfGeneratedObject
-              .where((object) => (object.objectId == objectId &&
-                  !validateFloat.contains(object.sNo) &&
-                  validateFloatAvailableInSource[mode]!.contains(object.sNo)))
-              .toList(),
-          onPressed: () {
-            setState(() {
-              if (mode == 1) {
-                currentPump.topSumpFloat = widget.configPvd.selectedSno;
-              } else if (mode == 2) {
-                currentPump.bottomSumpFloat = widget.configPvd.selectedSno;
-              } else if (mode == 3) {
-                currentPump.topTankFloat = widget.configPvd.selectedSno;
-              } else {
-                currentPump.bottomTankFloat = widget.configPvd.selectedSno;
-              }
-              widget.configPvd.selectedSno = 0.0;
-            });
-            Navigator.pop(context);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildLevelTile(PumpModel currentPump, int mode, Color accent) {
-    int objectId = AppConstants.levelObjectId;
-    String objectName = mode == 1 ? 'Lower Level' : 'Upper Level';
-    double currentSno = _getLevelSno(currentPump, mode);
-    bool isAssigned = currentSno != 0.0;
-    String assignedName = isAssigned ? getObjectName(currentSno, widget.configPvd).name ?? '-' : '';
-
-    List<double> sensorToDisplay = [];
-    for (var src in widget.configPvd.source) {
-      if (mode == 1) {
-        if (src.outletPump.contains(currentPump.commonDetails.sNo) && src.level != 0.0) {
-          sensorToDisplay.add(src.level);
-        }
-      } else {
-        if (src.inletPump.contains(currentPump.commonDetails.sNo) && src.level != 0.0) {
-          sensorToDisplay.add(src.level);
-        }
-      }
-    }
-
-    return _buildComponentTile(
-      title: objectName,
-      imagePath: '${AppConstants.svgObjectPath}objectId_$objectId.svg',
-      names: isAssigned ? [assignedName] : const [],
-      isAssigned: isAssigned,
-      accent: accent,
-      onTap: () {
-        setState(() {
-          widget.configPvd.selectedSno = currentSno;
-        });
-        selectionDialogBox(
-          context: context,
-          title: 'Select $objectName',
-          singleSelection: true,
-          listOfObject: widget.configPvd.listOfGeneratedObject
-              .where((object) => (object.objectId == objectId && sensorToDisplay.contains(object.sNo)))
-              .toList(),
-          onPressed: () {
-            setState(() {
-              if (mode == 1) {
-                currentPump.lowerLevel = widget.configPvd.selectedSno;
-              } else {
-                currentPump.upperLevel = widget.configPvd.selectedSno;
               }
               widget.configPvd.selectedSno = 0.0;
             });

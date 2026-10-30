@@ -107,7 +107,7 @@ class DrawSiteControlsOverlay extends StatelessWidget {
             if (onAiAutoArrange != null) ...[
               _buildIconButton(
                 icon: Icons.auto_awesome_rounded,
-                tooltip: 'Generate AI Diagram',
+                tooltip: 'Generate Site Diagram',
                 onPressed: onAiAutoArrange,
                 iconColor: const Color(0xFFA855F7),
                 colors: colors,

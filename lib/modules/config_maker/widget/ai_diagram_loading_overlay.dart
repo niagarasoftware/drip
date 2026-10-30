@@ -8,8 +8,7 @@ const _sky = Color(0xff0EA5E9);
 const _indigo = Color(0xff6366F1);
 const _purple = Color(0xffA855F7);
 
-/// Loading overlay that "draws" the irrigation site diagram live:
-/// water sources -> pumps -> manifold -> tank -> main pump -> field valves.
+/// Loading overlay for AI site diagram generation.
 class AiDiagramLoadingOverlay extends StatefulWidget {
   final VoidCallback? onComplete;
   final Duration duration;
@@ -60,7 +59,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
   }
 
   Future<void> _finish() async {
-    // small pause so the user sees the finished diagram + 100%
+    // small pause so the user sees the finished state + 100%
     await Future.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
     setState(() => _opacity = 0.0);
@@ -106,20 +105,14 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   child: CustomPaint(painter: _BackgroundPainter(pulse: pulse, isLight: isLight)),
                 ),
                 SafeArea(
-                  child: Column(
-                    children: [
-                      // Live drawing of the site diagram
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 16, 12, 0),
-                          child: CustomPaint(
-                            size: Size.infinite,
-                            painter: _ScenePainter(pulse: pulse, progress: p, isLight: isLight),
-                          ),
-                        ),
+                  child: Center(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: _buildCard(p, pulse, colors),
                       ),
-                      _buildCard(p, pulse, colors),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -143,14 +136,13 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
         child: Transform.translate(offset: Offset(0, 20 * (1 - v)), child: child),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 380),
-        margin: const EdgeInsets.fromLTRB(14, 6, 14, 14),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        constraints: const BoxConstraints(maxWidth: 480),
+        padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
         decoration: BoxDecoration(
           color: isLight
-              ? Colors.white.withValues(alpha: 0.95)
-              : const Color(0xff161F30).withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(18),
+              ? Colors.white.withValues(alpha: 0.96)
+              : const Color(0xff161F30).withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: isLight
                 ? const Color(0xff0284C7).withValues(alpha: 0.35)
@@ -160,8 +152,8 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
           boxShadow: [
             BoxShadow(
               color: const Color(0xff0284C7).withValues(alpha: isLight ? 0.12 : 0.22),
-              blurRadius: 24,
-              spreadRadius: 1,
+              blurRadius: 32,
+              spreadRadius: 2,
             ),
           ],
         ),
@@ -170,7 +162,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
           children: [
             // Badge
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [
                   const Color(0xff0284C7).withValues(alpha: isLight ? 0.12 : 0.2),
@@ -187,15 +179,15 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                     child: Transform.scale(
                       scale: 1 + 0.12 * math.sin(pulse * 4 * math.pi),
                       child: Icon(Icons.auto_awesome_rounded,
-                          size: 13, color: primaryAccent),
+                          size: 14, color: primaryAccent),
                     ),
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'AI SITE GENERATOR',
+                    'SITE GENERATOR',
                     style: TextStyle(
                       color: primaryAccent,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.1,
                     ),
@@ -203,17 +195,17 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
             Text(
               'Generating Site Diagram',
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.2,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 350),
               transitionBuilder: (child, anim) => FadeTransition(
@@ -231,17 +223,19 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 11.5,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  height: 1.25,
+                  height: 1.3,
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
 
             // Stage chips
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (var i = 0; i < _stages.length; i++)
                   _StageChip(
@@ -254,7 +248,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
 
             // Progress label
             Row(
@@ -264,7 +258,7 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   'Processing Layout',
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 10.5,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -272,19 +266,19 @@ class _AiDiagramLoadingOverlayState extends State<AiDiagramLoadingOverlay>
                   '${(p * 100).toInt()}%',
                   style: TextStyle(
                     color: primaryAccent,
-                    fontSize: 12.5,
+                    fontSize: 14,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
 
             // Progress bar with shimmer
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: SizedBox(
-                height: 6,
+                height: 8,
                 child: Stack(
                   children: [
                     Container(color: isLight ? Colors.black.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.08)),
@@ -353,10 +347,10 @@ class _StageChip extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOut,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: done ? 0.14 : 0.06 + glow),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: done || active ? 0.7 : 0.3)),
       ),
       child: Row(
@@ -367,18 +361,18 @@ class _StageChip extends StatelessWidget {
             transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
             child: done
                 ? Icon(Icons.check_circle_rounded,
-                key: const ValueKey('done'), size: 12, color: color)
+                key: const ValueKey('done'), size: 13, color: color)
                 : Icon(Icons.circle,
                 key: ValueKey('dot$active'),
                 size: active ? 8 : 6,
                 color: color),
           ),
-          const SizedBox(width: 5),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
               color: color,
-              fontSize: 10.5,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -423,7 +417,7 @@ class _BackgroundPainter extends CustomPainter {
       rect,
       Paint()
         ..shader = RadialGradient(
-          center: const Alignment(0, -0.35),
+          center: const Alignment(0, 0),
           radius: 0.9,
           colors: [
             const Color(0xff0284C7).withValues(alpha: isLight ? 0.08 : 0.16),
@@ -450,340 +444,4 @@ class _BackgroundPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BackgroundPainter old) =>
       old.pulse != pulse || old.isLight != isLight;
-}
-
-// ---------------------------------------------------------------------------
-// Scene: the irrigation diagram being "drawn"
-// ---------------------------------------------------------------------------
-enum _NodeType { source, pump, tank, valve }
-
-class _Node {
-  final _NodeType type;
-  final Offset pos; // normalized 0..1
-  final double start; // progress when it appears
-  const _Node(this.type, this.pos, this.start);
-}
-
-class _Pipe {
-  final List<Offset> points; // normalized 0..1
-  final double start;
-  final double end;
-  const _Pipe(this.points, this.start, this.end);
-}
-
-const _nodes = <_Node>[
-  _Node(_NodeType.source, Offset(0.07, 0.22), 0.00),
-  _Node(_NodeType.source, Offset(0.07, 0.72), 0.03),
-  _Node(_NodeType.pump, Offset(0.32, 0.12), 0.18),
-  _Node(_NodeType.pump, Offset(0.32, 0.37), 0.21),
-  _Node(_NodeType.pump, Offset(0.32, 0.62), 0.24),
-  _Node(_NodeType.pump, Offset(0.32, 0.87), 0.27),
-  _Node(_NodeType.tank, Offset(0.60, 0.50), 0.48),
-  _Node(_NodeType.pump, Offset(0.76, 0.50), 0.68),
-  _Node(_NodeType.valve, Offset(0.95, 0.18), 0.86),
-  _Node(_NodeType.valve, Offset(0.95, 0.50), 0.89),
-  _Node(_NodeType.valve, Offset(0.95, 0.82), 0.92),
-];
-
-const _pipes = <_Pipe>[
-  // sources -> pumps
-  _Pipe([Offset(0.07, 0.22), Offset(0.20, 0.22), Offset(0.20, 0.12), Offset(0.32, 0.12)], 0.06, 0.20),
-  _Pipe([Offset(0.20, 0.22), Offset(0.20, 0.37), Offset(0.32, 0.37)], 0.12, 0.22),
-  _Pipe([Offset(0.07, 0.72), Offset(0.20, 0.72), Offset(0.20, 0.62), Offset(0.32, 0.62)], 0.08, 0.22),
-  _Pipe([Offset(0.20, 0.72), Offset(0.20, 0.87), Offset(0.32, 0.87)], 0.14, 0.24),
-  // pumps -> manifold
-  _Pipe([Offset(0.32, 0.12), Offset(0.46, 0.12), Offset(0.46, 0.50)], 0.26, 0.40),
-  _Pipe([Offset(0.32, 0.37), Offset(0.46, 0.37)], 0.30, 0.40),
-  _Pipe([Offset(0.32, 0.62), Offset(0.46, 0.62)], 0.32, 0.42),
-  _Pipe([Offset(0.32, 0.87), Offset(0.46, 0.87), Offset(0.46, 0.50)], 0.34, 0.48),
-  // manifold -> tank -> main pump
-  _Pipe([Offset(0.46, 0.50), Offset(0.60, 0.50)], 0.46, 0.58),
-  _Pipe([Offset(0.60, 0.50), Offset(0.76, 0.50)], 0.58, 0.70),
-  // main pump -> field valves
-  _Pipe([Offset(0.76, 0.50), Offset(0.86, 0.50), Offset(0.86, 0.18), Offset(0.95, 0.18)], 0.74, 0.90),
-  _Pipe([Offset(0.86, 0.50), Offset(0.95, 0.50)], 0.78, 0.92),
-  _Pipe([Offset(0.86, 0.50), Offset(0.86, 0.82), Offset(0.95, 0.82)], 0.76, 0.94),
-];
-
-class _ScenePainter extends CustomPainter {
-  final double pulse;
-  final double progress;
-  final bool isLight;
-  _ScenePainter({required this.pulse, required this.progress, required this.isLight});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double maxW = math.min(size.width * 0.70, 560.0);
-    final double maxH = math.min(size.height * 0.50, 200.0);
-    final scene = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: maxW,
-      height: maxH,
-    );
-    final r = math.min(scene.width * 0.035, scene.height * 0.07).clamp(6.0, 12.0);
-
-    Offset map(Offset n) =>
-        Offset(scene.left + n.dx * scene.width, scene.top + n.dy * scene.height);
-
-    _drawScanner(canvas, size);
-    _drawPipes(canvas, map, r);
-    for (final n in _nodes) {
-      _drawNode(canvas, n, map(n.pos), r);
-    }
-  }
-
-  void _drawScanner(Canvas canvas, Size size) {
-    final x = pulse * (size.width + 120) - 60;
-    final rect = Rect.fromLTWH(x - 60, 0, 120, size.height);
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = LinearGradient(colors: [
-          _cyan.withValues(alpha: 0),
-          _cyan.withValues(alpha: isLight ? 0.06 : 0.10),
-          _cyan.withValues(alpha: 0),
-        ]).createShader(rect),
-    );
-  }
-
-  void _drawPipes(Canvas canvas, Offset Function(Offset) map, double r) {
-    final outer = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = r * 0.42
-      ..color = isLight
-          ? const Color(0xff64748B).withValues(alpha: 0.45)
-          : const Color(0xff94A3B8).withValues(alpha: 0.55);
-    final inner = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..strokeWidth = r * 0.2
-      ..color = isLight ? const Color(0xffBAE6FD) : const Color(0xff0C4A6E);
-    final particle = Paint()
-      ..color = _cyan
-      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.5);
-    final head = Paint()
-      ..color = _purple
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-
-    for (final pipe in _pipes) {
-      final raw = ((progress - pipe.start) / (pipe.end - pipe.start)).clamp(0.0, 1.0);
-      if (raw <= 0) continue;
-
-      final path = Path();
-      final pts = pipe.points.map(map).toList();
-      path.moveTo(pts.first.dx, pts.first.dy);
-      for (final p in pts.skip(1)) {
-        path.lineTo(p.dx, p.dy);
-      }
-      final metric = path.computeMetrics().first;
-      final drawn = metric.length * Curves.easeInOut.transform(raw);
-      final sub = metric.extractPath(0, drawn);
-
-      canvas.drawPath(sub, outer);
-      canvas.drawPath(sub, inner);
-
-      // flowing water particles
-      if (drawn > 10) {
-        for (var i = 0; i < 3; i++) {
-          final d = ((pulse * 1.5 + i / 3) % 1.0) * drawn;
-          final t = metric.getTangentForOffset(d);
-          if (t != null) canvas.drawCircle(t.position, r * 0.13, particle);
-        }
-      }
-
-      // glowing "drawing head"
-      if (raw < 1) {
-        final t = metric.getTangentForOffset(drawn);
-        if (t != null) {
-          canvas.drawCircle(t.position, r * 0.55, head);
-          canvas.drawCircle(t.position, r * 0.16, Paint()..color = Colors.white);
-        }
-      }
-    }
-  }
-
-  void _drawNode(Canvas canvas, _Node n, Offset c, double r) {
-    final raw = ((progress - n.start) / 0.08).clamp(0.0, 1.0);
-    if (raw <= 0) return;
-    final scale = Curves.easeOutBack.transform(raw);
-
-    // appear ring
-    if (raw < 1) {
-      canvas.drawCircle(
-        c,
-        r * (1.0 + raw * 1.6),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _cyan.withValues(alpha: (1 - raw) * 0.7),
-      );
-    }
-
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.scale(scale);
-
-    switch (n.type) {
-      case _NodeType.source:
-        _drawSource(canvas, r);
-        break;
-      case _NodeType.pump:
-        _drawPump(canvas, r);
-        break;
-      case _NodeType.tank:
-        _drawTank(canvas, r);
-        break;
-      case _NodeType.valve:
-        _drawValve(canvas, r);
-        break;
-    }
-    canvas.restore();
-  }
-
-  void _glow(Canvas canvas, double radius, Color color) {
-    canvas.drawCircle(
-      Offset.zero,
-      radius,
-      Paint()
-        ..color = color.withValues(alpha: 0.35)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-  }
-
-  void _drawSource(Canvas canvas, double r) {
-    _glow(canvas, r * 1.3, _sky);
-    final rrect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset.zero, width: r * 2.3, height: r * 1.8),
-      Radius.circular(r * 0.35),
-    );
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xff0C4A6E));
-
-    canvas.save();
-    canvas.clipRRect(rrect);
-    final wave = Path()..moveTo(-r * 1.2, r);
-    for (double x = -r * 1.2; x <= r * 1.2; x += 2) {
-      final y = math.sin((x / r) * 2.4 + pulse * 2 * math.pi * 2) * r * 0.1 - r * 0.05;
-      wave.lineTo(x, y);
-    }
-    wave.lineTo(r * 1.2, r);
-    wave.close();
-    canvas.drawPath(wave, Paint()..color = _sky.withValues(alpha: 0.85));
-    canvas.restore();
-
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _cyan,
-    );
-  }
-
-  void _drawPump(Canvas canvas, double r) {
-    const green = Color(0xff22C55E);
-    _glow(canvas, r * 1.3, green);
-    final rect = Rect.fromCircle(center: Offset.zero, radius: r);
-    canvas.drawCircle(
-      Offset.zero,
-      r,
-      Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0xff4ADE80), Color(0xff166534)],
-        ).createShader(rect),
-    );
-    canvas.drawCircle(
-      Offset.zero,
-      r,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xff86EFAC),
-    );
-
-    // spinning impeller
-    canvas.save();
-    canvas.rotate(pulse * 2 * math.pi * 3);
-    final blade = Paint()
-      ..color = Colors.white
-      ..strokeWidth = r * 0.16
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 3; i++) {
-      final a = i * 2 * math.pi / 3;
-      canvas.drawLine(
-        Offset.zero,
-        Offset(math.cos(a), math.sin(a)) * r * 0.62,
-        blade,
-      );
-    }
-    canvas.restore();
-    canvas.drawCircle(Offset.zero, r * 0.14, Paint()..color = const Color(0xff14532D));
-  }
-
-  void _drawTank(Canvas canvas, double r) {
-    _glow(canvas, r * 1.4, _indigo);
-    final rrect = RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset.zero, width: r * 2.2, height: r * 2.4),
-      Radius.circular(r * 0.3),
-    );
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xff1E1B4B));
-
-    canvas.save();
-    canvas.clipRRect(rrect);
-    final fill = 0.15 + 0.8 * ((progress - 0.5) / 0.45).clamp(0.0, 1.0);
-    final top = r * 1.2 - (r * 2.4 * fill);
-    final wave = Path()..moveTo(-r * 1.2, r * 1.3);
-    for (double x = -r * 1.2; x <= r * 1.2; x += 2) {
-      wave.lineTo(x, top + math.sin((x / r) * 2.6 - pulse * 2 * math.pi * 2) * r * 0.1);
-    }
-    wave.lineTo(r * 1.2, r * 1.3);
-    wave.close();
-    canvas.drawPath(
-      wave,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_cyan, _indigo.withValues(alpha: 0.9)],
-        ).createShader(Rect.fromCenter(center: Offset.zero, width: r * 2.4, height: r * 2.6)),
-    );
-    canvas.restore();
-
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xffA5B4FC),
-    );
-  }
-
-  void _drawValve(Canvas canvas, double r) {
-    const amber = Color(0xffF59E0B);
-    final breathe = 0.5 + 0.5 * math.sin(pulse * 2 * math.pi * 2);
-    _glow(canvas, r * (1.1 + 0.3 * breathe), amber);
-    canvas.drawCircle(Offset.zero, r * 0.85, Paint()..color = const Color(0xff1F2937));
-    canvas.drawCircle(
-      Offset.zero,
-      r * 0.85,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = amber,
-    );
-    final s = r * 0.42;
-    final bow = Path()
-      ..moveTo(-s, -s)
-      ..lineTo(s, s)
-      ..lineTo(s, -s)
-      ..lineTo(-s, s)
-      ..close();
-    canvas.drawPath(bow, Paint()..color = amber);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ScenePainter old) =>
-      old.pulse != pulse || old.progress != progress || old.isLight != isLight;
 }

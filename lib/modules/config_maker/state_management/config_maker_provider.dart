@@ -218,6 +218,16 @@ class ConfigMakerProvider extends ChangeNotifier{
   void updateFloatForPump()async{
     await Future.delayed(const Duration(seconds: 0));
     for(var currentPump in pump){
+      var matchingSources = source.where((s) => s.inletPump.contains(currentPump.commonDetails.sNo)).toList();
+      if(matchingSources.isEmpty){
+        currentPump.controlledBySource = 0.0;
+      }else if(matchingSources.length == 1){
+        currentPump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
+      }else{
+        if(!matchingSources.any((s) => s.commonDetails.sNo == currentPump.controlledBySource)){
+          currentPump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
+        }
+      }
       if(currentPump.automateFloatSelection == false){
         for(var mode in [1,2,3,4]){
           int objectId = AppConstants.floatObjectId;
@@ -1302,6 +1312,7 @@ class ConfigMakerProvider extends ChangeNotifier{
           "TopTankFloatLow" : serialNoOrEmpty(pumpModelObject.bottomTankFloat),
           "SumpTankFloatHigh" : serialNoOrEmpty(pumpModelObject.topSumpFloat),
           "SumpTankFloatLow" : serialNoOrEmpty(pumpModelObject.bottomSumpFloat),
+          "ControlledBySource" : serialNoOrEmpty(pumpModelObject.controlledBySource),
           "IrrigationLine" : line.where((line) => (line.sourcePump.contains(pumpModelObject.commonDetails.sNo) || line.irrigationPump.contains(pumpModelObject.commonDetails.sNo))).map((line) => line.commonDetails.sNo).join('_'),
         };
         pumpPayload.add(payload.entries.map((e) => e.value).join(","));
