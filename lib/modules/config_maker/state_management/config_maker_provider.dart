@@ -215,19 +215,102 @@ class ConfigMakerProvider extends ChangeNotifier{
     );
   }
 
-  void updateFloatForPump()async{
-    await Future.delayed(const Duration(seconds: 0));
-    for(var currentPump in pump){
+  void updateSmartDefaults() {
+    // 1. Auto-select controlledBySource for Pumps based on inletPump
+    for (var currentPump in pump) {
       var matchingSources = source.where((s) => s.inletPump.contains(currentPump.commonDetails.sNo)).toList();
-      if(matchingSources.isEmpty){
+      if (matchingSources.isEmpty) {
         currentPump.controlledBySource = 0.0;
-      }else if(matchingSources.length == 1){
+      } else if (matchingSources.length == 1) {
         currentPump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
-      }else{
-        if(!matchingSources.any((s) => s.commonDetails.sNo == currentPump.controlledBySource)){
+      } else {
+        if (!matchingSources.any((s) => s.commonDetails.sNo == currentPump.controlledBySource)) {
           currentPump.controlledBySource = matchingSources.first.commonDetails.sNo ?? 0.0;
         }
       }
+    }
+
+    // 2. Auto-assign single Water Source to Lines
+    if (source.length == 1) {
+      double singleSourceSno = source.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.waterSource.isEmpty && singleSourceSno != 0.0) {
+          currentLine.waterSource.add(singleSourceSno);
+        }
+      }
+    }
+
+    // 3. Auto-associate line.waterSource when line pumps are linked to a Source
+    for (var currentLine in line) {
+      if (currentLine.waterSource.isEmpty) {
+        List<double> linePumps = [...currentLine.sourcePump, ...currentLine.irrigationPump];
+        for (var pumpSno in linePumps) {
+          for (var src in source) {
+            if ((src.inletPump.contains(pumpSno) || src.outletPump.contains(pumpSno)) && src.commonDetails.sNo != null) {
+              if (!currentLine.waterSource.contains(src.commonDetails.sNo!)) {
+                currentLine.waterSource.add(src.commonDetails.sNo!);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Auto-assign single Source Pump / Irrigation Pump / Aerator to Lines
+    var sourcePumps = pump.where((p) => p.pumpType == 1).toList();
+    if (sourcePumps.length == 1) {
+      double singlePumpSno = sourcePumps.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.sourcePump.isEmpty && singlePumpSno != 0.0) {
+          currentLine.sourcePump.add(singlePumpSno);
+        }
+      }
+    }
+
+    var irrigationPumps = pump.where((p) => p.pumpType == 2).toList();
+    if (irrigationPumps.length == 1) {
+      double singlePumpSno = irrigationPumps.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.irrigationPump.isEmpty && singlePumpSno != 0.0) {
+          currentLine.irrigationPump.add(singlePumpSno);
+        }
+      }
+    }
+
+    var aeratorPumps = pump.where((p) => p.pumpType == 3).toList();
+    if (aeratorPumps.length == 1) {
+      double singlePumpSno = aeratorPumps.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.aerator.isEmpty && singlePumpSno != 0.0) {
+          currentLine.aerator.add(singlePumpSno);
+        }
+      }
+    }
+
+    // 5. Auto-assign single Central Filtration / Central Fertilization
+    if (filtration.length == 1) {
+      double singleFiltrationSno = filtration.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.centralFiltration == 0.0 && singleFiltrationSno != 0.0) {
+          currentLine.centralFiltration = singleFiltrationSno;
+        }
+      }
+    }
+
+    if (fertilization.length == 1) {
+      double singleFertilizationSno = fertilization.first.commonDetails.sNo ?? 0.0;
+      for (var currentLine in line) {
+        if (currentLine.centralFertilization == 0.0 && singleFertilizationSno != 0.0) {
+          currentLine.centralFertilization = singleFertilizationSno;
+        }
+      }
+    }
+  }
+
+  void updateFloatForPump()async{
+    await Future.delayed(const Duration(seconds: 0));
+    updateSmartDefaults();
+    for(var currentPump in pump){
       if(currentPump.automateFloatSelection == false){
         for(var mode in [1,2,3,4]){
           int objectId = AppConstants.floatObjectId;

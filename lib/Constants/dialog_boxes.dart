@@ -154,6 +154,18 @@ void selectionDialogBox({
                   return true;
                 }).toList();
 
+                if (validObjects.length == 1) {
+                  if (singleSelection) {
+                    if (configPvd.selectedSno == 0.0) {
+                      configPvd.selectedSno = validObjects.first.sNo ?? 0.0;
+                    }
+                  } else {
+                    if (configPvd.listOfSelectedSno.isEmpty && validObjects.first.sNo != null) {
+                      configPvd.listOfSelectedSno.add(validObjects.first.sNo!);
+                    }
+                  }
+                }
+
                 int selectedCount = singleSelection
                     ? (configPvd.selectedSno != 0.0 ? 1 : 0)
                     : configPvd.listOfSelectedSno.length;

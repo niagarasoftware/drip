@@ -34,6 +34,12 @@ class LineConfiguration extends StatefulWidget {
 
 class LineConfigurationState extends State<LineConfiguration> {
   void addLine() => _addLine();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.configPvd.updateSmartDefaults();
+  }
   // ── Design tokens (Matching SourceConfiguration Dark Mode) ──
   static const Color _sourceColor = Color(0xFF0284C7); // ocean sky blue
   static const Color _valveColor = Color(0xFF059669); // emerald green
