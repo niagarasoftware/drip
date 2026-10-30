@@ -1261,12 +1261,17 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                               ),
                                               trailing: Checkbox(
                                                 value: isRequired ? true : i.show,
-                                                onChanged: (value) {
-                                                  if (isRequired) return;
-                                                  stateSetter(() {
-                                                    i.show = value!;
-                                                  });
-                                                },
+                                                fillColor: isRequired
+                                                    ? MaterialStateProperty.all(Theme.of(context).disabledColor)
+                                                    : null,
+                                                checkColor: isRequired ? Colors.white : null,
+                                                onChanged: isRequired
+                                                    ? null
+                                                    : (value) {
+                                                        stateSetter(() {
+                                                          i.show = value!;
+                                                        });
+                                                      },
                                               ),
                                             ),
                                           ),
