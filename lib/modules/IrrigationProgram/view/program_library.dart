@@ -1546,6 +1546,37 @@ class _ProgramLibraryScreenNewState extends State<ProgramLibraryScreenNew> {
   }
 }
 
+Map<String, dynamic>? extract4201Map(dynamic message) {
+  if (message == null || message is! Map) return null;
+
+  try {
+    if (message['cM'] is Map && message['cM']['4201'] != null) {
+      if (message['cM']['4201'] is Map) {
+        return Map<String, dynamic>.from(message['cM']['4201']);
+      }
+    }
+
+    if (message['4200'] != null) {
+      var val4200 = message['4200'];
+      if (val4200 is List && val4200.isNotEmpty) {
+        if (val4200[0] is Map && val4200[0]['4201'] is Map) {
+          return Map<String, dynamic>.from(val4200[0]['4201']);
+        }
+      } else if (val4200 is Map && val4200['4201'] is Map) {
+        return Map<String, dynamic>.from(val4200['4201']);
+      }
+    }
+
+    if (message['4201'] is Map) {
+      return Map<String, dynamic>.from(message['4201']);
+    }
+  } catch (e) {
+    debugPrint("Error extracting 4201 map: $e");
+  }
+
+  return null;
+}
+
 Future<void> validatePayloadSent({
   required BuildContext dialogContext,
   required BuildContext context,
@@ -1556,12 +1587,25 @@ Future<void> validatePayloadSent({
   required String payloadCode,
   required String deviceId,
 }) async {
+  bool dialogDismissed = false;
+
+  void closeWaitDialog() {
+    if (!dialogDismissed) {
+      dialogDismissed = true;
+      if (Navigator.of(context, rootNavigator: true).canPop()) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+  }
+
   try {
     MqttService().acknowledgementPayload = null;
 
-    await MqttService().topicToPublishAndItsMessage(jsonEncode(payload), '${Environment.mqttPublishTopic}/$deviceId');
+    await MqttService().topicToPublishAndItsMessage(
+        jsonEncode(payload), '${Environment.mqttPublishTopic}/$deviceId');
 
     bool isAcknowledged = false;
+    Map<String, dynamic>? matched4201;
 
     showDialog(
       context: context,
@@ -1583,42 +1627,65 @@ Future<void> validatePayloadSent({
       },
     );
 
-    await for (final message in MqttService().payloadController.timeout(
-      const Duration(seconds: 30),
-      onTimeout: (sink) => sink.close(),
-    )) {
-      if (message != null && message['cM']['4201'] != null && message['cM']['4201']['PayloadCode'] == payloadCode) {
-        isAcknowledged = true;
-        break;
+    try {
+      await for (final message in MqttService().payloadController.timeout(
+        const Duration(seconds: 30),
+        onTimeout: (sink) => sink.close(),
+      )) {
+        if (message != null) {
+          final map4201 = extract4201Map(message);
+          if (map4201 != null) {
+            final String? resPayloadCode = map4201['PayloadCode']?.toString();
+            if (resPayloadCode == payloadCode ||
+                resPayloadCode == '4202' ||
+                (payloadCode == '400' &&
+                    (resPayloadCode == '401' || resPayloadCode == '402'))) {
+              isAcknowledged = true;
+              matched4201 = map4201;
+              MqttService().acknowledgementPayload = message is Map<String, dynamic>
+                  ? message
+                  : {'cM': {'4201': map4201}};
+              break;
+            }
+          }
+        }
       }
+    } finally {
+      closeWaitDialog();
     }
 
-    Navigator.of(context).pop();
+    if (isAcknowledged && matched4201 != null) {
+      final codeStr = matched4201['Code']?.toString() ?? '';
+      final msgStr = matched4201['Message']?.toString() ?? '';
+      final nameStr = matched4201['Name']?.toString() ?? '';
 
-    if (isAcknowledged) {
-      final decodedPayload = MqttService().acknowledgementPayload!;
-      if (decodedPayload['cM']['4201']['Code'] == "200" || decodedPayload['cM']['4201']['Code'] == "67") {
+      bool isSuccess = (codeStr == "200" || codeStr == "67") &&
+          !msgStr.toUpperCase().contains("FAILED");
+
+      if (isSuccess) {
         acknowledgedFunction();
       } else {
-        if(failedFunction != null) {
+        if (failedFunction != null) {
           failedFunction();
         }
-        showSnackBar(message: "${decodedPayload['cM']['4201']['Name']}", context: context,);
+        String errorText = msgStr.trim().isNotEmpty
+            ? msgStr
+            : (nameStr.trim().isNotEmpty ? nameStr : "Execution failed");
+        showSnackBar(message: errorText, context: context);
       }
     } else {
       showAlertDialog(
         message: "Controller is not responding",
         context: context,
       );
-      await Future.delayed(const Duration(seconds: 1));
-      Navigator.of(context).pop();
     }
   } catch (error, stackTrace) {
-    // print("stackTrace ::: $stackTrace");
-    // print("error ::: $error");
+    closeWaitDialog();
+    print("==================== ERROR IN validatePayloadSent ====================");
+    print("Error: $error");
+    print("StackTrace:\n$stackTrace");
+    print("======================================================================");
     showAlertDialog(message: error.toString(), context: context);
-    await Future.delayed(const Duration(seconds: 1));
-    Navigator.of(context).pop();
   }
 }
 

@@ -67,17 +67,32 @@ class _PayloadProgressDialogState extends State<PayloadProgressDialog> {
     super.initState();
     if(mounted){
       payloadStatuses = widget.payloads.map((payload) {
-        var payloadToDecode = widget.isToGem ? payload.split('+')[4] : payload;
-        var decodedData = jsonDecode(payloadToDecode);
-        var key = decodedData.keys.first;
+        try {
+          var payloadToDecode = widget.isToGem ? payload.split('+')[4] : payload;
+          var decodedData = jsonDecode(payloadToDecode);
+          var key = decodedData.keys.first;
 
-        return {
-          'payload': payload,
-          'status': 'Pending',
-          'reference': widget.isToGem ? payload.split('+')[2] : 'Device payload',
-          'selected': true,
-          'key': key,
-        };
+          return {
+            'payload': payload,
+            'status': 'Pending',
+            'reference': widget.isToGem ? payload.split('+')[2] : 'Device payload',
+            'selected': true,
+            'key': key,
+          };
+        } catch (error, stackTrace) {
+          print("==================== ERROR PARSING PAYLOAD ====================");
+          print("Payload: $payload");
+          print("Error: $error");
+          print("StackTrace:\n$stackTrace");
+          print("===============================================================");
+          return {
+            'payload': payload,
+            'status': 'Failed',
+            'reference': 'Invalid payload',
+            'selected': false,
+            'key': '0',
+          };
+        }
       }).toList();
     }
   }
@@ -173,8 +188,11 @@ class _PayloadProgressDialogState extends State<PayloadProgressDialog> {
       }
 
       return isAcknowledged;
-    } catch (error) {
-      // print(error);
+    } catch (error, stackTrace) {
+      print("==================== ERROR IN WAIT FOR RESPONSE ====================");
+      print("Error: $error");
+      print("StackTrace:\n$stackTrace");
+      print("====================================================================");
       return false;
     }
   }

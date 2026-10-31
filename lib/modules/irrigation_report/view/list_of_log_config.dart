@@ -337,7 +337,8 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                           mergeDefaultLogParameters(
                                                               serverData['logConfig']
                                                                       [i][
-                                                                  'irrigationLog']));
+                                                                  'irrigationLog'],
+                                                              serverData['default']));
                                                   setOriginalToDuplicateParameter(
                                                       originalParameterList:
                                                           selectedIrrigationParameterArray
@@ -602,7 +603,8 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                       mergeDefaultLogParameters(
                                                           serverData['logConfig']
                                                                   [i][
-                                                              'irrigationLog']));
+                                                              'irrigationLog'],
+                                                          serverData['default']));
                                               setOriginalToDuplicateParameter(
                                                   originalParameterList:
                                                       selectedIrrigationParameterArray

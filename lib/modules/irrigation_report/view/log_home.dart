@@ -57,6 +57,7 @@ class _LogHomeState extends State<LogHome> {
   final ScrollController _scrollController = ScrollController();
   dynamic dataSource = [];
   List<dynamic> _localNameData = [];
+  List<dynamic> _filterSiteData = [];
   int _selectedIndex = 0;
   List<List<dynamic>> _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
   bool graphMode = false;
@@ -90,107 +91,13 @@ class _LogHomeState extends State<LogHome> {
     'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
-    'CentralFilterName','LocalFilterName','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
+    'CentralFilterSite','LocalFilterSite','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
   ];
 
   int httpError = 0;
 
   Map<String,dynamic> dataToShow = {};
-  dynamic IrrigationLogParameterFromServer = {
-    'general' : {
-      'ProgramName' : ['Program',true,1],
-      'Status' : ['Status',true,1],
-      'ZoneS_No' : ['Sequence',true,1],
-      'SequenceData' : ['Valve',true,1],
-      // 'ZoneName' : ['Sequence',true,1],
-      'Date' : ['Date',true,1],
-      'ProgramCategoryName' : ['Line',true,1],
-      'ActualStartTime' : ['Actual Start Time',true,1],
-      'ActualEndTime' : ['Actual End Time',true,1],
-      'ActualStartReason' : ['Actual Start Reason',true,1],
-      'ActualStopReason' : ['Actual Stop Reason',true,1],
-      'Pump' : ['Pump',true,1],
-      'overAll' : ['over all',true,1],
-    },
-    'irrigation' : {
-      'IrrigationMethod' : ['Method',true,2],
-      'IrrigationDuration_Quantity' : ['Planned',true,2],
-      'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'filter' : {
-      'CentralFilterSite' : ['Central Filter',true,2],
-      'CentralFilterOnDuration' : ['Duration',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'prePost' : {
-      'PrePostMethod' : ['Method',true,2],
-      'Pretime/PreQty' : ['Pre',true,2],
-      'PostTime/PostQty' : ['Post',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'centralEcPh' : {
-      'CentralPhSetValue' : ['Central Ph Avg',true,3],
-      'CentralEcSetValue' : ['Central Ec Avg',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH1>' : {
-      'CentralFertChannelName' : ['Channel1 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH2>' : {
-      'CentralFertChannelName' : ['Channel2 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH3>' : {
-      'CentralFertChannelName' : ['Channel3 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH4>' : {
-      'CentralFertChannelName' : ['Channel4 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH5>' : {
-      'CentralFertChannelName' : ['Channel5 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH6>' : {
-      'CentralFertChannelName' : ['Channel6 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH7>' : {
-      'CentralFertChannelName' : ['Channel7 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH8>' : {
-      'CentralFertChannelName' : ['Channel8 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-  };
+  dynamic IrrigationLogParameterFromServer = {};
   IrrigationLogModel irrigationParameterArray = IrrigationLogModel();
   IrrigationLogModel irrigationParameterArrayDuplicate = IrrigationLogModel();
   String _selectedDate = '';
@@ -202,11 +109,7 @@ class _LogHomeState extends State<LogHome> {
   void initState() {
     // TODO: implement initState
     _localNameData = List.from(widget.nameData);
-    if (_localNameData.isEmpty &&
-        (widget.masterData?.configObjects == null ||
-            widget.masterData!.configObjects.isEmpty)) {
-      _fetchConfigObjects();
-    }
+    _fetchConfigObjects();
     if (kDebugMode) {
       print('parameters => $parameters');
     }
@@ -224,7 +127,9 @@ class _LogHomeState extends State<LogHome> {
         dateDuplicate = [];
         status = [];
         statusDuplicate = [];
-        IrrigationLogParameterFromServer = mergeDefaultLogParameters(widget.serverData['irrigationLog']);
+        IrrigationLogParameterFromServer = mergeDefaultLogParameters(
+            widget.serverData['irrigationLog'] ?? widget.serverData['default'] ?? widget.serverData,
+            widget.serverData['default']);
         for(var globalParameter in IrrigationLogParameterFromServer.keys){
           for(var localParameter in IrrigationLogParameterFromServer[globalParameter].keys){
             var data = IrrigationLogParameterFromServer[globalParameter][localParameter];
@@ -275,14 +180,23 @@ class _LogHomeState extends State<LogHome> {
       };
       var configResponse = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> configJsonData = jsonDecode(configResponse.body);
-      if (configJsonData['code'] == 200 &&
-          configJsonData['data']?['configObject'] != null) {
+      if (configJsonData['code'] == 200 && configJsonData['data'] != null) {
         if (mounted) {
           setState(() {
-            _localNameData = configJsonData['data']['configObject'];
-            irrigationParameterArray.editName(_localNameData);
-            irrigationParameterArrayDuplicate.editName(_localNameData);
+            if (configJsonData['data']['configObject'] != null) {
+              _localNameData = configJsonData['data']['configObject'];
+              irrigationParameterArray.editName(_localNameData);
+              irrigationParameterArrayDuplicate.editName(_localNameData);
+            }
+            if (configJsonData['data']['filterSite'] != null) {
+              _filterSiteData = configJsonData['data']['filterSite'];
+              irrigationParameterArray.editFilterSite(_filterSiteData);
+              irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
+            }
           });
+          if (dataSource != null && dataSource.isNotEmpty) {
+            _reprocessAndFilterData();
+          }
         }
       }
     } catch (e) {
@@ -447,10 +361,12 @@ class _LogHomeState extends State<LogHome> {
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
 
     irrigationParameterArray.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArray.editName(widget.nameData);
+    irrigationParameterArray.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
+    irrigationParameterArray.editFilterSite(_filterSiteData);
 
     irrigationParameterArrayDuplicate.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArrayDuplicate.editName(widget.nameData);
+    irrigationParameterArrayDuplicate.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
+    irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
     try{
       String? startMonth = selectedDateRange?.start.month.toString();
 
@@ -1036,114 +952,20 @@ class _LogHomeState extends State<LogHome> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Icon(
                         Icons.refresh_outlined,
-                        color: isLiveLoaded ? Colors.green : Colors.black,
+                        color: isLiveLoaded ? Colors.green : Colors.white,
                       ),
               ),
               IconButton(
                 onPressed: (){
                   sideSheet(constraint);
                 },
-                icon: const Icon(Icons.filter_list_alt,color: Colors.black,),
+                icon: const Icon(Icons.filter_list_alt, color: Colors.white),
               ),
-              PopupMenuButton<int>(
-                onSelected: (value){
-                  if(value == 1){
-                    setState(() {
-                      selectedIcon = const Icon(Icons.bar_chart,color: Colors.white,);
-                      selectedChart = 'Bar';
-                    });
-                  }else if(value == 2){
-                    setState(() {
-                      selectedIcon =  const Icon(Icons.stacked_line_chart,color: Colors.white,);
-                      selectedChart = 'Line';
-                    });
-                  }else{
-                    setState(() {
-                      selectedIcon = const Icon(Icons.pie_chart,color: Colors.white,);
-                    });
-                  }
-                },
-                child: Container(
-                  width: 100,
-                  height: 40,
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColorDark,
-                      borderRadius: BorderRadius.circular(8)
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Checkbox(
-                          value: graphMode,
-                          onChanged: (value){
-                            getDialog(context);
-                            Future.delayed(const Duration(seconds: 1),(){
-                              setState(() {
-                                graphMode = value!;
-                              });
-                              Navigator.pop(context);
-                            });
-                          }
-                      ),
-                      selectedIcon,
-                    ],
-                  ),
-                ),
-                itemBuilder: (context) => [
-                  // popupmenu item 1
-                  // const PopupMenuItem(
-                  //   value: 1,
-                  //   // row has two child icon and text.
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.bar_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("bar chart")
-                  //     ],
-                  //   ),
-                  // ),
-                  // // popupmenu item 2
-                  // const PopupMenuItem(
-                  //   value: 2,
-                  //   // row has two child icon and text
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.stacked_line_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("line chart")
-                  //     ],
-                  //   ),
-                  // ),
-                  // const PopupMenuItem(
-                  //   value: 3,
-                  //   // row has two child icon and text
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.pie_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("pie chart")
-                  //     ],
-                  //   ),
-                  // ),
-                ],
-                offset: const Offset(0, 50),
-                color: Colors.white,
-                elevation: 2,
-              ),
-              const SizedBox(width: 20,),
+              const SizedBox(width: 10),
             ],
           ),
           body: SafeArea(
@@ -1231,6 +1053,10 @@ class _LogHomeState extends State<LogHome> {
                               generalColumnData: filterDataByPages(data: dataToShow['generalColumnData']),
                               waterColumn: dataToShow['waterColumn'],
                               waterColumnData: filterDataByPages(data: dataToShow['waterColumnData']),
+                              centralFilterColumn: dataToShow['centralFilterColumn'] ?? [],
+                              centralFilterColumnData: filterDataByPages(data: dataToShow['centralFilterColumnData'] ?? []),
+                              localFilterColumn: dataToShow['localFilterColumn'] ?? [],
+                              localFilterColumnData: filterDataByPages(data: dataToShow['localFilterColumnData'] ?? []),
                               filterColumn: dataToShow['filterColumn'],
                               filterColumnData: filterDataByPages(data: dataToShow['filterColumnData']),
                               prePostColumn: dataToShow['prePostColumn'],
