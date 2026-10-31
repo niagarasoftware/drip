@@ -5,7 +5,7 @@ import 'package:mqtt_client/mqtt_client.dart';
 import '../utils/enums.dart';
 import 'mqtt_client_factory_stub.dart'
     if (dart.library.io) 'mqtt_client_factory_io.dart'
-    if (dart.library.js_interop) 'mqtt_client_factory_web.dart';
+    if (dart.library.html) 'mqtt_client_factory_web.dart';
 import 'package:oro_drip_irrigation/utils/environment.dart';
 import 'package:uuid/uuid.dart';
 import '../Constants/constants.dart';

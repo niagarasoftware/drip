@@ -57,3 +57,5 @@ class _UserManualWebState extends State<UserManualWeb> {
     );
   }
 }
+
+typedef UserManualWidget = UserManualWeb;

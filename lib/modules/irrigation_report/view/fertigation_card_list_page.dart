@@ -1,9 +1,7 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
-
 import '../model/fertigation_card_model.dart';
 import '../repository/irrigation_repository.dart';
 import '../services/fertigation_card_mapper.dart';

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_web.dart';
+import 'package:oro_drip_irrigation/views/customer/widgets/user_manual.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
@@ -35,7 +35,8 @@ List<Widget> appBarActions(
   CustomerScreenControllerViewModel vm,
   MasterControllerModel master,
   bool isNarrow,
-) {
+)
+{
   final loggedInUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
   final viewedCustomer = Provider.of<UserProvider>(context, listen: false).viewedCustomer;
 
@@ -153,7 +154,8 @@ Widget _buildProgramRunningIcon(CustomerScreenControllerViewModel vm) {
 }
 
 Widget _buildPauseResumeButton(
-    BuildContext context, CustomerScreenControllerViewModel vm) {
+    BuildContext context, CustomerScreenControllerViewModel vm)
+{
   bool allPaused = vm.lineLiveMessage.isNotEmpty &&
       vm.lineLiveMessage.every((line) {
         final parts = line.split(',');
@@ -186,7 +188,8 @@ Widget _buildHelpMenu(
     CustomerScreenControllerViewModel vm,
     dynamic loggedInUser,
     dynamic viewedCustomer,
-    MasterControllerModel master) {
+    MasterControllerModel master)
+{
 
   final loggedUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
 
@@ -221,7 +224,7 @@ Widget _buildHelpMenu(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWidget(pdfUrl: pdfUrl),
                           //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
                         ),
                       );
