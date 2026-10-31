@@ -344,7 +344,10 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
           await provider.getPumpControllerData(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
         }
       case 3:
-        await provider.getUserVoltageLog(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
+        final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
+            ? widget.masterData.nodeList.first.controllerId
+            : 0;
+        await provider.getUserVoltageLog(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId);
       default:
         (){};
     }
@@ -389,12 +392,15 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
           selectedWidget =  PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
         }
       case 3:
+        final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
+            ? widget.masterData.nodeList.first.controllerId
+            : 0;
         if(AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId)){
-          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
+          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId, masterData: widget.masterData);
         }else if(isPumpWithValveModel) {
-          selectedWidget =  PowerGraphScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
+          selectedWidget = PowerGraphScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
         } else {
-          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
+          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId, masterData: widget.masterData);
         }
       case 4:
         if(isPumpWithValveModel) {

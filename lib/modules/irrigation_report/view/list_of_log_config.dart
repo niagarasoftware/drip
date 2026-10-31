@@ -337,7 +337,8 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                           mergeDefaultLogParameters(
                                                               serverData['logConfig']
                                                                       [i][
-                                                                  'irrigationLog']));
+                                                                  'irrigationLog'],
+                                                              serverData['default']));
                                                   setOriginalToDuplicateParameter(
                                                       originalParameterList:
                                                           selectedIrrigationParameterArray
@@ -602,7 +603,8 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                                       mergeDefaultLogParameters(
                                                           serverData['logConfig']
                                                                   [i][
-                                                              'irrigationLog']));
+                                                              'irrigationLog'],
+                                                          serverData['default']));
                                               setOriginalToDuplicateParameter(
                                                   originalParameterList:
                                                       selectedIrrigationParameterArray
@@ -1207,7 +1209,7 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                   Wrap(
                                     children: () {
                                       List<Widget> items = [];
-                                      bool seenLine = false;
+                                      Set<String> seenPayloads = {};
                                       for (var i in irrigationParameterArrayDuplicate.generalParameterList) {
                                         if (i.payloadKey == 'overAll') continue;
                                         final uiLower = i.uiKey.toLowerCase().trim();
@@ -1216,16 +1218,12 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                         // Remove Start Time
                                         if (uiLower == 'start time' || payloadLower == 'scheduledstarttime') continue;
 
-                                        // Remove duplicate Line near Pump CT Average
-                                        if (uiLower == 'line' || payloadLower == 'programcategoryname' || payloadLower == 'programcategory' || payloadLower == 'headunit') {
-                                          if (seenLine) continue;
-                                          seenLine = true;
-                                        }
+                                        if (seenPayloads.contains(payloadLower)) continue;
+                                        seenPayloads.add(payloadLower);
 
                                         final bool isRequired = i.isRequired ||
                                             (uiLower == 'program' || payloadLower == 'programname') ||
                                             (uiLower == 'status' || payloadLower == 'status') ||
-                                            (uiLower == 'line' || payloadLower == 'programcategoryname' || payloadLower == 'programcategory') ||
                                             (uiLower == 'date' || payloadLower == 'date') ||
                                             (uiLower == 'valve' || uiLower == 'valves' || payloadLower == 'sequencedata');
 

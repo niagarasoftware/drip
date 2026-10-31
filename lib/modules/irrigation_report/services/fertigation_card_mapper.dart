@@ -1,358 +1,865 @@
+
 import 'package:flutter/material.dart';
+
 import '../model/fertigation_card_model.dart';
 import '../view/reason_lookup.dart';
 
 class FertigationCardMapper {
-  static List<FertigationCardModel> mapLogData(dynamic dataSource, List<dynamic> nameData) {
-    if (dataSource == null || dataSource is! Map || dataSource['log'] == null) {
+  static List<FertigationCardModel> mapLogData(
+      dynamic dataSource,
+      List<dynamic> nameData,
+      ) {
+    if (dataSource is! Map || dataSource['log'] is! List) {
       return [];
     }
 
-    List logs = dataSource['log'];
-    List<FertigationCardModel> cards = [];
-    
-    List<dynamic> programConfig = [];
-    if (dataSource['default'] != null && dataSource['default']['program'] != null) {
-      programConfig = dataSource['default']['program'];
-    }
+    final List<FertigationCardModel> cards = [];
 
-    List<dynamic> sequenceConfig = [];
-    if (dataSource['default'] != null && dataSource['default']['sequence'] != null) {
-      sequenceConfig = dataSource['default']['sequence'];
-    }
+    final logs = dataSource['log'] as List;
 
-    for (var logEntry in logs) {
-      String rawLogDate = logEntry['logDate'] ?? '';
-      var irrigation = logEntry['irrigation'];
-      if (irrigation == null || irrigation is! Map || irrigation.isEmpty) continue;
+    final defaults = dataSource['default'];
 
-      List recordDates = irrigation['Date'] ?? [];
-      int baseLength = recordDates.isNotEmpty ? recordDates.length : 0;
+    final List<dynamic> programConfig =
+    defaults is Map && defaults['program'] is List
+        ? defaults['program'] as List
+        : [];
+
+    final List<dynamic> sequenceConfig =
+    defaults is Map && defaults['sequence'] is List
+        ? defaults['sequence'] as List
+        : [];
+
+    for (final logEntry in logs) {
+      if (logEntry is! Map) continue;
+
+      final rawLogDate =
+          logEntry['logDate']?.toString() ?? '';
+
+      final rawIrrigation = logEntry['irrigation'];
+
+      if (rawIrrigation is! Map || rawIrrigation.isEmpty) {
+        continue;
+      }
+
+      final irrigation =
+      Map<String, dynamic>.from(rawIrrigation);
+
+      final recordDates = _asList(irrigation['Date']);
+
+      int baseLength = recordDates.length;
+
       if (baseLength == 0) {
-        for (var val in irrigation.values) {
-          if (val is List && val.length > baseLength) {
-            baseLength = val.length;
+        for (final value in irrigation.values) {
+          if (value is List && value.length > baseLength) {
+            baseLength = value.length;
           }
         }
       }
+
       if (baseLength == 0) continue;
 
-      List programSNos = irrigation['ProgramS_No'] ?? [];
-      List zoneSNos = irrigation['ZoneS_No'] ?? [];
-      List headUnits = irrigation['HeadUnit'] ?? [];
-      List statuses = irrigation['Status'] ?? irrigation['status'] ?? [];
-      List actualStartTimes = irrigation['ActualStartTime'] ?? [];
-      List actualStopTimes = irrigation['ActualEndTime'] ?? [];
-      List actualStartReasons = irrigation['ActualStartReason'] ?? [];
-      List actualStopReasons = irrigation['ActualStopReason'] ?? [];
-      List waterMethods = irrigation['IrrigationMethod'] ?? [];
-      List waterPlannedList = irrigation['IrrigationDuration_Quantity'] ?? irrigation['IrrigationQuantity_Quantity'] ?? [];
-      List waterActualList = irrigation['IrrigationDurationCompleted'] ?? irrigation['IrrigationQuantityCompleted'] ?? [];
-      List prePostMethods = irrigation['PrePostMethod'] ?? [];
-      List preTimes = irrigation['Pretime'] ?? irrigation['Pretime/PreQty'] ?? [];
-      List postTimes = irrigation['PostTime'] ?? irrigation['PostTime/PostQty'] ?? [];
-      List progressList = irrigation['Progress'] ?? [];
-      List centralFertOnOff = irrigation['CentralFertOnOff'] ?? [];
-      List localFertOnOff = irrigation['LocalFertilizerOnOff'] ?? irrigation['LocalFertOnOff'] ?? [];
+      final programSNos =
+      _asList(irrigation['ProgramS_No']);
+
+      final zoneSNos =
+      _asList(irrigation['ZoneS_No']);
+
+      final headUnits =
+      _asList(irrigation['HeadUnit']);
+
+      final statuses = _asList(
+        irrigation['Status'] ?? irrigation['status'],
+      );
+
+      final actualStartTimes =
+      _asList(irrigation['ActualStartTime']);
+
+      final actualStopTimes =
+      _asList(irrigation['ActualEndTime']);
+
+      final actualStartReasons =
+      _asList(irrigation['ActualStartReason']);
+
+      final actualStopReasons =
+      _asList(irrigation['ActualStopReason']);
+
+      final waterMethods =
+      _asList(irrigation['IrrigationMethod']);
+
+      final waterPlannedList = _asList(
+        irrigation['IrrigationDuration_Quantity'] ??
+            irrigation['IrrigationQuantity_Quantity'],
+      );
+
+      final waterActualList = _asList(
+        irrigation['IrrigationDurationCompleted'] ??
+            irrigation['IrrigationQuantityCompleted'],
+      );
+
+      final prePostMethods =
+      _asList(irrigation['PrePostMethod']);
+
+      final preTimes = _asList(
+        irrigation['Pretime'] ??
+            irrigation['Pretime/PreQty'],
+      );
+
+      final postTimes = _asList(
+        irrigation['PostTime'] ??
+            irrigation['PostTime/PostQty'],
+      );
+
+      final progressList =
+      _asList(irrigation['Progress']);
+
+      final centralFertOnOff =
+      _asList(irrigation['CentralFertOnOff']);
+
+      final localFertOnOff = _asList(
+        irrigation['LocalFertilizerOnOff'] ??
+            irrigation['LocalFertOnOff'],
+      );
 
       for (int i = 0; i < baseLength; i++) {
-        String dateStr = (i < recordDates.length && recordDates[i] != null) ? recordDates[i].toString() : rawLogDate;
+        // IMPORTANT:
+        // Hide irrigation-only records.
+        // Show only actual fertilizer execution.
+        if (!_hasActualFertilizerRun(irrigation, i)) {
+          continue;
+        }
+
+        final dateStr = _valueAt(
+          recordDates,
+          i,
+          fallback: rawLogDate,
+        );
 
         int? pSNo;
-        if (i < programSNos.length && programSNos[i] != null) {
-          pSNo = int.tryParse(programSNos[i].toString());
-        } else if (i < zoneSNos.length && zoneSNos[i] != null) {
-          var parts = zoneSNos[i].toString().split('.');
+
+        final programValue =
+        _rawValueAt(programSNos, i);
+
+        final zoneValue =
+        _rawValueAt(zoneSNos, i);
+
+        if (programValue != null) {
+          pSNo = int.tryParse(programValue.toString());
+        }
+
+        if (pSNo == null && zoneValue != null) {
+          final parts = zoneValue.toString().split('.');
+
           if (parts.isNotEmpty) {
-            pSNo = int.tryParse(parts[0]);
+            pSNo = int.tryParse(parts.first);
           }
         }
 
         String progName = '';
+
         if (pSNo != null) {
-          progName = _getProgramName(programConfig, pSNo);
+          progName = _getProgramName(
+            programConfig,
+            pSNo,
+          );
         }
+
         if (progName.isEmpty && pSNo != null) {
           progName = 'Program $pSNo';
         }
+
         if (progName.isEmpty) {
           progName = '—';
         }
 
-        var zVal = (i < zoneSNos.length && zoneSNos[i] != null) ? zoneSNos[i] : null;
         String seqName = '';
-        if (zVal != null) {
-          seqName = _getSequenceName(sequenceConfig, zVal);
+
+        if (zoneValue != null) {
+          seqName = _getSequenceName(
+            sequenceConfig,
+            zoneValue,
+          );
         }
+
         if (seqName.isEmpty || seqName == '-') {
-          seqName = zVal != null && zVal.toString().isNotEmpty ? 'Sequence $zVal' : '—';
+          seqName = zoneValue != null &&
+              zoneValue.toString().isNotEmpty
+              ? 'Sequence $zoneValue'
+              : '—';
         }
 
         String lineName = '—';
-        List programCategories = irrigation['ProgramCategoryName'] ?? irrigation['ProgramCategory'] ?? irrigation['HeadUnit'] ?? [];
-        if (i < programCategories.length && programCategories[i] != null) {
-          lineName = programCategories[i].toString();
+
+        final headUnit = _rawValueAt(
+          headUnits,
+          i,
+        );
+
+        if (headUnit != null) {
+          lineName = _getLineName(
+            nameData,
+            headUnit,
+          );
         }
+
         if (lineName == '—' || lineName.isEmpty) {
-          if (i < headUnits.length && headUnits[i] != null) {
-            lineName = headUnits[i].toString();
+          final programCategories = _asList(
+            irrigation['ProgramCategoryName'] ??
+                irrigation['ProgramCategory'],
+          );
+
+          final category = _rawValueAt(
+            programCategories,
+            i,
+          );
+
+          if (category != null) {
+            lineName = _getLineName(
+              nameData,
+              category,
+            );
           }
         }
 
-        var rawStatus = (i < statuses.length) ? statuses[i] : null;
-        var statusMap = getStatus(rawStatus);
-        String statusStr = statusMap['status'] ?? (rawStatus?.toString() ?? '—');
-        Color statusColor = statusMap['color'] ?? Colors.grey;
-
-        String startTime = (i < actualStartTimes.length && actualStartTimes[i] != null) ? actualStartTimes[i].toString() : '—';
-        String stopTime = (i < actualStopTimes.length && actualStopTimes[i] != null) ? actualStopTimes[i].toString() : '—';
-
-        String startReason = '—';
-        if (i < actualStartReasons.length && actualStartReasons[i] != null) {
-          int? code = int.tryParse(actualStartReasons[i].toString());
-          startReason = code != null ? programStartStopReason(code: code) : actualStartReasons[i].toString();
+        if (lineName.isEmpty) {
+          lineName = '—';
         }
 
-        String stopReason = '—';
-        if (i < actualStopReasons.length && actualStopReasons[i] != null) {
-          int? code = int.tryParse(actualStopReasons[i].toString());
-          stopReason = code != null ? programStartStopReason(code: code) : actualStopReasons[i].toString();
-        }
+        final rawStatus =
+        _rawValueAt(statuses, i);
 
-        String waterMethod = '—';
-        if (i < waterMethods.length && waterMethods[i] != null) {
-          int? mCode = int.tryParse(waterMethods[i].toString());
-          waterMethod = mCode == 1 ? 'Time' : (mCode == 2 ? 'Quantity (L)' : waterMethods[i].toString());
-        }
-        String waterPlanned = (i < waterPlannedList.length && waterPlannedList[i] != null) ? waterPlannedList[i].toString() : '—';
-        String waterActual = (i < waterActualList.length && waterActualList[i] != null) ? waterActualList[i].toString() : '—';
+        final statusMap = getStatus(rawStatus);
 
-        String preMethod = '—';
-        if (i < prePostMethods.length && prePostMethods[i] != null) {
-          int? pmCode = int.tryParse(prePostMethods[i].toString());
-          preMethod = pmCode == 1 ? 'Time' : (pmCode == 2 ? 'Quantity (L)' : prePostMethods[i].toString());
-        }
-        String preTimeQty = (i < preTimes.length && preTimes[i] != null) ? preTimes[i].toString() : '—';
-        String postTimeQty = (i < postTimes.length && postTimes[i] != null) ? postTimes[i].toString() : '—';
+        final String statusStr =
+            statusMap['status']?.toString() ??
+                rawStatus?.toString() ??
+                '—';
 
-        // 16 EC / pH fields (preserving 0, 0.0, 00:00:00, hiding only null/empty)
-        String centralEcSet = _extractVal(irrigation['CentralEcSetValue'], i);
-        String centralEcMin = _extractVal(irrigation['CentralEcMinimum'], i);
-        String centralEcMax = _extractVal(irrigation['CentralEcMaximum'], i);
-        String centralEcAvg = _extractVal(irrigation['CentralEcAverage'] ?? irrigation['CentralEc'], i);
+        final Color statusColor =
+        statusMap['color'] is Color
+            ? statusMap['color'] as Color
+            : Colors.grey;
 
-        String centralPhSet = _extractVal(irrigation['CentralPhSetValue'], i);
-        String centralPhMin = _extractVal(irrigation['CentralPhMinimum'], i);
-        String centralPhMax = _extractVal(irrigation['CentralPhMaximum'], i);
-        String centralPhAvg = _extractVal(irrigation['CentralPhAverage'] ?? irrigation['CentralPh'], i);
+        final startTime = _valueAt(
+          actualStartTimes,
+          i,
+        );
 
-        String localEcSet = _extractVal(irrigation['LocalEcSetValue'], i);
-        String localEcMin = _extractVal(irrigation['LocalEcMinimum'], i);
-        String localEcMax = _extractVal(irrigation['LocalEcMaximum'], i);
-        String localEcAvg = _extractVal(irrigation['LocalEcAverage'] ?? irrigation['LocalEc'], i);
+        final stopTime = _valueAt(
+          actualStopTimes,
+          i,
+        );
 
-        String localPhSet = _extractVal(irrigation['LocalPhSetValue'], i);
-        String localPhMin = _extractVal(irrigation['LocalPhMinimum'], i);
-        String localPhMax = _extractVal(irrigation['LocalPhMaximum'], i);
-        String localPhAvg = _extractVal(irrigation['LocalPhAverage'] ?? irrigation['LocalPh'], i);
+        final startReason = _getReason(
+          _rawValueAt(actualStartReasons, i),
+        );
 
-        String centralEc = centralEcAvg != '—' ? centralEcAvg : (centralEcSet != '—' ? centralEcSet : '—');
-        String centralPh = centralPhAvg != '—' ? centralPhAvg : (centralPhSet != '—' ? centralPhSet : '—');
+        final stopReason = _getReason(
+          _rawValueAt(actualStopReasons, i),
+        );
 
-        String progress = (i < progressList.length && progressList[i] != null) ? progressList[i].toString() : '100%';
-        double progressValue = 1.0;
-        try {
-          String cleanProg = progress.replaceAll('%', '').trim();
-          progressValue = (double.tryParse(cleanProg) ?? 100.0) / 100.0;
-          if (progressValue > 1.0) progressValue = 1.0;
-          if (progressValue < 0.0) progressValue = 0.0;
-        } catch (_) {}
+        final waterMethod = _getMethod(
+          _rawValueAt(waterMethods, i),
+        );
 
-        // Check if central fertigation is ON (default true if array missing)
-        bool isCentralOn = true;
-        if (i < centralFertOnOff.length && centralFertOnOff[i] != null) {
-          isCentralOn = centralFertOnOff[i].toString() != '0';
-        }
+        final waterPlanned = _valueAt(
+          waterPlannedList,
+          i,
+        );
 
-        List<FertigationChannelModel> centralChannels = [];
-        if (isCentralOn) {
-          var centralDuration = irrigation['CentralFertilizerChannelDuration'] ?? irrigation['CentralFertilizerChannelQuantity'];
-          var centralCompleted = irrigation['CentralFertilizerChannelDurationCompleted'] ?? irrigation['CentralFertilizerChannelQuantityCompleted'];
-          var centralNames = irrigation['CentralFertChannelName'];
+        final waterActual = _valueAt(
+          waterActualList,
+          i,
+        );
 
-          for (int ch = 1; ch <= 8; ch++) {
-            int chIdx = ch - 1;
-            String planned = '';
-            String actual = '';
-            String name = 'C-CH$ch';
+        final preMethod = _getMethod(
+          _rawValueAt(prePostMethods, i),
+        );
 
-            if (centralNames is List && i < centralNames.length && centralNames[i] != null) {
-              var nameParts = centralNames[i].toString().split('_');
-              if (chIdx < nameParts.length && nameParts[chIdx].isNotEmpty && nameParts[chIdx] != 'null') {
-                name = nameParts[chIdx];
-              }
-            }
+        final preTimeQty = _valueAt(
+          preTimes,
+          i,
+        );
 
-            if (centralDuration is List && i < centralDuration.length && centralDuration[i] != null) {
-              var parts = centralDuration[i].toString().split('_');
-              if (chIdx < parts.length) planned = parts[chIdx];
-            } else if (centralDuration != null && ch == 1) {
-              planned = centralDuration.toString();
-            }
+        final postTimeQty = _valueAt(
+          postTimes,
+          i,
+        );
 
-            if (centralCompleted is List && i < centralCompleted.length && centralCompleted[i] != null) {
-              var parts = centralCompleted[i].toString().split('_');
-              if (chIdx < parts.length) actual = parts[chIdx];
-            } else if (centralCompleted != null && ch == 1) {
-              actual = centralCompleted.toString();
-            }
+        // CENTRAL EC
+        final centralEcSet = _extractVal(
+          irrigation['CentralEcSetValue'],
+          i,
+        );
 
-            bool isPlannedNull = planned.isEmpty || planned.toLowerCase() == 'null';
-            bool isActualNull = actual.isEmpty || actual.toLowerCase() == 'null';
+        final centralEcMin = _extractVal(
+          irrigation['CentralEcMinimum'],
+          i,
+        );
 
-            if (!isPlannedNull || !isActualNull) {
-              centralChannels.add(FertigationChannelModel(
-                name: name,
-                planned: isPlannedNull ? '—' : planned,
-                actual: isActualNull ? '—' : actual,
-                isCentral: true,
-              ));
-            }
-          }
-        }
+        final centralEcMax = _extractVal(
+          irrigation['CentralEcMaximum'],
+          i,
+        );
 
-        // Check if local fertigation is ON
-        bool isLocalOn = true;
-        if (i < localFertOnOff.length && localFertOnOff[i] != null) {
-          isLocalOn = localFertOnOff[i].toString() != '0';
-        }
+        final centralEcAvg = _extractVal(
+          irrigation['CentralEcAverage'] ??
+              irrigation['CentralEc'],
+          i,
+        );
 
-        List<FertigationChannelModel> localChannels = [];
-        if (isLocalOn) {
-          var localDuration = irrigation['LocalFertilizerChannelDuration'] ?? irrigation['LocalFertilizerChannelQuantity'];
-          var localCompleted = irrigation['LocalFertilizerChannelDurationCompleted'] ?? irrigation['LocalFertilizerChannelQuantityCompleted'];
-          var localNames = irrigation['LocalFertChannelName'] ?? irrigation['LocalFertilizerChannelName'];
+        // CENTRAL PH
+        final centralPhSet = _extractVal(
+          irrigation['CentralPhSetValue'],
+          i,
+        );
 
-          for (int ch = 1; ch <= 8; ch++) {
-            int chIdx = ch - 1;
-            String planned = '';
-            String actual = '';
-            String name = 'L-CH$ch';
+        final centralPhMin = _extractVal(
+          irrigation['CentralPhMinimum'],
+          i,
+        );
 
-            if (localNames is List && i < localNames.length && localNames[i] != null) {
-              var nameParts = localNames[i].toString().split('_');
-              if (chIdx < nameParts.length && nameParts[chIdx].isNotEmpty && nameParts[chIdx] != 'null') {
-                name = nameParts[chIdx];
-              }
-            }
+        final centralPhMax = _extractVal(
+          irrigation['CentralPhMaximum'],
+          i,
+        );
 
-            if (localDuration is List && i < localDuration.length && localDuration[i] != null) {
-              var parts = localDuration[i].toString().split('_');
-              if (chIdx < parts.length) planned = parts[chIdx];
-            } else if (localDuration != null && ch == 1) {
-              planned = localDuration.toString();
-            }
+        final centralPhAvg = _extractVal(
+          irrigation['CentralPhAverage'] ??
+              irrigation['CentralPh'],
+          i,
+        );
 
-            if (localCompleted is List && i < localCompleted.length && localCompleted[i] != null) {
-              var parts = localCompleted[i].toString().split('_');
-              if (chIdx < parts.length) actual = parts[chIdx];
-            } else if (localCompleted != null && ch == 1) {
-              actual = localCompleted.toString();
-            }
+        // LOCAL EC
+        final localEcSet = _extractVal(
+          irrigation['LocalEcSetValue'],
+          i,
+        );
 
-            bool isPlannedNull = planned.isEmpty || planned.toLowerCase() == 'null';
-            bool isActualNull = actual.isEmpty || actual.toLowerCase() == 'null';
+        final localEcMin = _extractVal(
+          irrigation['LocalEcMinimum'],
+          i,
+        );
 
-            if (!isPlannedNull || !isActualNull) {
-              localChannels.add(FertigationChannelModel(
-                name: name,
-                planned: isPlannedNull ? '—' : planned,
-                actual: isActualNull ? '—' : actual,
-                isCentral: false,
-              ));
-            }
-          }
-        }
+        final localEcMax = _extractVal(
+          irrigation['LocalEcMaximum'],
+          i,
+        );
 
-        cards.add(FertigationCardModel(
-          programName: progName,
-          programSNo: pSNo ?? 1,
-          sequenceName: seqName,
-          lineName: lineName,
-          status: statusStr,
-          statusColor: statusColor,
-          date: dateStr,
-          startTime: startTime,
-          stopTime: stopTime,
-          startReason: startReason,
-          stopReason: stopReason,
-          waterMethod: waterMethod,
-          waterPlanned: waterPlanned,
-          waterActual: waterActual,
-          preMethod: preMethod,
-          preTimeQty: preTimeQty,
-          postTimeQty: postTimeQty,
-          centralEc: centralEc,
-          centralPh: centralPh,
-          centralEcSet: centralEcSet,
-          centralEcMin: centralEcMin,
-          centralEcMax: centralEcMax,
-          centralEcAvg: centralEcAvg,
-          centralPhSet: centralPhSet,
-          centralPhMin: centralPhMin,
-          centralPhMax: centralPhMax,
-          centralPhAvg: centralPhAvg,
-          localEcSet: localEcSet,
-          localEcMin: localEcMin,
-          localEcMax: localEcMax,
-          localEcAvg: localEcAvg,
-          localPhSet: localPhSet,
-          localPhMin: localPhMin,
-          localPhMax: localPhMax,
-          localPhAvg: localPhAvg,
-          progress: progress,
-          progressValue: progressValue,
-          centralChannels: centralChannels,
-          localChannels: localChannels,
-        ));
+        final localEcAvg = _extractVal(
+          irrigation['LocalEcAverage'] ??
+              irrigation['LocalEc'],
+          i,
+        );
+
+        // LOCAL PH
+        final localPhSet = _extractVal(
+          irrigation['LocalPhSetValue'],
+          i,
+        );
+
+        final localPhMin = _extractVal(
+          irrigation['LocalPhMinimum'],
+          i,
+        );
+
+        final localPhMax = _extractVal(
+          irrigation['LocalPhMaximum'],
+          i,
+        );
+
+        final localPhAvg = _extractVal(
+          irrigation['LocalPhAverage'] ??
+              irrigation['LocalPh'],
+          i,
+        );
+
+        final centralEc =
+        centralEcAvg != '—'
+            ? centralEcAvg
+            : centralEcSet;
+
+        final centralPh =
+        centralPhAvg != '—'
+            ? centralPhAvg
+            : centralPhSet;
+
+        final progress = _valueAt(
+          progressList,
+          i,
+          fallback: '100%',
+        );
+
+        final parsedProgress = double.tryParse(
+          progress.replaceAll('%', '').trim(),
+        ) ??
+            100.0;
+
+        final progressValue =
+        (parsedProgress / 100.0)
+            .clamp(0.0, 1.0)
+            .toDouble();
+
+        final isCentralOn = _isEnabled(
+          _rawValueAt(centralFertOnOff, i),
+        );
+
+        final isLocalOn = _isEnabled(
+          _rawValueAt(localFertOnOff, i),
+        );
+
+        // Show only executed fertilizer channels.
+        final centralChannels = isCentralOn
+            ? _buildChannels(
+          irrigation: irrigation,
+          recordIndex: i,
+          isCentral: true,
+        )
+            : <FertigationChannelModel>[];
+
+        final localChannels = isLocalOn
+            ? _buildChannels(
+          irrigation: irrigation,
+          recordIndex: i,
+          isCentral: false,
+        )
+            : <FertigationChannelModel>[];
+
+        // Record already passed the execution filter.
+        // Keep the existing card structure unchanged.
+        cards.add(
+          FertigationCardModel(
+            programName: progName,
+            programSNo: pSNo ?? 1,
+            sequenceName: seqName,
+            lineName: lineName,
+            status: statusStr,
+            statusColor: statusColor,
+            date: dateStr,
+            startTime: startTime,
+            stopTime: stopTime,
+            startReason: startReason,
+            stopReason: stopReason,
+            waterMethod: waterMethod,
+            waterPlanned: waterPlanned,
+            waterActual: waterActual,
+            preMethod: preMethod,
+            preTimeQty: preTimeQty,
+            postTimeQty: postTimeQty,
+            centralEc: centralEc,
+            centralPh: centralPh,
+            centralEcSet: centralEcSet,
+            centralEcMin: centralEcMin,
+            centralEcMax: centralEcMax,
+            centralEcAvg: centralEcAvg,
+            centralPhSet: centralPhSet,
+            centralPhMin: centralPhMin,
+            centralPhMax: centralPhMax,
+            centralPhAvg: centralPhAvg,
+            localEcSet: localEcSet,
+            localEcMin: localEcMin,
+            localEcMax: localEcMax,
+            localEcAvg: localEcAvg,
+            localPhSet: localPhSet,
+            localPhMin: localPhMin,
+            localPhMax: localPhMax,
+            localPhAvg: localPhAvg,
+            progress: progress,
+            progressValue: progressValue,
+            centralChannels: centralChannels,
+            localChannels: localChannels,
+          ),
+        );
       }
     }
 
     return cards;
   }
 
-  static String _extractVal(dynamic field, int i) {
-    if (field == null) return '—';
-    if (field is List) {
-      if (i < field.length && field[i] != null) {
-        String val = field[i].toString().trim();
-        if (val.toLowerCase() == 'null' || val.isEmpty) return '—';
-        return val;
+  // --------------------------------------------------
+  // ACTUAL FERTILIZER EXECUTION FILTER
+  // --------------------------------------------------
+
+  static bool _hasActualFertilizerRun(
+      Map<String, dynamic> irrigation,
+      int index,
+      ) {
+    const fields = [
+      'CentralFertilizerChannelDurationCompleted',
+      'CentralFertilizerChannelQuantityCompleted',
+      'LocalFertilizerChannelDurationCompleted',
+      'LocalFertilizerChannelQuantityCompleted',
+    ];
+
+    for (final fieldName in fields) {
+      final values = irrigation[fieldName];
+
+      if (values is! List ||
+          index < 0 ||
+          index >= values.length) {
+        continue;
       }
-      return '—';
+
+      final recordValue = values[index];
+
+      if (recordValue == null) continue;
+
+      final channelValues =
+      recordValue.toString().split('_');
+
+      for (final value in channelValues) {
+        if (_isPositiveValue(value)) {
+          return true;
+        }
+      }
     }
-    String val = field.toString().trim();
-    if (val.toLowerCase() == 'null' || val.isEmpty) return '—';
-    return val;
+
+    return false;
   }
 
-  static String _getProgramName(List<dynamic> programList, int sNo) {
-    for (var prog in programList) {
-      int? progSNo = int.tryParse((prog['sNo'] ?? prog['programSNo'] ?? '').toString());
-      if (progSNo != null && progSNo == sNo) {
-        return (prog['name'] ?? prog['programName'] ?? '').toString();
+  // --------------------------------------------------
+  // CHECK POSITIVE DURATION OR QUANTITY
+  // --------------------------------------------------
+
+  static bool _isPositiveValue(String value) {
+    final clean = value.trim().toLowerCase();
+
+    if (clean.isEmpty ||
+        clean == 'null' ||
+        clean == '—' ||
+        clean == '-') {
+      return false;
+    }
+
+    if (clean.contains(':')) {
+      final parts = clean.split(':');
+
+      if (parts.length != 3) return false;
+
+      final hours = int.tryParse(parts[0]);
+      final minutes = int.tryParse(parts[1]);
+      final seconds = double.tryParse(parts[2]);
+
+      if (hours == null ||
+          minutes == null ||
+          seconds == null ||
+          hours < 0 ||
+          minutes < 0 ||
+          minutes >= 60 ||
+          seconds < 0 ||
+          seconds >= 60) {
+        return false;
+      }
+
+      return hours > 0 ||
+          minutes > 0 ||
+          seconds > 0;
+    }
+
+    final quantity = double.tryParse(clean);
+
+    return quantity != null &&
+        quantity.isFinite &&
+        quantity > 0;
+  }
+
+  // --------------------------------------------------
+  // BUILD EXECUTED FERTILIZER CHANNELS
+  // --------------------------------------------------
+
+  static List<FertigationChannelModel> _buildChannels({
+    required Map<String, dynamic> irrigation,
+    required int recordIndex,
+    required bool isCentral,
+  }) {
+    final prefix = isCentral
+        ? 'CentralFertilizerChannel'
+        : 'LocalFertilizerChannel';
+
+    final durationPlanned = _channelParts(
+      irrigation['${prefix}Duration'],
+      recordIndex,
+    );
+
+    final quantityPlanned = _channelParts(
+      irrigation['${prefix}Quantity'],
+      recordIndex,
+    );
+
+    final durationActual = _channelParts(
+      irrigation['${prefix}DurationCompleted'],
+      recordIndex,
+    );
+
+    final quantityActual = _channelParts(
+      irrigation['${prefix}QuantityCompleted'],
+      recordIndex,
+    );
+
+    final names = _channelParts(
+      isCentral
+          ? irrigation['CentralFertChannelName']
+          : irrigation['LocalFertChannelName'] ??
+          irrigation['LocalFertilizerChannelName'],
+      recordIndex,
+    );
+
+    final List<FertigationChannelModel> result = [];
+
+    for (int ch = 0; ch < 8; ch++) {
+      final duration = _partAt(durationActual, ch);
+      final quantity = _partAt(quantityActual, ch);
+
+      final hasDuration = _isPositiveValue(duration);
+      final hasQuantity = _isPositiveValue(quantity);
+
+      // Hide channels that did not execute.
+      if (!hasDuration && !hasQuantity) {
+        continue;
+      }
+
+      final planned = hasDuration
+          ? _partAt(durationPlanned, ch)
+          : _partAt(quantityPlanned, ch);
+
+      final actual = hasDuration
+          ? duration
+          : quantity;
+
+      final rawName = _partAt(names, ch);
+
+      final name = rawName.isNotEmpty &&
+          rawName.toLowerCase() != 'null'
+          ? rawName
+          : '${isCentral ? 'C' : 'L'}-CH${ch + 1}';
+
+      result.add(
+        FertigationChannelModel(
+          name: name,
+          planned: planned.isEmpty ? '—' : planned,
+          actual: actual.isEmpty ? '—' : actual,
+          isCentral: isCentral,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  static List<String> _channelParts(
+      dynamic field,
+      int index,
+      ) {
+    if (field is! List ||
+        index < 0 ||
+        index >= field.length ||
+        field[index] == null) {
+      return [];
+    }
+
+    return field[index]
+        .toString()
+        .split('_')
+        .map((value) => value.trim())
+        .toList();
+  }
+
+  static String _partAt(
+      List<String> values,
+      int index,
+      ) {
+    if (index < 0 || index >= values.length) {
+      return '';
+    }
+
+    return values[index];
+  }
+
+  // --------------------------------------------------
+  // GENERAL HELPERS
+  // --------------------------------------------------
+
+  static List<dynamic> _asList(dynamic value) {
+    return value is List ? value : [];
+  }
+
+  static dynamic _rawValueAt(
+      List<dynamic> values,
+      int index,
+      ) {
+    if (index < 0 || index >= values.length) {
+      return null;
+    }
+
+    return values[index];
+  }
+
+  static String _valueAt(
+      List<dynamic> values,
+      int index, {
+        String fallback = '—',
+      }) {
+    final value = _rawValueAt(values, index);
+
+    if (value == null) return fallback;
+
+    final result = value.toString().trim();
+
+    if (result.isEmpty ||
+        result.toLowerCase() == 'null') {
+      return fallback;
+    }
+
+    return result;
+  }
+
+  static String _extractVal(
+      dynamic field,
+      int index,
+      ) {
+    if (field == null) return '—';
+
+    if (field is List) {
+      return _valueAt(field, index);
+    }
+
+    final value = field.toString().trim();
+
+    if (value.isEmpty ||
+        value.toLowerCase() == 'null') {
+      return '—';
+    }
+
+    return value;
+  }
+
+  static bool _isEnabled(dynamic value) {
+    if (value == null) return true;
+
+    final text = value.toString().trim().toLowerCase();
+
+    return text != '0' && text != 'false';
+  }
+
+  static String _getMethod(dynamic value) {
+    if (value == null) return '—';
+
+    final code = int.tryParse(value.toString());
+
+    if (code == 1) return 'Time';
+    if (code == 2) return 'Quantity (L)';
+
+    return value.toString();
+  }
+
+  static String _getReason(dynamic value) {
+    if (value == null) return '—';
+
+    final code = int.tryParse(value.toString());
+
+    return code != null
+        ? programStartStopReason(code: code)
+        : value.toString();
+  }
+
+  // --------------------------------------------------
+  // PROGRAM NAME
+  // --------------------------------------------------
+
+  static String _getProgramName(
+      List<dynamic> programList,
+      int sNo,
+      ) {
+    for (final program in programList) {
+      if (program is! Map) continue;
+
+      final number = int.tryParse(
+        (program['sNo'] ??
+            program['programSNo'] ??
+            '')
+            .toString(),
+      );
+
+      if (number == sNo) {
+        return (program['name'] ??
+            program['programName'] ??
+            '')
+            .toString();
       }
     }
+
     return '';
   }
 
-  static String _getSequenceName(List<dynamic> sequenceList, dynamic sNo) {
+  // --------------------------------------------------
+  // SEQUENCE NAME
+  // --------------------------------------------------
+
+  static String _getSequenceName(
+      List<dynamic> sequenceList,
+      dynamic sNo,
+      ) {
     if (sNo == null) return '—';
-    for (var seq in sequenceList) {
-      if (seq['sNo'].toString() == sNo.toString() || seq['id'].toString() == sNo.toString()) {
-        return (seq['name'] ?? '').toString();
+
+    final target = sNo.toString();
+
+    for (final sequence in sequenceList) {
+      if (sequence is! Map) continue;
+
+      final sequenceNo =
+      sequence['sNo']?.toString();
+
+      final sequenceId =
+      sequence['id']?.toString();
+
+      if (sequenceNo == target ||
+          sequenceId == target) {
+        return (sequence['name'] ?? '').toString();
       }
     }
-    return sNo.toString();
+
+    return target;
+  }
+
+  // --------------------------------------------------
+  // LINE NAME
+  // --------------------------------------------------
+
+  static String _getLineName(
+      List<dynamic> nameData,
+      dynamic sNo,
+      ) {
+    if (sNo == null) return '—';
+
+    final target = sNo.toString().trim();
+
+    if (target.isEmpty || target == '-') {
+      return '—';
+    }
+
+    for (final item in nameData) {
+      if (item is! Map) continue;
+
+      final itemSNo = (
+          item['sNo'] ??
+              item['id'] ??
+              item['serialNo'] ??
+              ''
+      ).toString();
+
+      if (itemSNo == target) {
+        final name = (
+            item['name'] ??
+                item['lineName'] ??
+                item['headUnitName'] ??
+                ''
+        ).toString();
+
+        if (name.isNotEmpty) {
+          return name;
+        }
+      }
+    }
+
+    return target;
   }
 }

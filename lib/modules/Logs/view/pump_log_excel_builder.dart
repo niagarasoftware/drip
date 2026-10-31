@@ -2,6 +2,30 @@ import 'package:excel/excel.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/event_log_model.dart';
 import 'package:oro_drip_irrigation/modules/Logs/model/motor_data_hourly.dart';
 
+String formatHms(dynamic val) {
+  if (val == null) return '00:00:00';
+  final s = val.toString().trim();
+  if (s.isEmpty || s == '-' || s == '--' || s.toLowerCase() == 'null' || s.toLowerCase() == 'na') {
+    return '00:00:00';
+  }
+  final p = s.split(':');
+  if (p.length >= 2) {
+    final h = int.tryParse(p[0]) ?? 0;
+    final m = int.tryParse(p[1]) ?? 0;
+    final sec = p.length > 2 ? (int.tryParse(p[2].split('.')[0]) ?? 0) : 0;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+  }
+  final n = num.tryParse(s);
+  if (n != null) {
+    final secs = n.toInt();
+    final h = secs ~/ 3600;
+    final m = (secs % 3600) ~/ 60;
+    final sec = secs % 60;
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+  }
+  return s;
+}
+
 class PumpLogExportData {
   final String deviceName;
   final String deviceId;
@@ -57,9 +81,9 @@ Excel buildPumpLogExcel(PumpLogExportData exportData) {
     if (events.isEmpty) {
       sheet1.appendRow([
         TextCellValue(motorName),
-        TextCellValue('-'),
-        TextCellValue('-'),
-        TextCellValue('-'),
+        TextCellValue('00:00:00'),
+        TextCellValue('00:00:00'),
+        TextCellValue('00:00:00'),
         TextCellValue('No events recorded'),
         TextCellValue('-'),
       ]);
@@ -67,9 +91,9 @@ Excel buildPumpLogExcel(PumpLogExportData exportData) {
       for (final e in events) {
         sheet1.appendRow([
           TextCellValue(motorName),
-          TextCellValue(e.onTime.isNotEmpty ? e.onTime : '-'),
-          TextCellValue(e.offTime.isNotEmpty ? e.offTime : '-'),
-          TextCellValue(e.duration.isNotEmpty ? e.duration : '-'),
+          TextCellValue(formatHms(e.onTime)),
+          TextCellValue(formatHms(e.offTime)),
+          TextCellValue(formatHms(e.duration)),
           TextCellValue(e.onReason.isNotEmpty ? e.onReason : '-'),
           TextCellValue(e.offReason.isNotEmpty ? e.offReason : '-'),
         ]);
@@ -151,12 +175,12 @@ Excel buildPumpLogExcel(PumpLogExportData exportData) {
   ]);
   sheet3.appendRow([
     TextCellValue('Total Power On Time'),
-    TextCellValue(motorData?.totalPowerOnTime ?? '00:00:00'),
+    TextCellValue(formatHms(motorData?.totalPowerOnTime)),
     TextCellValue('HH:MM:SS'),
   ]);
   sheet3.appendRow([
     TextCellValue('Total Power Off Time'),
-    TextCellValue(motorData?.totalPowerOffTime ?? '00:00:00'),
+    TextCellValue(formatHms(motorData?.totalPowerOffTime)),
     TextCellValue('HH:MM:SS'),
   ]);
   sheet3.appendRow([
@@ -215,27 +239,27 @@ Excel buildPumpLogExcel(PumpLogExportData exportData) {
 
     sheet3.appendRow([
       TextCellValue('$motorName Run Time'),
-      TextCellValue(runTime),
+      TextCellValue(formatHms(runTime)),
       TextCellValue('HH:MM:SS'),
     ]);
     sheet3.appendRow([
       TextCellValue('$motorName Idle Time'),
-      TextCellValue(idleTime),
+      TextCellValue(formatHms(idleTime)),
       TextCellValue('HH:MM:SS'),
     ]);
     sheet3.appendRow([
       TextCellValue('$motorName Dry Run Trip Time'),
-      TextCellValue(dryRunTime),
+      TextCellValue(formatHms(dryRunTime)),
       TextCellValue('HH:MM:SS'),
     ]);
     sheet3.appendRow([
       TextCellValue('$motorName Cyclic Trip Time'),
-      TextCellValue(cyclicTime),
+      TextCellValue(formatHms(cyclicTime)),
       TextCellValue('HH:MM:SS'),
     ]);
     sheet3.appendRow([
       TextCellValue('$motorName Other Trip Time'),
-      TextCellValue(otherTime),
+      TextCellValue(formatHms(otherTime)),
       TextCellValue('HH:MM:SS'),
     ]);
     sheet3.appendRow([

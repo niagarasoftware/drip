@@ -79,14 +79,14 @@ class _StandaloneLogState extends State<StandaloneLog> {
   late ScrollController _horizontalScroll2;
   List<String> standaloneColumn = ['Program','Method','Start Time',
     // 'Zone Name',
-    'Device Id','Others'];
+    'Pump','Others'];
   String _selectedDate = '';
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
   List<dynamic> parameters = [
     'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No',
     'ZoneName',
-    'IrrigationMethod','MacAddress'
+    'IrrigationMethod','Pump'
   ];
   dynamic standaloneData = {
     'fixedColumnData' : [],
@@ -140,6 +140,26 @@ class _StandaloneLogState extends State<StandaloneLog> {
     }
   }
 
+  /// Converts a raw sNo string (e.g. "5.005" or "13.046_9.002") into the
+  /// configured object names joined with "__". Falls back to the raw sNo
+  /// when the name is not found in [configObject].
+  String _resolveNames(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    final names = <String>[];
+    for (final sNo in value.split('_')) {
+      final key = sNo.trim();
+      if (key.isEmpty) continue;
+      final objectData = configObject.firstWhere(
+            (element) => element['sNo']?.toString() == key,
+        orElse: () => null,
+      );
+      final name = objectData?['name'];
+      names.add(name != null && '$name'.trim().isNotEmpty ? '$name' : key);
+    }
+    return names.join('__');
+  }
+
   void getStandaloneData() async {
     print('data request to the server.............');
     setState(() {
@@ -191,7 +211,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
           var methodList = standaloneMap['IrrigationMethod'] as List? ?? [];
           var startTimes = standaloneMap['ScheduledStartTime'] as List? ?? [];
           var zoneNames = standaloneMap['ZoneName'] as List? ?? [];
-          var macList = standaloneMap['MacAddress'] as List? ?? [];
+          var pumpList = standaloneMap['Pump'] as List? ?? [];
           var seqList = standaloneMap['SequenceData'] as List? ?? [];
 
           for (var schedule = 0; schedule < datesList.length; schedule++) {
@@ -214,24 +234,18 @@ class _StandaloneLogState extends State<StandaloneLog> {
             //     : '';
             // list.add(rawZoneName);
 
-            // 4: Device Id
-            list.add(schedule < macList.length ? macList[schedule] : '-');
+            // 3: Pump (sNo like "5.005" resolved to the configured pump name)
+            String rawPump = (schedule < pumpList.length && pumpList[schedule] != null)
+                ? pumpList[schedule].toString()
+                : '';
+            String pumpName = _resolveNames(rawPump);
+            list.add(pumpName.isNotEmpty ? pumpName : '-');
 
-            // 5: Others (Valves)
+            // 4: Others (Valves)
             String seqData = (schedule < seqList.length && seqList[schedule] != null)
                 ? seqList[schedule].toString()
                 : '';
-            var valveName = '';
-            if (seqData.isNotEmpty) {
-              for (var valve in seqData.split('_')) {
-                valveName += valveName.isNotEmpty ? '__' : '';
-                var objectData = configObject.firstWhere(
-                  (element) => element['sNo']?.toString() == valve,
-                  orElse: () => null,
-                );
-                valveName += '${objectData != null ? objectData['name'] : valve}';
-              }
-            }
+            String valveName = _resolveNames(seqData);
             list.add(valveName.isNotEmpty ? valveName : '-');
 
             standaloneData['standaloneColumnData'].add(list);
@@ -269,9 +283,9 @@ class _StandaloneLogState extends State<StandaloneLog> {
       case 2:
         return 140; // Start Time
       case 3:
-        return 160; // Zone Name
+        return 160; // Pump
       case 4:
-        return 180; // Device Id
+        return 180; // Others
       default:
         return 500; // Others
     }

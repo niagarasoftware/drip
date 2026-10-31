@@ -1235,53 +1235,91 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   }
 
   int _rtcTimeToSeconds(String timeStr) {
-    if (timeStr.isEmpty) return 0;
-    final parts = timeStr.split(':');
-    if (parts.length < 2) return 0;
-    int hours = int.tryParse(parts[0]) ?? 0;
-    int minutes = int.tryParse(parts[1]) ?? 0;
-    int seconds = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
-    return hours * 3600 + minutes * 60 + seconds;
+    try {
+      if (timeStr.isEmpty) return 0;
+      final parts = timeStr.split(':');
+      if (parts.length < 2) return 0;
+      int hours = int.tryParse(parts[0]) ?? 0;
+      int minutes = int.tryParse(parts[1]) ?? 0;
+      int seconds = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
+      return hours * 3600 + minutes * 60 + seconds;
+    } catch (error, stackTrace) {
+      print("==================== ERROR IN _rtcTimeToSeconds ====================");
+      print("timeStr: $timeStr");
+      print("Error: $error");
+      print("StackTrace:\n$stackTrace");
+      print("====================================================================");
+      return 0;
+    }
   }
 
   String? _validateSingleRtcList(List<RtcTimeSetting> rtcSettings,
       {String? pumpName, bool isLiveEdit = false}) {
-    int? lastActiveOffTimeSeconds;
-    int? lastActiveIndex;
+    try {
+      int? lastActiveOffTimeSeconds;
+      int? lastActiveIndex;
 
-    for (int i = 0; i < rtcSettings.length; i++) {
-      final rtc = rtcSettings[i];
-      final onSeconds = _rtcTimeToSeconds(rtc.onTime);
-      final offSeconds = _rtcTimeToSeconds(rtc.offTime);
+      for (int i = 0; i < rtcSettings.length; i++) {
+        final rtc = rtcSettings[i];
+        final onSeconds = _rtcTimeToSeconds(rtc.onTime);
+        final offSeconds = _rtcTimeToSeconds(rtc.offTime);
 
-      if (onSeconds == 0 && offSeconds == 0) {
-        continue;
-      }
+        print("Checking RTC entry ${i + 1}: onTime='${rtc.onTime}' ($onSeconds s), offTime='${rtc.offTime}' ($offSeconds s)");
 
-      final prefix =
-          pumpName != null ? "$pumpName - RTC ${i + 1}" : "RTC ${i + 1}";
+        if (onSeconds == 0 && offSeconds == 0) {
+          continue;
+        }
 
-      if (offSeconds > 0 || !isLiveEdit) {
+        final prefix =
+            pumpName != null ? "$pumpName - RTC ${i + 1}" : "RTC ${i + 1}";
+
+        if (onSeconds > 0 && offSeconds == 0) {
+          final msg = "$prefix: Off time must be set when On time is specified.";
+          print("RTC Validation Issue: $msg");
+          return msg;
+        }
+
+        if (onSeconds == 0 && offSeconds > 0) {
+          final msg = "$prefix: On time must be set when Off time is specified.";
+          print("RTC Validation Issue: $msg");
+          return msg;
+        }
+
         if (offSeconds <= onSeconds) {
-          return "$prefix: Off time must be greater than On time.";
+          final msg = "$prefix: Off time must be greater than On time.";
+          print("RTC Validation Issue: $msg");
+          return msg;
+        }
+
+        if (lastActiveOffTimeSeconds != null &&
+            onSeconds < lastActiveOffTimeSeconds) {
+          final prevPrefix = "RTC ${lastActiveIndex! + 1}";
+          final msg = "$prefix: On time must be greater than or equal to $prevPrefix Off time.";
+          print("RTC Validation Issue: $msg");
+          return msg;
+        }
+
+        if (offSeconds > 0) {
+          lastActiveOffTimeSeconds = offSeconds;
+          lastActiveIndex = i;
         }
       }
-
-      if (lastActiveOffTimeSeconds != null &&
-          onSeconds < lastActiveOffTimeSeconds) {
-        final prevPrefix = "RTC ${lastActiveIndex! + 1}";
-        return "$prefix: On time must be greater than or equal to $prevPrefix Off time.";
-      }
-
-      if (offSeconds > 0) {
-        lastActiveOffTimeSeconds = offSeconds;
-        lastActiveIndex = i;
-      }
+      return null;
+    } catch (error, stackTrace) {
+      print("==================== ERROR IN _validateSingleRtcList ====================");
+      print("Error: $error");
+      print("StackTrace:\n$stackTrace");
+      print("=========================================================================");
+      debugPrint("Error in _validateSingleRtcList: $error");
+      debugPrint("Stack trace in _validateSingleRtcList: $stackTrace");
+      return "RTC Error: $error";
     }
-    return null;
   }
 
   void _showRtcErrorDialog(String message) {
+    print("==================== SHOWING RTC ERROR DIALOG ====================");
+    print("RTC Error Message: $message");
+    print("==================================================================");
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1306,67 +1344,87 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   }
 
   String? validateAllRtcSettings() {
-    if (preferenceProvider.individualPumpSetting != null) {
-      for (var individualPump in preferenceProvider.individualPumpSetting!) {
-        final pumpName = preferenceProvider.individualPumpSetting!.length > 1
-            ? individualPump.name
-            : null;
-        for (var settingCategory in individualPump.settingList) {
-          if (AppConstants.timerSetting.contains(settingCategory.type)) {
-            bool isRtcEnabled = true;
-            List<RtcTimeSetting>? rtcSettings;
+    print("==================== validateAllRtcSettings START ====================");
+    try {
+      if (preferenceProvider.individualPumpSetting != null) {
+        for (var individualPump in preferenceProvider.individualPumpSetting!) {
+          final pumpName = preferenceProvider.individualPumpSetting!.length > 1
+              ? individualPump.name
+              : null;
+          print("Checking individualPump: ${individualPump.name}, settings count: ${individualPump.settingList.length}");
+          for (var settingCategory in individualPump.settingList) {
+            if (AppConstants.timerSetting.contains(settingCategory.type)) {
+              bool isRtcEnabled = true;
+              List<RtcTimeSetting>? rtcSettings;
 
-            for (var setting in settingCategory.setting) {
-              if (setting.title.toUpperCase() == "RTC") {
-                isRtcEnabled = setting.value == true;
+              for (var setting in settingCategory.setting) {
+                if (setting.title.toUpperCase() == "RTC") {
+                  isRtcEnabled = setting.value == true;
+                  print("Found RTC switch for ${individualPump.name}: value=${setting.value}, isRtcEnabled=$isRtcEnabled");
+                }
+                if (setting.title.toUpperCase() == "RTC TIMER" &&
+                    setting.rtcSettings != null) {
+                  rtcSettings = setting.rtcSettings;
+                  print("Found RTC TIMER settings for ${individualPump.name}: count=${rtcSettings?.length}");
+                }
               }
-              if (setting.title.toUpperCase() == "RTC TIMER" &&
-                  setting.rtcSettings != null) {
-                rtcSettings = setting.rtcSettings;
-              }
-            }
 
-            if (isRtcEnabled && rtcSettings != null) {
-              final error =
-                  _validateSingleRtcList(rtcSettings, pumpName: pumpName);
-              if (error != null) {
-                return error;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (preferenceProvider.commonPumpSettings != null) {
-      for (var commonSetting in preferenceProvider.commonPumpSettings!) {
-        for (var settingCategory in commonSetting.settingList) {
-          if (AppConstants.timerSetting.contains(settingCategory.type)) {
-            bool isRtcEnabled = true;
-            List<RtcTimeSetting>? rtcSettings;
-
-            for (var setting in settingCategory.setting) {
-              if (setting.title.toUpperCase() == "RTC") {
-                isRtcEnabled = setting.value == true;
-              }
-              if (setting.title.toUpperCase() == "RTC TIMER" &&
-                  setting.rtcSettings != null) {
-                rtcSettings = setting.rtcSettings;
-              }
-            }
-
-            if (isRtcEnabled && rtcSettings != null) {
-              final error = _validateSingleRtcList(rtcSettings);
-              if (error != null) {
-                return error;
+              if (isRtcEnabled && rtcSettings != null) {
+                final error =
+                    _validateSingleRtcList(rtcSettings, pumpName: pumpName);
+                if (error != null) {
+                  print("RTC Validation Failed for ${individualPump.name}: $error");
+                  return error;
+                }
               }
             }
           }
         }
       }
-    }
 
-    return null;
+      if (preferenceProvider.commonPumpSettings != null) {
+        for (var commonSetting in preferenceProvider.commonPumpSettings!) {
+          print("Checking commonSetting: ${commonSetting.deviceId}, settings count: ${commonSetting.settingList.length}");
+          for (var settingCategory in commonSetting.settingList) {
+            if (AppConstants.timerSetting.contains(settingCategory.type)) {
+              bool isRtcEnabled = true;
+              List<RtcTimeSetting>? rtcSettings;
+
+              for (var setting in settingCategory.setting) {
+                if (setting.title.toUpperCase() == "RTC") {
+                  isRtcEnabled = setting.value == true;
+                  print("Found RTC switch in commonSetting ${commonSetting.deviceId}: value=${setting.value}, isRtcEnabled=$isRtcEnabled");
+                }
+                if (setting.title.toUpperCase() == "RTC TIMER" &&
+                    setting.rtcSettings != null) {
+                  rtcSettings = setting.rtcSettings;
+                  print("Found RTC TIMER in commonSetting ${commonSetting.deviceId}: count=${rtcSettings?.length}");
+                }
+              }
+
+              if (isRtcEnabled && rtcSettings != null) {
+                final error = _validateSingleRtcList(rtcSettings);
+                if (error != null) {
+                  print("RTC Validation Failed for commonSetting ${commonSetting.deviceId}: $error");
+                  return error;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      print("validateAllRtcSettings PASSED with no errors!");
+      return null;
+    } catch (error, stackTrace) {
+      print("==================== ERROR IN validateAllRtcSettings ====================");
+      print("Error: $error");
+      print("StackTrace:\n$stackTrace");
+      print("=========================================================================");
+      debugPrint("Error in validateAllRtcSettings: $error");
+      debugPrint("Stack trace in validateAllRtcSettings: $stackTrace");
+      return "RTC Validation Exception: $error";
+    }
   }
 
   Widget _buildRtcTimer(
@@ -2156,7 +2214,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   onPressed: selectedOroPumpList.isNotEmpty
                       ? () async {
                           Navigator.of(context).pop();
-                          await sendFunction();
+                          try {
+                            await sendFunction();
+                          } catch (error, stackTrace) {
+                            print("==================== ERROR IN PREFERENCE SEND ====================");
+                            print("Error: $error");
+                            print("StackTrace:\n$stackTrace");
+                            print("==================================================================");
+                          }
                         }
                       : null,
                   child: const Text("SEND"),
@@ -2186,41 +2251,42 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   };
 
   Future<void> sendFunction() async {
-    final rtcError = validateAllRtcSettings();
-    debugPrint("rtcError : $rtcError");
-    if (rtcError != null) {
-      _showRtcErrorDialog(rtcError);
-      return;
-    }
-    // mqttPayloadProvider.preferencePayload = {};
-    breakLoop = false;
-    Map<String, dynamic> userData = {
-      "userId": widget.customerId,
-      "controllerId": widget.masterData['controllerId'],
-      "createUser": widget.userId
-    };
 
-    Map<String, dynamic> payloadForSlave = {
-      "400": {"401": onDelayTimer()}
-    };
-
-    final payload = shouldSendFailedPayloads
-        ? getFailedPayload(isToGem: isToGem, sendAll: false)
-        : getPayload(isToGem: isToGem, sendAll: false);
-    final payloadParts = payload.split("?")[0].split(';');
-
-    final payloadForGem = preferenceProvider.passwordValidationCode == 200
-        ? getCalibrationPayload(isToGem: isToGem).split("?")[0].split(';')
-        : payloadParts[0].isEmpty
-            ? shouldSendFailedPayloads
-                ? getFailedPayload(isToGem: isToGem, sendAll: true)
-                    .split("?")[0]
-                    .split(';')
-                : getPayload(isToGem: isToGem, sendAll: true)
-                    .split("?")[0]
-                    .split(';')
-            : payloadParts;
     try {
+      final rtcError = validateAllRtcSettings();
+      debugPrint("rtcError : $rtcError");
+      if (rtcError != null) {
+        _showRtcErrorDialog(rtcError);
+        return;
+      }
+      // mqttPayloadProvider.preferencePayload = {};
+      breakLoop = false;
+      Map<String, dynamic> userData = {
+        "userId": widget.customerId,
+        "controllerId": widget.masterData['controllerId'],
+        "createUser": widget.userId
+      };
+
+      Map<String, dynamic> payloadForSlave = {
+        "400": {"401": onDelayTimer()}
+      };
+
+      final payload = shouldSendFailedPayloads
+          ? getFailedPayload(isToGem: isToGem, sendAll: false)
+          : getPayload(isToGem: isToGem, sendAll: false);
+      final payloadParts = payload.split("?")[0].split(';');
+
+      final payloadForGem = preferenceProvider.passwordValidationCode == 200
+          ? getCalibrationPayload(isToGem: isToGem).split("?")[0].split(';')
+          : payloadParts[0].isEmpty
+          ? shouldSendFailedPayloads
+          ? getFailedPayload(isToGem: isToGem, sendAll: true)
+          .split("?")[0]
+          .split(';')
+          : getPayload(isToGem: isToGem, sendAll: true)
+          .split("?")[0]
+          .split(';')
+          : payloadParts;
       bool isLevelSettingChanged = preferenceProvider.individualPumpSetting!
           .any((pump) => pump.settingList.any((setting) =>
               AppConstants.levelSetting.contains(setting.type) &&
@@ -2254,64 +2320,93 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 : true) &&
             payloadForGem.any((item) => item.trim().isNotEmpty)) {
           for (var i = 0; i < payloadForGem.length; i++) {
-            var payloadToDecode =
-                isToGem ? payloadForGem[i].split('+')[4] : payloadForGem[i];
-            // print("payloadToDecode :: $payloadToDecode");
-            var decodedData = jsonDecode(payloadToDecode);
-            var key = decodedData.keys.first;
-            int oroPumpIndex = 0;
-            if (isToGem) {
-              oroPumpIndex = preferenceProvider.commonPumpSettings!.indexWhere(
-                  (element) =>
-                      element.deviceId == payloadForGem[i].split('+')[2]);
-            }
-            setState(() {
-              if (key.contains("100"))
-                preferenceProvider.commonPumpSettings![oroPumpIndex]
-                    .settingList[0].controllerReadStatus = "0";
-              if (key.contains("200"))
-                preferenceProvider.commonPumpSettings![oroPumpIndex]
-                    .settingList[1].controllerReadStatus = "0";
-              int pumpIndex = 0;
-              for (var individualPump
-                  in preferenceProvider.individualPumpSetting ?? []) {
-                if (preferenceProvider
-                        .commonPumpSettings![oroPumpIndex].deviceId ==
-                    individualPump.deviceId) {
-                  if (individualPump.output != null) {
-                    pumpIndex = individualPump.output;
-                  } else {
-                    pumpIndex++;
+            if (payloadForGem[i].trim().isEmpty) continue;
+            try {
+              var item = payloadForGem[i].trim();
+              String payloadToDecode = item;
+              String targetDeviceId = '';
+
+              if (isToGem && item.contains('+')) {
+                var parts = item.split('+');
+                if (parts.length > 4) {
+                  payloadToDecode = parts[4];
+                }
+                if (parts.length > 2) {
+                  targetDeviceId = parts[2];
+                }
+              }
+
+              var decodedData = jsonDecode(payloadToDecode);
+              if (decodedData is! Map || decodedData.keys.isEmpty) continue;
+              var key = decodedData.keys.first.toString();
+
+              int oroPumpIndex = 0;
+              if (isToGem && targetDeviceId.isNotEmpty) {
+                var idx = preferenceProvider.commonPumpSettings!.indexWhere(
+                    (element) => element.deviceId == targetDeviceId);
+                if (idx != -1) oroPumpIndex = idx;
+              }
+
+              if (oroPumpIndex < preferenceProvider.commonPumpSettings!.length) {
+                var settingList = preferenceProvider.commonPumpSettings![oroPumpIndex].settingList;
+                setState(() {
+                  if (key.contains("100") && settingList.isNotEmpty) {
+                    settingList[0].controllerReadStatus = "0";
                   }
-                  for (var individualPumpSetting
-                      in individualPump.settingList) {
-                    if (AppConstants.currentSetting
-                        .contains(individualPumpSetting.type)) {
-                      if (key.contains("400-$pumpIndex")) {
-                        individualPumpSetting.controllerReadStatus = "0";
+                  if (key.contains("200") && settingList.length > 1) {
+                    settingList[1].controllerReadStatus = "0";
+                  }
+                  int pumpIndex = 0;
+                  for (var individualPump
+                      in preferenceProvider.individualPumpSetting ?? []) {
+                    if (preferenceProvider
+                            .commonPumpSettings![oroPumpIndex].deviceId ==
+                        individualPump.deviceId) {
+                      if (individualPump.output != null) {
+                        pumpIndex = individualPump.output;
+                      } else {
+                        pumpIndex++;
                       }
-                    } else if (AppConstants.timerSetting
-                        .contains(individualPumpSetting.type)) {
-                      if (key.contains("300-$pumpIndex") ||
-                          key.contains("500-$pumpIndex")) {
-                        individualPumpSetting.controllerReadStatus = "0";
-                      }
-                    } else if (AppConstants.additionalSetting
-                        .contains(individualPumpSetting.type)) {
-                      if (key.contains("600-$pumpIndex")) {
-                        individualPumpSetting.controllerReadStatus = "0";
+                      for (var individualPumpSetting
+                          in individualPump.settingList) {
+                        if (AppConstants.currentSetting
+                            .contains(individualPumpSetting.type)) {
+                          if (key.contains("400-$pumpIndex")) {
+                            individualPumpSetting.controllerReadStatus = "0";
+                          }
+                        } else if (AppConstants.timerSetting
+                            .contains(individualPumpSetting.type)) {
+                          if (key.contains("300-$pumpIndex") ||
+                              key.contains("500-$pumpIndex")) {
+                            individualPumpSetting.controllerReadStatus = "0";
+                          }
+                        } else if (AppConstants.additionalSetting
+                            .contains(individualPumpSetting.type)) {
+                          if (key.contains("600-$pumpIndex")) {
+                            individualPumpSetting.controllerReadStatus = "0";
+                          }
+                        }
                       }
                     }
                   }
-                }
+                  if (preferenceProvider.passwordValidationCode == 200 &&
+                      preferenceProvider.calibrationSetting != null &&
+                      oroPumpIndex < preferenceProvider.calibrationSetting!.length) {
+                    if (key.contains("900") &&
+                        preferenceProvider.calibrationSetting![oroPumpIndex].settingList.length > 1) {
+                      preferenceProvider.calibrationSetting![oroPumpIndex]
+                          .settingList[1].controllerReadStatus = "0";
+                    }
+                  }
+                });
               }
-              if (preferenceProvider.passwordValidationCode == 200 &&
-                  preferenceProvider.calibrationSetting!.isNotEmpty) {
-                if (key.contains("900"))
-                  preferenceProvider.calibrationSetting![oroPumpIndex]
-                      .settingList[1].controllerReadStatus = "0";
-              }
-            });
+            } catch (itemError, itemStack) {
+              print("==================== ERROR DECODING ITEM $i ====================");
+              print("Item: ${payloadForGem[i]}");
+              print("Error: $itemError");
+              print("StackTrace:\n$itemStack");
+              print("================================================================");
+            }
           }
           print('resultFromDialog');
           resultFromDialog = await showDialog(
@@ -2371,6 +2466,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       });
     } catch (error, stackTrace) {
       showSnackBar(message: "Failed to update due to: $error");
+      print("==================== ERROR IN PREFERENCE SENDING ====================");
+      print("Error: $error");
+      print("StackTrace:\n$stackTrace");
+      print("=====================================================================");
       debugPrint("Error in preference sending: $error");
       debugPrint("Stack trace in preference sending: $stackTrace");
     }

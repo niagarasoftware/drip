@@ -39,6 +39,20 @@ class _MobileCustomCalendarState extends State<MobileCustomCalendar> {
   }
 
   @override
+  void didUpdateWidget(covariant MobileCustomCalendar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedDate != oldWidget.selectedDate ||
+        widget.focusedDay != oldWidget.focusedDay ||
+        widget.calendarFormat != oldWidget.calendarFormat) {
+      setState(() {
+        _selectedDate = widget.selectedDate;
+        _focusedDay = widget.focusedDay;
+        _calendarFormat = widget.calendarFormat;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(

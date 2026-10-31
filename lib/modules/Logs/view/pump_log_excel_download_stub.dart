@@ -51,9 +51,9 @@ Future<Directory> _resolveDownloadDirectory() async {
 }
 
 Future<bool> generatePumpLogExcel(
-  PumpLogExportData data,
-  String name,
-) async {
+    PumpLogExportData data,
+    String name,
+    ) async {
   try {
     final Excel excel = buildPumpLogExcel(data);
     final fileBytes = excel.encode();
@@ -70,7 +70,7 @@ Future<bool> generatePumpLogExcel(
         fileName: '$name.xlsx',
         bytes: bytes,
         mimeType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
 
       if (savedPath != null && savedPath.isNotEmpty) {
@@ -95,9 +95,9 @@ Future<bool> generatePumpLogExcel(
 }
 
 Future<bool> generatePumpLogCSV(
-  PumpLogExportData data,
-  String name,
-) async {
+    PumpLogExportData data,
+    String name,
+    ) async {
   try {
     final csvStr = generatePumpLogCsvString(data);
     final bytes = Uint8List.fromList(utf8.encode(csvStr));
@@ -132,11 +132,11 @@ Future<bool> generatePumpLogCSV(
 }
 
 Future<bool> generatePumpLogPDF(
-  PumpLogExportData data,
-  String name,
-) async {
+    PumpLogExportData data,
+    String name,
+    ) async {
   try {
-    final Uint8List bytes = generatePumpLogPdfBytes(data, name);
+    final Uint8List bytes = await generatePumpLogPdfBytes(data, name);
 
     try {
       final saver = BetterDownloadSaver();
