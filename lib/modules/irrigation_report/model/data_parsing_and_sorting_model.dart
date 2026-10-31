@@ -82,34 +82,20 @@ Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming, [dynamic defaul
   if (merged['general'] is Map) {
     Map<String, dynamic> genMap = Map<String, dynamic>.from(merged['general']);
     genMap.remove('ScheduledStartTime');
-    genMap.remove('HeadUnit');
     if (genMap.containsKey('ProgramCategory') && genMap.containsKey('ProgramCategoryName')) {
       genMap.remove('ProgramCategory');
     }
-    String? lineKeyFound;
     List<String> keysToRemove = [];
     genMap.forEach((k, v) {
       if (v is List && v.isNotEmpty) {
         String ui = v[0].toString().toLowerCase().trim();
         if (ui == 'start time') {
           keysToRemove.add(k);
-        } else if (ui == 'line') {
-          if (lineKeyFound == null) {
-            lineKeyFound = k;
-          } else {
-            keysToRemove.add(k);
-          }
         }
       }
     });
     for (var k in keysToRemove) {
       genMap.remove(k);
-    }
-    if (genMap.containsKey('SequenceData') && genMap.containsKey('ZoneName')) {
-      genMap.remove('ZoneName');
-    }
-    if (genMap.containsKey('ZoneS_No') && genMap.containsKey('ZoneName')) {
-      genMap.remove('ZoneName');
     }
     genMap.remove('ProgramStartStopReason');
     genMap.remove('ProgramPauseResumeReason');
@@ -151,6 +137,7 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
     'Status',
     'ProgramCategoryName',
     'ProgramCategory',
+    'HeadUnit',
     'Date',
     'ZoneS_No',
     'ZoneName',
@@ -160,6 +147,12 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
     'ActualStartReason',
     'ActualStopReason',
     'Pump',
+    'PumpCtAverage',
+    'PumpCtMaximum',
+    'PumpCtMinimum',
+    'PressureAverage',
+    'PressureMaximum',
+    'PressureMinimum',
     'overAll',
   ];
 
