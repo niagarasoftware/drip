@@ -1,10 +1,13 @@
 import '../flavors.dart';
 
 class Environment {
-  static const String currentEnvironment = String.fromEnvironment('ENV', defaultValue: 'oroDevelopment');
-  static const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
-  static Map<String, Map<String, dynamic>> config = <String, Map<String, dynamic>>{
-    'oroDevelopment' : {
+  static const String currentEnvironment =
+      String.fromEnvironment('ENV', defaultValue: 'oroDevelopment');
+  static const String appVersion =
+      String.fromEnvironment('APP_VERSION', defaultValue: '1.0.0');
+  static Map<String, Map<String, dynamic>> config =
+      <String, Map<String, dynamic>>{
+    'oroDevelopment': {
       'apiUrl': 'http://192.168.1.85:5000/api/v1',
       'userManualBaseUrl': 'http://192.168.1.85:5000',
       'apiKey': 'dev-api-key',
@@ -14,10 +17,10 @@ class Environment {
       'subscribeTopic': 'FirmwareToApp',
       'mqttWebPort': 9001,
       'mqttMobilePort': 1883,
-      "mqttUserName" : '',
-      "mqttPassword" : '',
+      "mqttUserName": '',
+      "mqttPassword": '',
     },
-    'smartComm' : {
+    'smartComm': {
       'apiUrl': 'https://smartcomm-wms.com:5000/api/v1',
       'userManualBaseUrl': 'https://smartcomm-wms.com:5000',
       'apiKey': 'prod-api-key',
@@ -32,8 +35,8 @@ class Environment {
       'sftpIpAddress': '54.179.114.89',
       'sftpPort': 22,
       'privateKeyPath': 'assets/ssh/smartComm/id_rsa',
-      "mqttUserName" : 'imsmqtt',
-      "mqttPassword" : '2L9((WonMr',
+      "mqttUserName": 'imsmqtt',
+      "mqttPassword": '2L9((WonMr',
     },
     'oroProduction': {
       'apiUrl': 'http://13.203.84.47:5000/api/v1',
@@ -47,8 +50,8 @@ class Environment {
       //'mqttWebPort': 9443,
       'mqttWebPort': 8083,
       'mqttMobilePort': 1883,
-      "mqttUserName" : 'mqttuser',
-      "mqttPassword" : 'Mqtt@456',
+      "mqttUserName": 'mqttuser',
+      "mqttPassword": 'Mqtt@456',
       'sftpIpAddress': '54.179.114.89',
       'sftpPort': 22,
       'privateKeyPath': 'assets/ssh/smartComm/id_rsa',
@@ -63,8 +66,8 @@ class Environment {
       'subscribeTopic': 'FirmwareToAgritelApp',
       'mqttWebPort': 8083,
       'mqttMobilePort': 1883,
-      "mqttUserName" : 'niagara',
-      "mqttPassword" : 'niagara123',
+      "mqttUserName": 'niagara',
+      "mqttPassword": 'niagara123',
       'sftpIpAddress': '54.179.114.89',
       'sftpPort': 22,
       'privateKeyPath': 'assets/ssh/smartComm/id_rsa',
@@ -73,7 +76,8 @@ class Environment {
 
   static String get apiUrl => config[F.name]?['apiUrl'] ?? '';
   static String get apiKey => config[currentEnvironment]?['apiKey'] ?? '';
-  static String get userManualBaseUrl => config[F.name]?['userManualBaseUrl'] ?? '';
+  static String get userManualBaseUrl =>
+      config[F.name]?['userManualBaseUrl'] ?? '';
 
   static String get mqttWebUrl => config[F.name]?['mqttWebUrl'] ?? '';
   static String get mqttMobileUrl => config[F.name]?['mqttMobileUrl'] ?? '';
@@ -82,7 +86,8 @@ class Environment {
   static int get mqttMobilePort => config[F.name]?['mqttMobilePort'] ?? 0;
   static String get mqttUserName => config[F.name]?['mqttUserName'] ?? '';
   static String get mqttPassword => config[F.name]?['mqttPassword'] ?? '';
-  static String get mqttSubscribeTopic => config[F.name]?['subscribeTopic'] ?? '';
+  static String get mqttSubscribeTopic =>
+      config[F.name]?['subscribeTopic'] ?? '';
   static String get mqttPublishTopic => config[F.name]?['publishTopic'] ?? '';
 
   static String get mqttLogTopic => 'OroGemLog';
