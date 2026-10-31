@@ -53,6 +53,8 @@ List<_PdfColumnGroup> _buildPdfColumnGroups() {
   return [
     _PdfColumnGroup('generalColumn', 'generalColumnData', cellTransform: _pdfCellTransform),
     _PdfColumnGroup('waterColumn', 'waterColumnData', labelBuilder: (l) => 'Water $l'),
+    _PdfColumnGroup('centralFilterColumn', 'centralFilterColumnData', labelBuilder: (l) => 'Central Filter $l'),
+    _PdfColumnGroup('localFilterColumn', 'localFilterColumnData', labelBuilder: (l) => 'Local Filter $l'),
     _PdfColumnGroup('filterColumn', 'filterColumnData'),
     _PdfColumnGroup('prePostColumn', 'prePostColumnData'),
     _PdfColumnGroup('centralEcPhColumn', 'centralEcPhColumnData'),

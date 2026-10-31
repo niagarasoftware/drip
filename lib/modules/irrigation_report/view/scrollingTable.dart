@@ -11,6 +11,10 @@ class ScrollingTable extends StatefulWidget {
   final List<dynamic> generalColumnData;
   final List<dynamic> waterColumn;
   final List<dynamic> waterColumnData;
+  final List<dynamic> centralFilterColumn;
+  final List<dynamic> centralFilterColumnData;
+  final List<dynamic> localFilterColumn;
+  final List<dynamic> localFilterColumnData;
   final List<dynamic> filterColumn;
   final List<dynamic> filterColumnData;
   final List<dynamic> prePostColumn;
@@ -69,6 +73,10 @@ class ScrollingTable extends StatefulWidget {
     required this.generalColumnData,
     required this.waterColumn,
     required this.waterColumnData,
+    this.centralFilterColumn = const [],
+    this.centralFilterColumnData = const [],
+    this.localFilterColumn = const [],
+    this.localFilterColumnData = const [],
     required this.filterColumn,
     required this.filterColumnData,
     required this.prePostColumn,
@@ -1008,8 +1016,12 @@ class _ScrollingTableState extends State<ScrollingTable> {
 
   // ───────────────────────── data helpers ─────────────────────────
 
-  double _rowHeight(int i) =>
-      getBoxHeight(widget.filterColumnData, i, widget.generalColumnData);
+  double _rowHeight(int i) {
+    double h1 = getBoxHeight(widget.centralFilterColumnData, i, widget.generalColumnData);
+    double h2 = getBoxHeight(widget.localFilterColumnData, i);
+    double h3 = getBoxHeight(widget.filterColumnData, i);
+    return [h1, h2, h3].reduce((a, b) => a > b ? a : b);
+  }
 
   String _labelFor(String name) => _labels[name] ?? name;
 
@@ -1106,7 +1118,17 @@ class _ScrollingTableState extends State<ScrollingTable> {
     add('General', widget.generalColumn, widget.generalColumnData, 0,
         isGeneral: true);
     add('Water', widget.waterColumn, widget.waterColumnData, 100);
-    add('Central Filter', widget.filterColumn, widget.filterColumnData, 200);
+    if (widget.centralFilterColumn.isNotEmpty) {
+      add('Central Filter', widget.centralFilterColumn, widget.centralFilterColumnData, 200);
+    }
+    if (widget.localFilterColumn.isNotEmpty) {
+      add('Local Filter', widget.localFilterColumn, widget.localFilterColumnData, 200);
+    }
+    if (widget.centralFilterColumn.isEmpty &&
+        widget.localFilterColumn.isEmpty &&
+        widget.filterColumn.isNotEmpty) {
+      add('Central Filter', widget.filterColumn, widget.filterColumnData, 200);
+    }
     add('Pre Post', widget.prePostColumn, widget.prePostColumnData, 100);
 
     add('<C-EC-PH>', widget.centralEcPhColumn, widget.centralEcPhColumnData,

@@ -177,10 +177,10 @@ class PreferenceMainScreen extends StatefulWidget {
   final Map<String, dynamic> masterData;
   const PreferenceMainScreen(
       {super.key,
-        required this.userId,
-        required this.customerId,
-        required this.masterData,
-        required this.selectedIndex});
+      required this.userId,
+      required this.customerId,
+      required this.masterData,
+      required this.selectedIndex});
 
   @override
   State<PreferenceMainScreen> createState() => _PreferenceMainScreenState();
@@ -217,9 +217,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         Provider.of<MqttPayloadProvider>(context, listen: false);
     preferenceProvider
         .getUserPreference(
-        userId: widget.customerId,
-        controllerId: widget.masterData['controllerId'],
-        modelId: widget.masterData['modelId'])
+            userId: widget.customerId,
+            controllerId: widget.masterData['controllerId'],
+            modelId: widget.masterData['modelId'])
         .then((_) {
       commonPumpTabController = TabController(
           length: preferenceProvider.commonPumpSettings?.length ?? 0,
@@ -269,8 +269,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         preferenceProvider.commonPumpSettings!.isNotEmpty) {
       if (oroPumpList.isEmpty) {
         for (var i = 0;
-        i < preferenceProvider.commonPumpSettings!.length;
-        i++) {
+            i < preferenceProvider.commonPumpSettings!.length;
+            i++) {
           oroPumpList.add(preferenceProvider.commonPumpSettings![i].deviceId);
         }
         selectedOroPumpList = oroPumpList;
@@ -282,595 +282,595 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         // backgroundColor: Colors.transparent,
         appBar: (MediaQuery.of(context).size.width <= 500 && !isValveSetting)
             ? AppBar(
-          title: const Text("Preference"),
-          actions: [
-            if (selectedSetting == 0)
-              FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      viewConfig = !viewConfig;
-                    });
-                  },
-                  child: const Text('View')),
-            const SizedBox(
-              width: 10,
-            )
-          ],
-        )
+                title: const Text("Preference"),
+                actions: [
+                  if (selectedSetting == 0)
+                    FilledButton(
+                        onPressed: () {
+                          setState(() {
+                            viewConfig = !viewConfig;
+                          });
+                        },
+                        child: const Text('View')),
+                  const SizedBox(
+                    width: 10,
+                  )
+                ],
+              )
             : PreferredSize(
-            preferredSize: const Size(0, 0), child: Container()),
+                preferredSize: const Size(0, 0), child: Container()),
         body: LayoutBuilder(
             builder: (BuildContext context, BoxConstraints constraints) {
-              return Container(
-                margin: EdgeInsets.symmetric(
-                    horizontal: constraints.maxWidth < 700 ? 0 : 20),
-                child: Column(
-                  children: [
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    if (!isValveSetting) ...[
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        child: Row(
-                          children: [
-                            if (preferenceProvider.commonPumpSettings!.isNotEmpty)
-                              if (!viewConfig)
-                                Expanded(
-                                  child: CustomSegmentedControl(
-                                    segmentTitles: const {
-                                      0: 'Common setting',
-                                      1: 'Individual setting',
-                                      2: 'Calibration'
-                                    },
-                                    groupValue: selectedSetting,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        selectedSetting = value!;
-                                        if (selectedSetting == 2) {
-                                          showDialog(
-                                              context: context,
-                                              builder: (BuildContext context) {
-                                                return Consumer(builder:
-                                                    (BuildContext context,
+          return Container(
+            margin: EdgeInsets.symmetric(
+                horizontal: constraints.maxWidth < 700 ? 0 : 20),
+            child: Column(
+              children: [
+                const SizedBox(
+                  height: 10,
+                ),
+                if (!isValveSetting) ...[
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      children: [
+                        if (preferenceProvider.commonPumpSettings!.isNotEmpty)
+                          if (!viewConfig)
+                            Expanded(
+                              child: CustomSegmentedControl(
+                                segmentTitles: const {
+                                  0: 'Common setting',
+                                  1: 'Individual setting',
+                                  2: 'Calibration'
+                                },
+                                groupValue: selectedSetting,
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedSetting = value!;
+                                    if (selectedSetting == 2) {
+                                      showDialog(
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return Consumer(builder:
+                                                (BuildContext context,
                                                     PreferenceProvider
-                                                    preferenceProvider,
+                                                        preferenceProvider,
                                                     _) {
-                                                  return AlertDialog(
-                                                    content: Column(
-                                                      mainAxisSize:
+                                              return AlertDialog(
+                                                content: Column(
+                                                  mainAxisSize:
                                                       MainAxisSize.min,
-                                                      children: [
-                                                        TextFormField(
-                                                          controller:
+                                                  children: [
+                                                    TextFormField(
+                                                      controller:
                                                           passwordController,
-                                                          autofocus: true,
-                                                          decoration:
+                                                      autofocus: true,
+                                                      decoration:
                                                           const InputDecoration(
                                                               hintText:
-                                                              "Enter password"),
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 10,
-                                                        ),
-                                                        if (preferenceProvider
-                                                            .passwordValidationCode ==
-                                                            404)
-                                                          const Text(
-                                                            'Invalid password',
-                                                            style: TextStyle(
-                                                                color: Colors.red),
-                                                          )
-                                                      ],
+                                                                  "Enter password"),
                                                     ),
-                                                    actions: [
-                                                      TextButton(
-                                                          onPressed: () {
-                                                            passwordController
-                                                                .text = "";
-                                                            preferenceProvider
-                                                                .updateValidationCode();
-                                                            selectedSetting = 1;
-                                                            Navigator.of(context)
-                                                                .pop();
-                                                          },
-                                                          child:
+                                                    const SizedBox(
+                                                      height: 10,
+                                                    ),
+                                                    if (preferenceProvider
+                                                            .passwordValidationCode ==
+                                                        404)
+                                                      const Text(
+                                                        'Invalid password',
+                                                        style: TextStyle(
+                                                            color: Colors.red),
+                                                      )
+                                                  ],
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                      onPressed: () {
+                                                        passwordController
+                                                            .text = "";
+                                                        preferenceProvider
+                                                            .updateValidationCode();
+                                                        selectedSetting = 1;
+                                                        Navigator.of(context)
+                                                            .pop();
+                                                      },
+                                                      child:
                                                           const Text("CANCEL")),
-                                                      TextButton(
-                                                          onPressed: () async {
-                                                            if (isNova || isToGem) {
-                                                              final pump = preferenceProvider
+                                                  TextButton(
+                                                      onPressed: () async {
+                                                        if (isNova || isToGem) {
+                                                          final pump = preferenceProvider
                                                                   .commonPumpSettings![
                                                               preferenceProvider
                                                                   .selectedTabIndex];
-                                                              final payload =
+                                                          final payload =
                                                               jsonEncode({
-                                                                "sentSms":
+                                                            "sentSms":
                                                                 "viewconfig,4"
-                                                              });
-                                                              final payload2 =
+                                                          });
+                                                          final payload2 =
                                                               jsonEncode({
-                                                                "0": payload
-                                                              });
-                                                              final viewConfig = {
-                                                                "5900": {
-                                                                  "5901":
+                                                            "0": payload
+                                                          });
+                                                          final viewConfig = {
+                                                            "5900": {
+                                                              "5901":
                                                                   "${pump.serialNumber}+${pump.referenceNumber}+${pump.deviceId}+${pump.interfaceTypeId}+$payload2+${4}"
-                                                                }
-                                                              };
-                                                              mqttService.topicToPublishAndItsMessage(
-                                                                  isToGem
-                                                                      ? jsonEncode(
-                                                                      viewConfig)
-                                                                      : payload,
-                                                                  "${Environment.mqttPublishTopic}/${preferenceProvider.generalData!.deviceId}");
                                                             }
-                                                            await Future.delayed(
-                                                                Duration.zero, () {
-                                                              preferenceProvider
-                                                                  .updateValidationCode();
-                                                            });
-                                                            await preferenceProvider
-                                                                .checkPassword(
+                                                          };
+                                                          mqttService.topicToPublishAndItsMessage(
+                                                              isToGem
+                                                                  ? jsonEncode(
+                                                                      viewConfig)
+                                                                  : payload,
+                                                              "${Environment.mqttPublishTopic}/${preferenceProvider.generalData!.deviceId}");
+                                                        }
+                                                        await Future.delayed(
+                                                            Duration.zero, () {
+                                                          preferenceProvider
+                                                              .updateValidationCode();
+                                                        });
+                                                        await preferenceProvider
+                                                            .checkPassword(
                                                                 userId: widget
                                                                     .customerId,
                                                                 password:
-                                                                passwordController
-                                                                    .text);
-                                                            if (preferenceProvider
+                                                                    passwordController
+                                                                        .text);
+                                                        if (preferenceProvider
                                                                 .passwordValidationCode ==
-                                                                200) {
-                                                              Navigator.of(context)
-                                                                  .pop();
-                                                              passwordController
-                                                                  .text = "";
-                                                            }
-                                                          },
-                                                          // onPressed: () async {
-                                                          //   if (isNova || isToGem) {
-                                                          //     final pump = preferenceProvider.commonPumpSettings![preferenceProvider.selectedTabIndex];
-                                                          //     final payload = jsonEncode({"sentSms": "viewconfig,4"});
-                                                          //     final payload2 = jsonEncode({"0": payload});
-                                                          //     final viewConfig = {
-                                                          //       "5900": {"5901": "${pump.serialNumber}+${pump.referenceNumber}+${pump.deviceId}+${pump.interfaceTypeId}+$payload2+${4}"}
-                                                          //     };
-                                                          //     final result = await context.read<CommunicationService>().sendCommand(
-                                                          //       serverMsg: '',
-                                                          //       payload: isToGem ? jsonEncode(viewConfig)
-                                                          //           : isWlc ? Constants.sendPayloadWithCrc(payload)
-                                                          //           : payload,
-                                                          //     );
-                                                          //     debugPrint("preference main screen result => $result");
-                                                          //     // mqttService.topicToPublishAndItsMessage(
-                                                          //     //     ,
-                                                          //     //     "${Environment.mqttPublishTopic}/${preferenceProvider.generalData!.deviceId}");
-                                                          //   }
-                                                          //   await Future.delayed(Duration.zero, () {
-                                                          //     preferenceProvider.updateValidationCode();
-                                                          //   });
-                                                          //   await preferenceProvider.checkPassword(userId: widget.customerId, password: passwordController.text);
-                                                          //   if(preferenceProvider.passwordValidationCode == 200) {
-                                                          //     Navigator.of(context).pop();
-                                                          //     passwordController.text = "";
-                                                          //   }
-                                                          // },
-                                                          child: const Text("OK")),
-                                                    ],
-                                                  );
-                                                });
-                                              });
-                                        } else {
-                                          preferenceProvider.updateValidationCode();
-                                        }
-                                      });
-                                    },
-                                  ),
-                                )
-                              else
-                                Expanded(child: Container()),
-                            if (preferenceProvider.commonPumpSettings!.isNotEmpty &&
-                                constraints.maxWidth >= 700)
-                              const SizedBox(
-                                width: 50,
+                                                            200) {
+                                                          Navigator.of(context)
+                                                              .pop();
+                                                          passwordController
+                                                              .text = "";
+                                                        }
+                                                      },
+                                                      // onPressed: () async {
+                                                      //   if (isNova || isToGem) {
+                                                      //     final pump = preferenceProvider.commonPumpSettings![preferenceProvider.selectedTabIndex];
+                                                      //     final payload = jsonEncode({"sentSms": "viewconfig,4"});
+                                                      //     final payload2 = jsonEncode({"0": payload});
+                                                      //     final viewConfig = {
+                                                      //       "5900": {"5901": "${pump.serialNumber}+${pump.referenceNumber}+${pump.deviceId}+${pump.interfaceTypeId}+$payload2+${4}"}
+                                                      //     };
+                                                      //     final result = await context.read<CommunicationService>().sendCommand(
+                                                      //       serverMsg: '',
+                                                      //       payload: isToGem ? jsonEncode(viewConfig)
+                                                      //           : isWlc ? Constants.sendPayloadWithCrc(payload)
+                                                      //           : payload,
+                                                      //     );
+                                                      //     debugPrint("preference main screen result => $result");
+                                                      //     // mqttService.topicToPublishAndItsMessage(
+                                                      //     //     ,
+                                                      //     //     "${Environment.mqttPublishTopic}/${preferenceProvider.generalData!.deviceId}");
+                                                      //   }
+                                                      //   await Future.delayed(Duration.zero, () {
+                                                      //     preferenceProvider.updateValidationCode();
+                                                      //   });
+                                                      //   await preferenceProvider.checkPassword(userId: widget.customerId, password: passwordController.text);
+                                                      //   if(preferenceProvider.passwordValidationCode == 200) {
+                                                      //     Navigator.of(context).pop();
+                                                      //     passwordController.text = "";
+                                                      //   }
+                                                      // },
+                                                      child: const Text("OK")),
+                                                ],
+                                              );
+                                            });
+                                          });
+                                    } else {
+                                      preferenceProvider.updateValidationCode();
+                                    }
+                                  });
+                                },
                               ),
-                            if (constraints.maxWidth >= 700)
-                              Expanded(
-                                child: _getDefaultTabController(),
-                              ),
-                            if (selectedSetting == 0 &&
-                                MediaQuery.of(context).size.width > 500 &&
-                                preferenceProvider.commonPumpSettings!.isNotEmpty)
-                              FilledButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      viewConfig = !viewConfig;
-                                    });
-                                  },
-                                  child: const Text('View'))
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (constraints.maxWidth <= 700 && !isValveSetting)
-                      _getDefaultTabController(),
-                    if (!isValveSetting)
-                      const SizedBox(
-                        height: 10,
-                      ),
-                    if (selectedSetting != 2)
-                      Expanded(
-                          child: TabBarView(
-                            controller: selectedSetting != 1
-                                ? commonPumpTabController
-                                : individualPumpTabController,
-                            physics: const NeverScrollableScrollPhysics(),
-                            children: [
-                              if (viewConfig)
-                                for (int i = 0; i < commonPumpTabController.length; i++)
-                                  ViewConfig(
-                                    userId: widget.userId,
-                                    isLora: preferenceProvider
-                                        .commonPumpSettings![
-                                    commonPumpTabController.index]
-                                        .interfaceTypeId ==
-                                        1,
-                                    modelId: widget.masterData['modelId'],
-                                  )
-                              else if (selectedSetting == 0)
-                                for (var commonSettingIndex = 0;
-                                commonSettingIndex <
-                                    preferenceProvider.commonPumpSettings!.length;
-                                commonSettingIndex++)
-                                  buildSettingsCategory(
-                                      context: context,
-                                      settingList: preferenceProvider
-                                          .commonPumpSettings![commonSettingIndex]
-                                          .settingList,
-                                      constraints: constraints,
-                                      pumpIndex: commonSettingIndex)
-                              else if (selectedSetting == 1)
-                                  for (var pumpSettingIndex = 0;
-                                  pumpSettingIndex <
-                                      preferenceProvider
-                                          .individualPumpSetting!.length;
-                                  pumpSettingIndex++)
-                                    buildSettingsCategory(
-                                        context: context,
-                                        settingList: preferenceProvider
-                                            .individualPumpSetting![pumpSettingIndex]
-                                            .settingList,
-                                        constraints: constraints,
-                                        pumpIndex: pumpSettingIndex)
-                              /* else if(selectedSetting == 3 && isValveSetting)
+                            )
+                          else
+                            Expanded(child: Container()),
+                        if (preferenceProvider.commonPumpSettings!.isNotEmpty &&
+                            constraints.maxWidth >= 700)
+                          const SizedBox(
+                            width: 50,
+                          ),
+                        if (constraints.maxWidth >= 700)
+                          Expanded(
+                            child: _getDefaultTabController(),
+                          ),
+                        if (selectedSetting == 0 &&
+                            MediaQuery.of(context).size.width > 500 &&
+                            preferenceProvider.commonPumpSettings!.isNotEmpty)
+                          FilledButton(
+                              onPressed: () {
+                                setState(() {
+                                  viewConfig = !viewConfig;
+                                });
+                              },
+                              child: const Text('View'))
+                      ],
+                    ),
+                  ),
+                ],
+                if (constraints.maxWidth <= 700 && !isValveSetting)
+                  _getDefaultTabController(),
+                if (!isValveSetting)
+                  const SizedBox(
+                    height: 10,
+                  ),
+                if (selectedSetting != 2)
+                  Expanded(
+                      child: TabBarView(
+                    controller: selectedSetting != 1
+                        ? commonPumpTabController
+                        : individualPumpTabController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      if (viewConfig)
+                        for (int i = 0; i < commonPumpTabController.length; i++)
+                          ViewConfig(
+                            userId: widget.userId,
+                            isLora: preferenceProvider
+                                    .commonPumpSettings![
+                                        commonPumpTabController.index]
+                                    .interfaceTypeId ==
+                                1,
+                            modelId: widget.masterData['modelId'],
+                          )
+                      else if (selectedSetting == 0)
+                        for (var commonSettingIndex = 0;
+                            commonSettingIndex <
+                                preferenceProvider.commonPumpSettings!.length;
+                            commonSettingIndex++)
+                          buildSettingsCategory(
+                              context: context,
+                              settingList: preferenceProvider
+                                  .commonPumpSettings![commonSettingIndex]
+                                  .settingList,
+                              constraints: constraints,
+                              pumpIndex: commonSettingIndex)
+                      else if (selectedSetting == 1)
+                        for (var pumpSettingIndex = 0;
+                            pumpSettingIndex <
+                                preferenceProvider
+                                    .individualPumpSetting!.length;
+                            pumpSettingIndex++)
+                          buildSettingsCategory(
+                              context: context,
+                              settingList: preferenceProvider
+                                  .individualPumpSetting![pumpSettingIndex]
+                                  .settingList,
+                              constraints: constraints,
+                              pumpIndex: pumpSettingIndex)
+                      /* else if(selectedSetting == 3 && isValveSetting)
                                 ValveSettings(
                                   masterData: widget.masterData,
                                   selectedMode: widget.selectedIndex,
                                 )
                               else if(selectedSetting == 3)
                                 const MoistureSettings()*/
-                            ],
-                          )),
-                    if (selectedSetting == 2 &&
-                        (preferenceProvider.passwordValidationCode == 200))
-                      Expanded(
-                          child: TabBarView(
-                            controller: selectedSetting != 1
-                                ? commonPumpTabController
-                                : individualPumpTabController,
-                            physics: const NeverScrollableScrollPhysics(),
-                            children: [
-                              for (var calibrationSettingIndex = 0;
-                              calibrationSettingIndex <
-                                  preferenceProvider.calibrationSetting!.length;
-                              calibrationSettingIndex++)
-                                buildSettingsCategory(
-                                    context: context,
-                                    settingList: preferenceProvider
-                                        .calibrationSetting![calibrationSettingIndex]
-                                        .settingList,
-                                    constraints: constraints,
-                                    pumpIndex: calibrationSettingIndex)
-                            ],
-                          )),
-                  ],
-                ),
-              );
-            }),
+                    ],
+                  )),
+                if (selectedSetting == 2 &&
+                    (preferenceProvider.passwordValidationCode == 200))
+                  Expanded(
+                      child: TabBarView(
+                    controller: selectedSetting != 1
+                        ? commonPumpTabController
+                        : individualPumpTabController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (var calibrationSettingIndex = 0;
+                          calibrationSettingIndex <
+                              preferenceProvider.calibrationSetting!.length;
+                          calibrationSettingIndex++)
+                        buildSettingsCategory(
+                            context: context,
+                            settingList: preferenceProvider
+                                .calibrationSetting![calibrationSettingIndex]
+                                .settingList,
+                            constraints: constraints,
+                            pumpIndex: calibrationSettingIndex)
+                    ],
+                  )),
+              ],
+            ),
+          );
+        }),
         floatingActionButton: !viewConfig
             ? Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            if (!isValveSetting) ...[
-              if (preferenceProvider.passwordValidationCode == 200 &&
-                  preferenceProvider.calibrationSetting![0]
-                      .settingList[1].controllerReadStatus ==
-                      "0"
-                  ? getCalibrationPayload(isToGem: isToGem)
-                  .split(';')[0]
-                  .isNotEmpty
-                  : getFailedPayload(sendAll: false, isToGem: isToGem)
-                  .split(';')[0]
-                  .isNotEmpty)
-              // if(preferenceProvider.commonPumpSettings!.isNotEmpty ? ((preferenceProvider.commonPumpSettings?.any((element) => element.settingList.any((e) => e.controllerReadStatus == "0")) ?? false) || (preferenceProvider.individualPumpSetting?.any((element) => element.settingList.any((e) => e.controllerReadStatus == "0")) ?? false)) : false)
-                MaterialButton(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
-                  color: Colors.orange.shade300,
-                  onPressed: () async {
-                    final failedPayload =
-                    preferenceProvider.passwordValidationCode == 200
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (!isValveSetting) ...[
+                    if (preferenceProvider.passwordValidationCode == 200 &&
+                            preferenceProvider.calibrationSetting![0]
+                                    .settingList[1].controllerReadStatus ==
+                                "0"
                         ? getCalibrationPayload(isToGem: isToGem)
-                        .split(';')
-                        : getFailedPayload(
-                        sendAll: false, isToGem: isToGem)
-                        .split(';');
-                    // print(failedPayload);
-                    List temp = List.from(selectedOroPumpList);
-                    preferenceProvider.temp.clear();
-                    showDialog(
-                      context: context,
-                      builder: (BuildContext context) {
-                        return StatefulBuilder(builder:
-                            (BuildContext context,
-                            StateSetter stateSetter) {
-                          return AlertDialog(
-                            content: SizedBox(
-                              height: 450,
-                              width: 300,
-                              // padding: EdgeInsets.all(16),
-                              child: SingleChildScrollView(
-                                child: Column(
-                                  children: [
-                                    for (var i = 0;
-                                    i <
-                                        preferenceProvider
-                                            .commonPumpSettings!
-                                            .length;
-                                    i++)
-                                      CheckboxListTile(
-                                          title: Text(preferenceProvider
-                                              .commonPumpSettings![i]
-                                              .deviceName),
-                                          subtitle: Text(
-                                              preferenceProvider
-                                                  .commonPumpSettings![i]
-                                                  .deviceId),
-                                          value: temp.contains(
-                                              preferenceProvider
-                                                  .commonPumpSettings![i]
-                                                  .deviceId),
-                                          onChanged: (newValue) {
-                                            stateSetter(() {
-                                              setState(() {
-                                                if (temp.contains(
+                            .split(';')[0]
+                            .isNotEmpty
+                        : getFailedPayload(sendAll: false, isToGem: isToGem)
+                            .split(';')[0]
+                            .isNotEmpty)
+                      // if(preferenceProvider.commonPumpSettings!.isNotEmpty ? ((preferenceProvider.commonPumpSettings?.any((element) => element.settingList.any((e) => e.controllerReadStatus == "0")) ?? false) || (preferenceProvider.individualPumpSetting?.any((element) => element.settingList.any((e) => e.controllerReadStatus == "0")) ?? false)) : false)
+                      MaterialButton(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        color: Colors.orange.shade300,
+                        onPressed: () async {
+                          final failedPayload =
+                              preferenceProvider.passwordValidationCode == 200
+                                  ? getCalibrationPayload(isToGem: isToGem)
+                                      .split(';')
+                                  : getFailedPayload(
+                                          sendAll: false, isToGem: isToGem)
+                                      .split(';');
+                          // print(failedPayload);
+                          List temp = List.from(selectedOroPumpList);
+                          preferenceProvider.temp.clear();
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return StatefulBuilder(builder:
+                                  (BuildContext context,
+                                      StateSetter stateSetter) {
+                                return AlertDialog(
+                                  content: SizedBox(
+                                    height: 450,
+                                    width: 300,
+                                    // padding: EdgeInsets.all(16),
+                                    child: SingleChildScrollView(
+                                      child: Column(
+                                        children: [
+                                          for (var i = 0;
+                                              i <
+                                                  preferenceProvider
+                                                      .commonPumpSettings!
+                                                      .length;
+                                              i++)
+                                            CheckboxListTile(
+                                                title: Text(preferenceProvider
+                                                    .commonPumpSettings![i]
+                                                    .deviceName),
+                                                subtitle: Text(
                                                     preferenceProvider
-                                                        .commonPumpSettings![
-                                                    i]
-                                                        .deviceId)) {
-                                                  temp.remove(
+                                                        .commonPumpSettings![i]
+                                                        .deviceId),
+                                                value: temp.contains(
+                                                    preferenceProvider
+                                                        .commonPumpSettings![i]
+                                                        .deviceId),
+                                                onChanged: (newValue) {
+                                                  stateSetter(() {
+                                                    setState(() {
+                                                      if (temp.contains(
+                                                          preferenceProvider
+                                                              .commonPumpSettings![
+                                                                  i]
+                                                              .deviceId)) {
+                                                        temp.remove(
+                                                            preferenceProvider
+                                                                .commonPumpSettings![
+                                                                    i]
+                                                                .deviceId);
+                                                      } else {
+                                                        temp.add(preferenceProvider
+                                                            .commonPumpSettings![
+                                                                i]
+                                                            .deviceId);
+                                                      }
+                                                    });
+                                                  });
+                                                }),
+                                          ListView.builder(
+                                            shrinkWrap: true,
+                                            physics:
+                                                const NeverScrollableScrollPhysics(),
+                                            itemCount: failedPayload.length,
+                                            itemBuilder:
+                                                (BuildContext context, int i) {
+                                              var payloadToDecode = isToGem
+                                                  ? failedPayload[i]
+                                                      .split('+')[4]
+                                                  : failedPayload[i];
+                                              var decodedData =
+                                                  jsonDecode(payloadToDecode);
+                                              var key = decodedData.keys.first;
+                                              int oroPumpIndex = 0;
+                                              if (isToGem) {
+                                                oroPumpIndex =
+                                                    preferenceProvider
+                                                        .commonPumpSettings!
+                                                        .indexWhere((element) =>
+                                                            element.deviceId ==
+                                                            failedPayload[i]
+                                                                .split('+')[2]);
+                                              }
+                                              return temp.contains(
                                                       preferenceProvider
                                                           .commonPumpSettings![
-                                                      i]
-                                                          .deviceId);
-                                                } else {
-                                                  temp.add(preferenceProvider
-                                                      .commonPumpSettings![
-                                                  i]
-                                                      .deviceId);
-                                                }
-                                              });
-                                            });
-                                          }),
-                                    ListView.builder(
-                                      shrinkWrap: true,
-                                      physics:
-                                      const NeverScrollableScrollPhysics(),
-                                      itemCount: failedPayload.length,
-                                      itemBuilder:
-                                          (BuildContext context, int i) {
-                                        var payloadToDecode = isToGem
-                                            ? failedPayload[i]
-                                            .split('+')[4]
-                                            : failedPayload[i];
-                                        var decodedData =
-                                        jsonDecode(payloadToDecode);
-                                        var key = decodedData.keys.first;
-                                        int oroPumpIndex = 0;
-                                        if (isToGem) {
-                                          oroPumpIndex =
-                                              preferenceProvider
-                                                  .commonPumpSettings!
-                                                  .indexWhere((element) =>
-                                              element.deviceId ==
-                                                  failedPayload[i]
-                                                      .split('+')[2]);
-                                        }
-                                        return temp.contains(
-                                            preferenceProvider
-                                                .commonPumpSettings![
-                                            oroPumpIndex]
-                                                .deviceId)
-                                            ? ListTile(
-                                          leading: Container(
-                                            height: 30,
-                                            width: 30,
-                                            decoration:
-                                            BoxDecoration(
-                                              shape:
-                                              BoxShape.circle,
-                                              gradient: AppProperties
-                                                  .linearGradientLeading,
-                                            ),
-                                            child: Center(
-                                              child: Text(
-                                                '${i + 1}',
-                                                style:
-                                                const TextStyle(
-                                                    color: Colors
-                                                        .white),
-                                              ),
-                                            ),
+                                                              oroPumpIndex]
+                                                          .deviceId)
+                                                  ? ListTile(
+                                                      leading: Container(
+                                                        height: 30,
+                                                        width: 30,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          gradient: AppProperties
+                                                              .linearGradientLeading,
+                                                        ),
+                                                        child: Center(
+                                                          child: Text(
+                                                            '${i + 1}',
+                                                            style:
+                                                                const TextStyle(
+                                                                    color: Colors
+                                                                        .white),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      title: Text(
+                                                        preferenceProvider
+                                                            .commonPumpSettings![
+                                                                oroPumpIndex]
+                                                            .deviceName,
+                                                        style: const TextStyle(
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w400),
+                                                      ),
+                                                      subtitle: Text(
+                                                        statusMessages[key]!,
+                                                        style: const TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .bold),
+                                                      ),
+                                                    )
+                                                  : Container();
+                                            },
                                           ),
-                                          title: Text(
-                                            preferenceProvider
-                                                .commonPumpSettings![
-                                            oroPumpIndex]
-                                                .deviceName,
-                                            style: const TextStyle(
-                                                fontWeight:
-                                                FontWeight
-                                                    .w400),
-                                          ),
-                                          subtitle: Text(
-                                            statusMessages[key]!,
-                                            style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight:
-                                                FontWeight
-                                                    .bold),
-                                          ),
-                                        )
-                                            : Container();
-                                      },
+                                        ],
+                                      ),
                                     ),
+                                  ),
+                                  actions: [
+                                    FilledButton(
+                                        onPressed: temp.isNotEmpty
+                                            ? () async {
+                                                await Future.delayed(
+                                                    Duration.zero, () {
+                                                  setState(() {
+                                                    shouldSendFailedPayloads =
+                                                        true;
+                                                    selectedOroPumpList =
+                                                        List.from(temp);
+                                                  });
+                                                });
+                                                Navigator.pop(context);
+                                                await sendFunction();
+                                              }
+                                            : null,
+                                        child: const Text("Resend")),
+                                    FilledButton(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                        },
+                                        child: const Text("Cancel"))
                                   ],
-                                ),
-                              ),
-                            ),
-                            actions: [
-                              FilledButton(
-                                  onPressed: temp.isNotEmpty
-                                      ? () async {
-                                    await Future.delayed(
-                                        Duration.zero, () {
-                                      setState(() {
-                                        shouldSendFailedPayloads =
-                                        true;
-                                        selectedOroPumpList =
-                                            List.from(temp);
-                                      });
-                                    });
-                                    Navigator.pop(context);
-                                    await sendFunction();
-                                  }
-                                      : null,
-                                  child: const Text("Resend")),
-                              FilledButton(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("Cancel"))
-                            ],
+                                );
+                              });
+                            },
                           );
+                        },
+                        child: const Text(
+                          "Failed",
+                          style: TextStyle(color: Colors.black),
+                        ),
+                      ),
+                    const SizedBox(
+                      width: 20,
+                    ),
+                  ],
+                  MaterialButton(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20)),
+                    color: Theme.of(context).primaryColor,
+                    onPressed: () async {
+                      final rtcError = validateAllRtcSettings();
+                      print("rtcError : ${rtcError}");
+                      if (rtcError != null) {
+                        _showRtcErrorDialog(rtcError);
+                        return;
+                      }
+                      final onDelayError = validateAllOnDelaySettings();
+                      if (onDelayError != null) {
+                        _showOnDelayAlertMessage(onDelayError);
+                        return;
+                      }
+                      await Future.delayed(Duration.zero, () {
+                        setState(() {
+                          // oroPumpList.clear();
+                          shouldSendFailedPayloads = false;
                         });
-                      },
-                    );
-                  },
-                  child: const Text(
-                    "Failed",
-                    style: TextStyle(color: Colors.black),
+                      });
+                      preferenceProvider.temp.clear();
+                      if (preferenceProvider.commonPumpSettings!.isEmpty ||
+                          preferenceProvider.commonPumpSettings!.length <= 1) {
+                        sendFunction();
+                      } else {
+                        if (preferenceProvider.passwordValidationCode == 200) {
+                          if (preferenceProvider.calibrationSetting!.any(
+                              (element) => element.settingList
+                                  .any((e) => e.changed == true))) {
+                            selectedOroPumpList.clear();
+                            if (selectedOroPumpList.isEmpty) {
+                              selectedOroPumpList.addAll(preferenceProvider
+                                  .calibrationSetting!
+                                  .where((element) => element.settingList
+                                      .any((e) => e.changed == true))
+                                  .toList()
+                                  .map((e) => e.deviceId)
+                                  .toList());
+                            }
+                            sendFunction();
+                          } else {
+                            selectPumpToSend();
+                          }
+                        } else {
+                          List common = preferenceProvider.commonPumpSettings!
+                              .where((element) => element.settingList
+                                  .any((e) => e.changed == true))
+                              .toList()
+                              .map((e) => e.deviceId)
+                              .toList();
+                          List individual = preferenceProvider
+                              .individualPumpSetting!
+                              .where((element) => element.settingList
+                                  .any((e) => e.changed == true))
+                              .toList()
+                              .map((e) => e.deviceId)
+                              .toList();
+                          ;
+                          if (preferenceProvider.commonPumpSettings!.any(
+                                  (element) => element.settingList
+                                      .any((e) => e.changed == true)) ||
+                              preferenceProvider.individualPumpSetting!.any(
+                                  (element) => element.settingList
+                                      .any((e) => e.changed == true))) {
+                            selectedOroPumpList.clear();
+                            if (selectedOroPumpList.isEmpty) {
+                              selectedOroPumpList.addAll(
+                                  common.isNotEmpty ? common : individual);
+                            }
+                            sendFunction();
+                          } else {
+                            selectPumpToSend();
+                          }
+                        }
+                      }
+                    },
+                    child: Text(
+                      preferenceProvider.passwordValidationCode == 200
+                          ? "Send calibration"
+                          : isValveSetting
+                              ? "Send"
+                              : "Send preference",
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   ),
-                ),
-              const SizedBox(
-                width: 20,
-              ),
-            ],
-            MaterialButton(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              color: Theme.of(context).primaryColor,
-              onPressed: () async {
-                final rtcError = validateAllRtcSettings();
-                print("rtcError : ${rtcError}");
-                if (rtcError != null) {
-                  _showRtcErrorDialog(rtcError);
-                  return;
-                }
-                final onDelayError = validateAllOnDelaySettings();
-                if (onDelayError != null) {
-                  _showOnDelayAlertMessage(onDelayError);
-                  return;
-                }
-                await Future.delayed(Duration.zero, () {
-                  setState(() {
-                    // oroPumpList.clear();
-                    shouldSendFailedPayloads = false;
-                  });
-                });
-                preferenceProvider.temp.clear();
-                if (preferenceProvider.commonPumpSettings!.isEmpty ||
-                    preferenceProvider.commonPumpSettings!.length <= 1) {
-                  sendFunction();
-                } else {
-                  if (preferenceProvider.passwordValidationCode == 200) {
-                    if (preferenceProvider.calibrationSetting!.any(
-                            (element) => element.settingList
-                            .any((e) => e.changed == true))) {
-                      selectedOroPumpList.clear();
-                      if (selectedOroPumpList.isEmpty) {
-                        selectedOroPumpList.addAll(preferenceProvider
-                            .calibrationSetting!
-                            .where((element) => element.settingList
-                            .any((e) => e.changed == true))
-                            .toList()
-                            .map((e) => e.deviceId)
-                            .toList());
-                      }
-                      sendFunction();
-                    } else {
-                      selectPumpToSend();
-                    }
-                  } else {
-                    List common = preferenceProvider.commonPumpSettings!
-                        .where((element) => element.settingList
-                        .any((e) => e.changed == true))
-                        .toList()
-                        .map((e) => e.deviceId)
-                        .toList();
-                    List individual = preferenceProvider
-                        .individualPumpSetting!
-                        .where((element) => element.settingList
-                        .any((e) => e.changed == true))
-                        .toList()
-                        .map((e) => e.deviceId)
-                        .toList();
-                    ;
-                    if (preferenceProvider.commonPumpSettings!.any(
-                            (element) => element.settingList
-                            .any((e) => e.changed == true)) ||
-                        preferenceProvider.individualPumpSetting!.any(
-                                (element) => element.settingList
-                                .any((e) => e.changed == true))) {
-                      selectedOroPumpList.clear();
-                      if (selectedOroPumpList.isEmpty) {
-                        selectedOroPumpList.addAll(
-                            common.isNotEmpty ? common : individual);
-                      }
-                      sendFunction();
-                    } else {
-                      selectPumpToSend();
-                    }
-                  }
-                }
-              },
-              child: Text(
-                preferenceProvider.passwordValidationCode == 200
-                    ? "Send calibration"
-                    : isValveSetting
-                    ? "Send"
-                    : "Send preference",
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        )
+                ],
+              )
             : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
     } else {
       return const Scaffold(
         body:
-        Center(child: CircularProgressIndicator(semanticsLabel: "Loading")),
+            Center(child: CircularProgressIndicator(semanticsLabel: "Loading")),
       );
     }
   }
@@ -925,16 +925,16 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final viewConfig = {
                     "5900": {
                       "5901":
-                      "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId",
+                          "$oroPumpSerialNumber+$referenceNumber+$deviceId+$interfaceType+$payload2+$categoryId",
                     }
                   };
                   final result =
-                  await context.read<CommunicationService>().sendCommand(
-                    serverMsg: '',
-                    payload: isWlc
-                        ? Constants.sendPayloadWithCrc(payload)
-                        : jsonEncode(viewConfig),
-                  );
+                      await context.read<CommunicationService>().sendCommand(
+                            serverMsg: '',
+                            payload: isWlc
+                                ? Constants.sendPayloadWithCrc(payload)
+                                : jsonEncode(viewConfig),
+                          );
                   // mqttService.topicToPublishAndItsMessage(isWlc ? Constants.sendPayloadWithCrc(payload) : jsonEncode(viewConfig),
                   //     "${Environment.mqttPublishTopic}/${widget.masterData['deviceId']}");
                 }
@@ -948,8 +948,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     final element = entry.value;
                     return preferenceProvider.commonPumpSettings!.length > 1
                         ? Tab(
-                      text: "${element.deviceName}\n${element.deviceId}",
-                    )
+                            text: "${element.deviceName}\n${element.deviceId}",
+                          )
                         : Container();
                   })
                 else
@@ -963,20 +963,20 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     try {
                       matchingCommonPump =
                           preferenceProvider.commonPumpSettings!.firstWhere(
-                                  (common) => common.deviceId == element.deviceId);
+                              (common) => common.deviceId == element.deviceId);
                     } catch (e) {
                       matchingCommonPump = null;
                     }
 
                     return preferenceProvider.individualPumpSetting!.length > 1
                         ? Tab(
-                      text: (preferenceProvider
-                          .commonPumpSettings!.length >
-                          1 &&
-                          matchingCommonPump != null)
-                          ? "${element.name}\n${matchingCommonPump.deviceId}"
-                          : element.name,
-                    )
+                            text: (preferenceProvider
+                                            .commonPumpSettings!.length >
+                                        1 &&
+                                    matchingCommonPump != null)
+                                ? "${element.name}\n${matchingCommonPump.deviceId}"
+                                : element.name,
+                          )
                         : Container();
                   })
               ],
@@ -989,9 +989,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   Widget buildSettingsCategory(
       {required BuildContext context,
-        required List<SettingList> settingList,
-        required BoxConstraints constraints,
-        required int pumpIndex}) {
+      required List<SettingList> settingList,
+      required BoxConstraints constraints,
+      required int pumpIndex}) {
     try {
       debugPrint("modelId ::: ${widget.masterData['modelId']}");
       return SingleChildScrollView(
@@ -1000,212 +1000,212 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             Wrap(
               children: [
                 for (var categoryIndex = 0;
-                categoryIndex < settingList.length;
-                categoryIndex++)
+                    categoryIndex < settingList.length;
+                    categoryIndex++)
                   if (([...AppConstants.wlcModelList]
-                      .contains(widget.masterData['modelId']) &&
-                      !AppConstants.threePhaseWireLessWlcModelList
-                          .contains(widget.masterData['modelId'])) &&
+                              .contains(widget.masterData['modelId']) &&
+                          !AppConstants.threePhaseWireLessWlcModelList
+                              .contains(widget.masterData['modelId'])) &&
                       AppConstants.otherCalibration
                           .contains(settingList[categoryIndex].type))
                     Container()
                   else if (([
-                    ...AppConstants.singlePhaseWlcModelList,
-                    ...AppConstants.threePhaseWlcModelList,
-                  ].contains(widget.masterData['modelId']) &&
-                      !AppConstants.threePhaseWireLessWlcModelList
-                          .contains(widget.masterData['modelId'])) &&
+                            ...AppConstants.singlePhaseWlcModelList,
+                            ...AppConstants.threePhaseWlcModelList,
+                          ].contains(widget.masterData['modelId']) &&
+                          !AppConstants.threePhaseWireLessWlcModelList
+                              .contains(widget.masterData['modelId'])) &&
                       AppConstants.otherSetting
                           .contains(settingList[categoryIndex].type))
                     Container()
                   else if ([
-                      ...AppConstants.singleOrThreePhaseWlcModelList,
-                    ].contains(widget.masterData['modelId']) &&
-                        AppConstants.additionalSetting
-                            .contains(settingList[categoryIndex].type))
-                      Container()
-                    else if ((AppConstants.levelSetting
-                          .contains(settingList[categoryIndex].type) &&
+                        ...AppConstants.singleOrThreePhaseWlcModelList,
+                      ].contains(widget.masterData['modelId']) &&
+                      AppConstants.additionalSetting
+                          .contains(settingList[categoryIndex].type))
+                    Container()
+                  else if ((AppConstants.levelSetting
+                              .contains(settingList[categoryIndex].type) &&
                           isToGem)
-                          ? preferenceProvider
+                      ? preferenceProvider
                           .individualPumpSetting![pumpIndex].controlGem
-                          : true)
-                        Container(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          width: constraints.maxWidth < 700
-                              ? constraints.maxWidth
-                              : (constraints.maxWidth / 2) - 40,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              IntrinsicWidth(
-                                child: Container(
-                                  padding:
+                      : true)
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      width: constraints.maxWidth < 700
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth / 2) - 40,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          IntrinsicWidth(
+                            child: Container(
+                              padding:
                                   const EdgeInsets.symmetric(horizontal: 15),
-                                  height: 30,
-                                  decoration: BoxDecoration(
-                                      color: Theme.of(context).primaryColorLight,
-                                      borderRadius: const BorderRadius.only(
-                                          topRight: Radius.circular(20),
-                                          topLeft: Radius.circular(3))),
-                                  child: Center(
-                                    child: Text(
-                                      settingList[categoryIndex].name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                              height: 30,
+                              decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColorLight,
+                                  borderRadius: const BorderRadius.only(
+                                      topRight: Radius.circular(20),
+                                      topLeft: Radius.circular(3))),
+                              child: Center(
+                                child: Text(
+                                  settingList[categoryIndex].name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
-                              // Text(settingList[categoryIndex].name, style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),),
-                              // const SizedBox(height: 10,),
-                              Container(
-                                decoration: BoxDecoration(
-                                    borderRadius: const BorderRadius.only(
-                                        topRight: Radius.circular(10),
-                                        bottomLeft: Radius.circular(10),
-                                        bottomRight: Radius.circular(10)),
-                                    color: Colors.white,
-                                    border: Border.all(
-                                        color: Theme.of(context).primaryColorLight,
-                                        width: 0.3)
-                                  // boxShadow: AppProperties.customBoxShadowLiteTheme
+                            ),
+                          ),
+                          // Text(settingList[categoryIndex].name, style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),),
+                          // const SizedBox(height: 10,),
+                          Container(
+                            decoration: BoxDecoration(
+                                borderRadius: const BorderRadius.only(
+                                    topRight: Radius.circular(10),
+                                    bottomLeft: Radius.circular(10),
+                                    bottomRight: Radius.circular(10)),
+                                color: Colors.white,
+                                border: Border.all(
+                                    color: Theme.of(context).primaryColorLight,
+                                    width: 0.3)
+                                // boxShadow: AppProperties.customBoxShadowLiteTheme
                                 ),
-                                child: Column(
-                                  children: [
-                                    for (var settingIndex = 0;
+                            child: Column(
+                              children: [
+                                for (var settingIndex = 0;
                                     settingIndex <
                                         settingList[categoryIndex]
                                             .setting
                                             .length;
                                     settingIndex++)
-                                      if (settingList[categoryIndex]
+                                  if (settingList[categoryIndex]
                                           .setting[settingIndex]
                                           .title
                                           .toUpperCase() ==
-                                          "RTC TIMER")
-                                        _buildRtcTimer(
-                                            categoryIndex, settingIndex, pumpIndex, settingList)
-                                      else if (settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "2 PHASE" ||
-                                          settingList[categoryIndex]
+                                      "RTC TIMER")
+                                    _buildRtcTimer(
+                                        categoryIndex, settingIndex, pumpIndex, settingList)
+                                  else if (settingList[categoryIndex].setting[settingIndex].title.toUpperCase() == "2 PHASE" ||
+                                      settingList[categoryIndex]
                                               .setting[settingIndex]
                                               .title
                                               .toUpperCase() ==
-                                              "AUTO RESTART 2 PHASE" ||
-                                          (settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .title
-                                              .toUpperCase() ==
-                                              "AUTO RESTART" &&
-                                              settingList[categoryIndex].setting[settingIndex].serialNumber ==
-                                                  8) ||
-                                          (isNova &&
-                                              (settingList[categoryIndex]
+                                          "AUTO RESTART 2 PHASE" ||
+                                      (settingList[categoryIndex]
                                                   .setting[settingIndex]
                                                   .title
                                                   .toUpperCase() ==
-                                                  "UPPER TANK LINEAR LEVEL SENSOR" ||
-                                                  settingList[categoryIndex]
+                                              "AUTO RESTART" &&
+                                          settingList[categoryIndex].setting[settingIndex].serialNumber ==
+                                              8) ||
+                                      (isNova &&
+                                          (settingList[categoryIndex]
                                                       .setting[settingIndex]
                                                       .title
                                                       .toUpperCase() ==
-                                                      "LOWER TANK LINEAR LEVEL SENSOR")))
-                                        _buildTwoPhaseCard(categoryIndex, settingIndex, pumpIndex, settingList)
-                                      else
-                                        buildCustomListTileWidget(
-                                          context: context,
-                                          title: settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .title,
-                                          widgetType: _getWidgetType(categoryIndex,
-                                              settingIndex, settingList),
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter.deny(
-                                                RegExp('[^0-9.]')),
-                                            LengthLimitingTextInputFormatter(6),
-                                          ],
-                                          dataList: settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .title
-                                              .toUpperCase() ==
+                                                  "UPPER TANK LINEAR LEVEL SENSOR" ||
+                                              settingList[categoryIndex]
+                                                      .setting[settingIndex]
+                                                      .title
+                                                      .toUpperCase() ==
+                                                  "LOWER TANK LINEAR LEVEL SENSOR")))
+                                    _buildTwoPhaseCard(categoryIndex, settingIndex, pumpIndex, settingList)
+                                  else
+                                    buildCustomListTileWidget(
+                                      context: context,
+                                      title: settingList[categoryIndex]
+                                          .setting[settingIndex]
+                                          .title,
+                                      widgetType: _getWidgetType(categoryIndex,
+                                          settingIndex, settingList),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.deny(
+                                            RegExp('[^0-9.]')),
+                                        LengthLimitingTextInputFormatter(6),
+                                      ],
+                                      dataList: settingList[categoryIndex]
+                                                  .setting[settingIndex]
+                                                  .title
+                                                  .toUpperCase() ==
                                               "SENSOR HEIGHT"
-                                              ? ["20", "35"]
-                                              : settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .title
-                                              .toUpperCase() ==
-                                              'CABLE SELECT'
+                                          ? ["20", "35"]
+                                          : settingList[categoryIndex]
+                                                      .setting[settingIndex]
+                                                      .title
+                                                      .toUpperCase() ==
+                                                  'CABLE SELECT'
                                               ? ['0', '1', '2', '3']
                                               : ["10", "12"],
-                                          value: _getInitialValue(categoryIndex,
-                                              settingIndex, settingList, pumpIndex),
-                                          leading: _buildLeading(categoryIndex,
-                                              settingIndex, settingList),
-                                          onValueChange: (newValue) =>
-                                              onChangeValue(
-                                                  categoryIndex,
-                                                  settingIndex,
-                                                  settingList,
-                                                  newValue,
-                                                  pumpIndex: pumpIndex),
-                                          conditionToShow: getConditionToShow(
-                                            type: settingList[categoryIndex].type,
-                                            serialNumber: settingList[categoryIndex]
-                                                .setting[settingIndex]
-                                                .serialNumber,
-                                            value: settingList[categoryIndex]
-                                                .setting[settingIndex]
-                                                .value,
-                                          ),
-                                          subTitle: _getSubTitle(categoryIndex,
-                                              settingIndex, settingList, pumpIndex),
-                                          display: settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .display,
-                                          hidden: (settingList[categoryIndex]
-                                              .setting[settingIndex]
-                                              .title ==
-                                              "Schedule by Days" ||
+                                      value: _getInitialValue(categoryIndex,
+                                          settingIndex, settingList, pumpIndex),
+                                      leading: _buildLeading(categoryIndex,
+                                          settingIndex, settingList),
+                                      onValueChange: (newValue) =>
+                                          onChangeValue(
+                                              categoryIndex,
+                                              settingIndex,
+                                              settingList,
+                                              newValue,
+                                              pumpIndex: pumpIndex),
+                                      conditionToShow: getConditionToShow(
+                                        type: settingList[categoryIndex].type,
+                                        serialNumber: settingList[categoryIndex]
+                                            .setting[settingIndex]
+                                            .serialNumber,
+                                        value: settingList[categoryIndex]
+                                            .setting[settingIndex]
+                                            .value,
+                                      ),
+                                      subTitle: _getSubTitle(categoryIndex,
+                                          settingIndex, settingList, pumpIndex),
+                                      display: settingList[categoryIndex]
+                                          .setting[settingIndex]
+                                          .display,
+                                      hidden: (settingList[categoryIndex]
+                                                      .setting[settingIndex]
+                                                      .title ==
+                                                  "Schedule by Days" ||
                                               (!isNova &&
                                                   AppConstants.otherCalibration
                                                       .contains(settingList[
-                                                  categoryIndex]
-                                                      .type) &&
+                                                              categoryIndex]
+                                                          .type) &&
                                                   [7, 8].contains(
                                                       settingList[categoryIndex]
                                                           .setting[settingIndex]
                                                           .serialNumber)))
-                                              ? true
-                                              : settingList[categoryIndex]
+                                          ? true
+                                          : settingList[categoryIndex]
                                               .setting[settingIndex]
                                               .hidden,
-                                          enabled: true,
-                                          modelId: widget.masterData['modelId'],
-                                        )
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 10,
-                              ),
-                              if (categoryIndex == settingList.length - 1)
-                                const SizedBox(
-                                  height: 50,
-                                )
-                            ],
+                                      enabled: true,
+                                      modelId: widget.masterData['modelId'],
+                                    )
+                              ],
+                            ),
                           ),
-                        ),
+                          const SizedBox(
+                            height: 10,
+                          ),
+                          if (categoryIndex == settingList.length - 1)
+                            const SizedBox(
+                              height: 50,
+                            )
+                        ],
+                      ),
+                    ),
                 for (var categoryIndex = 0;
-                categoryIndex < settingList.length;
-                categoryIndex++)
+                    categoryIndex < settingList.length;
+                    categoryIndex++)
                   if (!((AppConstants.levelSetting
-                      .contains(settingList[categoryIndex].type) &&
-                      isToGem)
+                              .contains(settingList[categoryIndex].type) &&
+                          isToGem)
                       ? preferenceProvider
-                      .individualPumpSetting![pumpIndex].controlGem
+                          .individualPumpSetting![pumpIndex].controlGem
                       : true))
                     const SizedBox(
                       height: 50,
@@ -1226,9 +1226,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
   Widget _buildLeading(int categoryIndex, int settingIndex, List settingList) {
     return Container(
         decoration:
-        const BoxDecoration(shape: BoxShape.circle, color: Colors.white
-          // gradient: linearGradientLeading,
-        ),
+            const BoxDecoration(shape: BoxShape.circle, color: Colors.white
+                // gradient: linearGradientLeading,
+                ),
         child: CircleAvatar(
             backgroundColor: cardColor,
             child: _buildIcon(categoryIndex, settingIndex, settingList)));
@@ -1259,7 +1259,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       }
 
       final prefix =
-      pumpName != null ? "$pumpName - RTC ${i + 1}" : "RTC ${i + 1}";
+          pumpName != null ? "$pumpName - RTC ${i + 1}" : "RTC ${i + 1}";
 
       if (offSeconds > 0 || !isLiveEdit) {
         if (offSeconds <= onSeconds) {
@@ -1328,7 +1328,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
             if (isRtcEnabled && rtcSettings != null) {
               final error =
-              _validateSingleRtcList(rtcSettings, pumpName: pumpName);
+                  _validateSingleRtcList(rtcSettings, pumpName: pumpName);
               if (error != null) {
                 return error;
               }
@@ -1411,7 +1411,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final rtcSetting = entry.value;
                   final bool isClearingAllowed =
                       (rtcSetting.onTime.isNotEmpty &&
-                          rtcSetting.onTime != "00:00:00") ||
+                              rtcSetting.onTime != "00:00:00") ||
                           (rtcSetting.offTime.isNotEmpty &&
                               rtcSetting.offTime != "00:00:00");
 
@@ -1507,29 +1507,29 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                                 ),
                                 onPressed: isClearingAllowed
                                     ? () {
-                                  final oldOnTime = rtcSetting.onTime;
-                                  final oldOffTime = rtcSetting.offTime;
-                                  rtcSetting.onTime = "00:00:00";
-                                  rtcSetting.offTime = "00:00:00";
-                                  final error = _validateSingleRtcList(
-                                      rtcSettings,
-                                      isLiveEdit: true);
-                                  if (error != null) {
-                                    rtcSetting.onTime = oldOnTime;
-                                    rtcSetting.offTime = oldOffTime;
-                                    if (mounted) {
-                                      _showRtcErrorDialog(error);
-                                    }
-                                  } else {
-                                    setState(() {
-                                      settingList[categoryIndex]
-                                          .setting[settingIndex]
-                                          .isChanged = true;
-                                      settingList[categoryIndex].changed =
-                                      true;
-                                    });
-                                  }
-                                }
+                                        final oldOnTime = rtcSetting.onTime;
+                                        final oldOffTime = rtcSetting.offTime;
+                                        rtcSetting.onTime = "00:00:00";
+                                        rtcSetting.offTime = "00:00:00";
+                                        final error = _validateSingleRtcList(
+                                            rtcSettings,
+                                            isLiveEdit: true);
+                                        if (error != null) {
+                                          rtcSetting.onTime = oldOnTime;
+                                          rtcSetting.offTime = oldOffTime;
+                                          if (mounted) {
+                                            _showRtcErrorDialog(error);
+                                          }
+                                        } else {
+                                          setState(() {
+                                            settingList[categoryIndex]
+                                                .setting[settingIndex]
+                                                .isChanged = true;
+                                            settingList[categoryIndex].changed =
+                                                true;
+                                          });
+                                        }
+                                      }
                                     : null,
                               ),
                             ),
@@ -1575,8 +1575,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             leading: Container(
                 decoration: const BoxDecoration(
                     shape: BoxShape.circle, color: Colors.white
-                  // gradient: linearGradientLeading,
-                ),
+                    // gradient: linearGradientLeading,
+                    ),
                 child: CircleAvatar(
                     backgroundColor: cardColor,
                     child: Icon(otherSettingsIcons[settingIndex],
@@ -1592,16 +1592,16 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
           Column(
             children: [
               for (int index = 0;
-              index <
-                  (isToGem
-                      ? preferenceProvider.individualPumpSetting!
-                      .where((e) =>
-                  e.deviceId ==
-                      preferenceProvider
-                          .commonPumpSettings![pumpIndex].deviceId)
-                      .length
-                      : preferenceProvider.individualPumpSetting!.length);
-              index++)
+                  index <
+                      (isToGem
+                          ? preferenceProvider.individualPumpSetting!
+                              .where((e) =>
+                                  e.deviceId ==
+                                  preferenceProvider
+                                      .commonPumpSettings![pumpIndex].deviceId)
+                              .length
+                          : preferenceProvider.individualPumpSetting!.length);
+                  index++)
                 SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                     secondary: const SizedBox(
@@ -1610,14 +1610,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     ),
                     title: Text(isToGem
                         ? preferenceProvider.individualPumpSetting!
-                        .where((e) =>
-                    e.deviceId ==
-                        preferenceProvider
-                            .commonPumpSettings![pumpIndex].deviceId)
-                        .elementAt(index)
-                        .name
+                            .where((e) =>
+                                e.deviceId ==
+                                preferenceProvider
+                                    .commonPumpSettings![pumpIndex].deviceId)
+                            .elementAt(index)
+                            .name
                         : preferenceProvider
-                        .individualPumpSetting![index].name),
+                            .individualPumpSetting![index].name),
                     value: settingList[categoryIndex]
                         .setting[settingIndex]
                         .value[index],
@@ -1640,10 +1640,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   int _getWidgetType(int categoryIndex, int settingIndex, List settingList) {
     return (settingList[categoryIndex]
-        .setting[settingIndex]
-        .title
-        .toUpperCase() ==
-        "PRESSURE MAXIMUM VALUE")
+                .setting[settingIndex]
+                .title
+                .toUpperCase() ==
+            "PRESSURE MAXIMUM VALUE")
         ? 7
         : settingList[categoryIndex].setting[settingIndex].widgetTypeId;
   }
@@ -1653,36 +1653,36 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         (AppConstants.otherSetting.contains(settingList[categoryIndex].type))
             ? otherSettingsIcons[settingIndex]
             : (AppConstants.voltageSetting
-            .contains(settingList[categoryIndex].type))
-            ? voltageSettingsIcons[settingIndex]
-            : (AppConstants.timerSetting
-            .contains(settingList[categoryIndex].type))
-            ? timerSettingsIcons[settingIndex]
-            : (AppConstants.currentSetting
-            .contains(settingList[categoryIndex].type))
-            ? currentSettingIcons[settingIndex]
-            : (AppConstants.currentCalibration
-            .contains(settingList[categoryIndex].type))
-            ? voltageCalibrationIcons[settingIndex]
-            : (AppConstants.otherCalibration
-            .contains(settingList[categoryIndex].type))
-            ? otherCalibrationIcons[settingIndex]
-            : AppConstants.levelSetting.contains(
-            settingList[categoryIndex].type)
-            ? levelSettingsIcons[settingIndex]
-            : [211, 611].contains(
-            settingList[categoryIndex].type)
-            ? Icons.numbers
-            : additionalSettingsIcons[settingIndex],
+                    .contains(settingList[categoryIndex].type))
+                ? voltageSettingsIcons[settingIndex]
+                : (AppConstants.timerSetting
+                        .contains(settingList[categoryIndex].type))
+                    ? timerSettingsIcons[settingIndex]
+                    : (AppConstants.currentSetting
+                            .contains(settingList[categoryIndex].type))
+                        ? currentSettingIcons[settingIndex]
+                        : (AppConstants.currentCalibration
+                                .contains(settingList[categoryIndex].type))
+                            ? voltageCalibrationIcons[settingIndex]
+                            : (AppConstants.otherCalibration
+                                    .contains(settingList[categoryIndex].type))
+                                ? otherCalibrationIcons[settingIndex]
+                                : AppConstants.levelSetting.contains(
+                                        settingList[categoryIndex].type)
+                                    ? levelSettingsIcons[settingIndex]
+                                    : [211, 611].contains(
+                                            settingList[categoryIndex].type)
+                                        ? Icons.numbers
+                                        : additionalSettingsIcons[settingIndex],
         color: Theme.of(context).primaryColor);
   }
 
   dynamic _getSubTitle(
-      int categoryIndex,
-      int settingIndex,
-      List settingList,
-      int pumpIndex,
-      ) {
+    int categoryIndex,
+    int settingIndex,
+    List settingList,
+    int pumpIndex,
+  ) {
     // Debug logs
 
     // Condition check
@@ -1784,10 +1784,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     if (preferenceProvider.individualPumpSetting != null) {
       for (var individualPump in preferenceProvider.individualPumpSetting!) {
         int minSeconds =
-        (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-            individualPump.pumpType == 2)
-            ? 30
-            : 5;
+            (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                    individualPump.pumpType == 2)
+                ? 30
+                : 5;
         for (var settingCategory in individualPump.settingList) {
           if (AppConstants.timerSetting.contains(settingCategory.type)) {
             for (var setting in settingCategory.setting) {
@@ -1825,10 +1825,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
       }
       int minSeconds =
-      (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-          pumpType == 2)
-          ? 30
-          : 5;
+          (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                  pumpType == 2)
+              ? 30
+              : 5;
       if (val is String && val.isNotEmpty) {
         int curSeconds = _rtcTimeToSeconds(val);
         if (curSeconds < minSeconds) {
@@ -1849,7 +1849,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       final titleUpper = setting.title.toUpperCase();
       if (titleUpper.contains("ON DELAY") ||
           (AppConstants.timerSetting
-              .contains(settingList[categoryIndex].type) &&
+                  .contains(settingList[categoryIndex].type) &&
               setting.serialNumber == 1)) {
         int pumpType = 0;
         if (preferenceProvider.individualPumpSetting != null &&
@@ -1865,10 +1865,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
           }
         }
         int minSeconds =
-        AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-            (pumpType == 2)
-            ? 30
-            : 5;
+            AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                    (pumpType == 2)
+                ? 30
+                : 5;
         if (finalValue is String) {
           int selectedSec = _rtcTimeToSeconds(finalValue);
           if (selectedSec < minSeconds) {
@@ -1883,7 +1883,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       settingList[categoryIndex].setting[settingIndex].isChanged = true;
       if (AppConstants.otherSetting.contains(settingList[categoryIndex].type)) {
         if (settingList[categoryIndex].setting[settingIndex].serialNumber ==
-            15 ||
+                15 ||
             settingList[categoryIndex].setting[settingIndex].serialNumber ==
                 16) {
           if (settingList[categoryIndex].setting[settingIndex].serialNumber ==
@@ -1894,8 +1894,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 .firstWhere((setting) => setting.serialNumber == 16)
                 .value = false;
           } else if (settingList[categoryIndex]
-              .setting[settingIndex]
-              .serialNumber ==
+                  .setting[settingIndex]
+                  .serialNumber ==
               16) {
             settingList[categoryIndex].setting[settingIndex].value = true;
             settingList[categoryIndex]
@@ -1925,9 +1925,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   String _getValue(
       {required int type,
-        required int categoryIndex,
-        required int pumpIndex,
-        required int settingIndex}) {
+      required int categoryIndex,
+      required int pumpIndex,
+      required int settingIndex}) {
     String valueToShow = "";
 
     for (var i = 0; i < mqttPayloadProvider.viewSettingsList.length; i++) {
@@ -1959,9 +1959,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   String getValueForRtc(
       {required int type,
-        required int categoryIndex,
-        required int pumpIndex,
-        required int settingIndex}) {
+      required int categoryIndex,
+      required int pumpIndex,
+      required int settingIndex}) {
     String valueToShow = "";
 
     for (var i = 0; i < mqttPayloadProvider.viewSettingsList.length; i++) {
@@ -2070,8 +2070,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
   Widget buildTabItem(
       {required int index,
-        required String itemName,
-        required int selectedIndex}) {
+      required String itemName,
+      required int selectedIndex}) {
     return Container(
         decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -2080,15 +2080,15 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 : cardColor),
         child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                itemName,
-                style: TextStyle(
-                    color: index == selectedIndex
-                        ? Colors.white
-                        : Theme.of(context).primaryColor),
-              ),
-            )));
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Text(
+            itemName,
+            style: TextStyle(
+                color: index == selectedIndex
+                    ? Colors.white
+                    : Theme.of(context).primaryColor),
+          ),
+        )));
   }
 
   void selectPumpToSend() {
@@ -2097,73 +2097,73 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         builder: (BuildContext context) {
           return StatefulBuilder(
               builder: (BuildContext context, StateSetter stateSetter) {
-                return AlertDialog(
-                  title: const Text("Select the pump"),
-                  content: SizedBox(
-                    height: 200,
-                    child: Scrollbar(
-                      thumbVisibility: true,
-                      trackVisibility: true,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children: [
-                            for (var i = 0;
+            return AlertDialog(
+              title: const Text("Select the pump"),
+              content: SizedBox(
+                height: 200,
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  trackVisibility: true,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (var i = 0;
                             i < preferenceProvider.commonPumpSettings!.length;
                             i++)
-                              CheckboxListTile(
-                                  dense: false,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      vertical: 0, horizontal: 10),
-                                  title: Text(preferenceProvider
-                                      .commonPumpSettings![i].deviceName),
-                                  subtitle: Text(preferenceProvider
+                          CheckboxListTile(
+                              dense: false,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 0, horizontal: 10),
+                              title: Text(preferenceProvider
+                                  .commonPumpSettings![i].deviceName),
+                              subtitle: Text(preferenceProvider
+                                  .commonPumpSettings![i].deviceId),
+                              value: selectedOroPumpList.contains(
+                                  preferenceProvider
                                       .commonPumpSettings![i].deviceId),
-                                  value: selectedOroPumpList.contains(
-                                      preferenceProvider
-                                          .commonPumpSettings![i].deviceId),
-                                  onChanged: (newValue) {
-                                    stateSetter(() {
-                                      setState(() {
-                                        if (selectedOroPumpList.contains(
-                                            preferenceProvider
-                                                .commonPumpSettings![i].deviceId)) {
-                                          selectedOroPumpList.remove(
-                                              preferenceProvider
-                                                  .commonPumpSettings![i].deviceId);
-                                        } else {
-                                          selectedOroPumpList.add(preferenceProvider
+                              onChanged: (newValue) {
+                                stateSetter(() {
+                                  setState(() {
+                                    if (selectedOroPumpList.contains(
+                                        preferenceProvider
+                                            .commonPumpSettings![i].deviceId)) {
+                                      selectedOroPumpList.remove(
+                                          preferenceProvider
                                               .commonPumpSettings![i].deviceId);
-                                        }
-                                      });
-                                    });
-                                  })
-                          ],
-                        ),
-                      ),
+                                    } else {
+                                      selectedOroPumpList.add(preferenceProvider
+                                          .commonPumpSettings![i].deviceId);
+                                    }
+                                  });
+                                });
+                              })
+                      ],
                     ),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: const Text(
-                        "CANCEL",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: selectedOroPumpList.isNotEmpty
-                          ? () async {
-                        Navigator.of(context).pop();
-                        await sendFunction();
-                      }
-                          : null,
-                      child: const Text("SEND"),
-                    ),
-                  ],
-                );
-              });
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    "CANCEL",
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+                TextButton(
+                  onPressed: selectedOroPumpList.isNotEmpty
+                      ? () async {
+                          Navigator.of(context).pop();
+                          await sendFunction();
+                        }
+                      : null,
+                  child: const Text("SEND"),
+                ),
+              ],
+            );
+          });
         });
   }
 
@@ -2212,19 +2212,19 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     final payloadForGem = preferenceProvider.passwordValidationCode == 200
         ? getCalibrationPayload(isToGem: isToGem).split("?")[0].split(';')
         : payloadParts[0].isEmpty
-        ? shouldSendFailedPayloads
-        ? getFailedPayload(isToGem: isToGem, sendAll: true)
-        .split("?")[0]
-        .split(';')
-        : getPayload(isToGem: isToGem, sendAll: true)
-        .split("?")[0]
-        .split(';')
-        : payloadParts;
+            ? shouldSendFailedPayloads
+                ? getFailedPayload(isToGem: isToGem, sendAll: true)
+                    .split("?")[0]
+                    .split(';')
+                : getPayload(isToGem: isToGem, sendAll: true)
+                    .split("?")[0]
+                    .split(';')
+            : payloadParts;
     try {
       bool isLevelSettingChanged = preferenceProvider.individualPumpSetting!
           .any((pump) => pump.settingList.any((setting) =>
-      AppConstants.levelSetting.contains(setting.type) &&
-          setting.changed));
+              AppConstants.levelSetting.contains(setting.type) &&
+              setting.changed));
       bool isAnyOtherChanged = preferenceProvider.commonPumpSettings!
           .any((pump) => pump.settingList.any((setting) => setting.changed));
       bool resultFromDialog = false;
@@ -2250,20 +2250,20 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       if (preferenceProvider.commonPumpSettings!.isNotEmpty &&
           !(isLevelSettingChanged && !isAnyOtherChanged)) {
         if ((isToGem
-            ? preferenceProvider.generalData!.controllerReadStatus == "1"
-            : true) &&
+                ? preferenceProvider.generalData!.controllerReadStatus == "1"
+                : true) &&
             payloadForGem.any((item) => item.trim().isNotEmpty)) {
           for (var i = 0; i < payloadForGem.length; i++) {
             var payloadToDecode =
-            isToGem ? payloadForGem[i].split('+')[4] : payloadForGem[i];
+                isToGem ? payloadForGem[i].split('+')[4] : payloadForGem[i];
             // print("payloadToDecode :: $payloadToDecode");
             var decodedData = jsonDecode(payloadToDecode);
             var key = decodedData.keys.first;
             int oroPumpIndex = 0;
             if (isToGem) {
               oroPumpIndex = preferenceProvider.commonPumpSettings!.indexWhere(
-                      (element) =>
-                  element.deviceId == payloadForGem[i].split('+')[2]);
+                  (element) =>
+                      element.deviceId == payloadForGem[i].split('+')[2]);
             }
             setState(() {
               if (key.contains("100"))
@@ -2274,9 +2274,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     .settingList[1].controllerReadStatus = "0";
               int pumpIndex = 0;
               for (var individualPump
-              in preferenceProvider.individualPumpSetting ?? []) {
+                  in preferenceProvider.individualPumpSetting ?? []) {
                 if (preferenceProvider
-                    .commonPumpSettings![oroPumpIndex].deviceId ==
+                        .commonPumpSettings![oroPumpIndex].deviceId ==
                     individualPump.deviceId) {
                   if (individualPump.output != null) {
                     pumpIndex = individualPump.output;
@@ -2284,7 +2284,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                     pumpIndex++;
                   }
                   for (var individualPumpSetting
-                  in individualPump.settingList) {
+                      in individualPump.settingList) {
                     if (AppConstants.currentSetting
                         .contains(individualPumpSetting.type)) {
                       if (key.contains("400-$pumpIndex")) {
@@ -2360,12 +2360,12 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
           'hardware': payloadForSlave,
           'changedPayload': generatePayloadMessageForChangedPayload(),
           'controllerReadStatus':
-          preferenceProvider.generalData!.controllerReadStatus,
+              preferenceProvider.generalData!.controllerReadStatus,
         });
       });
       await Future.delayed(Duration.zero, () async {
         final createUserPreference =
-        await repository.createUserPreference(userData);
+            await repository.createUserPreference(userData);
         final message = jsonDecode(createUserPreference.body);
         await showSnackBar(message: message['message']);
       });
@@ -2398,10 +2398,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
               if (!payload["commonPumpSettings"][controller.deviceId]
                   .containsKey(settingCategory.name)) {
                 payload["commonPumpSettings"][controller.deviceId]
-                [settingCategory.name] = {};
+                    [settingCategory.name] = {};
               }
               payload["commonPumpSettings"][controller.deviceId]
-              [settingCategory.name][setting.title] =
+                      [settingCategory.name][setting.title] =
                   setting.value.toString();
             }
           }
@@ -2419,10 +2419,10 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
               if (!payload["individualPumpSetting"][pump.name]
                   .containsKey(settingCategory.name)) {
                 payload["individualPumpSetting"][pump.name]
-                [settingCategory.name] = {};
+                    [settingCategory.name] = {};
               }
               payload["individualPumpSetting"][pump.name][settingCategory.name]
-              [setting.title] = setting.value.toString();
+                  [setting.title] = setting.value.toString();
             }
           }
         }
@@ -2457,7 +2457,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         for (var settingCategory in commonSetting.settingList) {
           if (!sendAll
               ? (AppConstants.voltageSetting.contains(settingCategory.type) &&
-              settingCategory.changed)
+                  settingCategory.changed)
               : AppConstants.voltageSetting.contains(settingCategory.type)) {
             final payload = jsonEncode({
               "200": jsonEncode({
@@ -2469,7 +2469,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 : payload);
           } else if (!sendAll
               ? (AppConstants.otherSetting.contains(settingCategory.type) &&
-              settingCategory.changed)
+                  settingCategory.changed)
               : AppConstants.otherSetting.contains(settingCategory.type)) {
             final payload = jsonEncode({
               "100": jsonEncode(
@@ -2501,7 +2501,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
         int pumpIndex = 0;
         for (var individualPump
-        in preferenceProvider.individualPumpSetting ?? []) {
+            in preferenceProvider.individualPumpSetting ?? []) {
           if ((isPumpWithValveModel || isPumpOnly || !isToGem)
               ? true
               : commonSetting.deviceId == individualPump.deviceId) {
@@ -2516,14 +2516,14 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             }
             for (var individualPumpSetting in individualPump.settingList) {
               final conditionToSend =
-              (!sendAll ? individualPumpSetting.changed : true);
+                  (!sendAll ? individualPumpSetting.changed : true);
               if (AppConstants.currentSetting
                   .contains(individualPumpSetting.type)) {
                 if (conditionToSend) {
                   final payload = jsonEncode({
                     "400-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                          'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
                     })
                   });
                   currentConfigList.add(isToGem
@@ -2536,7 +2536,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload = jsonEncode({
                     "300-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                          'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
                     })
                   });
                   delayConfigList.add(isToGem
@@ -2546,7 +2546,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload2 = jsonEncode({
                     "500-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
+                          'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
                     })
                   });
                   rtcConfigList.add(isToGem
@@ -2563,7 +2563,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload = jsonEncode({
                     "600-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
+                          'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
                     })
                   });
 
@@ -2604,7 +2604,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
         for (var settingCategory in commonSetting.settingList) {
           if (!sendAll
               ? (AppConstants.voltageSetting.contains(settingCategory.type) &&
-              settingCategory.controllerReadStatus == "0")
+                  settingCategory.controllerReadStatus == "0")
               : AppConstants.voltageSetting.contains(settingCategory.type)) {
             final payload = jsonEncode({
               "200": jsonEncode({
@@ -2616,7 +2616,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 : payload);
           } else if (!sendAll
               ? (AppConstants.otherSetting.contains(settingCategory.type) &&
-              settingCategory.controllerReadStatus == "0")
+                  settingCategory.controllerReadStatus == "0")
               : AppConstants.otherSetting.contains(settingCategory.type)) {
             final payload = jsonEncode({
               "100": jsonEncode(
@@ -2630,7 +2630,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
         int pumpIndex = 0;
         for (var individualPump
-        in preferenceProvider.individualPumpSetting ?? []) {
+            in preferenceProvider.individualPumpSetting ?? []) {
           if ((isPumpWithValveModel || !isToGem || isPumpOnly)
               ? true
               : commonSetting.deviceId == individualPump.deviceId) {
@@ -2653,7 +2653,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload = jsonEncode({
                     "400-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                          'currentconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
                     })
                   });
                   currentConfigList.add(
@@ -2668,7 +2668,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload = jsonEncode({
                     "300-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
+                          'delayconfig,$pumpIndex,${getSettingValue(individualPumpSetting)}'
                     })
                   });
                   delayConfigList.add(
@@ -2680,7 +2680,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload2 = jsonEncode({
                     "500-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
+                          'rtcconfig,$pumpIndex,${getRtcValue(individualPumpSetting)}'
                     })
                   });
                   rtcConfigList.add(
@@ -2698,7 +2698,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                   final payload = jsonEncode({
                     "600-$pumpIndex": jsonEncode({
                       "sentSms":
-                      'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
+                          'scheduleconfig,$pumpIndex,${getSettingValue(individualPumpSetting, controlToOroGem: (isPumpWithValveModel || !isToGem || isPumpOnly) ? false : preferenceProvider.individualPumpSetting![index].controlGem)}'
                     })
                   });
 
@@ -2758,7 +2758,7 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
                 ])
           ]);
       List<SettingList> aeratorOrNormal = AppConstants.aquacultureModelList
-          .contains(widget.masterData['modelId'])
+              .contains(widget.masterData['modelId'])
           ? aeratorCalibrationSetting.settingList
           : commonSetting.settingList;
       if (selectedOroPumpList.contains(deviceId)) {
@@ -2844,8 +2844,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     debugPrint('settingCategory.name ::: ${settingCategory.name}');
     List<String> values = [];
     List<WidgetSetting> filterList =
-    List<WidgetSetting>.from(settingCategory.setting)
-      ..sort((a, b) => a.payloadIndex.compareTo(b.payloadIndex));
+        List<WidgetSetting>.from(settingCategory.setting)
+          ..sort((a, b) => a.payloadIndex.compareTo(b.payloadIndex));
     for (var setting in filterList) {
       String? value;
       if (setting.value is bool) {
@@ -2973,20 +2973,20 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
 
 Widget buildCustomListTileWidget(
     {required int modelId,
-      required BuildContext context,
-      required String title,
-      String? subTitle,
-      bool showTrailing = true,
-      required int widgetType,
-      dynamic value,
-      void Function(dynamic newValue)? onValueChange,
-      required Widget leading,
-      bool conditionToShow = true,
-      required bool hidden,
-      required bool display,
-      bool enabled = true,
-      required List<TextInputFormatter> inputFormatters,
-      required List<String> dataList}) {
+    required BuildContext context,
+    required String title,
+    String? subTitle,
+    bool showTrailing = true,
+    required int widgetType,
+    dynamic value,
+    void Function(dynamic newValue)? onValueChange,
+    required Widget leading,
+    bool conditionToShow = true,
+    required bool hidden,
+    required bool display,
+    bool enabled = true,
+    required List<TextInputFormatter> inputFormatters,
+    required List<String> dataList}) {
   debugPrint("$title == $widgetType ");
   Widget customWidget;
   switch (widgetType) {
@@ -3001,9 +3001,9 @@ Widget buildCustomListTileWidget(
           textAlign: TextAlign.center,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters:
-          (widgetType == 1 && AppConstants.gemModelList.contains(modelId))
-              ? AppProperties.regexForNumbers
-              : AppProperties.regexForDecimal,
+              (widgetType == 1 && AppConstants.gemModelList.contains(modelId))
+                  ? AppProperties.regexForNumbers
+                  : AppProperties.regexForDecimal,
           decoration: const InputDecoration(
             hintText: "000",
             isDense: true,
@@ -3036,19 +3036,19 @@ Widget buildCustomListTileWidget(
     case 3:
       customWidget = enabled
           ? CustomNativeTimePicker(
-        initialValue: value is String ? value : "00:00:00",
-        is24HourMode: true,
-        onChanged: (newValue) {
-          enabled ? onValueChange?.call(newValue) : null;
-        },
-        modelId: 1,
-      )
+              initialValue: value is String ? value : "00:00:00",
+              is24HourMode: true,
+              onChanged: (newValue) {
+                enabled ? onValueChange?.call(newValue) : null;
+              },
+              modelId: 1,
+            )
           : Text(
-        value,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.right,
-        style: const TextStyle(fontSize: 14),
-      );
+              value,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 14),
+            );
       break;
     case 6:
       customWidget = SizedBox(
