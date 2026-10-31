@@ -843,7 +843,11 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
       required List<GeneralParameterModel> duplicateParameterList}) {
     setState(() {
       for (var i = 0; i < originalParameterList.length; i++) {
-        duplicateParameterList[i].show = originalParameterList[i].show;
+        if (i < duplicateParameterList.length) {
+          duplicateParameterList[i].show = duplicateParameterList[i].isRequired
+              ? true
+              : originalParameterList[i].show;
+        }
       }
     });
   }
@@ -1089,6 +1093,18 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                 });
                               }
                               if (errorMessage == '') {
+                                for (var p in irrigationParameterArrayDuplicate.generalParameterList) {
+                                  final uiLower = p.uiKey.toLowerCase().trim();
+                                  final payloadLower = p.payloadKey.toLowerCase().trim();
+                                  if (p.isRequired ||
+                                      uiLower == 'program' || payloadLower == 'programname' ||
+                                      uiLower == 'status' || payloadLower == 'status' ||
+                                      uiLower == 'line' || payloadLower == 'programcategoryname' || payloadLower == 'programcategory' ||
+                                      uiLower == 'date' || payloadLower == 'date' ||
+                                      uiLower == 'valve' || uiLower == 'valves' || payloadLower == 'sequencedata') {
+                                    p.show = true;
+                                  }
+                                }
                                 if (mode == 1) {
                                   createUserLogConfig(
                                       name: logName,
@@ -1189,36 +1205,80 @@ class _ListOfLogConfigState extends State<ListOfLogConfig> {
                                     // ),
                                   ),
                                   Wrap(
-                                    children: [
-                                      for (var i
-                                          in irrigationParameterArrayDuplicate
-                                              .generalParameterList)
-                                        if (i.payloadKey != 'overAll')
+                                    children: () {
+                                      List<Widget> items = [];
+                                      bool seenLine = false;
+                                      for (var i in irrigationParameterArrayDuplicate.generalParameterList) {
+                                        if (i.payloadKey == 'overAll') continue;
+                                        final uiLower = i.uiKey.toLowerCase().trim();
+                                        final payloadLower = i.payloadKey.toLowerCase().trim();
+
+                                        // Remove Start Time
+                                        if (uiLower == 'start time' || payloadLower == 'scheduledstarttime') continue;
+
+                                        // Remove duplicate Line near Pump CT Average
+                                        if (uiLower == 'line' || payloadLower == 'programcategoryname' || payloadLower == 'programcategory' || payloadLower == 'headunit') {
+                                          if (seenLine) continue;
+                                          seenLine = true;
+                                        }
+
+                                        final bool isRequired = i.isRequired ||
+                                            (uiLower == 'program' || payloadLower == 'programname') ||
+                                            (uiLower == 'status' || payloadLower == 'status') ||
+                                            (uiLower == 'line' || payloadLower == 'programcategoryname' || payloadLower == 'programcategory') ||
+                                            (uiLower == 'date' || payloadLower == 'date') ||
+                                            (uiLower == 'valve' || uiLower == 'valves' || payloadLower == 'sequencedata');
+
+                                        if (isRequired) {
+                                          i.show = true;
+                                        }
+
+                                        items.add(
                                           Container(
-                                            margin: EdgeInsets.symmetric(
-                                                horizontal: 5),
+                                            margin: const EdgeInsets.symmetric(horizontal: 5),
                                             width: 250,
                                             child: ListTile(
-                                              leading: Icon(
+                                              leading: const Icon(
                                                 Icons.commit,
                                                 color: Colors.blueGrey,
                                               ),
-                                              title: Text(
-                                                '${i.uiKey}',
-                                                style: const TextStyle(
-                                                    fontSize: 12),
+                                              title: Text.rich(
+                                                TextSpan(
+                                                  text: i.uiKey,
+                                                  style: const TextStyle(fontSize: 12),
+                                                  children: [
+                                                    if (isRequired)
+                                                      const TextSpan(
+                                                        text: ' (Required)',
+                                                        style: TextStyle(
+                                                          fontSize: 10.5,
+                                                          color: Colors.red,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
                                               ),
                                               trailing: Checkbox(
-                                                value: i.show,
-                                                onChanged: (value) {
-                                                  stateSetter(() {
-                                                    i.show = value!;
-                                                  });
-                                                },
+                                                value: isRequired ? true : i.show,
+                                                fillColor: isRequired
+                                                    ? MaterialStateProperty.all(Theme.of(context).disabledColor)
+                                                    : null,
+                                                checkColor: isRequired ? Colors.white : null,
+                                                onChanged: isRequired
+                                                    ? null
+                                                    : (value) {
+                                                        stateSetter(() {
+                                                          i.show = value!;
+                                                        });
+                                                      },
                                               ),
                                             ),
                                           ),
-                                    ],
+                                        );
+                                      }
+                                      return items;
+                                    }(),
                                   ),
                                   SizedBox(
                                     width: double.infinity,

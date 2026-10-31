@@ -67,16 +67,16 @@ class FertigationTableView extends StatelessWidget {
       columns.add(const DataColumn2(label: Text('POST', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S));
     }
     if (showCentralEc) {
-      columns.add(const DataColumn2(label: Text('Central EC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.M));
+      columns.add(const DataColumn2(label: Text('Central EC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S));
     }
     if (showCentralPh) {
-      columns.add(const DataColumn2(label: Text('Central pH', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.M));
+      columns.add(const DataColumn2(label: Text('Central pH', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S));
     }
     if (showLocalEc) {
-      columns.add(const DataColumn2(label: Text('Local EC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.M));
+      columns.add(const DataColumn2(label: Text('Local EC', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S));
     }
     if (showLocalPh) {
-      columns.add(const DataColumn2(label: Text('Local pH', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.M));
+      columns.add(const DataColumn2(label: Text('Local pH', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S));
     }
 
     for (var ch in sortedCentral) {
@@ -91,8 +91,8 @@ class FertigationTableView extends StatelessWidget {
       DataColumn2(label: Text('Stop Time', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006573))), size: ColumnSize.S),
     ]);
 
-    double minTableWidth = 1100.0 + (sortedCentral.length + sortedLocal.length + (showPre ? 1 : 0) + (showPost ? 1 : 0) + (showCentralEc ? 1 : 0) + (showCentralPh ? 1 : 0) + (showLocalEc ? 1 : 0) + (showLocalPh ? 1 : 0)) * 90.0;
-    double tableHeight = (cards.length * 72.0 + 48.0 + 24.0).clamp(250.0, 650.0);
+    double minTableWidth = 1000.0 + (sortedCentral.length + sortedLocal.length + (showPre ? 1 : 0) + (showPost ? 1 : 0) + (showCentralEc ? 1 : 0) + (showCentralPh ? 1 : 0) + (showLocalEc ? 1 : 0) + (showLocalPh ? 1 : 0)) * 80.0;
+    double tableHeight = (cards.length * 60.0 + 48.0 + 24.0).clamp(250.0, 600.0);
 
     return Container(
       decoration: BoxDecoration(
@@ -105,12 +105,12 @@ class FertigationTableView extends StatelessWidget {
         child: SizedBox(
           height: tableHeight,
           child: DataTable2(
-            columnSpacing: 12,
-            horizontalMargin: 16,
+            columnSpacing: 10,
+            horizontalMargin: 12,
             minWidth: minTableWidth,
             headingRowColor: WidgetStateProperty.all(const Color(0xFFEDF4F4)),
             headingRowHeight: 48,
-            dataRowHeight: 72.0,
+            dataRowHeight: 60.0,
             border: TableBorder.all(
               color: Colors.grey.shade300,
               width: 0.8,
@@ -118,49 +118,49 @@ class FertigationTableView extends StatelessWidget {
             columns: columns,
             rows: cards.map((card) {
               List<DataCell> cells = [
-                DataCell(Text(card.date)),
-                DataCell(Text(card.programName)),
-                DataCell(Text(card.sequenceName)),
-                DataCell(Text(card.lineName)),
+                DataCell(Text(card.date, style: const TextStyle(fontSize: 11))),
+                DataCell(Text(card.programName, style: const TextStyle(fontSize: 11))),
+                DataCell(Text(card.sequenceName, style: const TextStyle(fontSize: 11))),
+                DataCell(Text(card.lineName, style: const TextStyle(fontSize: 11))),
                 DataCell(Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: card.statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(card.status, style: TextStyle(color: card.statusColor, fontWeight: FontWeight.bold, fontSize: 11)),
+                  child: Text(card.status, style: TextStyle(color: card.statusColor, fontWeight: FontWeight.bold, fontSize: 10)),
                 )),
-                DataCell(Text(card.waterPlanned)),
-                DataCell(Text(card.waterActual)),
+                DataCell(Text(card.waterPlanned, style: const TextStyle(fontSize: 11))),
+                DataCell(Text(card.waterActual, style: const TextStyle(fontSize: 11))),
               ];
 
               if (showPre) {
                 String preVal = (card.preTimeQty != '—' && card.preTimeQty != '-' && card.preTimeQty != '' && card.preTimeQty != '0' && card.preTimeQty != '0m' && card.preTimeQty != '00:00:00')
                     ? '${card.preMethod}: ${card.preTimeQty}'
                     : '—';
-                cells.add(DataCell(Text(preVal, style: const TextStyle(fontSize: 11))));
+                cells.add(DataCell(Text(preVal, style: const TextStyle(fontSize: 10))));
               }
               if (showPost) {
                 String postVal = (card.postTimeQty != '—' && card.postTimeQty != '-' && card.postTimeQty != '' && card.postTimeQty != '0' && card.postTimeQty != '0m' && card.postTimeQty != '00:00:00')
                     ? '${card.preMethod}: ${card.postTimeQty}'
                     : '—';
-                cells.add(DataCell(Text(postVal, style: const TextStyle(fontSize: 11))));
+                cells.add(DataCell(Text(postVal, style: const TextStyle(fontSize: 10))));
               }
               if (showCentralEc) {
                 String ecStr = _formatEcPh(card.centralEcSet, card.centralEcMin, card.centralEcMax, card.centralEcAvg);
-                cells.add(DataCell(Text(ecStr, style: const TextStyle(fontSize: 11, height: 1.3))));
+                cells.add(DataCell(Text(ecStr, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
               if (showCentralPh) {
                 String phStr = _formatEcPh(card.centralPhSet, card.centralPhMin, card.centralPhMax, card.centralPhAvg);
-                cells.add(DataCell(Text(phStr, style: const TextStyle(fontSize: 11, height: 1.3))));
+                cells.add(DataCell(Text(phStr, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
               if (showLocalEc) {
                 String ecStr = _formatEcPh(card.localEcSet, card.localEcMin, card.localEcMax, card.localEcAvg);
-                cells.add(DataCell(Text(ecStr, style: const TextStyle(fontSize: 11, height: 1.3))));
+                cells.add(DataCell(Text(ecStr, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
               if (showLocalPh) {
                 String phStr = _formatEcPh(card.localPhSet, card.localPhMin, card.localPhMax, card.localPhAvg);
-                cells.add(DataCell(Text(phStr, style: const TextStyle(fontSize: 11, height: 1.3))));
+                cells.add(DataCell(Text(phStr, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
 
               for (var ch in sortedCentral) {
@@ -169,8 +169,8 @@ class FertigationTableView extends StatelessWidget {
                   orElse: () => FertigationChannelModel(name: 'C-CH$ch', planned: '—', actual: '—', isCentral: true),
                 );
                 bool hasData = card.centralChannels.any((c) => c.name.replaceAll(RegExp(r'[^0-9]'), '') == ch.toString() && (c.planned != '—' && c.planned != '0' || c.actual != '—' && c.actual != '0'));
-                String text = hasData ? 'P: ${found.planned}\nA: ${found.actual}' : '—';
-                cells.add(DataCell(Text(text, style: const TextStyle(fontSize: 11, height: 1.3))));
+                String text = hasData ? 'P:${found.planned}\nA:${found.actual}' : '—';
+                cells.add(DataCell(Text(text, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
 
               for (var ch in sortedLocal) {
@@ -179,13 +179,13 @@ class FertigationTableView extends StatelessWidget {
                   orElse: () => FertigationChannelModel(name: 'L-CH$ch', planned: '—', actual: '—', isCentral: false),
                 );
                 bool hasData = card.localChannels.any((c) => c.name.replaceAll(RegExp(r'[^0-9]'), '') == ch.toString() && (c.planned != '—' && c.planned != '0' || c.actual != '—' && c.actual != '0'));
-                String text = hasData ? 'P: ${found.planned}\nA: ${found.actual}' : '—';
-                cells.add(DataCell(Text(text, style: const TextStyle(fontSize: 11, height: 1.3))));
+                String text = hasData ? 'P:${found.planned}\nA:${found.actual}' : '—';
+                cells.add(DataCell(Text(text, style: const TextStyle(fontSize: 10, height: 1.2))));
               }
 
-      cells.addAll([
-                DataCell(Text(card.startTime)),
-                DataCell(Text(card.stopTime)),
+              cells.addAll([
+                DataCell(Text(card.startTime, style: const TextStyle(fontSize: 11))),
+                DataCell(Text(card.stopTime, style: const TextStyle(fontSize: 11))),
               ]);
 
               return DataRow2(cells: cells);
@@ -197,11 +197,19 @@ class FertigationTableView extends StatelessWidget {
   }
 
   static String _formatEcPh(String set, String min, String max, String avg) {
-    List<String> parts = [];
-    if (set != '—' && set.isNotEmpty) parts.add('Set: $set');
-    if (min != '—' && min.isNotEmpty) parts.add('Min: $min');
-    if (max != '—' && max.isNotEmpty) parts.add('Max: $max');
-    if (avg != '—' && avg.isNotEmpty) parts.add('Avg: $avg');
-    return parts.isEmpty ? '—' : parts.join('\n');
+    List<String> line1 = [];
+    List<String> line2 = [];
+    if (set != '—' && set.isNotEmpty && set != '0' && set != '0.0') {
+      line1.add('S:$set');
+    }
+    if (min != '—' && min.isNotEmpty) line1.add('Min:$min');
+    if (max != '—' && max.isNotEmpty) line2.add('Max:$max');
+    if (avg != '—' && avg.isNotEmpty) line2.add('Avg:$avg');
+
+    if (line1.isEmpty && line2.isEmpty) return '—';
+    List<String> lines = [];
+    if (line1.isNotEmpty) lines.add(line1.join(' '));
+    if (line2.isNotEmpty) lines.add(line2.join(' '));
+    return lines.join('\n');
   }
 }
