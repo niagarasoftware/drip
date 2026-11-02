@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +16,7 @@ import 'package:oro_drip_irrigation/modules/Logs/view/valve_log.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/widgets/custom_segmented_control.dart';
 import 'pump_log_excel_builder.dart';
 import 'pump_log_excel_download_stub.dart'
-    if (dart.library.html) 'pump_log_excel_download_web.dart';
+if (dart.library.html) 'pump_log_excel_download_web.dart';
 
 // ---------------------------------------------------------------------------
 class _BarSegment {
@@ -61,15 +60,9 @@ class PumpLogDashboardScreen extends StatefulWidget {
   State<PumpLogDashboardScreen> createState() => _PumpLogDashboardScreenState();
 }
 
-class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
-    with WidgetsBindingObserver {
+class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   static const bool _showSingleDeviceHeader = true;
 
-  /// How often live data is re-fetched while the dashboard is visible.
-  static const Duration _kAutoRefreshInterval = Duration(seconds: 15);
-
-  Timer? _autoRefreshTimer;
-  bool _silentBusy = false;
   int _fetchGeneration = 0;
 
   late DateTime _selectedDate;
@@ -77,6 +70,75 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
 
   int _selectedPumpIndex = 0;
   int _activeNodeControllerId = 0;
+
+  String get waterMeterName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.waterMeterObjectId ||
+          obj.objectId == AppConstants.analogWaterMeterObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  String get pressureSensorName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.pressureSensorObjectId ||
+          obj.objectId == AppConstants.pressureSwitchObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  String get levelSensorName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.levelObjectId ||
+          obj.objectId == AppConstants.floatObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  bool isPressureAvailable(MotorDataHourly? motorData) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.pressureSensorObjectId ||
+        e.objectId == AppConstants.pressureSwitchObjectId);
+    final val = motorData?.pressure;
+    final hasData = val != null && val != "-" && val != "" && val != "0" && val != "0.0";
+    return hasConfig || hasData;
+  }
+
+  bool isFlowAvailable(MotorDataHourly? motorData, String totalFlow) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.waterMeterObjectId ||
+        e.objectId == AppConstants.analogWaterMeterObjectId);
+    final cumFlow = motorData?.overAllCumulativeFlow;
+    final rate = motorData?.flowRate;
+    final hasData = (cumFlow != null && cumFlow != "-" && cumFlow != "" && cumFlow != "0" && cumFlow != "0.0") ||
+        (totalFlow.isNotEmpty && totalFlow != "-" && totalFlow != "0" && totalFlow != "0.0") ||
+        (rate != null && rate != "-" && rate != "" && rate != "0" && rate != "0.0");
+    return hasConfig || hasData;
+  }
+
+  bool isLevelAvailable(MotorDataHourly? motorData) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.levelObjectId ||
+        e.objectId == AppConstants.floatObjectId);
+    final val = motorData?.level;
+    final hasData = val != null && val != "-" && val != "" && val != "0" && val != "0.0";
+    return hasConfig || hasData;
+  }
+
+  bool get hasPressureSensor => isPressureAvailable(null);
+  bool get hasFlowMeter => isFlowAvailable(null, "");
+  bool get hasLevelSensor => isLevelAvailable(null);
+
+
 
   // Power Graph state
   int _powerPeriodIndex = 0; // 0: Daily, 1: Weekly, 2: Monthly
@@ -106,8 +168,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   String get currentDeviceId {
-    if (AppConstants.ecoGemAndPlusModelList
-        .contains(widget.masterData.modelId)) {
+    if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceId;
     }
     final devices = effectiveDeviceList;
@@ -120,8 +181,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   String get currentDeviceName {
-    if (AppConstants.ecoGemAndPlusModelList
-        .contains(widget.masterData.modelId)) {
+    if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return widget.masterData.deviceName;
     }
     final devices = effectiveDeviceList;
@@ -133,6 +193,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     return widget.masterData.deviceName;
   }
 
+  int _extractControllerId(Map<String, dynamic> item) {
+    final val = item['controllerId'] ?? item['nodeControllerId'] ?? item['controllerID'] ?? item['id'] ?? item['nodeId'];
+    if (val is int) return val;
+    if (val != null) return int.tryParse(val.toString()) ?? 0;
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -141,97 +208,36 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
 
     final devices = effectiveDeviceList;
     if (devices.isNotEmpty) {
-      final isEcoGem = AppConstants.ecoGemAndPlusModelList
-          .contains(widget.masterData.modelId);
-      _activeNodeControllerId = isEcoGem
-          ? 0
-          : (devices[0]['controllerId'] ?? widget.nodeControllerId);
+      final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
+      if (isEcoGem) {
+        _activeNodeControllerId = 0;
+        _selectedPumpIndex = 0;
+      } else if (widget.nodeControllerId != 0) {
+        final idx = devices.indexWhere((d) => _extractControllerId(d) == widget.nodeControllerId);
+        if (idx != -1) {
+          _selectedPumpIndex = idx;
+          _activeNodeControllerId = widget.nodeControllerId;
+        } else {
+          _selectedPumpIndex = 0;
+          _activeNodeControllerId = _extractControllerId(devices[0]);
+          if (_activeNodeControllerId == 0) _activeNodeControllerId = widget.nodeControllerId;
+        }
+      } else {
+        _selectedPumpIndex = 0;
+        _activeNodeControllerId = _extractControllerId(devices[0]);
+      }
     } else {
       _activeNodeControllerId = widget.nodeControllerId;
     }
 
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchAllData();
-      _startAutoRefresh();
     });
   }
 
-  @override
-  void dispose() {
-    _autoRefreshTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _silentRefresh(); // catch up immediately after coming back to the app
-      _startAutoRefresh();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden) {
-      _autoRefreshTimer?.cancel();
-      _autoRefreshTimer = null;
-    }
-  }
-
-  void _startAutoRefresh() {
-    _autoRefreshTimer?.cancel();
-    _autoRefreshTimer =
-        Timer.periodic(_kAutoRefreshInterval, (_) => _silentRefresh());
-  }
-
-  bool _isTodaySelected() {
-    final now = DateTime.now();
-    return _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
-  }
-
-  /// Background refresh: no spinner, no flicker, existing data stays on screen until
-  /// the new data is ready. Skipped while a manual load is running or the tab is hidden.
-  Future<void> _silentRefresh() async {
-    if (!mounted || _isLoading || _silentBusy) return;
-    if (!TickerMode.of(context)) return;
-
-    final bool today = _isTodaySelected();
-    // Weekly / monthly power totals always end at "now", so they stay live too.
-    if (!today && _powerPeriodIndex == 0) return;
-
-    _silentBusy = true;
-    try {
-      final provider = context.read<PumpControllerProvider>();
-      provider.selectedDate = _selectedDate;
-      await Future.wait([
-        provider.getPumpControllerData(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
-          nodeControllerId: _activeNodeControllerId,
-          selectedIndex: _powerPeriodIndex,
-          silent: true,
-        ),
-        if (today)
-          provider.getUserPumpLog(
-            widget.userId,
-            widget.controllerId,
-            _activeNodeControllerId,
-            widget.masterData,
-            true,
-          ),
-        if (today)
-          provider.getUserVoltageLog(
-            userId: widget.userId,
-            controllerId: widget.controllerId,
-            nodeControllerId: _activeNodeControllerId,
-            silent: true,
-          ),
-      ]);
-    } catch (e) {
-      log("Silent refresh error: $e");
-    } finally {
-      _silentBusy = false;
-    }
+  /// The data the whole screen should render (API data).
+  MotorDataHourly? _effectiveMotorData(PumpControllerProvider provider) {
+    return provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null;
   }
 
   @override
@@ -245,11 +251,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       _selectedPumpIndex = 0;
       final devices = effectiveDeviceList;
       if (devices.isNotEmpty) {
-        final isEcoGem = AppConstants.ecoGemAndPlusModelList
-            .contains(widget.masterData.modelId);
-        _activeNodeControllerId = isEcoGem
-            ? 0
-            : (devices[0]['controllerId'] ?? widget.nodeControllerId);
+        final isEcoGem = AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId);
+        _activeNodeControllerId = isEcoGem ? 0 : _extractControllerId(devices[0]);
+        if (_activeNodeControllerId == 0 && !isEcoGem) _activeNodeControllerId = widget.nodeControllerId;
       } else {
         _activeNodeControllerId = widget.nodeControllerId;
       }
@@ -260,8 +264,23 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   void _alignWeekStartDate(DateTime date) {
     // Week starting on Sunday
     final int diff = date.weekday % 7;
-    _weekStartDate = DateTime(date.year, date.month, date.day)
-        .subtract(Duration(days: diff));
+    _weekStartDate = DateTime(date.year, date.month, date.day).subtract(Duration(days: diff));
+  }
+
+  int get effectiveUserId {
+    if (widget.userId != 0) return widget.userId;
+    final uid = widget.userData['customerId'] ?? widget.userData['userId'] ?? widget.userData['user_id'];
+    if (uid is int) return uid;
+    if (uid != null) return int.tryParse(uid.toString()) ?? 0;
+    return 0;
+  }
+
+  int get effectiveControllerId {
+    if (widget.controllerId != 0) return widget.controllerId;
+    final cid = widget.userData['controllerId'] ?? widget.masterData.controllerId;
+    if (cid is int) return cid;
+    if (cid != null) return int.tryParse(cid.toString()) ?? widget.masterData.controllerId;
+    return widget.masterData.controllerId;
   }
 
   Future<void> _fetchAllData() async {
@@ -272,23 +291,26 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     final provider = context.read<PumpControllerProvider>();
     provider.selectedDate = _selectedDate;
 
+    final userId = effectiveUserId;
+    final controllerId = effectiveControllerId;
+
     try {
       await Future.wait([
         provider.getPumpControllerData(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
+          userId: userId,
+          controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
           selectedIndex: _powerPeriodIndex,
         ),
         provider.getUserPumpLog(
-          widget.userId,
-          widget.controllerId,
+          userId,
+          controllerId,
           _activeNodeControllerId,
           widget.masterData,
         ),
         provider.getUserVoltageLog(
-          userId: widget.userId,
-          controllerId: widget.controllerId,
+          userId: userId,
+          controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
         ),
       ]);
@@ -329,12 +351,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
 
   bool _isFuture(DateTime d) {
     final now = DateTime.now();
-    return DateTime(d.year, d.month, d.day)
-        .isAfter(DateTime(now.year, now.month, now.day));
+    return DateTime(d.year, d.month, d.day).isAfter(DateTime(now.year, now.month, now.day));
   }
 
-  bool get _canGoNextWeek =>
-      !_isFuture(_weekStartDate.add(const Duration(days: 7)));
+  bool get _canGoNextWeek => !_isFuture(_weekStartDate.add(const Duration(days: 7)));
 
   void _changeWeek(int deltaWeeks) {
     final newStart = _weekStartDate.add(Duration(days: deltaWeeks * 7));
@@ -343,8 +363,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     final today = DateTime.now();
     final newEnd = newStart.add(const Duration(days: 6));
     final todayInWeek = !_isFuture(newStart) &&
-        !DateTime(today.year, today.month, today.day)
-            .isAfter(DateTime(newEnd.year, newEnd.month, newEnd.day));
+        !DateTime(today.year, today.month, today.day).isAfter(DateTime(newEnd.year, newEnd.month, newEnd.day));
 
     setState(() {
       _weekStartDate = newStart;
@@ -419,12 +438,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       motor2Events: motor2Events,
       motor3Events: motor3Events,
       voltageData: provider.voltageData,
-      motorData:
-          provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null,
+      motorData: _effectiveMotorData(provider),
     );
 
-    final String sanitizedDeviceName =
-        currentDeviceName.replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    final String sanitizedDeviceName = currentDeviceName.replaceAll(RegExp(r'[^\w\s\-]'), '_');
     final String fileName = 'Pump_Log_${sanitizedDeviceName}_$dateStr';
 
     final label = format == 'pdf' ? 'PDF' : (format == 'csv' ? 'CSV' : 'Excel');
@@ -484,8 +501,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   double? _parseNumber(String? v) {
     if (v == null) return null;
     final cleaned = v.trim().replaceAll(',', '');
-    if (cleaned.isEmpty || cleaned == '-' || cleaned.toLowerCase() == 'null')
-      return null;
+    if (cleaned.isEmpty || cleaned == '-' || cleaned.toLowerCase() == 'null') return null;
     return double.tryParse(cleaned);
   }
 
@@ -515,14 +531,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     return (value: avg.toStringAsFixed(2), isAverage: true);
   }
 
-  String _pick(int key, String m1, String m2, String m3) =>
-      key == 1 ? m2 : (key == 2 ? m3 : m1);
+  String _pick(int key, String m1, String m2, String m3) => key == 1 ? m2 : (key == 2 ? m3 : m1);
 
-  int _activeKeyFor(
-      PumpControllerProvider provider, Map<int, String> segments) {
+  int _activeKeyFor(PumpControllerProvider provider, Map<int, String> segments) {
     if (segments.containsKey(_selectedMotorIndex)) return _selectedMotorIndex;
-    if (segments.containsKey(provider.selectedIndex))
-      return provider.selectedIndex;
+    if (segments.containsKey(provider.selectedIndex)) return provider.selectedIndex;
     return segments.isNotEmpty ? segments.keys.first : 0;
   }
 
@@ -534,8 +547,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     });
   }
 
-  Widget _card(
-      {required Widget child, EdgeInsets padding = const EdgeInsets.all(18)}) {
+  Widget _card({required Widget child, EdgeInsets padding = const EdgeInsets.all(18)}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -621,18 +633,14 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                   _buildCalendarHeader(isWide),
 
                   Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: _fetchAllData,
-                      color: _kTeal,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                             _buildDeviceHeader(),
                             _buildPumpSegmentControl(provider),
+
                             if (_isLoading)
                               const Padding(
                                 padding: EdgeInsets.only(bottom: 10),
@@ -641,16 +649,17 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                                   backgroundColor: Color(0xFFE0F4F7),
                                 ),
                               ),
+
                             _buildPowerGraphCard(provider, isWide),
                             const SizedBox(height: 12),
+
                             if (isWide)
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(child: _buildPumpLogCard(provider)),
                                   const SizedBox(width: 12),
-                                  Expanded(
-                                      child: _buildVoltageLogCard(provider)),
+                                  Expanded(child: _buildVoltageLogCard(provider)),
                                 ],
                               )
                             else ...[
@@ -663,7 +672,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                         ),
                       ),
                     ),
-                  ),
                 ],
               );
             },
@@ -674,8 +682,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   List<Map<String, dynamic>> get effectiveDeviceList {
-    if (AppConstants.ecoGemAndPlusModelList
-        .contains(widget.masterData.modelId)) {
+    if (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId)) {
       return [
         {
           'deviceName': widget.masterData.deviceName,
@@ -685,9 +692,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       ];
     }
     if (widget.pumpList.isNotEmpty) {
-      return widget.pumpList
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
+      return widget.pumpList.map((e) => Map<String, dynamic>.from(e as Map)).toList();
     }
     if (widget.masterData.nodeList.isNotEmpty) {
       final pumpNodes = widget.masterData.nodeList.where((n) {
@@ -696,17 +701,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             n.categoryName.toLowerCase().contains('pump');
       }).toList();
 
-      final nodesToUse =
-          pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
-      return nodesToUse
-          .map((n) => {
-                'deviceName': n.deviceName.isNotEmpty
-                    ? n.deviceName
-                    : 'Node ${n.serialNumber}',
-                'deviceId': n.deviceId,
-                'controllerId': n.controllerId,
-              })
-          .toList();
+      final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
+      return nodesToUse.map((n) => {
+        'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
+        'deviceId': n.deviceId,
+        'controllerId': n.controllerId,
+      }).toList();
     }
     return [
       {
@@ -718,30 +718,22 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   Map<int, String> getEffectiveSegments(PumpControllerProvider provider) {
-    final int apiPumps = provider.motorDataList.isNotEmpty
-        ? provider.motorDataList[0].numberOfPumps
-        : 1;
+    final effectiveData = _effectiveMotorData(provider);
+    final int apiPumps = effectiveData != null ? effectiveData.numberOfPumps : 1;
 
     if (provider.segments.length >= apiPumps && provider.segments.length > 1) {
       return provider.segments;
     }
 
-    final pumpNames = provider.getPumpNames(
-        widget.masterData, _activeNodeControllerId, widget.controllerId);
+    final pumpNames = provider.getPumpNames(widget.masterData, _activeNodeControllerId, widget.controllerId);
 
-    final targetControllerId = _activeNodeControllerId != 0
-        ? _activeNodeControllerId
-        : widget.controllerId;
+    final targetControllerId = _activeNodeControllerId != 0 ? _activeNodeControllerId : widget.controllerId;
     var targetPumps = widget.masterData.configObjects
-        .where((e) =>
-            e.objectId == 5 &&
-            (e.controllerId == targetControllerId || targetControllerId == 0))
+        .where((e) => e.objectId == 5 && (e.controllerId == targetControllerId || targetControllerId == 0))
         .toList();
 
     if (targetPumps.isEmpty) {
-      targetPumps = widget.masterData.configObjects
-          .where((e) => e.objectId == 5)
-          .toList();
+      targetPumps = widget.masterData.configObjects.where((e) => e.objectId == 5).toList();
     }
 
     int effectiveCount = apiPumps;
@@ -773,10 +765,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   // CALENDAR BAR (edge to edge)
   // ==========================================
   Widget _buildCalendarHeader(bool isWide) {
-    final monthLabel = DateFormat('MMMM yyyy')
-        .format(_weekStartDate.add(const Duration(days: 3)));
-    final daysOfWeek =
-        List.generate(7, (i) => _weekStartDate.add(Duration(days: i)));
+    final monthLabel = DateFormat('MMMM yyyy').format(_weekStartDate.add(const Duration(days: 3)));
+    final daysOfWeek = List.generate(7, (i) => _weekStartDate.add(Duration(days: i)));
 
     return Container(
       width: double.infinity,
@@ -787,133 +777,122 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       ),
       child: isWide
           ? Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildMonthNavigator(monthLabel),
-                _buildWeekDayStrip(daysOfWeek),
-              ],
-            )
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _buildMonthNavigator(monthLabel),
+          _buildWeekDayStrip(daysOfWeek),
+        ],
+      )
           : Column(
-              children: [
-                _buildMonthNavigator(monthLabel),
-                const SizedBox(height: 8),
-                _buildWeekDayStrip(daysOfWeek),
-              ],
-            ),
+        children: [
+          _buildMonthNavigator(monthLabel),
+          const SizedBox(height: 8),
+          _buildWeekDayStrip(daysOfWeek),
+        ],
+      ),
     );
   }
 
   Widget _buildMonthNavigator(String monthLabel) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left, color: Colors.black54, size: 20),
-          onPressed: () => _changeWeek(-1),
-          visualDensity: VisualDensity.compact,
-        ),
-        Text(
-          monthLabel,
-          style: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w500, color: _kInk),
-        ),
-        const SizedBox(width: 10),
-        InkWell(
-          onTap: _pickMonth,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black87, width: 1),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Text(
-              'Month',
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left, color: Colors.black54, size: 20),
+            onPressed: () => _changeWeek(-1),
+            visualDensity: VisualDensity.compact,
+          ),
+          Text(
+            monthLabel,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _kInk),
+          ),
+          const SizedBox(width: 10),
+          InkWell(
+            onTap: _pickMonth,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black87, width: 1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Text(
+                'Month',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
             ),
           ),
-        ),
-        IconButton(
-          icon: Icon(
-            Icons.chevron_right,
-            color: _canGoNextWeek ? Colors.black54 : Colors.black26,
-            size: 20,
+          IconButton(
+            icon: Icon(
+              Icons.chevron_right,
+              color: _canGoNextWeek ? Colors.black54 : Colors.black26,
+              size: 20,
+            ),
+            onPressed: _canGoNextWeek ? () => _changeWeek(1) : null,
+            visualDensity: VisualDensity.compact,
           ),
-          onPressed: _canGoNextWeek ? () => _changeWeek(1) : null,
-          visualDensity: VisualDensity.compact,
-        ),
-        const SizedBox(width: 6),
-        PopupMenuButton<String>(
-          tooltip: 'Download Report',
-          onSelected: (val) => _exportReport(val),
-          offset: const Offset(0, 32),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'excel',
-              child: Row(
-                children: [
-                  Icon(Icons.table_chart_outlined, color: _kTeal, size: 18),
-                  SizedBox(width: 8),
-                  Text('Excel (.xlsx)',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'csv',
-              child: Row(
-                children: [
-                  Icon(Icons.description_outlined, color: _kTeal, size: 18),
-                  SizedBox(width: 8),
-                  Text('CSV (.csv)',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'pdf',
-              child: Row(
-                children: [
-                  Icon(Icons.picture_as_pdf_outlined, color: _kRed, size: 18),
-                  SizedBox(width: 8),
-                  Text('PDF (.pdf)',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-          ],
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _kTeal,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.download_rounded, color: Colors.white, size: 14),
-                SizedBox(width: 4),
-                Text(
-                  'Download',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white),
+          const SizedBox(width: 6),
+          PopupMenuButton<String>(
+            tooltip: 'Download Report',
+            onSelected: (val) => _exportReport(val),
+            offset: const Offset(0, 32),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'excel',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart_outlined, color: _kTeal, size: 18),
+                    SizedBox(width: 8),
+                    Text('Excel (.xlsx)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
                 ),
-                Icon(Icons.arrow_drop_down, color: Colors.white, size: 14),
-              ],
+              ),
+              const PopupMenuItem(
+                value: 'csv',
+                child: Row(
+                  children: [
+                    Icon(Icons.description_outlined, color: _kTeal, size: 18),
+                    SizedBox(width: 8),
+                    Text('CSV (.csv)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf_outlined, color: _kRed, size: 18),
+                    SizedBox(width: 8),
+                    Text('PDF (.pdf)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _kTeal,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.download_rounded, color: Colors.white, size: 14),
+                  SizedBox(width: 4),
+                  Text(
+                    'Download',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  Icon(Icons.arrow_drop_down, color: Colors.white, size: 14),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -958,13 +937,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                     '${day.day}',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       color: isSelected
                           ? Colors.white
-                          : (isFutureDay
-                              ? const Color(0xFFCBD5E1)
-                              : Colors.black87),
+                          : (isFutureDay ? const Color(0xFFCBD5E1) : Colors.black87),
                     ),
                   ),
                 ),
@@ -1001,14 +977,13 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                   onTap: () {
                     setState(() {
                       _selectedPumpIndex = index;
-                      _activeNodeControllerId = pumpItem['controllerId'] ?? 0;
+                      _activeNodeControllerId = _extractControllerId(pumpItem);
                     });
                     _fetchAllData();
                   },
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected ? _kTeal : Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -1025,9 +1000,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                           height: 28,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isSelected
-                                ? Colors.white.withAlpha(50)
-                                : const Color(0xFFE0F4F7),
+                            color: isSelected ? Colors.white.withAlpha(50) : const Color(0xFFE0F4F7),
                           ),
                           child: Center(
                             child: Text(
@@ -1058,9 +1031,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                               Text(
                                 'MAC: $deviceId',
                                 style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white70
-                                      : const Color(0xFF64748B),
+                                  color: isSelected ? Colors.white70 : const Color(0xFF64748B),
                                   fontSize: 11,
                                   fontFamily: 'monospace',
                                   fontWeight: FontWeight.w600,
@@ -1094,10 +1065,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             Container(
               width: 36,
               height: 36,
-              decoration: const BoxDecoration(
-                  shape: BoxShape.circle, color: Color(0xFFE0F4F7)),
-              child: const Center(
-                  child: Icon(Icons.router_outlined, color: _kTeal, size: 18)),
+              decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFE0F4F7)),
+              child: const Center(child: Icon(Icons.router_outlined, color: _kTeal, size: 18)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1106,10 +1075,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 children: [
                   Text(
                     deviceName,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: _kInk),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _kInk),
                   ),
                   if (deviceId.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -1161,55 +1127,51 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   // CARD 1: POWER GRAPH (Redesigned Breakdown View)
   // ==========================================
   Widget _buildPowerGraphCard(PumpControllerProvider provider, bool isWide) {
-    final MotorDataHourly? motorData =
-        provider.motorDataList.isNotEmpty ? provider.motorDataList[0] : null;
+    // Live MQTT data if it is the newest, otherwise the API data.
+    final MotorDataHourly? motorData = _effectiveMotorData(provider);
 
     final segments = getEffectiveSegments(provider);
     final activeKey = _activeKeyFor(provider, segments);
 
     final String motorRunTime = motorData != null
-        ? _pick(activeKey, motorData.motorRunTime1, motorData.motorRunTime2,
-            motorData.motorRunTime3)
+        ? _pick(activeKey, motorData.motorRunTime1, motorData.motorRunTime2, motorData.motorRunTime3)
         : "00:00:00";
     final String motorIdleTime = motorData != null
-        ? _pick(activeKey, motorData.motorIdleTime1, motorData.motorIdleTime2,
-            motorData.motorIdleTime3)
+        ? _pick(activeKey, motorData.motorIdleTime1, motorData.motorIdleTime2, motorData.motorIdleTime3)
         : "00:00:00";
     final String dryRunTripTime = motorData != null
-        ? _pick(activeKey, motorData.dryRunTripTime1, motorData.dryRunTripTime2,
-            motorData.dryRunTripTime3)
+        ? _pick(activeKey, motorData.dryRunTripTime1, motorData.dryRunTripTime2, motorData.dryRunTripTime3)
         : "00:00:00";
     final String cyclicTripTime = motorData != null
-        ? _pick(activeKey, motorData.cyclicTripTime1, motorData.cyclicTripTime2,
-            motorData.cyclicTripTime3)
+        ? _pick(activeKey, motorData.cyclicTripTime1, motorData.cyclicTripTime2, motorData.cyclicTripTime3)
         : "00:00:00";
     final String otherTripTime = motorData != null
-        ? _pick(activeKey, motorData.otherTripTime1, motorData.otherTripTime2,
-            motorData.otherTripTime3)
+        ? _pick(activeKey, motorData.otherTripTime1, motorData.otherTripTime2, motorData.otherTripTime3)
         : "00:00:00";
     final String totalFlowToday = motorData != null
-        ? _pick(activeKey, motorData.totalFlowToday1, motorData.totalFlowToday2,
-            motorData.totalFlowToday3)
+        ? _pick(activeKey, motorData.totalFlowToday1, motorData.totalFlowToday2, motorData.totalFlowToday3)
         : "0";
 
     final String totalPowerOnTime = motorData?.totalPowerOnTime ?? "00:00:00";
     final String totalPowerOffTime = motorData?.totalPowerOffTime ?? "00:00:00";
 
-    final int daysInMonth =
-        DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
+    final int daysInMonth = DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
     final int maxSeconds = _powerPeriodIndex == 1
         ? (7 * 24 * 3600)
-        : (_powerPeriodIndex == 2 ? (daysInMonth * 24 * 3600) : (24 * 3600));
+        : (_powerPeriodIndex == 2
+        ? (daysInMonth * 24 * 3600)
+        : (24 * 3600));
 
-    final double totalPowerRatio =
-        (_toSeconds(totalPowerOnTime) / maxSeconds).clamp(0.0, 1.0);
-    final double motorRatio =
-        (_toSeconds(motorRunTime) / maxSeconds).clamp(0.0, 1.0);
+    final double totalPowerRatio = (_toSeconds(totalPowerOnTime) / maxSeconds).clamp(0.0, 1.0);
+    final double motorRatio = (_toSeconds(motorRunTime) / maxSeconds).clamp(0.0, 1.0);
 
-    final String activeMotorName = segments[activeKey] ??
-        _pick(activeKey, "Motor 1", "Motor 2", "Motor 3");
+    final String activeMotorName =
+        segments[activeKey] ?? _pick(activeKey, "Motor 1", "Motor 2", "Motor 3");
 
-    final leftColumn = _buildNewPowerGraphLeft(
+    final String daySubtitle = DateFormat('EEEE').format(_selectedDate);
+    final String formattedDate = DateFormat('EEEE, MMMM d').format(_selectedDate);
+
+    final durationAcrossCard = _buildNewPowerGraphLeft(
       totalPowerOnTime: totalPowerOnTime,
       totalPowerOffTime: totalPowerOffTime,
       motorRunTime: motorRunTime,
@@ -1252,27 +1214,70 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
         ],
       ),
       padding: const EdgeInsets.all(20),
-      child: isWide
-          ? Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    daySubtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF8C98A4),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formattedDate,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+              _buildPillToggle(
+                labels: const ['Daily', 'Weekly', 'Monthly'],
+                selected: _powerPeriodIndex,
+                onChanged: (i) {
+                  setState(() {
+                    _powerPeriodIndex = i;
+                  });
+                  _fetchAllData();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          if (isWide)
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(flex: 7, child: leftColumn),
+                Expanded(flex: 7, child: durationAcrossCard),
                 const SizedBox(width: 18),
                 Expanded(flex: 8, child: centerMetrics),
                 const SizedBox(width: 22),
                 Expanded(flex: 7, child: rightBreakdown),
               ],
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                leftColumn,
-                const SizedBox(height: 20),
-                centerMetrics,
-                const SizedBox(height: 20),
-                rightBreakdown,
-              ],
-            ),
+          else ...[
+            durationAcrossCard,
+            const SizedBox(height: 20),
+            centerMetrics,
+            const SizedBox(height: 20),
+            rightBreakdown,
+          ],
+        ],
+      ),
     );
   }
 
@@ -1288,178 +1293,69 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     required String activeMotorName,
     required int daysInMonth,
   }) {
-    final now = DateTime.now();
-    final isToday = _selectedDate.year == now.year &&
-        _selectedDate.month == now.month &&
-        _selectedDate.day == now.day;
-
-    final String daySubtitle = DateFormat('EEEE').format(_selectedDate);
-    final String formattedDate =
-        DateFormat('EEEE, MMMM d').format(_selectedDate);
-
     final List<String> tickLabels = _powerPeriodIndex == 1
         ? const ['Day 1', 'Day 3', 'Day 5', 'Day 7']
         : (_powerPeriodIndex == 2
-            ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
-            : const ['00:00', '08:00', '16:00', '24:00']);
+        ? ['Day 1', 'Day 10', 'Day 20', 'Day $daysInMonth']
+        : const ['00:00', '08:00', '16:00', '24:00']);
 
-    final String formattedDateBanner = _powerPeriodIndex == 1
-        ? '${DateFormat('MMM d').format(_weekStartDate)} - ${DateFormat('MMM d, yyyy').format(_weekStartDate.add(const Duration(days: 6)))}'
-        : (_powerPeriodIndex == 2
-            ? DateFormat('MMMM yyyy').format(_selectedDate)
-            : DateFormat('MMM d, yyyy').format(_selectedDate));
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEDF2F4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _powerPeriodIndex == 1
+                ? 'Duration across the 7-day week'
+                : (_powerPeriodIndex == 2
+                ? 'Duration across the month'
+                : 'Duration across the 24-hour day'),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF8C98A4),
+            ),
+          ),
+          const SizedBox(height: 8),
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          daySubtitle,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF8C98A4),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          formattedDate,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1E293B),
-            letterSpacing: -0.3,
-          ),
-        ),
-        const SizedBox(height: 14),
-        _buildPillToggle(
-          labels: const ['Daily', 'Weekly', 'Monthly'],
-          selected: _powerPeriodIndex,
-          onChanged: (i) {
-            setState(() => _powerPeriodIndex = i);
-            _fetchAllData();
-          },
-        ),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEDF2F4)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x04000000),
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              InkWell(
-                onTap: _goToPrevDay,
-                borderRadius: BorderRadius.circular(8),
-                child: const Padding(
-                  padding: EdgeInsets.all(6.0),
-                  child: Icon(Icons.chevron_left,
-                      size: 20, color: Color(0xFF64748B)),
-                ),
-              ),
-              InkWell(
-                onTap: _pickMonth,
-                child: Text(
-                  formattedDateBanner,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-              ),
-              InkWell(
-                onTap: _isFuture(_selectedDate.add(const Duration(days: 1)))
-                    ? null
-                    : _goToNextDay,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(6.0),
-                  child: Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: _isFuture(_selectedDate.add(const Duration(days: 1)))
-                        ? const Color(0xFFCBD5E1)
-                        : const Color(0xFF64748B),
-                  ),
-                ),
-              ),
-            ],
+            children: tickLabels
+                .map((t) => Text(t, style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8))))
+                .toList(),
           ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFEDF2F4)),
+          const SizedBox(height: 10),
+
+          _buildDurationRowBar(
+            ratio: motorRatio,
+            label: '$activeMotorName run time  ${_formatTime(motorRunTime)} HH:MM',
+            fillColor: const Color(0xFF22C55E),
+            trackColor: const Color(0xFFE2E8F0), textColor: Colors.black,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _powerPeriodIndex == 1
-                    ? 'Duration across the 7-day week'
-                    : (_powerPeriodIndex == 2
-                        ? 'Duration across the month'
-                        : 'Duration across the 24-hour day'),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF8C98A4),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: tickLabels
-                    .map((t) => Text(t,
-                        style: const TextStyle(
-                            fontSize: 10, color: Color(0xFF94A3B8))))
-                    .toList(),
-              ),
-              const SizedBox(height: 10),
-              _buildDurationRowBar(
-                ratio: motorRatio,
-                label:
-                    '$activeMotorName run time  ${_formatTime(motorRunTime)} HH:MM',
-                fillColor: const Color(0xFF22C55E),
-                trackColor: const Color(0xFFE2E8F0),
-                textColor: Colors.black,
-              ),
-              const SizedBox(height: 8),
-              _buildDurationRowBar(
-                ratio: totalPowerRatio,
-                label:
-                    'Total Power On Time  ${_formatTime(totalPowerOnTime)} HH:MM',
-                fillColor: const Color(0xFF2563EB),
-                trackColor: const Color(0xFFE2E8F0),
-                textColor: Colors.black,
-              ),
-              const SizedBox(height: 8),
-              _buildFullColorBar(
-                label:
-                    'Total power off Time· ${_formatTime(totalPowerOffTime)} HH:MM',
-                bgColor: const Color(0xFFFFECEE),
-                textColor: const Color(0xFFDC2626),
-              ),
-            ],
+          const SizedBox(height: 8),
+
+          _buildDurationRowBar(
+            ratio: totalPowerRatio,
+            label: 'Total power On Time  ${_formatTime(totalPowerOnTime)} HH:MM',
+            fillColor: const Color(0xFF2563EB),
+            trackColor: const Color(0xFFE2E8F0),
+            textColor: Colors.black,
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+
+          _buildFullColorBar(
+            label: 'Total power Off Time· ${_formatTime(totalPowerOffTime)} HH:MM',
+            bgColor: const Color(0xFFFFECEE),
+            textColor: const Color(0xFFDC2626),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1578,13 +1474,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   // ---------------------------------------------------------------------------
   // CENTER COLUMN: Metrics Grid
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // CENTER COLUMN: Metrics Grid
+  // ---------------------------------------------------------------------------
   Widget _buildNewPowerGraphCenter({
     required MotorDataHourly? motorData,
     required String totalFlow,
     required String motorRunTime,
   }) {
-    String clean(String? v) =>
-        (v != null && v != "-" && v.isNotEmpty) ? v : "0.0";
+    String clean(String? v) => (v != null && v != "-" && v.isNotEmpty) ? v : "0.0";
 
     final flow = _resolveFlowRate(
       liveFlowRate: motorData?.flowRate,
@@ -1592,9 +1490,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       motorRunTime: motorRunTime,
     );
 
-    final String flowVal =
-        (totalFlow.isNotEmpty && totalFlow != '-') ? totalFlow : "0";
+    final String flowVal = (totalFlow.isNotEmpty && totalFlow != '-') ? totalFlow : "0";
     final bool hasNoFlowToday = _toSeconds(motorRunTime) == 0 || flowVal == "0";
+
+    final bool pressureActive = isPressureAvailable(motorData);
+    final bool flowActive = isFlowAvailable(motorData, totalFlow);
+    final bool levelActive = isLevelAvailable(motorData);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1606,6 +1507,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 title: 'Pressure',
                 value: clean(motorData?.pressure),
                 unit: 'bar',
+                isAvailable: pressureActive,
+                inactiveHintText: 'No pressure sensor added',
+                sensorName: pressureSensorName,
               ),
             ),
             const SizedBox(width: 10),
@@ -1614,6 +1518,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 title: flow.isAverage ? 'Avg flow rate' : 'Flow rate',
                 value: flow.value,
                 unit: 'Lps',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
             const SizedBox(width: 10),
@@ -1622,11 +1529,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 title: 'Level',
                 value: clean(motorData?.level),
                 unit: 'feet',
+                isAvailable: levelActive,
+                inactiveHintText: 'No level sensor added',
+                sensorName: levelSensorName,
               ),
             ),
           ],
         ),
         const SizedBox(height: 12),
+
         Row(
           children: [
             Expanded(
@@ -1634,18 +1545,22 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 title: 'Cumulative flow',
                 value: motorData?.overAllCumulativeFlow ?? "0",
                 unit: 'Litres',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: _buildFlowTile(
                 title: _powerPeriodIndex == 1
-                    ? 'Total flow this week'
-                    : (_powerPeriodIndex == 2
-                        ? 'Total flow this month'
-                        : 'Total flow today'),
+                    ? 'Weekly total flow '
+                    : (_powerPeriodIndex == 2 ? 'Monthly total flow ' : 'Today total flow '),
                 value: flowVal,
                 unit: 'Litres',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
           ],
@@ -1658,20 +1573,25 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     required String title,
     required String value,
     required String unit,
+    bool isAvailable = true,
+    String? inactiveHintText,
+    String? sensorName,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isAvailable ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDF2F4)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: isAvailable ? const Color(0xFFEDF2F4) : const Color(0xFFE2E8F0)),
+        boxShadow: isAvailable
+            ? const [
+                BoxShadow(
+                  color: Color(0x04000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1680,35 +1600,61 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 11,
-                color: Color(0xFF8C98A4),
-                fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 11,
+              color: isAvailable ? const Color(0xFF8C98A4) : const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w500,
+            ),
           ),
+          if (sensorName != null && sensorName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              sensorName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: isAvailable ? const Color(0xFF006775) : const Color(0xFF94A3B8),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+          if (isAvailable)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
+                const SizedBox(width: 4),
+                Text(
+                  unit,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
+              ],
+            )
+          else
+            Text(
+              inactiveHintText ?? 'Not added',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -1719,73 +1665,112 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     required String value,
     required String unit,
     String? badgeText,
+    bool isAvailable = true,
+    String? inactiveHintText,
+    String? sensorName,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isAvailable ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDF2F4)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: isAvailable ? const Color(0xFFEDF2F4) : const Color(0xFFE2E8F0)),
+        boxShadow: isAvailable
+            ? const [
+                BoxShadow(
+                  color: Color(0x04000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.water_drop_outlined,
-                  size: 14, color: Color(0xFF64748B)),
+              Icon(
+                Icons.water_drop_outlined,
+                size: 14,
+                color: isAvailable ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isAvailable ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (sensorName != null && sensorName.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        sensorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isAvailable ? const Color(0xFF006775) : const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          if (isAvailable)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Flexible(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  unit,
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF64748B),
+                    fontSize: 12,
                     fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
                   ),
                 ),
+              ],
+            )
+          else
+            Text(
+              inactiveHintText ?? 'Not added',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
               ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                unit,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (badgeText != null)
+            ),
+          if (isAvailable && badgeText != null) ...[
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
@@ -1800,9 +1785,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                   color: Color(0xFFDC2626),
                 ),
               ),
-            )
-          else
-            const SizedBox(height: 20),
+            ),
+          ],
         ],
       ),
     );
@@ -1831,9 +1815,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
 
     final int totalPowerSec = _toSeconds(totalPowerOnTime);
     final int sumCategorySec = runSec + idleSec + drySec + cyclicSec + otherSec;
-    final int denominator = totalPowerSec > 0
-        ? totalPowerSec
-        : (sumCategorySec > 0 ? sumCategorySec : 1);
+    final int denominator = totalPowerSec > 0 ? totalPowerSec : (sumCategorySec > 0 ? sumCategorySec : 1);
 
     const colorRun = Color(0xFF22C55E); // Green
     const colorIdle = Color(0xFFF59E0B); // Orange / Amber
@@ -1864,8 +1846,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             ),
             if (segments.length > 1)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
@@ -1874,18 +1855,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<int>(
                     isDense: true,
-                    value: segments.containsKey(activeKey)
-                        ? activeKey
-                        : segments.keys.first,
-                    icon: const Icon(Icons.keyboard_arrow_down,
-                        size: 16, color: Color(0xFF64748B)),
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1E293B)),
+                    value: segments.containsKey(activeKey) ? activeKey : segments.keys.first,
+                    icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF64748B)),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
                     items: segments.entries
-                        .map((e) => DropdownMenuItem<int>(
-                            value: e.key, child: Text(e.value)))
+                        .map((e) => DropdownMenuItem<int>(value: e.key, child: Text(e.value)))
                         .toList(),
                     onChanged: (val) {
                       if (val != null) _onMotorChanged(provider, val);
@@ -1896,14 +1870,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             else
               Text(
                 activeMotorName,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B)),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
               ),
           ],
         ),
         const SizedBox(height: 12),
+
         _buildMultiSegmentBar(
           segments: [
             _BarSegment(runSec / denominator, colorRun),
@@ -1913,18 +1885,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             _BarSegment(otherSec / denominator, colorOther),
           ],
         ),
-        const SizedBox(height: 10),
-        _buildBreakdownListItem(
-            'Motor run time', '${_formatTime(runTime)}  HH:MM', colorRun),
-        _buildBreakdownListItem(
-            'Motor idle time', '${_formatTime(idleTime)}  HH:MM', colorIdle),
-        _buildBreakdownListItem(
-            'Dry run trip time', '${_formatTime(dryRunTime)}  HH:MM', colorDry),
-        _buildBreakdownListItem('Cyclic trip time',
-            '${_formatTime(cyclicTime)}  HH:MM', colorCyclic),
-        _buildBreakdownListItem(
-            'Other trip time', '${_formatTime(otherTime)}  HH:MM', colorOther,
-            isLast: true),
+
+
+        const SizedBox(height: 14),
+
+        _buildBreakdownListItem('Motor run time', '${_formatTime(runTime)}  HH:MM', colorRun),
+        _buildBreakdownListItem('Motor idle time', '${_formatTime(idleTime)}  HH:MM', colorIdle),
+        _buildBreakdownListItem('Dry run trip time', '${_formatTime(dryRunTime)}  HH:MM', colorDry),
+        _buildBreakdownListItem('Cyclic trip time', '${_formatTime(cyclicTime)}  HH:MM', colorCyclic),
+        _buildBreakdownListItem('Other trip time', '${_formatTime(otherTime)}  HH:MM', colorOther, isLast: true),
       ],
     );
   }
@@ -1957,11 +1926,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   Widget _buildBreakdownListItem(
-    String label,
-    String timeStr,
-    Color dotColor, {
-    bool isLast = false,
-  }) {
+      String label,
+      String timeStr,
+      Color dotColor, {
+        bool isLast = false,
+      }) {
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 12.0),
       child: Row(
@@ -2008,13 +1977,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       events = activeKey == 1
           ? logData.motor2
           : activeKey == 2
-              ? logData.motor3
-              : logData.motor1;
+          ? logData.motor3
+          : logData.motor1;
     }
 
-    final int dryRunTrips = events
-        .where((e) => e.offReason.toLowerCase().contains('dry run'))
-        .length;
+    final int dryRunTrips = events.where((e) => e.offReason.toLowerCase().contains('dry run')).length;
 
     // Total duration calculation for pump events
     Duration totalDuration = Duration.zero;
@@ -2034,35 +2001,31 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
         children: [
           _cardTitle('PUMP LOG'),
           const SizedBox(height: 14),
+
           Row(
             children: [
-              Expanded(
-                  child:
-                      _buildSummaryBox('Entries', '${events.length}', _kInk)),
+              Expanded(child: _buildSummaryBox('Entries', '${events.length}', _kInk)),
               const SizedBox(width: 8),
-              Expanded(
-                  child:
-                      _buildSummaryBox('Dry run trips', '$dryRunTrips', _kRed)),
+              Expanded(child: _buildSummaryBox('Dry run trips', '$dryRunTrips', _kRed)),
               const SizedBox(width: 8),
+
             ],
           ),
           const SizedBox(height: 16),
+
           _buildTimelineBar(events),
           const SizedBox(height: 4),
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('00:00',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-              Text('08:00',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-              Text('16:00',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
-              Text('24:00',
-                  style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('00:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('08:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('16:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
+              Text('24:00', style: TextStyle(fontSize: 10, color: Color(0xFF94A3B8))),
             ],
           ),
           const SizedBox(height: 12),
+
           if (events.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(vertical: 36),
@@ -2075,10 +2038,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                 style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               ),
             )
-          else if (AppConstants.pumpWithValveModelList
-                  .contains(widget.masterData.modelId) &&
-              !AppConstants.pumpWithLightModelList
-                  .contains(widget.masterData.modelId))
+          else if (AppConstants.pumpWithValveModelList.contains(widget.masterData.modelId) &&
+              !AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId))
             ValveLog(
               events: events,
               masterData: widget.masterData,
@@ -2088,10 +2049,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: events.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(color: Color(0xFFF1F5F9), height: 1),
-              itemBuilder: (context, index) =>
-                  _buildEventItem(events[index], activeMotorName),
+              separatorBuilder: (_, __) => const Divider(color: Color(0xFFF1F5F9), height: 1),
+              itemBuilder: (context, index) => _buildEventItem(events[index], activeMotorName),
             ),
         ],
       ),
@@ -2117,8 +2076,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w600, color: valueColor),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: valueColor),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -2145,10 +2103,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
               double endSec = 0;
 
               final cleanOff = event.offTime.trim();
-              final hasOffTime = cleanOff.isNotEmpty &&
-                  cleanOff != '-' &&
-                  cleanOff != '00:00:00' &&
-                  cleanOff != '0';
+              final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
 
               if (hasOffTime) {
                 endSec = _toSeconds(cleanOff).toDouble();
@@ -2162,8 +2117,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                       _selectedDate.month == now.month &&
                       _selectedDate.day == now.day;
                   if (isToday) {
-                    endSec = (now.hour * 3600 + now.minute * 60 + now.second)
-                        .toDouble();
+                    endSec = (now.hour * 3600 + now.minute * 60 + now.second).toDouble();
                   } else {
                     endSec = startSec + 300;
                   }
@@ -2172,12 +2126,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
 
               if (endSec < startSec) endSec = totalSeconds;
 
-              final left =
-                  (startSec / totalSeconds * totalWidth).clamp(0.0, totalWidth);
-              final width = ((endSec - startSec) / totalSeconds * totalWidth)
-                  .clamp(2.0, totalWidth - left);
-              final isDryRun =
-                  event.offReason.toLowerCase().contains('dry run');
+              final left = (startSec / totalSeconds * totalWidth).clamp(0.0, totalWidth);
+              final width =
+              ((endSec - startSec) / totalSeconds * totalWidth).clamp(2.0, totalWidth - left);
+              final isDryRun = event.offReason.toLowerCase().contains('dry run');
 
               return Positioned(
                 left: left,
@@ -2191,9 +2143,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                   ),
                   child: isDryRun
                       ? Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(width: 2, color: _kRed),
-                        )
+                    alignment: Alignment.centerRight,
+                    child: Container(width: 2, color: _kRed),
+                  )
                       : null,
                 ),
               );
@@ -2218,20 +2170,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       if (reason.isEmpty) return reason;
       String formatted = reason;
       if (!motorName.toLowerCase().startsWith("motor")) {
-        formatted = formatted.replaceAll(
-            RegExp(r'motor[1-3]?', caseSensitive: false), motorName);
+        formatted = formatted.replaceAll(RegExp(r'motor[1-3]?', caseSensitive: false), motorName);
       }
       return Constants.capitalizeFirstLetter(formatted);
     }
 
     final cleanOff = event.offTime.trim();
-    final hasOffTime = cleanOff.isNotEmpty &&
-        cleanOff != '-' &&
-        cleanOff != '00:00:00' &&
-        cleanOff != '0';
+    final hasOffTime = cleanOff.isNotEmpty && cleanOff != '-' && cleanOff != '00:00:00' && cleanOff != '0';
     final hasOnReason = event.onReason.trim().isNotEmpty;
-    final hasOffReason =
-        event.offReason.trim().isNotEmpty && event.offReason.trim() != '-';
+    final hasOffReason = event.offReason.trim().isNotEmpty && event.offReason.trim() != '-';
     final isRunningNow = !hasOffTime && !hasOffReason;
 
     return Padding(
@@ -2246,34 +2193,25 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
               children: [
                 Text(
                   event.onTime,
-                  style: const TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.bold, color: _kTeal),
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _kTeal),
                 ),
                 if (hasOffTime) ...[
-                  const Text('to',
-                      style: TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
+                  const Text('to', style: TextStyle(fontSize: 9, color: Color(0xFF94A3B8))),
                   Text(
                     event.offTime,
-                    style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: _kTeal),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _kTeal),
                   ),
                 ] else if (isRunningNow) ...[
                   const SizedBox(height: 2),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
                       color: const Color(0xFFDCFCE7),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       'RUNNING',
-                      style: TextStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
-                          color: _kGreen),
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: _kGreen),
                     ),
                   ),
                 ],
@@ -2316,14 +2254,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
                   ),
                 if (hasOnReason || hasOffReason) const SizedBox(height: 4),
                 Text(
-                  isRunningNow
-                      ? 'Duration: Running...'
-                      : 'Duration: ${event.duration}',
+                  isRunningNow ? 'Duration: Running...' : 'Duration: ${event.duration}',
                   style: TextStyle(
                     fontSize: 11,
                     color: isRunningNow ? _kGreen : _kMuted,
-                    fontWeight:
-                        isRunningNow ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isRunningNow ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -2338,15 +2273,14 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   // CARD 3: VOLTAGE LOG
   // ==========================================
   SplineSeries<Map<String, dynamic>, num> _voltageSeries(
-    List<Map<String, dynamic>> data,
-    String key,
-    String name,
-    Color color,
-  ) {
+      List<Map<String, dynamic>> data,
+      String key,
+      String name,
+      Color color,
+      ) {
     return SplineSeries<Map<String, dynamic>, num>(
       dataSource: data,
-      xValueMapper: (d, i) =>
-          PumpControllerProvider.parseReading(d['hour']) ?? i.toDouble(),
+      xValueMapper: (d, i) => PumpControllerProvider.parseReading(d['hour']) ?? i.toDouble(),
       // null (not 0) for a missing reading -> the line breaks instead of dropping to zero
       yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]),
       name: name,
@@ -2354,8 +2288,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
       width: 2,
       // monotonic spline never overshoots the real readings (no fake dips below 0 A)
       splineType: SplineType.monotonic,
-      markerSettings:
-          const MarkerSettings(isVisible: true, height: 4, width: 4),
+      markerSettings: const MarkerSettings(isVisible: true, height: 4, width: 4),
       emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
       // a 15 s refresh must not replay the draw animation every time
       animationDuration: 0,
@@ -2366,10 +2299,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   /// Voltage: zoomed to the readings (a 0-based axis flattens 390-420 V into a straight line).
   /// Current: starts at 0 and tops out just above the highest reading.
   ({double min, double max}) _voltageAxisRange(
-    List<Map<String, dynamic>> data,
-    List<String> keys,
-    bool isVoltage,
-  ) {
+      List<Map<String, dynamic>> data,
+      List<String> keys,
+      bool isVoltage,
+      ) {
     double? lo;
     double? hi;
     for (final row in data) {
@@ -2396,26 +2329,20 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   Widget _buildVoltageLogCard(PumpControllerProvider provider) {
-    final List<Map<String, dynamic>> voltageData =
-        List.from(provider.voltageData)
-          ..sort((a, b) {
-            final aHour = int.tryParse('${a['hour']}') ?? 0;
-            final bHour = int.tryParse('${b['hour']}') ?? 0;
-            return aHour.compareTo(bHour);
-          });
+    final List<Map<String, dynamic>> voltageData = List.from(provider.voltageData)
+      ..sort((a, b) {
+        final aHour = int.tryParse('${a['hour']}') ?? 0;
+        final bHour = int.tryParse('${b['hour']}') ?? 0;
+        return aHour.compareTo(bHour);
+      });
 
-    final bool hasEnergyData =
-        voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
+    final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
 
     final List<String> toggleLabels = hasEnergyData
-        ? const [
-            'Voltage',
-            'Current',
-          ]
+        ? const ['Voltage', 'Current',]
         : const ['Voltage', 'Current'];
 
-    final int safeIndex =
-        _voltageMetricIndex < toggleLabels.length ? _voltageMetricIndex : 0;
+    final int safeIndex = _voltageMetricIndex < toggleLabels.length ? _voltageMetricIndex : 0;
 
     bool showR = true;
     bool showY = true;
@@ -2427,10 +2354,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
         showY = false;
         showB = true;
       } else if (safeIndex == 1) {
-        final hasCurrentB = voltageData
-            .any((d) => (double.tryParse('${d['currentB']}') ?? 0) > 0);
-        final hasCurrentR = voltageData
-            .any((d) => (double.tryParse('${d['currentR']}') ?? 0) > 0);
+        final hasCurrentB = voltageData.any((d) => (double.tryParse('${d['currentB']}') ?? 0) > 0);
+        final hasCurrentR = voltageData.any((d) => (double.tryParse('${d['currentR']}') ?? 0) > 0);
         if (hasCurrentB && !hasCurrentR) {
           showR = false;
           showY = false;
@@ -2450,28 +2375,27 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
     final String prefix = safeIndex == 0
         ? 'voltage'
         : (safeIndex == 1
-            ? 'current'
-            : (safeIndex == 2 ? 'powerFactor' : 'power'));
+        ? 'current'
+        : (safeIndex == 2 ? 'powerFactor' : 'power'));
 
     final String label = safeIndex == 0
         ? 'Voltage'
         : (safeIndex == 1
-            ? 'Current'
-            : (safeIndex == 2 ? 'Power Factor' : 'Power'));
+        ? 'Current'
+        : (safeIndex == 2 ? 'Power Factor' : 'Power'));
 
     final String yUnitFormat = safeIndex == 0
         ? '{value}V'
         : (safeIndex == 1
-            ? '{value}A'
-            : (safeIndex == 2 ? '{value}' : '{value}kW'));
+        ? '{value}A'
+        : (safeIndex == 2 ? '{value}' : '{value}kW'));
 
     final List<String> plottedKeys = [
       if (showR) '${prefix}R',
       if (showY) '${prefix}Y',
       if (showB) '${prefix}B',
     ];
-    final axisRange =
-        _voltageAxisRange(voltageData, plottedKeys, safeIndex == 0);
+    final axisRange = _voltageAxisRange(voltageData, plottedKeys, safeIndex == 0);
     final String unit = safeIndex == 0 ? ' V' : (safeIndex == 1 ? ' A' : '');
 
     return _card(
@@ -2491,77 +2415,67 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
             ],
           ),
           const SizedBox(height: 14),
+
           Center(
             child: Text(
               '$label Graph',
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500, color: _kInk),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _kInk),
             ),
           ),
           const SizedBox(height: 4),
+
           SizedBox(
             height: 230,
             child: voltageData.isEmpty
                 ? Center(
-                    child: Text(
-                      provider.voltageMessage.isNotEmpty
-                          ? provider.voltageMessage
-                          : 'No voltage/current data recorded for this date.',
-                      style: const TextStyle(
-                          color: Color(0xFF94A3B8), fontSize: 13),
-                    ),
-                  )
+              child: Text(
+                provider.voltageMessage.isNotEmpty
+                    ? provider.voltageMessage
+                    : 'No voltage/current data recorded for this date.',
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              ),
+            )
                 : SfCartesianChart(
-                    key: ValueKey(
-                        'voltage_chart_${provider.selectedDate}_${voltageData.length}_$safeIndex'),
-                    margin: EdgeInsets.zero,
-                    primaryXAxis: const NumericAxis(
-                      minimum: 0,
-                      maximum: 23,
-                      interval: 2,
-                      labelFormat: 'Hour {value}',
-                      labelRotation: -45,
-                      labelStyle:
-                          TextStyle(fontSize: 9, color: Color(0xFF64748B)),
-                      majorGridLines:
-                          MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
-                    ),
-                    primaryYAxis: NumericAxis(
-                      minimum: axisRange.min,
-                      maximum: axisRange.max,
-                      labelFormat: yUnitFormat,
-                      labelStyle: const TextStyle(
-                          fontSize: 9, color: Color(0xFF64748B)),
-                      majorGridLines: const MajorGridLines(
-                          width: 0.4, color: Color(0xFFE2E8F0)),
-                    ),
-                    legend: const Legend(
-                      isVisible: true,
-                      position: LegendPosition.bottom,
-                      overflowMode: LegendItemOverflowMode.wrap,
-                      textStyle:
-                          TextStyle(fontSize: 11, color: Color(0xFF334155)),
-                    ),
-                    tooltipBehavior: TooltipBehavior(
-                      enable: true,
-                      format: 'series.name\nHour point.x : point.y$unit',
-                    ),
-                    series: <CartesianSeries<Map<String, dynamic>, num>>[
-                      if (showR)
-                        _voltageSeries(
-                            voltageData, '${prefix}R', '$label R', _kRed),
-                      if (showY)
-                        _voltageSeries(voltageData, '${prefix}Y', '$label Y',
-                            const Color(0xFFF9A825)),
-                      if (showB)
-                        _voltageSeries(voltageData, '${prefix}B', '$label B',
-                            const Color(0xFF1E88E5)),
-                    ],
-                  ),
+              key: ValueKey('voltage_chart_${provider.selectedDate}_${voltageData.length}_$safeIndex'),
+              margin: EdgeInsets.zero,
+              primaryXAxis: const NumericAxis(
+                minimum: 0,
+                maximum: 23,
+                interval: 2,
+                labelFormat: 'Hour {value}',
+                labelRotation: -45,
+                labelStyle: TextStyle(fontSize: 9, color: Color(0xFF64748B)),
+                majorGridLines: MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
+              ),
+              primaryYAxis: NumericAxis(
+                minimum: axisRange.min,
+                maximum: axisRange.max,
+                labelFormat: yUnitFormat,
+                labelStyle: const TextStyle(fontSize: 9, color: Color(0xFF64748B)),
+                majorGridLines: const MajorGridLines(width: 0.4, color: Color(0xFFE2E8F0)),
+              ),
+              legend: const Legend(
+                isVisible: true,
+                position: LegendPosition.bottom,
+                overflowMode: LegendItemOverflowMode.wrap,
+                textStyle: TextStyle(fontSize: 11, color: Color(0xFF334155)),
+              ),
+              tooltipBehavior: TooltipBehavior(
+                enable: true,
+                format: 'series.name\nHour point.x : point.y$unit',
+              ),
+              series: <CartesianSeries<Map<String, dynamic>, num>>[
+                if (showR) _voltageSeries(voltageData, '${prefix}R', '$label R', _kRed),
+                if (showY)
+                  _voltageSeries(voltageData, '${prefix}Y', '$label Y', const Color(0xFFF9A825)),
+                if (showB)
+                  _voltageSeries(voltageData, '${prefix}B', '$label B', const Color(0xFF1E88E5)),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          if (voltageData.isNotEmpty)
-            _buildVoltageTable(voltageData, showR, showY, showB),
+
+          if (voltageData.isNotEmpty) _buildVoltageTable(voltageData, showR, showY, showB),
         ],
       ),
     );
@@ -2573,20 +2487,18 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
   }
 
   Widget _buildVoltageTable(
-    List<Map<String, dynamic>> voltageData,
-    bool showR,
-    bool showY,
-    bool showB,
-  ) {
-    final bool hasEnergyData =
-        voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
-    final int safeIndex =
-        _voltageMetricIndex < (hasEnergyData ? 4 : 2) ? _voltageMetricIndex : 0;
+      List<Map<String, dynamic>> voltageData,
+      bool showR,
+      bool showY,
+      bool showB,
+      ) {
+    final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
+    final int safeIndex = _voltageMetricIndex < (hasEnergyData ? 4 : 2) ? _voltageMetricIndex : 0;
     final String prefix = safeIndex == 0
         ? 'voltage'
         : (safeIndex == 1
-            ? 'current'
-            : (safeIndex == 2 ? 'powerFactor' : 'power'));
+        ? 'current'
+        : (safeIndex == 2 ? 'powerFactor' : 'power'));
 
     Widget headerCell(String text, Color color, int flex) {
       return Expanded(
@@ -2596,8 +2508,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
           color: color,
           child: Text(
             text,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: _kInk),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kInk),
           ),
         ),
       );
@@ -2608,8 +2519,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen>
         flex: flex,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
-          child: Text(text,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+          child: Text(text, style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
         ),
       );
     }
