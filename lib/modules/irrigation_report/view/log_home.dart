@@ -1,8 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'dart:ui';
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_date_range_picker/flutter_date_range_picker.dart';
@@ -15,37 +13,21 @@ import 'package:oro_drip_irrigation/modules/irrigation_report/view/reason_lookup
 import 'package:oro_drip_irrigation/modules/irrigation_report/view/scrollingTable.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'dart:html' as html;
 // import 'package:excel/excel.dart';
 // import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'dart:html' as html;
-import 'dart:async';
-import '../model/data_parsing_and_sorting_model.dart';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
 import '../repository/irrigation_repository.dart';
 import 'package:oro_drip_irrigation/Screens/Logs/sensor_graph_log.dart';
-import '../../../models/customer/site_model.dart';
-import '../../../services/mqtt_service.dart';
-import '../../../utils/environment.dart';
-import '../../../utils/constants.dart';
-import 'package:provider/provider.dart';
-import '../../../StateManagement/customer_provider.dart';
 
 class LogHome extends StatefulWidget {
   final dynamic serverData;
   final List<dynamic> nameData;
   final Map<String, dynamic> userData;
-  final MasterControllerModel? masterData;
-  const LogHome({
-    super.key,
-    required this.serverData,
-    required this.userData,
-    required this.nameData,
-    this.masterData,
-  });
+  const LogHome({super.key,required this.serverData, required this.userData, required this.nameData});
   @override
   State<LogHome> createState() => _LogHomeState();
 }
@@ -56,17 +38,12 @@ class _LogHomeState extends State<LogHome> {
   int selectedPages = 1;
   final ScrollController _scrollController = ScrollController();
   dynamic dataSource = [];
-  List<dynamic> _localNameData = [];
-  List<dynamic> _filterSiteData = [];
   int _selectedIndex = 0;
-  List<List<dynamic>> _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
+  final List<List<dynamic>> _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
   bool graphMode = false;
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
-  ScrollController _graphController = ScrollController();
-  StreamSubscription? _rawScheduleSubscription;
-  bool isLiveSyncing = false;
-  bool isLiveLoaded = false;
+  final ScrollController _graphController = ScrollController();
   late LinkedScrollControllerGroup _scrollable1;
   late ScrollController _verticalScroll1;
   late ScrollController _verticalScroll2;
@@ -91,25 +68,118 @@ class _LogHomeState extends State<LogHome> {
     'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
-    'CentralFilterSite','LocalFilterSite','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
+    'CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
   ];
 
   int httpError = 0;
 
   Map<String,dynamic> dataToShow = {};
-  dynamic IrrigationLogParameterFromServer = {};
+  dynamic IrrigationLogParameterFromServer = {
+    'general' : {
+      'ProgramName' : ['Program',true,1],
+      'Status' : ['Status',true,1],
+      'ZoneS_No' : ['Sequence',true,1],
+      'SequenceData' : ['Valves',true,1],
+      // 'ZoneName' : ['Sequence',true,1],
+      'Date' : ['Date',true,1],
+      'ProgramCategoryName' : ['Line',true,1],
+      'ActualStartTime' : ['Actual Start Time',true,1],
+      'ActualEndTime' : ['Actual End Time',true,1],
+      'ActualStartReason' : ['Actual Start Reason',true,1],
+      'ActualStopReason' : ['Actual Stop Reason',true,1],
+      'Pump' : ['Pump',true,1],
+      'ScheduledStartTime' : ['Start Time',false,1],
+      'overAll' : ['over all',true,1],
+    },
+    'irrigation' : {
+      'IrrigationMethod' : ['Method',true,2],
+      'IrrigationDuration_Quantity' : ['Planned',true,2],
+      'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
+      'overAll' : ['over all',true,1]
+    },
+    // 'filter' : {
+    //   'CentralFilterName' : ['Central Filter',true,2],
+    //   'LocalFilterName' : ['Local Filter',true,2],
+    //   'overAll' : ['over all',true,1]
+    // },
+    'prePost' : {
+      'PrePostMethod' : ['Method',true,2],
+      'Pretime/PreQty' : ['Pre',true,2],
+      'PostTime/PostQty' : ['Post',true,2],
+      'overAll' : ['over all',true,1]
+    },
+    'centralEcPh' : {
+      'CentralPhSetValue' : ['Central Ph Avg',true,3],
+      'CentralEcSetValue' : ['Central Ec Avg',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH1>' : {
+      'CentralFertChannelName' : ['Channel1 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH2>' : {
+      'CentralFertChannelName' : ['Channel2 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH3>' : {
+      'CentralFertChannelName' : ['Channel3 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH4>' : {
+      'CentralFertChannelName' : ['Channel4 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH5>' : {
+      'CentralFertChannelName' : ['Channel5 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH6>' : {
+      'CentralFertChannelName' : ['Channel6 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH7>' : {
+      'CentralFertChannelName' : ['Channel7 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+    '<C - CH8>' : {
+      'CentralFertChannelName' : ['Channel8 Name',true,3],
+      'CentralFertMethod' : ['Method',true,3],
+      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
+      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
+      'overAll' : ['over all',true,1]
+    },
+  };
   IrrigationLogModel irrigationParameterArray = IrrigationLogModel();
   IrrigationLogModel irrigationParameterArrayDuplicate = IrrigationLogModel();
   String _selectedDate = '';
   String _dateCount = '';
-  String _range = '';
+  final String _range = '';
   String _rangeCount = '';
 
   @override
   void initState() {
     // TODO: implement initState
-    _localNameData = List.from(widget.nameData);
-    _fetchConfigObjects();
     if (kDebugMode) {
       print('parameters => $parameters');
     }
@@ -127,9 +197,7 @@ class _LogHomeState extends State<LogHome> {
         dateDuplicate = [];
         status = [];
         statusDuplicate = [];
-        IrrigationLogParameterFromServer = mergeDefaultLogParameters(
-            widget.serverData['irrigationLog'] ?? widget.serverData['default'] ?? widget.serverData,
-            widget.serverData['default']);
+        IrrigationLogParameterFromServer = mergeDefaultLogParameters(widget.serverData['irrigationLog']);
         for(var globalParameter in IrrigationLogParameterFromServer.keys){
           for(var localParameter in IrrigationLogParameterFromServer[globalParameter].keys){
             var data = IrrigationLogParameterFromServer[globalParameter][localParameter];
@@ -149,12 +217,6 @@ class _LogHomeState extends State<LogHome> {
       }
     });
 
-    _rawScheduleSubscription = MqttService().rawSchedulePayloadStream.listen((rawPayload) {
-      if (rawPayload != null && mounted && isLiveSyncing) {
-        _mergeLivePayload(rawPayload);
-      }
-    });
-
     _scrollable1 = LinkedScrollControllerGroup();
     _verticalScroll1 = _scrollable1.addAndGet();
     _verticalScroll2 = _scrollable1.addAndGet();
@@ -162,133 +224,6 @@ class _LogHomeState extends State<LogHome> {
     _horizontalScroll1 = _scrollable2.addAndGet();
     _horizontalScroll2 = _scrollable2.addAndGet();
     super.initState();
-  }
-
-  @override
-  void dispose() {
-    _rawScheduleSubscription?.cancel();
-    _scrollController.dispose();
-    _graphController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _fetchConfigObjects() async {
-    try {
-      var body = {
-        'userId': widget.userData['customerId'],
-        'controllerId': widget.userData['controllerId'],
-      };
-      var configResponse = await IrrigationRepository().getUserNames(body);
-      Map<String, dynamic> configJsonData = jsonDecode(configResponse.body);
-      if (configJsonData['code'] == 200 && configJsonData['data'] != null) {
-        if (mounted) {
-          setState(() {
-            if (configJsonData['data']['configObject'] != null) {
-              _localNameData = configJsonData['data']['configObject'];
-              irrigationParameterArray.editName(_localNameData);
-              irrigationParameterArrayDuplicate.editName(_localNameData);
-            }
-            if (configJsonData['data']['filterSite'] != null) {
-              _filterSiteData = configJsonData['data']['filterSite'];
-              irrigationParameterArray.editFilterSite(_filterSiteData);
-              irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
-            }
-          });
-          if (dataSource != null && dataSource.isNotEmpty) {
-            _reprocessAndFilterData();
-          }
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  bool get hasConfiguredSensors {
-    final sensorObjectIds = <int>{
-      AppConstants.moistureObjectId,          // 25
-      AppConstants.pressureSensorObjectId,    // 24
-      AppConstants.levelObjectId,             // 26
-      AppConstants.ecObjectId,                // 27
-      AppConstants.phObjectId,                // 28
-      AppConstants.temperatureObjectId,       // 29
-      AppConstants.soilTemperatureObjectId,   // 30
-      AppConstants.waterMeterObjectId,        // 22
-      AppConstants.analogWaterMeterObjectId,  // 46
-      AppConstants.humidityObjectId,          // 36
-      AppConstants.co2ObjectId,               // 33
-      AppConstants.windDirectionObjectId,     // 31
-      AppConstants.windSpeedObjectId,         // 32
-      AppConstants.luxObjectId,               // 34
-      AppConstants.ldrObjectId,               // 35
-      AppConstants.leafWetnessObjectId,       // 37
-      AppConstants.rainFallObjectId,          // 38
-      AppConstants.atmosphericPressureObjectId, // 39
-      AppConstants.pressureSwitchObjectId,    // 23
-    };
-
-    final namesToCheck = _localNameData.isNotEmpty ? _localNameData : widget.nameData;
-    if (namesToCheck.isNotEmpty) {
-      for (var item in namesToCheck) {
-        if (item is Map) {
-          final rawId = item['objectId'];
-          final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
-          if (id != null && sensorObjectIds.contains(id)) {
-            return true;
-          }
-          final objectName = (item['objectName'] ?? '').toString().toLowerCase();
-          final name = (item['name'] ?? '').toString().toLowerCase();
-          if (objectName.contains('sensor') ||
-              objectName.contains('moisture') ||
-              objectName.contains('pressure') ||
-              objectName.contains('level') ||
-              objectName.contains('ec') ||
-              objectName.contains('ph') ||
-              objectName.contains('temp') ||
-              objectName.contains('humidity') ||
-              objectName.contains('water meter') ||
-              name.contains('sensor') ||
-              name.contains('moisture') ||
-              name.contains('pressure')) {
-            return true;
-          }
-        }
-      }
-    }
-
-    if (widget.masterData?.configObjects != null &&
-        widget.masterData!.configObjects.isNotEmpty) {
-      for (var obj in widget.masterData!.configObjects) {
-        if (sensorObjectIds.contains(obj.objectId)) {
-          return true;
-        }
-        final objectName = obj.objectName.toLowerCase();
-        final name = obj.name.toLowerCase();
-        if (objectName.contains('sensor') ||
-            objectName.contains('moisture') ||
-            objectName.contains('pressure') ||
-            objectName.contains('level') ||
-            objectName.contains('ec') ||
-            objectName.contains('ph') ||
-            objectName.contains('temp') ||
-            objectName.contains('humidity') ||
-            objectName.contains('water meter') ||
-            name.contains('sensor') ||
-            name.contains('moisture') ||
-            name.contains('pressure')) {
-          return true;
-        }
-      }
-    }
-
-    if (widget.masterData?.ecSensors != null && widget.masterData!.ecSensors.isNotEmpty) {
-      return true;
-    }
-    if (widget.masterData?.phSensors != null && widget.masterData!.phSensors.isNotEmpty) {
-      return true;
-    }
-
-    return false;
   }
 
   // void didChangeDependencies() {
@@ -323,50 +258,30 @@ class _LogHomeState extends State<LogHome> {
     );
   }
 
-  Future<void> getData() async {
+  void getData()async{
     loadingDialog();
     DateTime now = DateTime.now();
     String formattedDate = DateFormat('dd/MM/yyyy').format(now);
     _selectedDate = _selectedDate == '' ? '$formattedDate - $formattedDate' : _selectedDate;
-    String dateString1;
-    String dateString2;
-    if (_selectedDate.contains(' - ')) {
-      final parts = _selectedDate.split(' - ');
-      dateString1 = parts[0].trim();
-      dateString2 = parts[1].trim();
-    } else {
-      dateString1 = _selectedDate.trim();
-      dateString2 = _selectedDate.trim();
-    }
+    String dateString1 = _selectedDate.split(' - ')[0];
+    String dateString2 = _selectedDate.split(' - ')[1];
 
-    DateTime date1;
-    DateTime date2;
+    List<String> parts1 = dateString1.split('/');
+    List<String> parts2 = dateString2.split('/');
 
-    if (dateString1.contains('/')) {
-      List<String> parts1 = dateString1.split('/');
-      date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
-    } else {
-      date1 = DateTime.tryParse(dateString1) ?? now;
-    }
-
-    if (dateString2.contains('/')) {
-      List<String> parts2 = dateString2.split('/');
-      date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
-    } else {
-      date2 = DateTime.tryParse(dateString2) ?? now;
-    }
+    // Create DateTime objects
+    DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+    DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
 
     // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
 
     irrigationParameterArray.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArray.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
-    irrigationParameterArray.editFilterSite(_filterSiteData);
+    irrigationParameterArray.editName(widget.nameData);
 
     irrigationParameterArrayDuplicate.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArrayDuplicate.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
-    irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
+    irrigationParameterArrayDuplicate.editName(widget.nameData);
     try{
       String? startMonth = selectedDateRange?.start.month.toString();
 
@@ -386,472 +301,276 @@ class _LogHomeState extends State<LogHome> {
       if(jsonData['code'] == 200){
         setState(() {
           dataSource = jsonData['data'];
-          httpError = 0;
-          isLiveLoaded = false;
+          dataToShow = {};
+          program = [];
+          programDuplicate = [];
+          valve = [];
+          valveDuplicate = [];
+          line = [];
+          lineDuplicate = [];
+          date = [];
+          dateDuplicate = [];
+          status = [];
+          statusDuplicate = [];
         });
-        _reprocessAndFilterData();
+        if(dataSource['log'] != null){
+          for(var data in dataSource['log']){
+            if(data['irrigation'].isNotEmpty){
+              if(data['irrigation']['Date'] != null){
+                //Todo date
+                try{
+                  if(data['irrigation']['Date'] != null){
+                    for(var howManyDate = 0;howManyDate < data['irrigation']['Date'].length;howManyDate++){
+                      if(data['irrigation']['HeadUnit'][howManyDate].contains('2.')){
+                        setState(() {
+                          if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
+                            date.add({
+                              'name' : data['irrigation']['Date'][howManyDate],
+                              'show' : true
+                            });
+                            dateDuplicate.add({
+                              'name' : data['irrigation']['Date'][howManyDate],
+                              'show' : true
+                            });
+                          }
+                        });
+                      }
+                    }
+                  }
+                }catch(e,stackTrace){
+                  log('Error on Date : ${e.toString()}');
+                  print('Stack Trace: $stackTrace');
+                }
+
+                //Todo Status
+                try{
+                  if(data['irrigation']['Status'] != null){
+                    for(var howManyStatus = 0;howManyStatus < data['irrigation']['Status'].length;howManyStatus++){
+                      if(data['irrigation']['HeadUnit'][howManyStatus].contains('2.')){
+                        setState(() {
+                          if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
+                            status.add({
+                              'name' : data['irrigation']['Status'][howManyStatus],
+                              'show' : true
+                            });
+                            statusDuplicate.add({
+                              'name' : data['irrigation']['Status'][howManyStatus],
+                              'show' : true
+                            });
+                          }
+                        });
+                      }
+
+                    }
+                  }
+                }catch(e,stackTrace){
+                  log('Error on Status : ${e.toString()}');
+                  print('Stack Trace: $stackTrace');
+                }
+
+                //Todo ProgramS_No
+                try{
+                  if(data['irrigation']['ProgramS_No'] != null){
+                    for(var howManyProgram = 0;howManyProgram < data['irrigation']['ProgramS_No'].length;howManyProgram++){
+                      if(data['irrigation']['HeadUnit'][howManyProgram].contains('2.')){
+                        setState(() {
+                          if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
+                            program.add({
+                              'name' : data['irrigation']['ProgramS_No'][howManyProgram],
+                              'show' : true,
+                              'programName' : irrigationParameterArray.getProgramName(dataSource['default']['program'], data['irrigation']['ProgramS_No'][howManyProgram])
+                            });
+
+
+                            programDuplicate.add({
+                              'name' : data['irrigation']['ProgramS_No'][howManyProgram],
+                              'show' : true,
+                              'programName' : irrigationParameterArray.getProgramName(dataSource['default']['program'], data['irrigation']['ProgramS_No'][howManyProgram])
+                            });
+                          }
+                        });
+                      }
+
+                    }
+                    print("program : $program");
+                  }
+                }catch(e,stackTrace){
+                  log('Error on ProgramS_No : ${e.toString()}');
+                  print('Stack Trace: $stackTrace');
+                }
+
+                //Todo ProgramCategory  && ProgramCategoryName
+                try{
+                  if(data['irrigation']['ProgramCategory'] != null && data['irrigation']['HeadUnit'] != null){
+                    for(var howManyLine = 0;howManyLine < data['irrigation']['ProgramCategory'].length;howManyLine++){
+                      if(data['irrigation']['HeadUnit'][howManyLine].contains('2.')){
+                        for(var splitLine in data['irrigation']['ProgramCategory'][howManyLine].split('_')){
+                          setState(() {
+                            if (!line.any((element) => element['name'] == splitLine)) {
+                              line.add({
+                                'name' : splitLine,
+                                'show' : true,
+                                'lineName' : data['irrigation']['HeadUnit'][howManyLine].split('_')
+                              });
+                              lineDuplicate.add({
+                                'name' : splitLine,
+                                'show' : true,
+                                'lineName' : data['irrigation']['HeadUnit'][howManyLine].split('_')
+                              });
+                            }
+                          });
+                        }
+                      }
+                    }
+                  }
+                }catch(e,stackTrace){
+                  log('Error on HeadUnit : ${e.toString()}');
+                  print('Stack Trace: $stackTrace');
+                }
+
+                //Todo SequenceData
+                try{
+                  if(data['irrigation']['SequenceData'] != null){
+                    for(var howManyValve =0;howManyValve < data['irrigation']['SequenceData'].length;howManyValve++){
+                      if(data['irrigation']['HeadUnit'][howManyValve].contains('2.')){
+                        for(var splitValve in data['irrigation']['SequenceData'][howManyValve].split('_')){
+                          setState(() {
+                            if(splitValve.contains('13')){
+                              if (!valve.any((element) => element['name'] == splitValve)) {
+                                valve.add({
+                                  'name' : splitValve,
+                                  'show' : true,
+                                });
+                                valveDuplicate.add({
+                                  'name' : splitValve,
+                                  'show' : true,
+                                });
+                              }
+
+                            }
+                          });
+                        }
+                      }
+                    }
+                  }
+                }catch(e,stackTrace){
+                  log('Error on SequenceData : ${e.toString()}');
+                  print('Stack Trace: $stackTrace');
+                }
+              }
+            }
+          }
+          setState(() {
+            if (valve.isNotEmpty) {
+              valve.sort((a, b) {
+                var aParts = a['name'].split('VL.');
+                var bParts = b['name'].split('VL.');
+                if (aParts.length > 1 && bParts.length > 1) {
+                  return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
+                }
+                return 0;
+              });
+
+              valveDuplicate.sort((a, b) {
+                var aParts = a['name'].split('VL.');
+                var bParts = b['name'].split('VL.');
+                if (aParts.length > 1 && bParts.length > 1) {
+                  return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
+                }
+                return 0;
+              });
+            }
+
+            // Check if the line list has elements before splitting and sorting
+            if (line.isNotEmpty) {
+              line.sort((a, b) {
+                var aParts = a['name'].split('.');
+                var bParts = b['name'].split('.');
+                if (aParts.length > 1 && bParts.length > 1) {
+                  return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
+                }
+                return 0;
+              });
+
+              lineDuplicate.sort((a, b) {
+                var aParts = a['name'].split('.');
+                var bParts = b['name'].split('.');
+                if (aParts.length > 1 && bParts.length > 1) {
+                  return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
+                }
+                return 0;
+              });
+            }
+
+            // Check if the program list has elements before sorting
+            if (program.isNotEmpty) {
+              program.sort((a, b) => a['name'].compareTo(b['name']));
+              programDuplicate.sort((a, b) => a['name'].compareTo(b['name']));
+            }
+          });
+
+          setState(() {
+            if(_irrigationOptionWise[0][1] == true){
+              dataToShow = irrigationParameterArray.editDateWise(dataSource, date);
+            }else if(_irrigationOptionWise[1][1] == true){
+              dataToShow = irrigationParameterArray.editProgramWise(dataSource, program);
+            }else if(_irrigationOptionWise[2][1] == true){
+              dataToShow = irrigationParameterArray.editLineWise(dataSource, line);
+            }else if(_irrigationOptionWise[3][1] == true){
+              dataToShow = irrigationParameterArray.editValveWise(dataSource, valve);
+            }else if(_irrigationOptionWise[4][1] == true){
+              dataToShow = irrigationParameterArray.editStatusWise(dataSource, status);
+            }
+
+          });
+          if (kDebugMode) {
+            print('get function completed......');
+          }
+        }
+        setState(() {
+          httpError = 0;
+        });
+        setState(() {
+          totalPages = (dataToShow['fixedColumnData'].length ~/ noOfRowsPerPage);
+          if ((totalPages * noOfRowsPerPage) < dataToShow['fixedColumnData'].length) {
+            totalPages += 1;
+          }
+          selectedPages = 1;
+        });
       }
       Navigator.pop(context);
     }catch(e,stackTrace){
       Navigator.pop(context);
+      if (!mounted) return;
+
       setState(() {
         httpError = 1;
       });
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Error'),
+            content: const Text(
+              'Failed to Fetch Irrigation Log.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+
       if (kDebugMode){
         print('error in log = > ${e.toString()}');
         print('error in log stackTrace= > $stackTrace');
-      }
-    }
-  }
-
-  bool _isValidIndex(dynamic listObj, int index) {
-    if (listObj == null) return true;
-    if (listObj is List) {
-      if (listObj.isEmpty) return true;
-      return index < listObj.length;
-    }
-    return true;
-  }
-
-  void _reprocessAndFilterData() {
-    if (!mounted) return;
-    if (dataSource == null || dataSource is! Map || dataSource['log'] == null) return;
-    setState(() {
-      dataToShow = {};
-      program = [];
-      programDuplicate = [];
-      valve = [];
-      valveDuplicate = [];
-      line = [];
-      lineDuplicate = [];
-      date = [];
-      dateDuplicate = [];
-      status = [];
-      statusDuplicate = [];
-    });
-
-    for (var data in dataSource['log']) {
-      if (data != null && data['irrigation'] != null && data['irrigation'].isNotEmpty) {
-        if (data['irrigation']['Date'] != null) {
-          //Todo date
-          try {
-            for (var howManyDate = 0; howManyDate < data['irrigation']['Date'].length; howManyDate++) {
-              if (_isValidIndex(data['irrigation']['HeadUnit'], howManyDate)) {
-                setState(() {
-                  if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
-                    date.add({
-                      'name': data['irrigation']['Date'][howManyDate],
-                      'show': true,
-                    });
-                    dateDuplicate.add({
-                      'name': data['irrigation']['Date'][howManyDate],
-                      'show': true,
-                    });
-                  }
-                });
-              }
-            }
-          } catch (e, stackTrace) {
-            log('Error on Date : ${e.toString()}');
-            print('Stack Trace: $stackTrace');
-          }
-
-          //Todo Status
-          try {
-            if (data['irrigation']['Status'] != null) {
-              for (var howManyStatus = 0; howManyStatus < data['irrigation']['Status'].length; howManyStatus++) {
-                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyStatus)) {
-                  setState(() {
-                    if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
-                      status.add({
-                        'name': data['irrigation']['Status'][howManyStatus],
-                        'show': true,
-                      });
-                      statusDuplicate.add({
-                        'name': data['irrigation']['Status'][howManyStatus],
-                        'show': true,
-                      });
-                    }
-                  });
-                }
-              }
-            }
-          } catch (e, stackTrace) {
-            log('Error on Status : ${e.toString()}');
-            print('Stack Trace: $stackTrace');
-          }
-
-          //Todo ProgramS_No
-          try {
-            if (data['irrigation']['ProgramS_No'] != null) {
-              for (var howManyProgram = 0; howManyProgram < data['irrigation']['ProgramS_No'].length; howManyProgram++) {
-                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyProgram)) {
-                  setState(() {
-                    if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
-                      program.add({
-                        'name': data['irrigation']['ProgramS_No'][howManyProgram],
-                        'show': true,
-                        'programName': irrigationParameterArray.getProgramName(
-                            dataSource['default']?['program'] ?? [],
-                            data['irrigation']['ProgramS_No'][howManyProgram])
-                      });
-
-                      programDuplicate.add({
-                        'name': data['irrigation']['ProgramS_No'][howManyProgram],
-                        'show': true,
-                        'programName': irrigationParameterArray.getProgramName(
-                            dataSource['default']?['program'] ?? [],
-                            data['irrigation']['ProgramS_No'][howManyProgram])
-                      });
-                    }
-                  });
-                }
-              }
-            }
-          } catch (e, stackTrace) {
-            log('Error on ProgramS_No : ${e.toString()}');
-            print('Stack Trace: $stackTrace');
-          }
-
-          //Todo ProgramCategory && ProgramCategoryName
-          try {
-            if (data['irrigation']['ProgramCategory'] != null) {
-              for (var howManyLine = 0; howManyLine < data['irrigation']['ProgramCategory'].length; howManyLine++) {
-                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyLine)) {
-                  for (var splitLine in data['irrigation']['ProgramCategory'][howManyLine].toString().split('_')) {
-                    var lineName = (data['irrigation']['HeadUnit'] != null &&
-                            data['irrigation']['HeadUnit'] is List &&
-                            howManyLine < data['irrigation']['HeadUnit'].length)
-                        ? data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
-                        : [splitLine];
-                    setState(() {
-                      if (!line.any((element) => element['name'] == splitLine)) {
-                        line.add({
-                          'name': splitLine,
-                          'show': true,
-                          'lineName': lineName
-                        });
-                        lineDuplicate.add({
-                          'name': splitLine,
-                          'show': true,
-                          'lineName': lineName
-                        });
-                      }
-                    });
-                  }
-                }
-              }
-            }
-          } catch (e, stackTrace) {
-            log('Error on HeadUnit : ${e.toString()}');
-            print('Stack Trace: $stackTrace');
-          }
-
-          //Todo SequenceData
-          try {
-            if (data['irrigation']['SequenceData'] != null) {
-              for (var howManyValve = 0; howManyValve < data['irrigation']['SequenceData'].length; howManyValve++) {
-                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyValve)) {
-                  for (var splitValve in data['irrigation']['SequenceData'][howManyValve].toString().split('_')) {
-                    setState(() {
-                      if (splitValve.contains('13')) {
-                        if (!valve.any((element) => element['name'] == splitValve)) {
-                          valve.add({
-                            'name': splitValve,
-                            'show': true,
-                          });
-                          valveDuplicate.add({
-                            'name': splitValve,
-                            'show': true,
-                          });
-                        }
-                      }
-                    });
-                  }
-                }
-              }
-            }
-          } catch (e, stackTrace) {
-            log('Error on SequenceData : ${e.toString()}');
-            print('Stack Trace: $stackTrace');
-          }
-        }
-      }
-    }
-
-    setState(() {
-      if (valve.isNotEmpty) {
-        valve.sort((a, b) {
-          var aParts = a['name'].split('VL.');
-          var bParts = b['name'].split('VL.');
-          if (aParts.length > 1 && bParts.length > 1) {
-            return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
-          }
-          return 0;
-        });
-
-        valveDuplicate.sort((a, b) {
-          var aParts = a['name'].split('VL.');
-          var bParts = b['name'].split('VL.');
-          if (aParts.length > 1 && bParts.length > 1) {
-            return double.parse(aParts[1]).compareTo(double.parse(bParts[1]));
-          }
-          return 0;
-        });
-      }
-
-      if (line.isNotEmpty) {
-        line.sort((a, b) {
-          var aParts = a['name'].split('.');
-          var bParts = b['name'].split('.');
-          if (aParts.length > 1 && bParts.length > 1) {
-            return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
-          }
-          return 0;
-        });
-
-        lineDuplicate.sort((a, b) {
-          var aParts = a['name'].split('.');
-          var bParts = b['name'].split('.');
-          if (aParts.length > 1 && bParts.length > 1) {
-            return int.parse(aParts[1]).compareTo(int.parse(bParts[1]));
-          }
-          return 0;
-        });
-      }
-
-      if (program.isNotEmpty) {
-        program.sort((a, b) => a['name'].compareTo(b['name']));
-        programDuplicate.sort((a, b) => a['name'].compareTo(b['name']));
-      }
-    });
-
-    setState(() {
-      if (_irrigationOptionWise[0][1] == true) {
-        dataToShow = irrigationParameterArray.editDateWise(dataSource, date);
-      } else if (_irrigationOptionWise[1][1] == true) {
-        dataToShow = irrigationParameterArray.editProgramWise(dataSource, program);
-      } else if (_irrigationOptionWise[2][1] == true) {
-        dataToShow = irrigationParameterArray.editLineWise(dataSource, line);
-      } else if (_irrigationOptionWise[3][1] == true) {
-        dataToShow = irrigationParameterArray.editValveWise(dataSource, valve);
-      } else if (_irrigationOptionWise[4][1] == true) {
-        dataToShow = irrigationParameterArray.editStatusWise(dataSource, status);
-      }
-    });
-
-    setState(() {
-      if (dataToShow.containsKey('fixedColumnData') && dataToShow['fixedColumnData'] is List) {
-        totalPages = (dataToShow['fixedColumnData'].length ~/ noOfRowsPerPage);
-        if ((totalPages * noOfRowsPerPage) < dataToShow['fixedColumnData'].length) {
-          totalPages += 1;
-        }
-      } else {
-        totalPages = 0;
-      }
-      selectedPages = 1;
-    });
-  }
-
-  Map<String, dynamic>? _prepareLiveIrrigationData(Map<String, dynamic> raw, String todayStr) {
-    if (raw.isEmpty) return null;
-    final Map<String, dynamic> prepared = Map<String, dynamic>.from(raw);
-    int count = 0;
-    for (var v in prepared.values) {
-      if (v is List && v.isNotEmpty) {
-        count = v.length;
-        break;
-      }
-    }
-    if (count == 0) return null;
-
-    if (!prepared.containsKey('Date') || prepared['Date'] == null || (prepared['Date'] as List).isEmpty) {
-      prepared['Date'] = List.filled(count, todayStr);
-    } else {
-      prepared['Date'] = (prepared['Date'] as List).map((d) => (d == null || d.toString().isEmpty) ? todayStr : d.toString()).toList();
-    }
-
-    if (prepared.containsKey('HeadUnit') && prepared['HeadUnit'] is List) {
-      prepared['HeadUnit'] = (prepared['HeadUnit'] as List).map((h) {
-        final s = h.toString();
-        if (!s.contains('.')) {
-          return '2.$s';
-        }
-        return s;
-      }).toList();
-    } else {
-      prepared['HeadUnit'] = List.filled(count, '2.1');
-    }
-
-    if (!prepared.containsKey('ProgramCategory') || prepared['ProgramCategory'] == null) {
-      prepared['ProgramCategory'] = List.from(prepared['HeadUnit']);
-    }
-
-    final keysToEnsure = [
-      'Status',
-      'ProgramS_No',
-      'SequenceData',
-      'ActualStartTime',
-      'ActualEndTime',
-      'ActualStartReason',
-      'ActualStopReason',
-      'ValveFlowrate',
-      'Pretime',
-      'PostTime',
-      'CentralFilterName',
-      'LocalFilterName',
-      'CentralFilterOnDuration',
-      'LocalFilterOnDuration',
-      'CentralFertOnOff',
-      'LocalFertOnOff',
-      'PumpCtAverage',
-      'PumpCtMaximum',
-      'PumpCtMinimum',
-      'PressureAverage',
-      'PressureMaximum',
-      'PressureMinimum',
-    ];
-
-    for (final key in keysToEnsure) {
-      if (!prepared.containsKey(key) || prepared[key] == null || (prepared[key] is List && (prepared[key] as List).length < count)) {
-        prepared[key] = List.filled(count, '-');
-      }
-    }
-
-    return prepared;
-  }
-
-  void _mergeLivePayload(Map<String, dynamic> rawLive) {
-    if (!mounted) return;
-    if (dataSource == null || dataSource is! Map) {
-      dataSource = {'log': []};
-    }
-    final todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    final preparedLive = _prepareLiveIrrigationData(rawLive, todayStr);
-    if (preparedLive == null) return;
-
-    setState(() {
-      dataSource['log'] ??= [];
-      List logs = dataSource['log'];
-
-      logs.removeWhere((item) {
-        if (item is Map && item['irrigation'] != null) {
-          final dates = item['irrigation']['Date'];
-          if (dates is List && dates.isNotEmpty && dates.any((d) => d.toString().contains(todayStr))) {
-            return true;
-          }
-        }
-        return false;
-      });
-
-      logs.add({'irrigation': preparedLive});
-      isLiveLoaded = true;
-      isLiveSyncing = false;
-    });
-
-    _reprocessAndFilterData();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Live data updated from controller'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  Future<void> _requestLiveSync({bool silent = false}) async {
-    String? deviceId = widget.masterData?.deviceId ?? widget.userData['deviceId']?.toString();
-    if (deviceId == null || deviceId.isEmpty) {
-      try {
-        final custPvd = Provider.of<CustomerProvider>(context, listen: false);
-        if (custPvd.deviceId != null && custPvd.deviceId!.isNotEmpty) {
-          deviceId = custPvd.deviceId;
-        }
-      } catch (_) {}
-    }
-
-    if (deviceId == null || deviceId.isEmpty) {
-      if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Device ID not found. Unable to request live data.')),
-        );
-      }
-      return;
-    }
-
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-
-    DateTime date1 = today;
-    DateTime date2 = today;
-    if (_selectedDate.contains(' - ')) {
-      final parts = _selectedDate.split(' - ');
-      final p1 = parts[0].trim().split('/');
-      final p2 = parts[1].trim().split('/');
-      if (p1.length == 3 && p2.length == 3) {
-        date1 = DateTime(int.parse(p1[2]), int.parse(p1[1]), int.parse(p1[0]));
-        date2 = DateTime(int.parse(p2[2]), int.parse(p2[1]), int.parse(p2[0]));
-      }
-    }
-
-    bool includesToday = (today.isAfter(date1) || today.isAtSameMomentAs(date1)) &&
-        (today.isBefore(date2) || today.isAtSameMomentAs(date2));
-
-    if (!includesToday) {
-      if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Live sync is only available for today. Please select today to view live data.'),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-      return;
-    }
-
-    if (!silent) {
-      setState(() {
-        isLiveSyncing = true;
-      });
-    }
-
-    final String todayFormatted = DateFormat('yyyy-MM-dd').format(now);
-    final Map<String, dynamic> data = {
-      "2600": {
-        "2601": "$todayFormatted,$todayFormatted"
-      }
-    };
-
-    try {
-      final topic = '${Environment.mqttPublishTopic}/$deviceId';
-      await MqttService().topicToPublishAndItsMessage(jsonEncode(data), topic);
-
-      Timer(const Duration(seconds: 6), () {
-        if (mounted && isLiveSyncing) {
-          setState(() {
-            isLiveSyncing = false;
-          });
-          if (!silent) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No response from controller. Showing cloud log.'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-      });
-    } catch (e) {
-      if (mounted && !silent) {
-        setState(() {
-          isLiveSyncing = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to publish live request: $e')),
-        );
       }
     }
   }
@@ -913,59 +632,112 @@ class _LogHomeState extends State<LogHome> {
           appBar: AppBar(
             title: Column(
               children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Irrigation Log'),
-                    if (isLiveLoaded) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.green, width: 0.8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.fiber_manual_record, color: Colors.green, size: 8),
-                            SizedBox(width: 4),
-                            Text('LIVE', style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                const Text('Irrigation Log'),
                 Text(_selectedDate,style: const TextStyle(fontSize: 12),),
               ],
             ),
             actions: [
               IconButton(
-                tooltip: 'Live Refresh from Controller',
-                onPressed: isLiveSyncing ? null : () async {
-                  await getData();
-                  _requestLiveSync(silent: false);
-                },
-                icon: isLiveSyncing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : Icon(
-                        Icons.refresh_outlined,
-                        color: isLiveLoaded ? Colors.green : Colors.white,
-                      ),
-              ),
-              IconButton(
                 onPressed: (){
                   sideSheet(constraint);
                 },
-                icon: const Icon(Icons.filter_list_alt, color: Colors.white),
+                icon: const Icon(Icons.filter_list_alt,color: Colors.black,),
               ),
-              const SizedBox(width: 10),
+              PopupMenuButton<int>(
+                onSelected: (value){
+                  if(value == 1){
+                    setState(() {
+                      selectedIcon = const Icon(Icons.bar_chart,color: Colors.white,);
+                      selectedChart = 'Bar';
+                    });
+                  }else if(value == 2){
+                    setState(() {
+                      selectedIcon =  const Icon(Icons.stacked_line_chart,color: Colors.white,);
+                      selectedChart = 'Line';
+                    });
+                  }else{
+                    setState(() {
+                      selectedIcon = const Icon(Icons.pie_chart,color: Colors.white,);
+                    });
+                  }
+                },
+                itemBuilder: (context) => [
+                  // popupmenu item 1
+                  // const PopupMenuItem(
+                  //   value: 1,
+                  //   // row has two child icon and text.
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.bar_chart),
+                  //       SizedBox(
+                  //         // sized box with width 10
+                  //         width: 10,
+                  //       ),
+                  //       Text("bar chart")
+                  //     ],
+                  //   ),
+                  // ),
+                  // // popupmenu item 2
+                  // const PopupMenuItem(
+                  //   value: 2,
+                  //   // row has two child icon and text
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.stacked_line_chart),
+                  //       SizedBox(
+                  //         // sized box with width 10
+                  //         width: 10,
+                  //       ),
+                  //       Text("line chart")
+                  //     ],
+                  //   ),
+                  // ),
+                  // const PopupMenuItem(
+                  //   value: 3,
+                  //   // row has two child icon and text
+                  //   child: Row(
+                  //     children: [
+                  //       Icon(Icons.pie_chart),
+                  //       SizedBox(
+                  //         // sized box with width 10
+                  //         width: 10,
+                  //       ),
+                  //       Text("pie chart")
+                  //     ],
+                  //   ),
+                  // ),
+                ],
+                offset: const Offset(0, 50),
+                color: Colors.white,
+                elevation: 2,
+                child: Container(
+                  width: 100,
+                  height: 40,
+                  decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColorDark,
+                      borderRadius: BorderRadius.circular(8)
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Checkbox(
+                          value: graphMode,
+                          onChanged: (value){
+                            getDialog(context);
+                            Future.delayed(const Duration(seconds: 1),(){
+                              setState(() {
+                                graphMode = value!;
+                              });
+                              Navigator.pop(context);
+                            });
+                          }
+                      ),
+                      selectedIcon,
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20,),
             ],
           ),
           body: SafeArea(
@@ -987,6 +759,7 @@ class _LogHomeState extends State<LogHome> {
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
+
                           for(var i = 0;i < _irrigationOptionWise.length;i++)
                             Row(
                               children: [
@@ -1027,7 +800,6 @@ class _LogHomeState extends State<LogHome> {
                                       Navigator.pop(context);
                                     });
 
-
                                   },
                                 ),
                                 const SizedBox(width: 20,)
@@ -1038,12 +810,11 @@ class _LogHomeState extends State<LogHome> {
                     ),
                   ),
                 if((dataSource == null || dataToShow.isEmpty))
-                  Expanded(child: Center(child: Text('There is no data in ${_selectedDate}'))),
+                  Expanded(child: Center(child: Text('There is no data in $_selectedDate'))),
                 if((dataSource != null || dataToShow.isNotEmpty))
                   if(graphMode == false)
                     Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if(dataToShow.isNotEmpty)
                             ScrollingTable(
@@ -1053,10 +824,6 @@ class _LogHomeState extends State<LogHome> {
                               generalColumnData: filterDataByPages(data: dataToShow['generalColumnData']),
                               waterColumn: dataToShow['waterColumn'],
                               waterColumnData: filterDataByPages(data: dataToShow['waterColumnData']),
-                              centralFilterColumn: dataToShow['centralFilterColumn'] ?? [],
-                              centralFilterColumnData: filterDataByPages(data: dataToShow['centralFilterColumnData'] ?? []),
-                              localFilterColumn: dataToShow['localFilterColumn'] ?? [],
-                              localFilterColumnData: filterDataByPages(data: dataToShow['localFilterColumnData'] ?? []),
                               filterColumn: dataToShow['filterColumn'],
                               filterColumnData: filterDataByPages(data: dataToShow['filterColumnData']),
                               prePostColumn: dataToShow['prePostColumn'],
@@ -1098,35 +865,32 @@ class _LogHomeState extends State<LogHome> {
                               localChannel8Column: dataToShow['localChannel8Column'],
                               localChannel8ColumnData: filterDataByPages(data: dataToShow['localChannel8ColumnData']),
                               graphData: dataToShow['graphData'],
-                              showSensorReport: hasConfiguredSensors,
-                              onSequenceClicked: hasConfiguredSensors
-                                  ? (sequenceName) {
-                                      DateTime date1 = DateTime.now();
-                                      DateTime date2 = DateTime.now();
-                                      try {
-                                        String dateString1 = _selectedDate.split(' - ')[0];
-                                        String dateString2 = _selectedDate.split(' - ')[1];
-                                        List<String> parts1 = dateString1.split('/');
-                                        List<String> parts2 = dateString2.split('/');
-                                        date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
-                                        date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
-                                      } catch (e) {
-                                        // Fallback to now if parse fails
-                                      }
+                              onSequenceClicked: (sequenceName) {
+                                DateTime date1 = DateTime.now();
+                                DateTime date2 = DateTime.now();
+                                try {
+                                  String dateString1 = _selectedDate.split(' - ')[0];
+                                  String dateString2 = _selectedDate.split(' - ')[1];
+                                  List<String> parts1 = dateString1.split('/');
+                                  List<String> parts2 = dateString2.split('/');
+                                  date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
+                                  date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
+                                } catch (e) {
+                                  // Fallback to now if parse fails
+                                }
 
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SensorGraphLog(
-                                            userId: widget.userData['customerId'],
-                                            controllerId: widget.userData['controllerId'],
-                                            fromDate: date1,
-                                            toDate: date2,
-                                          ),
-                                        ),
-                                      );
-                                    }
-                                  : null,
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SensorGraphLog(
+                                      userId: widget.userData['customerId'],
+                                      controllerId: widget.userData['controllerId'],
+                                      fromDate: date1,
+                                      toDate: date2,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                         ],
                       ),
@@ -1196,54 +960,45 @@ class _LogHomeState extends State<LogHome> {
                                                       // title: AxisTitle(text: "Dur/Qty"),
                                                       minimum: 0,
                                                     ),
-                                                    legend: Legend(
-                                                      isVisible: true,
-                                                      position: LegendPosition.bottom,
-                                                      overflowMode: LegendItemOverflowMode.wrap,
-                                                    ),
                                                     zoomPanBehavior: ZoomPanBehavior(
                                                       enablePanning: true,
                                                     ),
                                                     series: <CartesianSeries>[
                                                       RangeColumnSeries<dynamic, String>(
-                                                          name: 'Pre',
                                                           borderRadius: BorderRadius.zero,
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade200,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          lowValueMapper: (dynamic data, _) => data.preFrom,
-                                                          highValueMapper: (dynamic data, _) => data.preTo
+                                                          highValueMapper: (dynamic data, _) => data.preFrom,
+                                                          lowValueMapper: (dynamic data, _) => data.preTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
-                                                          name: 'Actual',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.green,
+                                                          color: Colors.greenAccent,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          lowValueMapper: (dynamic data, _) => data.actualFrom,
-                                                          highValueMapper: (dynamic data, _) => data.actualTo
+                                                          highValueMapper: (dynamic data, _) => data.actualFrom,
+                                                          lowValueMapper: (dynamic data, _) => data.actualTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
-                                                          name: 'Post',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade400,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          lowValueMapper: (dynamic data, _) => data.postFrom,
-                                                          highValueMapper: (dynamic data, _) => data.postTo
+                                                          highValueMapper: (dynamic data, _) => data.postFrom,
+                                                          lowValueMapper: (dynamic data, _) => data.postTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
-                                                          name: 'Planned',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.amber.shade700,
+                                                          color: Colors.grey.shade300,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          lowValueMapper: (dynamic data, _) => data.plannedFrom,
-                                                          highValueMapper: (dynamic data, _) => data.plannedTo
+                                                          highValueMapper: (dynamic data, _) => data.plannedFrom,
+                                                          lowValueMapper: (dynamic data, _) => data.plannedTo
                                                       ),
                                                     ],
                                                   )
@@ -1391,6 +1146,7 @@ class _LogHomeState extends State<LogHome> {
                                         onPressed: () async {
                                           Navigator.pop(context); // Close the name dialog
 
+                                          // Optionally show a progress dialog
                                           showDialog(
                                             context: context,
                                             barrierDismissible: false,
@@ -1405,51 +1161,37 @@ class _LogHomeState extends State<LogHome> {
                                             },
                                           );
 
+                                          // Run the function and await result
                                           bool result = await generateExcel(dataToShow, fileName);
 
+                                          // Close progress dialog
                                           if (context.mounted) Navigator.pop(context);
 
+                                          // Show result dialog
                                           if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text(result ? '$fileName.xlsx downloaded successfully' : 'Failed to save $fileName.xlsx')),
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                  title: Text(result
+                                                      ? '$fileName saved successfully'
+                                                      : 'Failed to save $fileName'),
+                                                  content: Text(result
+                                                      ? '/storage/emulated/0/Download/$fileName.xlsx'
+                                                      : ''),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context),
+                                                      child: const Text('Ok'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
                                             );
                                           }
                                         },
-                                        child: const Text('Download Excel')
-                                    ),
-                                    ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF006573),
-                                          foregroundColor: Colors.white,
-                                        ),
-                                        onPressed: () async {
-                                          Navigator.pop(context);
 
-                                          showDialog(
-                                            context: context,
-                                            barrierDismissible: false,
-                                            builder: (context) {
-                                              return const AlertDialog(
-                                                title: Text('Generating PDF...'),
-                                                content: SizedBox(
-                                                  height: 50,
-                                                  child: Center(child: CircularProgressIndicator()),
-                                                ),
-                                              );
-                                            },
-                                          );
-
-                                          bool result = await generatePdf(dataToShow, fileName);
-
-                                          if (context.mounted) Navigator.pop(context);
-
-                                          if (context.mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text(result ? '$fileName.pdf downloaded successfully' : 'Failed to generate PDF')),
-                                            );
-                                          }
-                                        },
-                                        child: const Text('Download PDF')
+                                        child: const Text('Click to download')
                                     )
                                   ],
                                 );
@@ -1521,27 +1263,140 @@ class _LogHomeState extends State<LogHome> {
                 )
               ],
             )
-                : SizedBox(
-              width: MediaQuery.of(context).size.width,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Network is unreachable!!'),
-                  MaterialButton(
-                    onPressed: ()async{
-                      if(httpError != 2){
-                        setState(() {
-                          httpError = 2;
-                        });
-                        await Future.delayed(const Duration(seconds: 2));
-                        getData();
-                      }
-                    },
-                    child: httpError != 2 ? const Text('RETRY',style: TextStyle(color: Colors.white),) : loadingButtuon(),
-                    color: Colors.blueGrey,
+                : Container(
+              width: double.infinity,
+              color: const Color(0xffF1F5F9),
+              child: Center(
+                child: Container(
+                  width: 450,
+                  margin: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 35,
                   ),
-                ],
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueGrey.withOpacity(0.12),
+                        blurRadius: 20,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: const BoxDecoration(
+                          color: Color(0xffffe8ed),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            const Icon(
+                              Icons.wifi_off_rounded,
+                              size: 55,
+                              color: Colors.blueGrey,
+                            ),
+                            Positioned(
+                              right: 5,
+                              bottom: 5,
+                              child: Container(
+                                width: 35,
+                                height: 35,
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      const Text(
+                        'Connection Lost!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xff263746),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      const Text(
+                        'Unable to load irrigation logs. '
+                            'Please check your internet connection '
+                            'and try again.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: Colors.blueGrey,
+                        ),
+                      ),
+
+                      const SizedBox(height: 25),
+                      SizedBox(
+                        width: 195,
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: httpError == 2
+                              ? null
+                              : () {
+                            setState(() {
+                              httpError = 2;
+                            });
+                            getData();
+                          },
+                          icon: httpError == 2
+                              ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                              : const Icon(
+                            Icons.refresh,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            httpError == 2 ? 'LOADING...' : 'TRY AGAIN',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xff009688),
+                            disabledBackgroundColor: const Color(0xff009688),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           )
@@ -1649,8 +1504,8 @@ class _LogHomeState extends State<LogHome> {
                             onPressed: (){
                               Navigator.pop(context);
                             },
-                            child: const Text("Cancel",style: TextStyle(color: Colors.white),),
                             color: Colors.red,
+                            child: const Text("Cancel",style: TextStyle(color: Colors.white),),
                           ),
                           MaterialButton(
                             onPressed: (){
@@ -1708,8 +1563,8 @@ class _LogHomeState extends State<LogHome> {
                               });
                               Navigator.pop(context);
                             },
-                            child: const Text("OK",style: TextStyle(color: Colors.white)),
                             color: Theme.of(context).primaryColor,
+                            child: const Text("OK",style: TextStyle(color: Colors.white)),
                           )
                         ],
                       ),
@@ -1908,7 +1763,7 @@ class _LogHomeState extends State<LogHome> {
                     width: 250,
                     child: ListTile(
                       leading: const Icon(Icons.adb_outlined,color: Colors.blueGrey,),
-                      title: Text('${i.uiKey}',style: const TextStyle(fontSize: 12),),
+                      title: Text(i.uiKey,style: const TextStyle(fontSize: 12),),
                       trailing: Checkbox(
                         value: i.show,
                         onChanged: (value) {
@@ -1952,7 +1807,7 @@ class _LogHomeState extends State<LogHome> {
         height: 400,
         doubleMonth: false,
         maximumDateRangeLength: 100,
-        quickDateRanges: [
+        quickDateRanges: const [
           // QuickDateRange(dateRange: null, label: "Remove date range"),
           // QuickDateRange(
           //   label: 'Last 3 days',
@@ -2046,7 +1901,7 @@ class _ChartData {
 Widget getTableHeader(name,flex){
   return Expanded(
       flex: flex,
-      child: Container(
+      child: SizedBox(
         // color: Colors.green.shade50,
         height: 40,
         child: Center(
@@ -2059,7 +1914,7 @@ Widget getTableHeader(name,flex){
 Widget getTableRow(name,flex){
   return Expanded(
       flex: flex,
-      child: Container(
+      child: SizedBox(
         // color: Colors.green.shade50,
         height: 40,
         child: Center(

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class WaveViewInAlert extends StatefulWidget {
   final double percentageValue;
 
-  const WaveViewInAlert({Key? key, this.percentageValue = 100.0}) : super(key: key);
+  const WaveViewInAlert({super.key, this.percentageValue = 100.0});
   @override
   _WaveViewInAlertState createState() => _WaveViewInAlertState();
 }
@@ -26,7 +26,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
     waveAnimationController = AnimationController(
         duration: const Duration(milliseconds: 2000), vsync: this);
     animationController!
-      ..addStatusListener((status) {
+      .addStatusListener((status) {
         if (status == AnimationStatus.completed) {
           animationController?.reverse();
         } else if (status == AnimationStatus.dismissed) {
@@ -37,7 +37,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
       animList1.clear();
       for (int i = -2 - bottleOffset1.dx.toInt(); i <= 60 + 2; i++) {
         animList1.add(
-          new Offset(
+          Offset(
             i.toDouble() + bottleOffset1.dx.toInt(),
             math.sin((waveAnimationController!.value * 360 - i) %
                 360 *
@@ -50,7 +50,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
       animList2.clear();
       for (int i = -2 - bottleOffset2.dx.toInt(); i <= 60 + 2; i++) {
         animList2.add(
-          new Offset(
+          Offset(
             i.toDouble() + bottleOffset2.dx.toInt(),
             math.sin((waveAnimationController!.value * 360 - i) %
                 360 *
@@ -77,16 +77,16 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
   Widget build(BuildContext context) {
     return Container(
       alignment: Alignment.center,
-      child: new AnimatedBuilder(
-        animation: new CurvedAnimation(
+      child: AnimatedBuilder(
+        animation: CurvedAnimation(
           parent: animationController!,
           curve: Curves.easeInOut,
         ),
-        builder: (context, child) => new Stack(
+        builder: (context, child) => Stack(
           children: <Widget>[
-            new ClipPath(
-              clipper: new WaveClipper(animationController!.value, animList1),
-              child: new Container(
+            ClipPath(
+              clipper: WaveClipper(animationController!.value, animList1),
+              child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).primaryColor,
                   borderRadius: const BorderRadius.only(
@@ -105,9 +105,9 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
                 ),
               ),
             ),
-            new ClipPath(
-              clipper: new WaveClipper(animationController!.value, animList2),
-              child: new Container(
+            ClipPath(
+              clipper: WaveClipper(animationController!.value, animList2),
+              child: Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).primaryColor,
                   gradient: LinearGradient(
@@ -163,7 +163,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
               top: 0,
               left: 6,
               bottom: 8,
-              child: new ScaleTransition(
+              child: ScaleTransition(
                 alignment: Alignment.center,
                 scale: Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(
                     parent: animationController!,
@@ -172,7 +172,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
                   width: 2,
                   height: 2,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -182,7 +182,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
               left: 24,
               right: 0,
               bottom: 16,
-              child: new ScaleTransition(
+              child: ScaleTransition(
                 alignment: Alignment.center,
                 scale: Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(
                     parent: animationController!,
@@ -191,7 +191,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
                   width: 4,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -201,7 +201,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
               left: 0,
               right: 24,
               bottom: 32,
-              child: new ScaleTransition(
+              child: ScaleTransition(
                 alignment: Alignment.center,
                 scale: Tween(begin: 0.0, end: 1.0).animate(CurvedAnimation(
                     parent: animationController!,
@@ -210,7 +210,7 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
                   width: 3,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.4),
+                    color: Colors.white.withValues(alpha: 0.4),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -220,15 +220,15 @@ class _WaveViewInAlertState extends State<WaveViewInAlert> with TickerProviderSt
               top: 0,
               right: 20,
               bottom: 0,
-              child: new Transform(
-                transform: new Matrix4.translationValues(
+              child: Transform(
+                transform: Matrix4.translationValues(
                     0.0, 16 * (1.0 - animationController!.value), 0.0),
                 child: Container(
                   width: 4,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(
-                        animationController!.status == AnimationStatus.reverse
+                    color: Colors.white.withValues(
+                        alpha: animationController!.status == AnimationStatus.reverse
                             ? 0.0
                             : 0.4),
                     shape: BoxShape.circle,
@@ -260,7 +260,7 @@ class WaveClipper extends CustomClipper<Path> {
 
   @override
   Path getClip(Size size) {
-    Path path = new Path();
+    Path path = Path();
 
     path.addPolygon(waveList1, false);
 

@@ -115,7 +115,7 @@ class CurrentProgram extends StatelessWidget {
                         size: ColumnSize.S,
                       ),
                       if(![...AppConstants.ecoGemModelList].contains(modelId))...const [
-                        const DataColumn2(label: Center(child: Text('')), fixedWidth: 90),
+                        DataColumn2(label: Center(child: Text('')), fixedWidth: 90),
                       ]
                     ],
                     rows: List<DataRow>.generate(schedule.length, (index) {

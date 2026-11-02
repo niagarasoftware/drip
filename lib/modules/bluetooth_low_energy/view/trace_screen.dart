@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/dialog_boxes.dart';
-import 'package:oro_drip_irrigation/Widgets/custom_buttons.dart';
 import 'package:provider/provider.dart';
 
 import '../state_management/ble_service.dart';

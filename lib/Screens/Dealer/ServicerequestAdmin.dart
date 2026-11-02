@@ -7,8 +7,8 @@ import '../../services/http_service.dart';
 import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 class ServiceRequestAdmin extends StatefulWidget {
-   const ServiceRequestAdmin({
-    Key? key, required this.userId,});
+   const ServiceRequestAdmin({super.key, 
+     required this.userId,});
  final int userId;
 
   @override
@@ -24,6 +24,7 @@ class _ServiceRequestAdminState extends State<ServiceRequestAdmin> {
   String filterStatus = 'All';
   String filterRequestType = 'All';
 
+  @override
   void initState() {
     // TODO: implement initState
     super.initState();
@@ -59,7 +60,7 @@ class _ServiceRequestAdminState extends State<ServiceRequestAdmin> {
        }
      } catch (e, stackTrace) {
        AppLog.log('Error overAll getData => ${e.toString()}');
-       AppLog.log('trace overAll getData  => ${stackTrace}');
+       AppLog.log('trace overAll getData  => $stackTrace');
      }
    }
 
@@ -87,11 +88,11 @@ class _ServiceRequestAdminState extends State<ServiceRequestAdmin> {
   Color getRowColor(String status) {
     switch (status.toLowerCase()) {
       case 'closed':
-        return Colors.green.withOpacity(0.2); // Light green color
+        return Colors.green.withValues(alpha: 0.2); // Light green color
       case 'waiting':
-        return Colors.red.withOpacity(0.2); // Light red color
+        return Colors.red.withValues(alpha: 0.2); // Light red color
       case 'in-progress':
-        return Colors.yellow.withOpacity(0.2); // Light yellow color
+        return Colors.yellow.withValues(alpha: 0.2); // Light yellow color
       default:
         return Colors.transparent; // No color
     }

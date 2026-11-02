@@ -10,6 +10,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  file_saver: ^0.4.0
+  share_plus: ^12.0.2
+  cross_file: ^0.3.5+5
+
   cupertino_icons: ^1.0.6
   provider: ^6.0.5
   linked_scroll_controller: ^0.2.0
@@ -43,12 +47,11 @@ dependencies:
   geocoding: ^4.0.0
   permission_handler: ^12.0.0+1
   responsive_grid: ^2.4.4
-  font_awesome_flutter: ^11.0.0
+  font_awesome_flutter: ^10.8.0
   tuple: ^2.0.2
   label_marker: ^1.0.1
   widget_to_marker: ^1.0.6
   google_maps_flutter: ^2.12.1
-  maps_toolkit: ^3.1.0
   shared_preferences: ^2.5.3
   connectivity_plus: ^6.1.4
   webview_flutter: ^4.11.0
@@ -58,7 +61,6 @@ dependencies:
   path_provider: ^2.1.5
   url_launcher: ^6.3.1
   flutter_launcher_icons: ^0.14.3
-
   vibration: ^3.1.3
   lottie: ^3.3.0
   flutter_local_notifications: ^19.2.1
@@ -90,10 +92,6 @@ dependencies:
   better_download_saver: ^0.0.1
   fl_chart: ^1.2.0
   easy_pdf_viewer: ^1.0.8
-  pdf: ^3.12.0
-  pdfrx: ^2.4.5
-  web: ^1.0.0
-  file_saver: ^0.4.0
 #  audioplayers: ^6.5.0
 #  record: ^6.0.0
 
@@ -102,8 +100,6 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   flutter_flavorizr: ^2.2.3
-
-
 
 flutter:
   uses-material-design: true
@@ -186,8 +182,3 @@ flavorizr:
         name: "Agritel"
       android:
         applicationId: "com.niagaraautomations.Agritel"
-
-
-dependency_overrides:
-  mqtt_client: 10.5.1
-  web: 1.0.0

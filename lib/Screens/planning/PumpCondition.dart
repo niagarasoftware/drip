@@ -20,13 +20,13 @@ class PumpConditionScreen extends StatefulWidget {
   final bool? isProgram;
 
   const PumpConditionScreen({
-    Key? key,
+    super.key,
     required this.userId,
     required this.controllerId,
     required this.modelid,
     required this.imeiNo,
     this.isProgram, this.customerId,
-  }) : super(key: key);
+  });
 
   @override
   State<PumpConditionScreen> createState() => _PumpConditionScreenState();
@@ -219,8 +219,8 @@ class _PumpConditionScreenState extends State<PumpConditionScreen> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         onPressed: _sendData,
-        child: const Icon(Icons.send),
         tooltip: 'Send Data',
+        child: const Icon(Icons.send),
       ),
     );
   }

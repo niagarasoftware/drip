@@ -209,7 +209,7 @@ class _SystemDefinitionState extends State<SystemDefinition> {
                                           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                                           context: context,
                                           title: 'Stop day time',
-                                          iconColor: Colors.red.withOpacity(0.7),
+                                          iconColor: Colors.red.withValues(alpha: 0.7),
                                           backGroundColor: cardColor,
                                           color: Colors.white,
                                           icon: Icons.stop,
@@ -296,7 +296,7 @@ class _SystemDefinitionState extends State<SystemDefinition> {
                                           padding: const EdgeInsets.all(8),
                                           width: double.infinity,
                                           decoration: BoxDecoration(
-                                              color: Theme.of(context).primaryColor.withOpacity(0.2),
+                                              color: Theme.of(context).primaryColor.withValues(alpha: 0.2),
                                               borderRadius: BorderRadius.circular(8)
                                           ),
                                           child: Row(

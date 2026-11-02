@@ -210,7 +210,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                   width: 70,
                   height: 60,
                   decoration: BoxDecoration(
-                      color: selected == 0 ? Theme.of(context).primaryColor :Theme.of(context).primaryColor.withOpacity(0.2),
+                      color: selected == 0 ? Theme.of(context).primaryColor :Theme.of(context).primaryColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10)
                   ),
                   child: Center(
@@ -229,7 +229,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                   width: 70,
                   height: 60,
                   decoration: BoxDecoration(
-                      color: selected == 1 ?  Theme.of(context).primaryColor : Theme.of(context).primaryColor.withOpacity(0.2),
+                      color: selected == 1 ?  Theme.of(context).primaryColor : Theme.of(context).primaryColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10)
                   ),
                   child: Center(
@@ -250,7 +250,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                       width: 70,
                       height: 60,
                       decoration: BoxDecoration(
-                          color: selected == 2 ?  Theme.of(context).primaryColor : Theme.of(context).primaryColor.withOpacity(0.2),
+                          color: selected == 2 ?  Theme.of(context).primaryColor : Theme.of(context).primaryColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10)
                       ),
                       child: Center(
@@ -274,7 +274,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                     child: Container(
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(105),
-                          color: Theme.of(context).primaryColor.withOpacity(0.2)
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.2)
                       ),
                       width: 210,
                       height: 210,
@@ -400,7 +400,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                     child: Container(
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(105),
-                          color: Theme.of(context).primaryColor.withOpacity(0.2)
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.2)
                       ),
                       width: 210,
                       height: 210,
@@ -520,7 +520,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                     child: Container(
                       decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(105),
-                          color: Theme.of(context).primaryColor.withOpacity(0.2)
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.2)
                       ),
                       width: 210,
                       height: 210,
@@ -755,7 +755,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                           color: Colors.brown.shade50,
                           child: ListTile(
                             title: Text('channel - ${i+1}'),
-                            trailing: Text(widget.validation == 'fertilizer-${i}' ? '${overAllPvd.hrs < 10 ? '0' :''}${overAllPvd.hrs}:${overAllPvd.min < 10 ? '0' :''}${overAllPvd.min}:${overAllPvd.sec < 10 ? '0' :''}${overAllPvd.sec}' : '${widget.fertilizerTime!['list'][i]}'),
+                            trailing: Text(widget.validation == 'fertilizer-$i' ? '${overAllPvd.hrs < 10 ? '0' :''}${overAllPvd.hrs}:${overAllPvd.min < 10 ? '0' :''}${overAllPvd.min}:${overAllPvd.sec < 10 ? '0' :''}${overAllPvd.sec}' : '${widget.fertilizerTime!['list'][i]}'),
                           ),
                         ),
                 ],
@@ -773,7 +773,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
                 }, icon: Icon(keyBoardMode == false ? Icons.keyboard : Icons.access_time_filled)),
             TextButton(
                 style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all(Theme.of(context).primaryColor.withOpacity(0.2))
+                    backgroundColor: WidgetStateProperty.all(Theme.of(context).primaryColor.withValues(alpha: 0.2))
                 ),
                 onPressed: (){
                   Navigator.pop(context);
@@ -782,7 +782,7 @@ class _HoursMinutesSecondsState extends State<HoursMinutesSeconds> {
             ),
             TextButton(
                 style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all(Theme.of(context).primaryColor)
+                    backgroundColor: WidgetStateProperty.all(Theme.of(context).primaryColor)
                 ),
                 onPressed: widget.onPressed ?? (){
                   if(widget.validation == 'pre' || widget.validation == 'post'){

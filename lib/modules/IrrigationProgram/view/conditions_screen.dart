@@ -76,7 +76,7 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
                                       shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(15)
                                       ),
-                                      content: Container(
+                                      content: SizedBox(
                                         height: 350,
                                         child: Scrollbar(
                                           thumbVisibility: true,

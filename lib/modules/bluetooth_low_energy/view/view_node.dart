@@ -1,8 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/view/node_not_get_live.dart';
 import 'package:provider/provider.dart';
-import 'package:responsive_grid_list/responsive_grid_list.dart';
 import '../../../Constants/dialog_boxes.dart';
 import '../state_management/ble_service.dart';
 
@@ -42,7 +39,7 @@ class _ViewNodeState extends State<ViewNode> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20)),
                 child: Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Colors.purple.shade50, Colors.deepPurple.shade100],
@@ -62,10 +59,10 @@ class _ViewNodeState extends State<ViewNode> {
                           color: Colors.deepPurple.shade700,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         entry.value.toString(),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black87,
                         ),

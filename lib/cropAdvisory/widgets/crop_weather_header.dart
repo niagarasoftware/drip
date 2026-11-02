@@ -17,7 +17,7 @@ class WeatherHeader extends StatelessWidget {
         const SizedBox(height: 10),
 
          Text(
-          "${temp}",
+          temp,
           style: const TextStyle(
             fontSize: 50,
             fontWeight: FontWeight.bold,

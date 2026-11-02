@@ -98,7 +98,7 @@ class AlarmListItems extends StatelessWidget {
       minWidth: 600,
       dataRowHeight: 45.0,
       headingRowHeight: 35.0,
-      headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColor.withOpacity(0.1)),
+      headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColor.withValues(alpha: 0.1)),
       columns: [
         const DataColumn2(
           label: Text('', style: TextStyle(fontSize: 13)),

@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_date_range_picker/flutter_date_range_picker.dart';
 import 'package:intl/intl.dart';
@@ -11,56 +10,8 @@ import 'package:oro_drip_irrigation/modules/irrigation_report/view/scrollingTabl
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 import '../repository/irrigation_repository.dart';
 import 'log_home.dart';
-import 'package:excel/excel.dart' hide Border;
-import 'standalone_exporter_stub.dart' if (dart.library.html) 'standalone_exporter_web.dart';
+import 'package:excel/excel.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Design tokens (same palette as the new ScrollingTable)
-// ─────────────────────────────────────────────────────────────────────────────
-const Color _kPageBg = Color(0xffEEF4F4);
-const Color _kBannerBg = Color(0xffE2EFF0);
-const Color _kGroupBg = Color(0xffD9ECEF);
-const Color _kHeaderBg = Color(0xffF4F8F9);
-const Color _kTeal = Color(0xff0B5D6B);
-const Color _kHeaderText = Color(0xff5F6F76);
-const Color _kBodyText = Color(0xff1F2D33);
-const Color _kMutedText = Color(0xff9AA8AE);
-const Color _kSectionLine = Color(0xffC5D8DC);
-const Color _kLine = Color(0xffE6ECEE);
-
-const double _kBannerHeight = 40;
-const double _kHeaderHeight = 48;
-const double _kGroupHeight = 42;
-const double _kRowHeight = 64;
-
-/// A block of consecutive rows that share the same date.
-class _DateGroup {
-  final String key;
-  final int start;
-  final int end;
-  const _DateGroup({required this.key, required this.start, required this.end});
-  int get count => end - start;
-}
-
-/// Pinned (sticky) date header.
-class _GroupHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-  _GroupHeaderDelegate({required this.height, required this.child});
-
-  @override
-  double get minExtent => height;
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) =>
-      SizedBox(height: height, child: child);
-
-  @override
-  bool shouldRebuild(covariant _GroupHeaderDelegate oldDelegate) => true;
-}
 
 class StandaloneLog extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -77,16 +28,12 @@ class _StandaloneLogState extends State<StandaloneLog> {
   late LinkedScrollControllerGroup _scrollable2;
   late ScrollController _horizontalScroll1;
   late ScrollController _horizontalScroll2;
-  List<String> standaloneColumn = ['Program','Method','Start Time',
-    // 'Zone Name',
-    'Pump','Others'];
+  List<String> standaloneColumn = ['Program','Method','Start Time','Zone Name','Device Id','Others'];
   String _selectedDate = '';
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
   List<dynamic> parameters = [
-    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No',
-    'ZoneName',
-    'IrrigationMethod','Pump'
+    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No','ZoneName','IrrigationMethod','MacAddress'
   ];
   dynamic standaloneData = {
     'fixedColumnData' : [],
@@ -97,7 +44,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
   int noOfRowsPerPage = 20;
   int totalPages = 0;
   int selectedPages = 1;
-  String _range = '';
+  final String _range = '';
   String _rangeCount = '';
   String _dateCount = '';
 
@@ -120,47 +67,24 @@ class _StandaloneLogState extends State<StandaloneLog> {
   }
 
 
-  void getUserName() async {
-    try {
+  void getUserName()async{
+    try{
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
       };
       var response = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> configData = jsonDecode(response.body);
-      print("jsonData : ${configData}");
-      if (mounted) {
-        setState(() {
-          configObject = configData['data']['configObject'] ?? [];
-        });
-      }
-    } catch (e, stackTrace) {
+      print("jsonData : $configData");
+      configObject = configData['data']['configObject'];
+
+    }catch(e,stackTrace){
       print('error in name = > ${e.toString()}');
       print('error in name stackTrace= > $stackTrace');
     }
   }
 
-  /// Converts a raw sNo string (e.g. "5.005" or "13.046_9.002") into the
-  /// configured object names joined with "__". Falls back to the raw sNo
-  /// when the name is not found in [configObject].
-  String _resolveNames(String raw) {
-    final value = raw.trim();
-    if (value.isEmpty) return '';
-    final names = <String>[];
-    for (final sNo in value.split('_')) {
-      final key = sNo.trim();
-      if (key.isEmpty) continue;
-      final objectData = configObject.firstWhere(
-            (element) => element['sNo']?.toString() == key,
-        orElse: () => null,
-      );
-      final name = objectData?['name'];
-      names.add(name != null && '$name'.trim().isNotEmpty ? '$name' : key);
-    }
-    return names.join('__');
-  }
-
-  void getStandaloneData() async {
+  void getStandaloneData()async{
     print('data request to the server.............');
     setState(() {
       standaloneData['fixedColumnData'] = [];
@@ -175,12 +99,14 @@ class _StandaloneLogState extends State<StandaloneLog> {
     List<String> parts1 = dateString1.split('/');
     List<String> parts2 = dateString2.split('/');
 
+    // Create DateTime objects
     DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
     DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
 
+    // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
-    try {
+    try{
       String? startMonth = selectedDateRange?.start.month.toString();
       print('startMonth : $startMonth');
 
@@ -190,64 +116,37 @@ class _StandaloneLogState extends State<StandaloneLog> {
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
-        "logType": "Standalone",
-        "fromDate": formattedDate1,
-        "toDate": formattedDate2,
-        "parameters": parameters,
+        "logType" : "Standalone",
+        "fromDate" : formattedDate1,
+        "toDate" : formattedDate2,
+        "parameters" : parameters,
       };
       var response = await IrrigationRepository().getLogDateWise(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
-
-      var standaloneDataFromHttp = jsonData['data'] != null ? jsonData['data']['log'] as List? ?? [] : [];
-
+      // standaloneData = jsonData['data'];
       setState(() {
         print('jsonData : $jsonData');
-        for (var date = 0; date < standaloneDataFromHttp.length; date++) {
-          var standaloneMap = standaloneDataFromHttp[date]['standalone'];
-          if (standaloneMap == null || standaloneMap is! Map) continue;
-
-          var datesList = standaloneMap['Date'] as List? ?? [];
-          var catList = standaloneMap['ProgramCategory'] as List? ?? [];
-          var methodList = standaloneMap['IrrigationMethod'] as List? ?? [];
-          var startTimes = standaloneMap['ScheduledStartTime'] as List? ?? [];
-          var zoneNames = standaloneMap['ZoneName'] as List? ?? [];
-          var pumpList = standaloneMap['Pump'] as List? ?? [];
-          var seqList = standaloneMap['SequenceData'] as List? ?? [];
-
-          for (var schedule = 0; schedule < datesList.length; schedule++) {
-            standaloneData['fixedColumnData'].add(datesList[schedule]);
+        var standaloneDataFromHttp = jsonData['data']['log'];
+        for(var date = 0;date < standaloneDataFromHttp.length;date++){
+          for(var schedule = 0;schedule < standaloneDataFromHttp[date]['standalone']['Date'].length;schedule++){
+            standaloneData['fixedColumnData'].add(standaloneDataFromHttp[date]['standalone']['Date'][schedule]);
             var list = [];
-
-            // 0: Program
-            list.add(schedule < catList.length ? catList[schedule] : '-');
-
-            // 1: Method
-            var method = schedule < methodList.length ? methodList[schedule] : null;
+            list.add(standaloneDataFromHttp[date]['standalone']['ProgramCategory'][schedule]);
+            var method = standaloneDataFromHttp[date]['standalone']['IrrigationMethod'][schedule];
             list.add(method == 1 ? 'Time' : method == 2 ? 'Flow' : 'TimeLess');
-
-            // 2: Start Time
-            list.add(schedule < startTimes.length ? startTimes[schedule] : '-');
-
-            // 3: Zone Name (directly from server payload)
-            // String rawZoneName = (schedule < zoneNames.length && zoneNames[schedule] != null)
-            //     ? zoneNames[schedule].toString()
-            //     : '';
-            // list.add(rawZoneName);
-
-            // 3: Pump (sNo like "5.005" resolved to the configured pump name)
-            String rawPump = (schedule < pumpList.length && pumpList[schedule] != null)
-                ? pumpList[schedule].toString()
-                : '';
-            String pumpName = _resolveNames(rawPump);
-            list.add(pumpName.isNotEmpty ? pumpName : '-');
-
-            // 4: Others (Valves)
-            String seqData = (schedule < seqList.length && seqList[schedule] != null)
-                ? seqList[schedule].toString()
-                : '';
-            String valveName = _resolveNames(seqData);
-            list.add(valveName.isNotEmpty ? valveName : '-');
-
+            list.add(standaloneDataFromHttp[date]['standalone']['ScheduledStartTime'][schedule]);
+            list.add(standaloneDataFromHttp[date]['standalone']['ZoneName'][schedule]);
+            list.add(standaloneDataFromHttp[date]['standalone']['MacAddress'][schedule]);
+            var valveName = '';
+            for(var valve in standaloneDataFromHttp[date]['standalone']['SequenceData'][schedule].split('_')){
+              valveName += valveName.isNotEmpty ? '__' : '';
+              var objectData = configObject.firstWhere(
+                    (element) => element['sNo'].toString() == valve,
+                orElse: () => null,
+              );
+              valveName += '${objectData != null ? objectData['name'] : valve}';
+            }
+            list.add(valveName);
             standaloneData['standaloneColumnData'].add(list);
           }
         }
@@ -262,7 +161,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
         }
         selectedPages = 1;
       });
-    } catch (e, stackTrace) {
+    }catch(e,stackTrace){
       setState(() {
         httpError = 1;
       });
@@ -271,635 +170,462 @@ class _StandaloneLogState extends State<StandaloneLog> {
     }
   }
 
-  // ───────────────────────────── UI ─────────────────────────────
-
-  /// Width of each standalone column (index follows [standaloneColumn]).
-  double _colWidth(int j) {
-    switch (j) {
-      case 0:
-        return 140; // Program
-      case 1:
-        return 120; // Method
-      case 2:
-        return 140; // Start Time
-      case 3:
-        return 160; // Pump
-      case 4:
-        return 180; // Others
-      default:
-        return 500; // Others
-    }
-  }
-
-  double get _contentWidth {
-    double w = 0;
-    for (var j = 0; j < standaloneColumn.length; j++) {
-      w += _colWidth(j);
-    }
-    return w;
-  }
-
-  /// Consecutive rows with the same date.
-  List<_DateGroup> _buildGroups(List<dynamic> dates) {
-    final groups = <_DateGroup>[];
-    var i = 0;
-    while (i < dates.length) {
-      final key = '${dates[i]}';
-      var end = i;
-      while (end < dates.length && '${dates[end]}' == key) {
-        end++;
-      }
-      groups.add(_DateGroup(key: key, start: i, end: end));
-      i = end;
-    }
-    return groups;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.of(context).size.width < 600;
-    final pad = compact ? 8.0 : 12.0;
-    final pageDates = filterDataByPages(data: standaloneData['fixedColumnData']);
-    final pageRows = filterDataByPages(data: standaloneData['standaloneColumnData']);
-    final groups = _buildGroups(pageDates);
 
     return Material(
-      color: _kPageBg,
-      child: Container(
-        color: _kPageBg,
-        padding: EdgeInsets.fromLTRB(pad, 10, pad, pad),
-        child: Column(
-          children: [
-            Expanded(child: _buildMainCard(groups, pageRows, compact)),
-            const SizedBox(height: 10),
-            _buildFooter(compact),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────── main card ───────────────────────────
-
-  Widget _buildMainCard(List<_DateGroup> groups, List<dynamic> pageRows, bool compact) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
       child: Column(
         children: [
-          // banner + column header (follows horizontal scroll)
-          LayoutBuilder(
-            builder: (context, c) {
-              final w = _contentWidth > c.maxWidth ? _contentWidth : c.maxWidth;
-              return SizedBox(
-                width: c.maxWidth,
-                height: _kBannerHeight + _kHeaderHeight,
-                child: SingleChildScrollView(
-                  controller: _horizontalScroll1,
-                  scrollDirection: Axis.horizontal,
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: _buildHeader(w),
-                ),
-              );
-            },
-          ),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, c) {
-                if (httpError == 1) {
-                  return _messageState(Icons.error_outline, 'Unable to load the log. Please try again.');
-                }
-                if (pageRows.isEmpty) {
-                  return _messageState(Icons.inbox_outlined, 'No standalone log found for the selected date.');
-                }
-                final w = _contentWidth > c.maxWidth ? _contentWidth : c.maxWidth;
-                return Scrollbar(
-                  controller: _horizontalScroll2,
-                  thumbVisibility: !compact,
-                  child: SingleChildScrollView(
-                    controller: _horizontalScroll2,
-                    scrollDirection: Axis.horizontal,
-                    child: SizedBox(
-                      width: w,
-                      child: CustomScrollView(
-                        controller: _verticalScroll2,
-                        slivers: [
-                          for (final g in groups)
-                            SliverMainAxisGroup(
-                              slivers: [
-                                SliverPersistentHeader(
-                                  pinned: true,
-                                  delegate: _GroupHeaderDelegate(
-                                    height: _kGroupHeight,
-                                    child: _groupHeader(g),
+            child: Container(
+              decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: const BorderRadius.only(bottomRight: Radius.circular(20),bottomLeft: Radius.circular(20))
+              ),
+              margin: const EdgeInsets.only(left: 5,right: 5),
+              child: LayoutBuilder(builder: (BuildContext context, BoxConstraints constraints) {
+                var width = constraints.maxWidth;
+                return Row(
+                  children: [
+                    Column(
+                      children: [
+                        //Todo : first column
+                        Container(
+                          // color: Color(0xffF7F9FA),
+                          decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColorDark
+                          ),
+                          padding: const EdgeInsets.only(left: 8),
+                          width: 100,
+                          height: 50,
+                          alignment: Alignment.center,
+                          child: const Text('Date',style: TextStyle(color: Colors.white),),
+      
+                        ),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            controller: _verticalScroll1,
+                            child: Container(
+                              child: Row(
+                                children: [
+                                  Column(
+                                    children: [
+                                      for(var i in filterDataByPages(data : standaloneData['fixedColumnData']))
+                                        Container(
+                                          color: const Color(0xffDCF3DD),
+                                          padding: const EdgeInsets.only(left: 8),
+                                          width: 100,
+                                          height: 70,
+                                          alignment: Alignment.center,
+                                          child: Text('$i'),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                    Column(
+                      children: [
+                        Container(
+                          color: Theme.of(context).primaryColorDark,
+                          width: width-100,
+                          height: 50,
+                          child: SingleChildScrollView(
+                            controller: _horizontalScroll1,
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                getColumnDotLine(),
+                                if(standaloneColumn.isNotEmpty)
+                                  Column(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Center(
+                                        child: Text('Standalone',style: TextStyle(color: Colors.white),),
+                                      ),
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          for(var i = 0;i < standaloneColumn.length;i++)
+                                            Container(
+                                              color: Colors.orange.shade200,
+                                              padding: const EdgeInsets.only(left: 8),
+                                              width: standaloneColumn[i] == 'Others' ? 1000 : 100,
+                                              height: 25,
+                                              alignment: Alignment.centerLeft,
+                                              child: Text(standaloneColumn[i],style: const TextStyle(color: Colors.black),),
+                                            ),
+      
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                getColumnDotLine(),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: SizedBox(
+                            width: width-100,
+                            child: Scrollbar(
+                              thumbVisibility: true,
+                              controller: _horizontalScroll2,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                controller: _horizontalScroll2,
+                                child: Container(
+                                  child: Scrollbar(
+                                    thumbVisibility: true,
+                                    controller: _verticalScroll2,
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.vertical,
+                                      controller: _verticalScroll2,
+                                      child: Row(
+                                        children: [
+                                          //TODO : Standalone DATA
+                                          Column(
+                                            children: [
+                                              for(var i in filterDataByPages(data: standaloneData['standaloneColumnData']))
+                                                Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    SizedBox(
+                                                      width: 0,
+                                                      height: 70,
+                                                      child: CustomPaint(
+                                                        painter: VerticalDotBorder(),
+                                                        size: const Size(10,50),
+                                                      ),
+                                                    ),
+                                                    for(var j = 0;j < i.length;j++)
+                                                      Container(
+                                                        padding: const EdgeInsets.only(left: 8),
+                                                        width: j == 5 ? 1000 : 100,
+                                                        height: 70,
+                                                        alignment: Alignment.centerLeft,
+                                                        child: Text('${i[j] ?? '-'}',style: const TextStyle(fontSize: 12,fontWeight: FontWeight.normal),),
+                                                      ),
+                                                    SizedBox(
+                                                      width: 0,
+                                                      height: 70,
+                                                      child: CustomPaint(
+                                                        painter: VerticalDotBorder(),
+                                                        size: const Size(0,50),
+                                                      ),
+                                                    )
+                                                  ],
+                                                )
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                SliverToBoxAdapter(
-                                  child: Column(
-                                    children: [
-                                      for (var i = g.start; i < g.end; i++)
-                                        _dataRow(pageRows[i]),
-                                    ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },),
+            ),
+          ),
+          Container(
+            color: Theme.of(context).primaryColorDark,
+            width: MediaQuery.of(context).size.width,
+            height: 35,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                SizedBox(
+                  width: 180,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      InkWell(
+                        onTap: (){
+                          setState(() {
+                            if(selectedPages != 1){
+                              selectedPages -= 1  ;
+                            }
+                          });
+                        },
+                        child: Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(5),
+                          child: const Icon(Icons.keyboard_double_arrow_left),
+                        ),
+                      ),
+                      if(standaloneData['fixedColumnData'] != null)
+                        Text(
+                          '${
+                              (selectedPages * noOfRowsPerPage) - 20} - ${((selectedPages * noOfRowsPerPage) < standaloneData['fixedColumnData'].length
+                              ?  (selectedPages * noOfRowsPerPage)
+                              : standaloneData['fixedColumnData'].length)} / ${standaloneData['fixedColumnData'].length}',style: const TextStyle(color: Colors.white),
+                        ),
+                      InkWell(
+                        onTap: (){
+                          setState(() {
+                            if(selectedPages != totalPages){
+                              selectedPages += 1;
+                            }
+                          });
+                        },
+                        child: Container(
+                          color: Colors.white,
+                          padding: const EdgeInsets.all(5),
+                          child: const Icon(Icons.keyboard_double_arrow_right),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                MaterialButton(
+                    color: Colors.white,
+                    child: const Text('Select Date'),
+                    onPressed: (){
+                      showDialog(context: context, builder: (context){
+                        return AlertDialog(
+                          title: const Text('Date Picker'),
+                          content: StatefulBuilder(
+                            builder: (BuildContext context, StateSetter stateSetter) {
+                              return SizedBox(
+                                width: 200,
+                                height: 250,
+                                child:SfDateRangePicker(
+                                  onSelectionChanged:  _onSelectionChanged,
+                                  selectionMode: DateRangePickerSelectionMode.range,
+                                  initialSelectedRange: PickerDateRange(
+                                      // DateTime.now().subtract(const Duration(days: 4)),
+                                      // DateTime.now().add(const Duration(days: 3))
+                                    DateTime.now(),
+                                    DateTime.now()
+                                  ),
+      
+                                ),
+                              );
+                            },
+                          ),
+                          actions: [
+                            CustomMaterialButton(
+                              title: 'Cancel',
+                              outlined: true,
+                            ),
+                            CustomMaterialButton(
+                              onPressed: (){
+                                Navigator.pop(context);
+                                getDialog(context);
+                                getStandaloneData();
+                                // setState(() {
+                                //   _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
+                                // });
+                                if(mounted){
+                                  Navigator.pop(context);
+                                }
+                              },
+                            ),
+                          ],
+                        );
+      
+                      });
+                    }
+                ),
+                InkWell(
+                  onTap: (){
+                    showDialog(
+                        context: context,
+                        builder: (context){
+                          var fileName = 'file';
+                          return AlertDialog(
+                            title: const Text('Give Name For Your File'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextFormField(
+                                  initialValue: fileName,
+                                  onChanged: (value){
+                                    fileName = value;
+                                  },
+                                  decoration: const InputDecoration(
+                                      border: OutlineInputBorder()
                                   ),
                                 ),
                               ],
                             ),
-                        ],
-                      ),
+                            actions: [
+                              TextButton(
+                                  onPressed: (){
+                                    generateExcelForStandAlone(standaloneData,fileName);
+                                    Navigator.pop(context);
+                                  },
+                                  child: const Text('Click to download')
+                              )
+                            ],
+                          );
+                        }
+                    );
+      
+      
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 5,horizontal: 10),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(5),
+                        color: Colors.white
                     ),
+                    child: const Icon(Icons.download),
                   ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _messageState(IconData icon, String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 36, color: _kMutedText),
-            const SizedBox(height: 10),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13.5, color: _kHeaderText),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(double width) {
-    return SizedBox(
-      width: width,
-      child: Column(
-        children: [
-          Container(
-            height: _kBannerHeight,
-            color: _kBannerBg,
-            alignment: Alignment.centerLeft,
-            child: AnimatedBuilder(
-              animation: _horizontalScroll1,
-              builder: (context, _) {
-                final off = _horizontalScroll1.hasClients ? _horizontalScroll1.offset : 0.0;
-                final maxDx = width > 140 ? width - 140 : 0.0;
-                final dx = off.clamp(0.0, maxDx).toDouble();
-                return Transform.translate(
-                  offset: Offset(dx, 0),
-                  child: const Padding(
-                    padding: EdgeInsets.only(left: 16),
-                    child: Text(
-                      'Standalone',
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _kTeal,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Container(
-            height: _kHeaderHeight,
-            color: _kHeaderBg,
-            child: Row(
-              children: [
-                for (var j = 0; j < standaloneColumn.length; j++)
-                  Container(
-                    width: _colWidth(j),
-                    padding: const EdgeInsets.only(left: 16, right: 8),
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      standaloneColumn[j],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: _kHeaderText,
-                      ),
-                    ),
-                  ),
+                )
               ],
             ),
-          ),
+            // child: FloatingActionButton(
+            //   backgroundColor: Colors.white,
+            //   onPressed: () {
+            //     showDialog(context: context, builder: (context){
+            //       return AlertDialog(
+            //         title: Text('Date Picker'),
+            //         content: StatefulBuilder(
+            //           builder: (BuildContext context, StateSetter stateSetter) {
+            //             return SizedBox(
+            //               width: 200,
+            //               height: 250,
+            //               child:SfDateRangePicker(
+            //                 onSelectionChanged:  _onSelectionChanged,
+            //                 selectionMode: DateRangePickerSelectionMode.range,
+            //                 initialSelectedRange: PickerDateRange(
+            //                     DateTime.now().subtract(const Duration(days: 4)),
+            //                     DateTime.now().add(const Duration(days: 3))),
+            //               ),
+            //             );
+            //           },
+            //         ),
+            //         actions: [
+            //           ElevatedButton(
+            //               onPressed: (){
+            //                 Navigator.pop(context);
+            //               },
+            //               child: Text('Cancel')
+            //           ),
+            //           ElevatedButton(
+            //               onPressed: ()async{
+            //                 Navigator.pop(context);
+            //                 getDialog(context);
+            //                 getData();
+            //                 setState(() {
+            //                   _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
+            //                 });
+            //                 if(mounted){
+            //                   Navigator.pop(context);
+            //                 }
+            //               },
+            //               child: Text('Ok')
+            //           )
+            //         ],
+            //       );
+            //
+            //     });
+            //   },
+            //   child: Text('Select Date'),
+            // ),
+          )
+      
         ],
       ),
     );
   }
 
-  /// Date header – the text follows the horizontal scroll so it always stays
-  /// visible at the left edge.
-  Widget _groupHeader(_DateGroup g) {
-    return Container(
-      color: _kGroupBg,
-      alignment: Alignment.centerLeft,
-      child: AnimatedBuilder(
-        animation: _horizontalScroll2,
-        builder: (context, _) {
-          final dx = _horizontalScroll2.hasClients ? _horizontalScroll2.offset : 0.0;
-          return Transform.translate(
-            offset: Offset(dx, 0),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 18, right: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    g.key,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _kTeal,
-                    ),
-                  ),
-                  const SizedBox(width: 18),
-                  Text(
-                    '${g.count} ${g.count == 1 ? 'schedule' : 'schedules'}',
-                    maxLines: 1,
-                    style: const TextStyle(fontSize: 12.5, color: _kHeaderText),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Future<void> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
+    // Create a new workbook
+    var excel = Excel.createExcel();
+    Sheet sheetObject = excel['Logs'];
+// final sheet = workbook.worksheets[0];
+    // sheet.name = 'Logs';
 
-  Widget _dataRow(dynamic row) {
-    final List cells = row is List ? row : const [];
-    return Container(
-      height: _kRowHeight,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _kLine)),
-      ),
-      child: Row(
-        children: [
-          for (var j = 0; j < cells.length; j++)
-            Container(
-              width: _colWidth(j),
-              padding: const EdgeInsets.only(left: 16, right: 8),
-              alignment: Alignment.centerLeft,
-              child: j == 1 ? _methodChip(cells[j]) : _textValue(cells[j], bold: j == 0),
-            ),
-        ],
-      ),
-    );
-  }
+    // Create header row
+    List<String> headerRow = [
+      'Date',
+      ...standaloneColumn
+    ];
+    sheetObject.appendRow([for(var i in headerRow) TextCellValue(i)]);
 
-  bool _isBlank(String text) {
-    final t = text.trim();
-    return t.isEmpty || t == '-';
-  }
+    for (var i = 0; i < data['fixedColumnData'].length; i++) {
+      List<String> eachRow = [data['fixedColumnData'][i]];
+      List<String> columnDataKeys = [
+        'standaloneColumnData',
+      ];
 
-  Widget _textValue(dynamic value, {bool bold = false}) {
-    final text = value == null ? '' : '$value';
-    if (_isBlank(text)) {
-      return const Text(
-        '–',
-        style: TextStyle(fontSize: 13.5, color: _kMutedText),
-      );
-    }
-    return Tooltip(
-      message: text,
-      child: Text(
-        text,
-        maxLines: 3,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13.5,
-          fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
-          color: _kBodyText,
-        ),
-      ),
-    );
-  }
+      for (var columnData in columnDataKeys) {
+        if (data[columnData][0] != null) {
+          for (var j = 0; j < data[columnData][i].length; j++) {
+            eachRow.add('${data[columnData][i][j]}');
+          }
+        }
+      }
 
-  Widget _methodChip(dynamic raw) {
-    final label = raw == null ? '' : '$raw';
-    if (_isBlank(label)) return _textValue(raw);
-
-    Color bg;
-    Color fg;
-    Color dot;
-    switch (label) {
-      case 'Time':
-        bg = const Color(0xffDDEBF7);
-        fg = const Color(0xff1565C0);
-        dot = const Color(0xff1E88E5);
-        break;
-      case 'Flow':
-        bg = const Color(0xffDDF3E4);
-        fg = const Color(0xff1E7A3C);
-        dot = const Color(0xff2E9E4F);
-        break;
-      default:
-        bg = const Color(0xffE4EBEF);
-        fg = const Color(0xff3D4E56);
-        dot = const Color(0xff55666E);
+      for (int j = 0; j < eachRow.length; j++) {
+        sheetObject.appendRow([for(var cell in eachRow) TextCellValue(cell)]);
+      }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: fg,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────── footer ───────────────────────────
-
-  Widget _pagerButton(IconData icon, VoidCallback onTap) {
-    return Material(
-      color: _kBannerBg,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(7),
-          child: Icon(icon, size: 20, color: _kTeal),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFooter(bool compact) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xffDCE5E7)),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        runSpacing: 8,
-        spacing: 12,
-        children: [
-          // pagination
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _pagerButton(Icons.keyboard_double_arrow_left, (){
-                setState(() {
-                  if(selectedPages != 1){
-                    selectedPages -= 1  ;
-                  }
-                });
-              }),
-              if(standaloneData['fixedColumnData'] != null)
-                Container(
-                  constraints: const BoxConstraints(minWidth: 110),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    '${
-                        (selectedPages * noOfRowsPerPage) - 20} - ${((selectedPages * noOfRowsPerPage) < standaloneData['fixedColumnData'].length
-                        ?  (selectedPages * noOfRowsPerPage)
-                        : standaloneData['fixedColumnData'].length)} / ${standaloneData['fixedColumnData'].length}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kBodyText,
-                    ),
-                  ),
-                ),
-              _pagerButton(Icons.keyboard_double_arrow_right, (){
-                setState(() {
-                  if(selectedPages != totalPages){
-                    selectedPages += 1;
-                  }
-                });
-              }),
-            ],
-          ),
-          // date + download
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _kTeal,
-                  side: const BorderSide(color: _kSectionLine),
-                  shape: const StadiumBorder(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                icon: const Icon(Icons.calendar_month_rounded, size: 18),
-                label: const Text('Select Date'),
-                onPressed: (){
-                  showDialog(context: context, builder: (context){
-                    return AlertDialog(
-                      title: Text('Date Picker'),
-                      content: StatefulBuilder(
-                        builder: (BuildContext context, StateSetter stateSetter) {
-                          return SizedBox(
-                            width: 200,
-                            height: 250,
-                            child:SfDateRangePicker(
-                              onSelectionChanged:  _onSelectionChanged,
-                              selectionMode: DateRangePickerSelectionMode.range,
-                              initialSelectedRange: PickerDateRange(
-                                  DateTime.now(),
-                                  DateTime.now()
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      actions: [
-                        CustomMaterialButton(
-                          title: 'Cancel',
-                          outlined: true,
-                        ),
-                        CustomMaterialButton(
-                          onPressed: (){
-                            Navigator.pop(context);
-                            getDialog(context);
-                            getStandaloneData();
-                            if(mounted){
-                              Navigator.pop(context);
-                            }
-                          },
-                        ),
-                      ],
-                    );
-
-                  });
-                },
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kTeal,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: const StadiumBorder(),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Download'),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (dialogCtx) {
-                      var fileName = 'file';
-                      return AlertDialog(
-                        title: const Text('Give Name For Your File'),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextFormField(
-                              initialValue: fileName,
-                              onChanged: (value) {
-                                fileName = value;
-                              },
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.pop(dialogCtx);
-
-                              final fixedData = standaloneData['fixedColumnData'] as List?;
-                              if (fixedData == null || fixedData.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('No standalone data available to download.')),
-                                );
-                                return;
-                              }
-
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (_) => const AlertDialog(
-                                  title: Text('Generating Excel...'),
-                                  content: SizedBox(
-                                    height: 50,
-                                    child: Center(child: CircularProgressIndicator()),
-                                  ),
-                                ),
-                              );
-
-                              final cleanName = fileName.trim().isEmpty ? 'file' : fileName.trim();
-                              final success = await generateExcelForStandAlone(standaloneData, cleanName);
-
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(success ? '$cleanName.xlsx downloaded successfully.' : 'Failed to download Excel.')),
-                                );
-                              }
-                            },
-                            child: const Text('Download Excel'),
-                          ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF006573),
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () async {
-                              Navigator.pop(dialogCtx);
-
-                              final fixedData = standaloneData['fixedColumnData'] as List?;
-                              if (fixedData == null || fixedData.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('No standalone data available to download.')),
-                                );
-                                return;
-                              }
-
-                              showDialog(
-                                context: context,
-                                barrierDismissible: false,
-                                builder: (_) => const AlertDialog(
-                                  title: Text('Generating PDF...'),
-                                  content: SizedBox(
-                                    height: 50,
-                                    child: Center(child: CircularProgressIndicator()),
-                                  ),
-                                ),
-                              );
-
-                              final cleanName = fileName.trim().isEmpty ? 'file' : fileName.trim();
-                              final success = await generatePdfForStandAlone(standaloneData, cleanName);
-
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(success ? '$cleanName.pdf downloaded successfully.' : 'Failed to generate PDF.')),
-                                );
-                              }
-                            },
-                            child: const Text('Download PDF'),
-                          ),
-                        ],
-                      );
+    // Save the file
+    var fileBytes = excel.encode();
+    if (fileBytes != null) {
+      try {
+        String downloadsDirectoryPath = "/storage/emulated/0/Download";
+        String filePath = "$downloadsDirectoryPath/$name.xlsx";
+        File file = File(filePath);
+        await file.create(recursive: true);
+        await file.writeAsBytes(fileBytes);
+        // Check if file exists
+        if (await file.exists()) {
+          // Scaffold.of(context).showSnackBar()
+          // Navigator.pop(context);
+          showDialog(context: context, builder: (context){
+            return AlertDialog(
+              title: Text('$name Download Successfully at'),
+              content: Text(filePath),
+              actions: [
+                TextButton(
+                    onPressed: (){
+                      Navigator.pop(context);
                     },
-                  );
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
-    return await exportStandaloneExcel(data, standaloneColumn, name);
-  }
-
-  Future<bool> generatePdfForStandAlone(Map<String, dynamic> data, String name) async {
-    return await exportStandalonePdf(data, standaloneColumn, name);
+                    child: const Text('Ok')
+                )
+              ],
+            );
+          });
+          print("Excel file saved successfully at $filePath");
+        } else {
+          // Navigator.pop(context);
+          showDialog(context: context, builder: (context){
+            return AlertDialog(
+              title: Text('$name Download failed..'),
+              actions: [
+                TextButton(
+                    onPressed: (){
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Ok')
+                )
+              ],
+            );
+          });
+          log("Failed to save the Excel file.");
+        }
+      } catch (e) {
+        log("Error saving the Excel file: $e");
+      }
+    } else {
+      log("Error encoding the Excel file.");
+    }
   }
 
   List<dynamic> filterDataByPages({required data}){
@@ -928,7 +654,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
       } else {
         _rangeCount = args.value.length.toString();
       }
-      print("range: ${_range},rangecount:${_rangeCount},Select date:${_selectedDate}");
+      print("range: $_range,rangecount:$_rangeCount,Select date:$_selectedDate");
     });
   }
 }

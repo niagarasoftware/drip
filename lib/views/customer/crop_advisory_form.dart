@@ -72,7 +72,7 @@ class _CropAdvisoryFormPageState extends State<CropAdvisoryForm> {
                   message: isEnabled ? 'deactivate' : 'activate',
                   child: Switch(
                     value: isEnabled,
-                    activeColor: Theme.of(context).primaryColorLight,
+                    activeThumbColor: Theme.of(context).primaryColorLight,
                     activeTrackColor: Colors.white70,
                     inactiveThumbColor: Colors.grey,
                     inactiveTrackColor: Colors.black12,
@@ -256,7 +256,7 @@ class _CropAdvisoryFormPageState extends State<CropAdvisoryForm> {
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
+          fillColor: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           border: const OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(5)),
@@ -276,11 +276,11 @@ class _CropAdvisoryFormPageState extends State<CropAdvisoryForm> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: DropdownButtonFormField<String>(
-        value: selected,
+        initialValue: selected,
         decoration: InputDecoration(
           labelText: label,
           filled: true,
-          fillColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
+          fillColor: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           border: const OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(5)),
@@ -326,7 +326,7 @@ class _CropAdvisoryFormPageState extends State<CropAdvisoryForm> {
               labelText: label,
               hintText: 'Select Date',
               filled: true,
-              fillColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
+              fillColor: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               border: const OutlineInputBorder(
                 borderRadius: BorderRadius.all(Radius.circular(5)),

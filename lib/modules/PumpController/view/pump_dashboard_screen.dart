@@ -654,7 +654,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: pumpData.dataFetchingStatus == 1 ? Colors.white : Colors.white.withOpacity(0.5),
+                              color: pumpData.dataFetchingStatus == 1 ? Colors.white : Colors.white.withValues(alpha: 0.5),
                             ),
                           ),
                         ),
@@ -1132,7 +1132,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: isOn ? Colors.green.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
+            color: isOn ? Colors.green.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.1),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -1146,7 +1146,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
             children: [
               InkWell(
                 onTap: isLoading ? null : () => onToggle(!isOn),
-                splashColor: isOn ? Colors.green.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
+                splashColor: isOn ? Colors.green.withValues(alpha: 0.1) : Colors.grey.withValues(alpha: 0.1),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   child: Row(
@@ -1166,7 +1166,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                                 color: isOn ? Colors.green : Colors.grey,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: (isOn ? Colors.green : Colors.grey).withOpacity(0.6),
+                                    color: (isOn ? Colors.green : Colors.grey).withValues(alpha: 0.6),
                                     blurRadius: 6,
                                     spreadRadius: 1,
                                   ),
@@ -1237,7 +1237,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
                                 color: Colors.white,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black.withValues(alpha: 0.2),
                                     blurRadius: 4,
                                     offset: const Offset(0, 1),
                                   ),
@@ -1555,7 +1555,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 18,
-              shadows: [Shadow(offset: const Offset(2, 2), blurRadius: 6, color: Colors.black.withOpacity(0.3))],
+              shadows: [Shadow(offset: const Offset(2, 2), blurRadius: 6, color: Colors.black.withValues(alpha: 0.3))],
             ),
           ),
         ),
@@ -1608,7 +1608,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
         border: Border.all(color: color2, width: 0.3),
         boxShadow: [
           BoxShadow(
-            color: color2.withOpacity(0.5),
+            color: color2.withValues(alpha: 0.5),
             offset: const Offset(0, 0),
             // blurRadius: 2,
           ),
@@ -1648,7 +1648,7 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
       gradient: LinearGradient(colors: [color1, color2], begin: Alignment.topCenter, end: Alignment.bottomCenter),
       borderRadius: BorderRadius.circular(8),
       border: Border.all(color: color2, width: 0.3),
-      boxShadow: [BoxShadow(color: color2.withOpacity(0.5), offset: const Offset(0, 0))],
+      boxShadow: [BoxShadow(color: color2.withValues(alpha: 0.5), offset: const Offset(0, 0))],
     );
   }
 

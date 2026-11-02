@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
 import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/state_management/ble_service.dart';
 import 'package:oro_drip_irrigation/providers/button_loading_provider.dart';
@@ -17,25 +21,24 @@ import 'package:oro_drip_irrigation/view_models/admin_dealer/customer_search_vie
 import 'package:oro_drip_irrigation/view_models/customer/current_program_view_model.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
+
 import 'Constants/notifi_service.dart';
+import 'StateManagement/customer_provider.dart';
+import 'StateManagement/mqtt_payload_provider.dart';
+import 'StateManagement/overall_use.dart';
 import 'StateManagement/search_provider.dart';
 import 'app/app.dart';
-import 'StateManagement/customer_provider.dart';
 import 'firebase_options.dart';
 import 'modules/IrrigationProgram/state_management/irrigation_program_provider.dart';
 import 'modules/Preferences/state_management/preference_provider.dart';
 import 'modules/SystemDefinitions/state_management/system_definition_provider.dart';
 import 'modules/config_maker/state_management/config_maker_provider.dart';
-import 'StateManagement/mqtt_payload_provider.dart';
-import 'StateManagement/overall_use.dart';
 import 'modules/constant/state_management/constant_provider.dart';
 
 // Initialize local notifications plugin
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Background message handler for Firebase
@@ -71,15 +74,12 @@ Future<void> requestAppPermissions() async {
   }
 }
 
-
 FutureOr<void> main() async {
   // CRITICAL: Initialize binding FIRST, before any other setup
   WidgetsFlutterBinding.ensureInitialized();
 
   FlutterError.onError = (FlutterErrorDetails details) {
-    print('Flutter Error: ${details.exception}');
-    print('Stack trace: ${details.stack}');
-    // Log to file or service
+    FlutterError.dumpErrorToConsole(details);
   };
 
   // Now wrap everything in the same zone
@@ -131,7 +131,8 @@ FutureOr<void> main() async {
       );
 
       // Background messaging
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
 
       // Foreground
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -156,7 +157,8 @@ FutureOr<void> main() async {
           ChangeNotifierProvider(create: (_) => CustomerProvider()),
           ChangeNotifierProvider(create: (_) => CustomerSearchViewModel()),
           ChangeNotifierProvider(create: (_) => ConfigMakerProvider()),
-          ChangeNotifierProvider(create: (_) => IrrigationProgramMainProvider()),
+          ChangeNotifierProvider(
+              create: (_) => IrrigationProgramMainProvider()),
           ChangeNotifierProvider(create: (_) => MqttPayloadProvider()),
           ChangeNotifierProvider(create: (_) => OverAllUse()),
           ChangeNotifierProvider(create: (_) => PreferenceProvider()),
@@ -166,7 +168,8 @@ FutureOr<void> main() async {
           ChangeNotifierProvider(create: (_) => BleProvider()),
           ChangeNotifierProvider(create: (_) => SearchProvider()),
           ChangeNotifierProvider(create: (_) => ButtonLoadingProvider()),
-          ProxyProvider2<MqttPayloadProvider, CustomerProvider, CommunicationService>(
+          ProxyProvider2<MqttPayloadProvider, CustomerProvider,
+              CommunicationService>(
             update: (BuildContext context, MqttPayloadProvider mqttProvider,
                 CustomerProvider customer, CommunicationService? previous) {
               return CommunicationService(
@@ -178,8 +181,8 @@ FutureOr<void> main() async {
             },
           ),
           Provider<HttpService>(create: (_) => HttpService()),
-          Provider<ApiRepository>(create: (context) =>
-              RepositoryImpl(context.read<HttpService>()),
+          Provider<ApiRepository>(
+            create: (context) => RepositoryImpl(context.read<HttpService>()),
           ),
           ChangeNotifierProvider(
             create: (context) => CurrentProgramViewModel(context, 0),

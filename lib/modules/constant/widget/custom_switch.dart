@@ -8,7 +8,7 @@ class CustomSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Switch(
-      activeColor: Theme.of(context).primaryColorLight,
+      activeThumbColor: Theme.of(context).primaryColorLight,
       value: value,
       onChanged: onChanged,
       activeTrackColor: Theme.of(context).primaryColorLight,

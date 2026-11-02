@@ -1,7 +1,8 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class AnimatedClouds extends StatefulWidget {
+  const AnimatedClouds({super.key});
+
   @override
   _AnimatedCloudsState createState() => _AnimatedCloudsState();
 }

@@ -67,16 +67,12 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
     catch (e, stackTrace) {
       mqttPayloadProvider.httpError = true;
       print(' Error overAll getData => ${e.toString()}');
-      print(' trace overAll getData  => ${stackTrace}');
+      print(' trace overAll getData  => $stackTrace');
     }
 
 
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +87,7 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
       return const Center(child: Text('Currently No Filter Available'));
     } else {
       return LayoutBuilder(builder: (context, constaint) {
-        return Container(
+        return SizedBox(
           width: constaint.maxWidth,
           height: constaint.maxHeight,
           child: DefaultTabController(
@@ -201,7 +197,7 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
             borderRadius: BorderRadius.circular(15.0),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.2),
+                color: Colors.grey.withValues(alpha: 0.2),
                 spreadRadius: 5,
                 blurRadius: 7,
                 offset: const Offset(0, 3),
@@ -302,7 +298,7 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
       int srno,
       ) {
     var overAllPvd = Provider.of<OverAllUse>(context, listen: true);
-    final RegExp _regex = RegExp(r'^([0-9]|[1-9][0-9])(\.[0-9])?$');
+    final RegExp regex = RegExp(r'^([0-9]|[1-9][0-9])(\.[0-9])?$');
     if (Listofvalue?[index].widgetTypeId == 1) {
       if (Listofvalue?[index].sNo == 6) {
         return SizedBox(
@@ -349,7 +345,7 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
                               return 'Warranty is required';
                             } else {
                               setState(() {
-                                if (!_regex.hasMatch(value)) {
+                                if (!regex.hasMatch(value)) {
                                 } else {}
                                 Listofvalue?[index].value = value;
                               });
@@ -579,7 +575,7 @@ class _FilterBackwashUIState extends State<FilterBackwashUI>
         borderRadius: BorderRadius.circular(15.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             spreadRadius: 5,
             blurRadius: 7,
             offset: const Offset(0, 3),

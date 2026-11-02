@@ -275,8 +275,8 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
       width: double.infinity,
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          color: Theme.of(context).primaryColorDark.withOpacity(0.04),
-          border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withOpacity(0.2))
+          color: Theme.of(context).primaryColorDark.withValues(alpha: 0.04),
+          border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withValues(alpha: 0.2))
       ),
       alignment: Alignment.centerLeft,
       child: Row(

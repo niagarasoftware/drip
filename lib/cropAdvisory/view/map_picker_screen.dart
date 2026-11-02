@@ -3,7 +3,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart' as geo;
 import 'package:oro_drip_irrigation/cropAdvisory/service/location_service.dart';
-import 'package:oro_drip_irrigation/cropAdvisory/view/CropDetailsScreen.dart';
 import '../model/cropadvisory_model.dart';
 import 'getUserInformationScreen.dart';
 

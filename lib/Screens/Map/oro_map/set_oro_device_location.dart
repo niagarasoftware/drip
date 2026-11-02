@@ -2,15 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
-import '../../../modules/config_maker/view/device_list.dart' hide DeviceList;
-import '../MapAreaModel.dart' hide Area;
 import '../googlemap_model.dart';
 import 'getlatlong.dart';
 
  
 
 class SetSelectOroDeviceLocation extends StatefulWidget {
-  const SetSelectOroDeviceLocation({Key? key}) : super(key: key);
+  const SetSelectOroDeviceLocation({super.key});
 
   @override
   _SetSelectOroDeviceLocationState createState() => _SetSelectOroDeviceLocationState();
@@ -31,7 +29,7 @@ class _SetSelectOroDeviceLocationState extends State<SetSelectOroDeviceLocation>
   late MqttPayloadProvider mqttPayloadProvider;
 
   bool _isDrawerOpen = false;
-  double _drawerWidth = 280;
+  final double _drawerWidth = 280;
 
   @override
   void initState() {
@@ -176,7 +174,7 @@ class _SetSelectOroDeviceLocationState extends State<SetSelectOroDeviceLocation>
         leading: Row(
           children: [
             IconButton(
-              icon: Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back),
               onPressed: () {
                 setState(() {
                   Navigator.pop(context);
@@ -222,7 +220,7 @@ class _SetSelectOroDeviceLocationState extends State<SetSelectOroDeviceLocation>
                       final device = devices[index];
                       return ListTile(
                         selected: device.deviceId == _selectedDevice?.deviceId,
-                        selectedTileColor: Colors.blue.withOpacity(0.2),
+                        selectedTileColor: Colors.blue.withValues(alpha: 0.2),
                         title: Text(device.deviceName ?? "Device"),
                         subtitle: Text(
                             "Lat: ${device.geography?.lat ?? '-'}, Long: ${device.geography?.long ?? '-'}\nStatus: ${device.geography?.status ?? 'Unknown'}"),

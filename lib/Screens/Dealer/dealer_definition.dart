@@ -15,12 +15,11 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 class DealerDefinitionInConfig extends StatefulWidget {
   const DealerDefinitionInConfig(
-      {Key? key,
+      {super.key,
         required this.userId,
         required this.customerId,
         required this.controllerId,
-        required this.imeiNo})
-      : super(key: key);
+        required this.imeiNo});
   final int userId, customerId, controllerId;
   final String imeiNo;
 
@@ -41,7 +40,7 @@ class DealerDefinitionInConfigState extends State<DealerDefinitionInConfig> {
       return Material(
         child: SafeArea(
           child: Scaffold(
-            appBar: AppBar(title: Text('Dealer Definition'),),
+            appBar: AppBar(title: const Text('Dealer Definition'),),
             body: MyContainerWithTabs(
               data: data,
               userID: widget.userId,
@@ -85,7 +84,7 @@ class DealerDefinitionInConfigState extends State<DealerDefinitionInConfig> {
     }
     catch (e, stackTrace) {
       AppLog.log(' Error overAll getData => ${e.toString()}');
-      AppLog.log(' trace overAll getData  => ${stackTrace}');
+      AppLog.log(' trace overAll getData  => $stackTrace');
     }
   }
 
@@ -143,7 +142,7 @@ class DealerDefinitionInConfigState extends State<DealerDefinitionInConfig> {
                   label: const Text(' Save'),
                   icon: const Icon(
                     Icons.save_as_outlined,
-                  ),style: ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Theme.of(context).primaryColor,),foregroundColor: MaterialStateProperty.all<Color>(Colors.white)),),
+                  ),style: ButtonStyle(backgroundColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColor,),foregroundColor: WidgetStateProperty.all<Color>(Colors.white)),),
                 const SizedBox(
                   width: 20,
                 )
@@ -553,7 +552,7 @@ class _MyContainerWithTabsState extends State<MyContainerWithTabs> {
                   label: const Text('Save'),
                   icon: const Icon(
                     Icons.save_as_outlined,
-                  ),style: ButtonStyle(backgroundColor: MaterialStateProperty.all<Color>(Theme.of(context).primaryColor,),foregroundColor: MaterialStateProperty.all<Color>(Colors.white)),),
+                  ),style: ButtonStyle(backgroundColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColor,),foregroundColor: WidgetStateProperty.all<Color>(Colors.white)),),
 
                 const SizedBox(
                   width: 20,
@@ -599,7 +598,7 @@ class _MyContainerWithTabsState extends State<MyContainerWithTabs> {
                               return DropdownMenuItem(
                                 value: items,
                                 child: Container(
-                                    padding: EdgeInsets.only(left: 10),
+                                    padding: const EdgeInsets.only(left: 10),
                                     child: Text(items)),
                               );
                             }).toList(),

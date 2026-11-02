@@ -45,12 +45,12 @@ class Tile extends StatelessWidget {
   final List<NodeListModel> nodes;
 
   const Tile({
-    Key? key,
+    super.key,
     required this.index,
     required this.masterIndex,
     required this.extent,
     required this.nodes,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -142,8 +142,8 @@ class Tile extends StatelessWidget {
                                 Text('DO-${index+1}', style: const TextStyle(fontSize: 10),),
                               ],
                             )),
-                            DataCell(Text(rly.rlyNo!=-1?'${rly.name}':'--', style: TextStyle(fontSize: 12),)),
-                            DataCell(Text(rly.swName!='N/A'?'${rly.swName}':'--', style: TextStyle(fontSize: 12),)),
+                            DataCell(Text(rly.rlyNo!=-1?'${rly.name}':'--', style: const TextStyle(fontSize: 12),)),
+                            DataCell(Text(rly.swName!='N/A'?'${rly.swName}':'--', style: const TextStyle(fontSize: 12),)),
                           ]);
                         }),
                       ),

@@ -56,7 +56,7 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
     }
     catch (e, stackTrace) {
       AppLog.log(' Error overAll getData => ${e.toString()}');
-      AppLog.log(' trace overAll getData  => ${stackTrace}');
+      AppLog.log(' trace overAll getData  => $stackTrace');
     }
 
 
@@ -81,7 +81,7 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
     }
     catch (e, stackTrace) {
       AppLog.log(' Error overAll getData => ${e.toString()}');
-      AppLog.log(' trace overAll getData  => ${stackTrace}');
+      AppLog.log(' trace overAll getData  => $stackTrace');
     }
   }
 
@@ -399,7 +399,7 @@ class _ServiceRequestsTableState extends State<ServiceRequestsTable> {
       status == 'Closed' ? dateFormat.format(DateTime.now()) : null,
       "modifyUser": userid
     };
-    AppLog.log("body call--->${body}");
+    AppLog.log("body call--->$body");
     final Repository repository = Repository(HttpService());
     var response = await repository.updateUserServiceRequest(body);
     final jsonData = json.decode(response.body);

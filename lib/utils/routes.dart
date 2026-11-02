@@ -25,7 +25,7 @@ class Routes {
         );
       case Routes.loginOtp:
         return MaterialPageRoute(
-          builder: (_) =>  LoginScreenOTP(),
+          builder: (_) =>  const LoginScreenOTP(),
           settings: settings,
         );
       case Routes.dashboard:
@@ -40,7 +40,7 @@ class Routes {
           ),
           settings: settings,
         ) :  MaterialPageRoute(
-          builder: (_) =>  LoginScreenOTP(),
+          builder: (_) =>  const LoginScreenOTP(),
     settings: settings,
     ) ;
     }

@@ -31,7 +31,7 @@ class _ScanScreenState extends State<ScanScreen> {
   void initState() {
     super.initState();
     _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
-      print("results ::::: ${results}");
+      print("results ::::: $results");
       for(var result in results){
         var adv = result.advertisementData;
         print("adv.advName :: ${adv.advName}");
@@ -109,7 +109,7 @@ class _ScanScreenState extends State<ScanScreen> {
       Snackbar.show(ABC.c, prettyException("Connect Error:", e), success: false);
     });
     MaterialPageRoute route = MaterialPageRoute(
-        builder: (context) => DeviceScreen(device: device), settings: RouteSettings(name: '/DeviceScreen'));
+        builder: (context) => DeviceScreen(device: device), settings: const RouteSettings(name: '/DeviceScreen'));
     Navigator.of(context).push(route);
   }
 
@@ -120,7 +120,7 @@ class _ScanScreenState extends State<ScanScreen> {
     if (mounted) {
       setState(() {});
     }
-    return Future.delayed(Duration(milliseconds: 500));
+    return Future.delayed(const Duration(milliseconds: 500));
   }
 
   Widget buildScanButton() {
@@ -134,13 +134,13 @@ class _ScanScreenState extends State<ScanScreen> {
               backgroundColor: Theme.of(context).primaryColor,
               foregroundColor: Colors.white,
             ),
-            child: Text("SCAN"))
+            child: const Text("SCAN"))
     ]);
   }
 
   Widget buildSpinner() {
-    return Padding(
-      padding: const EdgeInsets.all(14.0),
+    return const Padding(
+      padding: EdgeInsets.all(14.0),
       child: AspectRatio(
         aspectRatio: 1.0,
         child: CircularProgressIndicator(
@@ -159,7 +159,7 @@ class _ScanScreenState extends State<ScanScreen> {
         onOpen: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => DeviceScreen(device: d),
-            settings: RouteSettings(name: '/DeviceScreen'),
+            settings: const RouteSettings(name: '/DeviceScreen'),
           ),
         ),
         onConnect: () => onConnectPressed(d),

@@ -75,7 +75,7 @@ class _LightToggleState extends State<LightToggle> with SingleTickerProviderStat
                 border: Border.all(color: _isLightOn ? Colors.yellow : Colors.grey),
                 boxShadow: [
                   BoxShadow(
-                    color: _isLightOn ? Colors.yellow.shade300.withOpacity(0.5) : Colors.grey.withOpacity(0.3),
+                    color: _isLightOn ? Colors.yellow.shade300.withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3),
                     spreadRadius: _isLightOn ? 10 : 5,
                     blurRadius: 10,
                     offset: const Offset(0, 3),

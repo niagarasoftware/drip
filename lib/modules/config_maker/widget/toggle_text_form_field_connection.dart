@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:oro_drip_irrigation/Constants/dialog_boxes.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../model/device_model.dart';
 import '../model/device_object_model.dart';
@@ -126,7 +125,7 @@ class _ToggleTextFormFieldForConnectionState extends State<ToggleTextFormFieldFo
         for(var object in widget.configPvd.listOfGeneratedObject){
 
           if(object.objectId == AppConstants.pressureSwitchObjectId && object.controllerId == widget.selectedDevice.controllerId){
-            pressureSwitchConfigureToNode = true;;
+            pressureSwitchConfigureToNode = true;
           }
         }
         if(!pressureSwitchConfigureToNode){

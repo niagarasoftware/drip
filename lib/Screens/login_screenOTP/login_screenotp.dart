@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:oro_drip_irrigation/Screens/login_screenOTP/widget/custom_button.dart';
  import 'package:shared_preferences/shared_preferences.dart';
-import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 import '../../repository/repository.dart';
 import '../../services/http_service.dart';
@@ -13,13 +12,15 @@ import '../../views/common/login/login_screen.dart';
 import 'otp_verification.dart';
 
 class LoginScreenOTP extends StatefulWidget {
+  const LoginScreenOTP({super.key});
+
   @override
   _LoginScreenState createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreenOTP> {
   bool isManualDialCodeEntry = false;
-  TextEditingController _contactEditingController = TextEditingController();
+  final TextEditingController _contactEditingController = TextEditingController();
   String? dialCodeError;
   int _clickCount = 0;
   String isoCode = 'IN';
@@ -39,7 +40,7 @@ class _LoginScreenState extends State<LoginScreenOTP> {
     if (_contactEditingController.text.isEmpty) {
       showErrorDialog(context, 'Register number can\'t be empty.');
     } else {
-      String checkval = await checkNumber(selectedCountryDialCode!, '${_contactEditingController.text}');
+      String checkval = await checkNumber(selectedCountryDialCode!, _contactEditingController.text);
       if (checkval == 'true') {
 
         final responseMessage = await Navigator.push(context, MaterialPageRoute(builder: (context) => OtpVerifyScreen(contact: "$selectedCountryDialCode ${_contactEditingController.text}",)));
@@ -141,7 +142,7 @@ class _LoginScreenState extends State<LoginScreenOTP> {
       // if (_clickCount >= 7) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => LoginScreen()),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
         // Reset click count after navigation
         _clickCount = 0;
@@ -155,8 +156,8 @@ class _LoginScreenState extends State<LoginScreenOTP> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text("Exit"),
-        content: Text("Do you want to exit?"),
+        title: const Text("Exit"),
+        content: const Text("Do you want to exit?"),
         actions: <Widget>[
           TextButton(
             onPressed: () => exit(0),
@@ -226,7 +227,7 @@ class _LoginScreenState extends State<LoginScreenOTP> {
                   SizedBox(
                     height: screenHeight * 0.02,
                   ),
-                  Container(
+                  const SizedBox(
                     height: 40,
                     width: 50,
                   ),

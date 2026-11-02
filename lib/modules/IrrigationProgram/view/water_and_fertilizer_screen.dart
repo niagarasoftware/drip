@@ -1,10 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
-import 'package:oro_drip_irrigation/app.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
@@ -871,7 +869,7 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
                                 child: CheckboxListTile(
                                     title: Text('${programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['name']}',style: const TextStyle(color: Colors.white),),
                                     checkColor: Colors.white,
-                                    fillColor: MaterialStateProperty.all(Colors.green),
+                                    fillColor: WidgetStateProperty.all(Colors.green),
                                     value: programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'applyFertilizerForCentral' : 'applyFertilizerForLocal'],
                                     onChanged: (value){
                                       programPvd.editGroupSiteInjector(programPvd.segmentedControlCentralLocal == 0 ? 'applyFertilizer' : 'applyFertilizer', value);
@@ -1704,7 +1702,7 @@ class _WaterAndFertilizerScreenState extends State<WaterAndFertilizerScreen> {
         leading: const Icon(Icons.add_alert,),
         trailing: Checkbox(
             checkColor: Colors.white,
-            fillColor: MaterialStateProperty.all(themeData.primaryColor),
+            fillColor: WidgetStateProperty.all(themeData.primaryColor),
             value: programPvd.sequenceData[programPvd.selectedGroup][programPvd.segmentedControlCentralLocal == 0 ? 'applyFertilizerForCentral' : 'applyFertilizerForLocal'],
             onChanged: (value){
               programPvd.editGroupSiteInjector(programPvd.segmentedControlCentralLocal == 0 ? 'applyFertilizer' : 'applyFertilizer', value);
@@ -2255,22 +2253,22 @@ List<BoxShadow> customBoxShadow = [
   BoxShadow(
       offset: const Offset(0,45),
       blurRadius: 112,
-      color: Colors.black.withOpacity(0.06)
+      color: Colors.black.withValues(alpha: 0.06)
   ),
   BoxShadow(
       offset: const Offset(0,22.78),
       blurRadius: 48.83,
-      color: Colors.black.withOpacity(0.04)
+      color: Colors.black.withValues(alpha: 0.04)
   ),
   BoxShadow(
       offset: const Offset(0,9),
       blurRadius: 18.2,
-      color: Colors.black.withOpacity(0.03)
+      color: Colors.black.withValues(alpha: 0.03)
   ),
   BoxShadow(
       offset: const Offset(0,1.97),
       blurRadius: 6.47,
-      color: Colors.black.withOpacity(0.02)
+      color: Colors.black.withValues(alpha: 0.02)
   ),
 ];
 

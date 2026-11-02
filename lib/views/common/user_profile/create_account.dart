@@ -1,8 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:oro_drip_irrigation/utils/Theme/oro_theme.dart';
 import 'package:provider/provider.dart';
 
 import '../../../repository/repository.dart';
@@ -185,7 +183,7 @@ class CreateAccount extends StatelessWidget {
                               labelText: AppConstants.country,
                               icon: Icon(CupertinoIcons.globe, color: Theme.of(context).primaryColorDark),
                             ),
-                            value: viewModel.country,
+                            initialValue: viewModel.country,
                             items: viewModel.countries.map((countryItem) {
                               return DropdownMenuItem(
                                 value: countryItem,
@@ -216,7 +214,7 @@ class CreateAccount extends StatelessWidget {
                               labelText: AppConstants.state,
                               icon: Icon(CupertinoIcons.placemark, color: Theme.of(context).primaryColorDark),
                             ),
-                            value: viewModel.state,
+                            initialValue: viewModel.state,
                             items: viewModel.states.map((stateItem) {
                               return DropdownMenuItem(
                                 value: stateItem,

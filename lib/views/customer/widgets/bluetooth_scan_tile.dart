@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../view_models/customer/customer_screen_controller_view_model.dart';
 
-import 'package:flutter/material.dart';
-import '../../../view_models/customer/customer_screen_controller_view_model.dart';
 
 class BluetoothScanTile extends StatefulWidget {
   final CustomerScreenControllerViewModel vm;

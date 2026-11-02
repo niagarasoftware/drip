@@ -44,33 +44,48 @@ class AiRecommendationButton extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text('${response['reason']}', style: const TextStyle(fontSize: 14, color: Colors.black54)),
                       const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton(
-                              onPressed: () =>Navigator.of(context).pop(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red,
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                               ),
-                              child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            ElevatedButton(
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: ElevatedButton(
                               onPressed: () {
                                 print("✔️ Applied ${response['percentage']}%");
                                 Navigator.of(context).pop();
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Theme.of(context).primaryColor,
-                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
                               ),
-                              child: const Text('Apply', style: TextStyle(color: Colors.white)),
+                              child: const Text(
+                                'Apply',
+                                style: TextStyle(color: Colors.white),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

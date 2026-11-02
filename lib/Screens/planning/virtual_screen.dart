@@ -115,12 +115,13 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
     catch (e, stackTrace) {
       mqttPayloadProvider.httpError = true;
       print(' Error overAll getData => ${e.toString()}');
-      print(' trace overAll getData  => ${stackTrace}');
+      print(' trace overAll getData  => $stackTrace');
     }
 
 
   }
 
+  @override
   Widget build(BuildContext context) {
     mqttPayloadProvider = Provider.of<MqttPayloadProvider>(context, listen: true);
 
@@ -138,8 +139,8 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
             Expanded(
               child: Padding(
                 padding: MediaQuery.of(context).size.width >= 600
-                    ? EdgeInsets.only(left: 20, right: 20, top: 0, bottom: 0)
-                    : EdgeInsets.all(5),
+                    ? const EdgeInsets.only(left: 20, right: 20, top: 0, bottom: 0)
+                    : const EdgeInsets.all(5),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -179,7 +180,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
               borderRadius: BorderRadius.circular(15.0),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.5),
+                  color: Colors.grey.withValues(alpha: 0.5),
                   spreadRadius: 5,
                   blurRadius: 7,
                   offset: const Offset(0, 3),
@@ -187,7 +188,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
               ],
             ),
             child: DataTable2(
-                headingRowColor: MaterialStateProperty.all<Color>(
+                headingRowColor: WidgetStateProperty.all<Color>(
                     Theme.of(context).primaryColor),
                 headingRowDecoration: BoxDecoration(
                   borderRadius: MediaQuery.of(context).size.width < 600
@@ -231,7 +232,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                 rows: List<DataRow>.generate(
                     formulajson.length,
                     (index) => DataRow(
-                          color: MaterialStateColor.resolveWith((states) {
+                          color: WidgetStateColor.resolveWith((states) {
                             if (index == Selectindexrow) {
                               // return primaryColorDark;
                               return Colors.white;
@@ -424,8 +425,9 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                                 DataCell(onTap: () {
                                   setState(() {
                                     Selectindexrow = index;
-                                    if (MediaQuery.of(context).size.width < 600)
+                                    if (MediaQuery.of(context).size.width < 600) {
                                       _showFormulaBottomSheet();
+                                    }
                                   });
                                 },
                                     Center(
@@ -455,7 +457,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                                         child: InkWell(
                                       child: (conditionhdrlist[i] != 'ID')
                                           ? Text(
-                                              '${conditionhdrlist[i]}',
+                                              conditionhdrlist[i],
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 color: Selectindexrow == index
@@ -495,7 +497,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
           borderRadius: BorderRadius.circular(15.0),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.5),
+              color: Colors.grey.withValues(alpha: 0.5),
               spreadRadius: 5,
               blurRadius: 7,
               offset: const Offset(0, 3),
@@ -507,7 +509,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
             Container(
               height: 40,
               width: double.infinity,
-              color: Theme.of(context).primaryColor.withOpacity(0.8),
+              color: Theme.of(context).primaryColor.withValues(alpha: 0.8),
               child: const Center(
                   child: Text(
                 'Formula Editor',
@@ -526,7 +528,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                           borderRadius: BorderRadius.circular(5.0),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.grey.withValues(alpha: 0.1),
                               spreadRadius: 5,
                               blurRadius: 7,
                               offset: const Offset(0, 3),
@@ -539,156 +541,155 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                         )),
                   )
                 : Container(),
-            if (Selectindexrow != null)
-              Flexible(
-                flex: 3,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Container(
-                        height: double.infinity,
-                        width: 280,
-                        child: DataTable2(
-                            headingRowColor: MaterialStateProperty.all<Color>(
-                                Theme.of(context).primaryColor),
-                            showBottomBorder: true,
-                            columnSpacing: 12,
-                            horizontalMargin: 12,
-                            minWidth: 80,
-                            fixedTopRows: 0,
-                            fixedLeftColumns: 0,
-                            border: TableBorder.all(
-                                width: 1,
-                                color: Theme.of(context).primaryColor.withOpacity(0.2)),
-                            columns: [
-                              for (int i = 0; i < formulaEditlist.length; i++)
-                                DataColumn2(
-                                  label: Center(
-                                      child: Text(
-                                    formulaEditlist[i].toString(),
-                                    style: const TextStyle(
-                                        fontSize:
-                                            16,
-                                        fontWeight: FontWeight.bold),
-                                    softWrap: true,
-                                  )),
-                                ),
-                            ],
-                            rows: List<DataRow>.generate(
-                              virtualMeterjson.length,
-                              (index) => DataRow(
-                                color: MaterialStateColor.resolveWith((states) {
-                                  return const Color.fromARGB(0, 176, 35, 35);
-                                }),
-                                cells: [
-                                  for (int i = 0;
-                                      i < formulaEditlist.length;
-                                      i++)
-                                    if (formulaEditlist[i] == '+')
-                                      DataCell(
-                                        Center(
-                                          child: Checkbox(
-                                            value: checkboxvalassign(
-                                                formulajson[Selectindexrow]
-                                                    ['formula'],
-                                                virtualMeterjson[index]['objectId'],
-                                                true),
-                                            onChanged: (bool? value) {
-                                              stateSetter(() {
-                                                if (value == true) {
-                                                  if (formulastrList.contains(
-                                                      '-${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.remove(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                    formulastrList.add(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  } else if (!formulastrList
-                                                      .contains(
-                                                          '+${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.add(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  } else {
-                                                    formulastrList.remove(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  }
+            Flexible(
+              flex: 3,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: SizedBox(
+                      height: double.infinity,
+                      width: 280,
+                      child: DataTable2(
+                          headingRowColor: WidgetStateProperty.all<Color>(
+                              Theme.of(context).primaryColor),
+                          showBottomBorder: true,
+                          columnSpacing: 12,
+                          horizontalMargin: 12,
+                          minWidth: 80,
+                          fixedTopRows: 0,
+                          fixedLeftColumns: 0,
+                          border: TableBorder.all(
+                              width: 1,
+                              color: Theme.of(context).primaryColor.withValues(alpha: 0.2)),
+                          columns: [
+                            for (int i = 0; i < formulaEditlist.length; i++)
+                              DataColumn2(
+                                label: Center(
+                                    child: Text(
+                                  formulaEditlist[i].toString(),
+                                  style: const TextStyle(
+                                      fontSize:
+                                          16,
+                                      fontWeight: FontWeight.bold),
+                                  softWrap: true,
+                                )),
+                              ),
+                          ],
+                          rows: List<DataRow>.generate(
+                            virtualMeterjson.length,
+                            (index) => DataRow(
+                              color: WidgetStateColor.resolveWith((states) {
+                                return const Color.fromARGB(0, 176, 35, 35);
+                              }),
+                              cells: [
+                                for (int i = 0;
+                                    i < formulaEditlist.length;
+                                    i++)
+                                  if (formulaEditlist[i] == '+')
+                                    DataCell(
+                                      Center(
+                                        child: Checkbox(
+                                          value: checkboxvalassign(
+                                              formulajson[Selectindexrow]
+                                                  ['formula'],
+                                              virtualMeterjson[index]['objectId'],
+                                              true),
+                                          onChanged: (bool? value) {
+                                            stateSetter(() {
+                                              if (value == true) {
+                                                if (formulastrList.contains(
+                                                    '-${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.remove(
+                                                      '-${virtualMeterjson[index]['objectId']}');
+                                                  formulastrList.add(
+                                                      '+${virtualMeterjson[index]['objectId']}');
+                                                } else if (!formulastrList
+                                                    .contains(
+                                                        '+${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.add(
+                                                      '+${virtualMeterjson[index]['objectId']}');
                                                 } else {
                                                   formulastrList.remove(
                                                       '+${virtualMeterjson[index]['objectId']}');
                                                 }
-                                                String formulaString =
-                                                    formulajson[Selectindexrow]
-                                                            ['formula'] =
-                                                        formulastrList
-                                                            .join(' ');
-                                              });
-                                            },
-                                          ),
+                                              } else {
+                                                formulastrList.remove(
+                                                    '+${virtualMeterjson[index]['objectId']}');
+                                              }
+                                              String formulaString =
+                                                  formulajson[Selectindexrow]
+                                                          ['formula'] =
+                                                      formulastrList
+                                                          .join(' ');
+                                            });
+                                          },
                                         ),
-                                      )
-                                    else if (formulaEditlist[i] == '-')
-                                      DataCell(
-                                        Center(
-                                          child: Checkbox(
-                                            value: checkboxvalassign(
-                                                formulajson[Selectindexrow]
-                                                    ['formula'],
-                                                virtualMeterjson[index]['objectId'],
-                                                false),
-                                            onChanged: (bool? value) {
-                                              stateSetter(() {
-                                                if (value == true) {
-                                                  if (formulastrList.contains(
-                                                      '+${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.remove(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                    formulastrList.add(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  } else if (!formulastrList
-                                                      .contains(
-                                                          '-${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.add(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  } else {
-                                                    formulastrList.remove(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  }
+                                      ),
+                                    )
+                                  else if (formulaEditlist[i] == '-')
+                                    DataCell(
+                                      Center(
+                                        child: Checkbox(
+                                          value: checkboxvalassign(
+                                              formulajson[Selectindexrow]
+                                                  ['formula'],
+                                              virtualMeterjson[index]['objectId'],
+                                              false),
+                                          onChanged: (bool? value) {
+                                            stateSetter(() {
+                                              if (value == true) {
+                                                if (formulastrList.contains(
+                                                    '+${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.remove(
+                                                      '+${virtualMeterjson[index]['objectId']}');
+                                                  formulastrList.add(
+                                                      '-${virtualMeterjson[index]['objectId']}');
+                                                } else if (!formulastrList
+                                                    .contains(
+                                                        '-${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.add(
+                                                      '-${virtualMeterjson[index]['objectId']}');
                                                 } else {
                                                   formulastrList.remove(
                                                       '-${virtualMeterjson[index]['objectId']}');
                                                 }
-                                                String formulaString =
-                                                    formulajson[Selectindexrow]
-                                                            ['formula'] =
-                                                        formulastrList
-                                                            .join(' ');
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      DataCell(
-                                        Center(
-                                          // '${virtualMeterjson[index]['sNo']}',
-                                          child: InkWell(
-                                            child: (formulaEditlist[i] != 'ID')
-                                                ? Text(
-                                                    '${index+1}',
-                                                    style: const TextStyle(
-                                                        fontSize: 16),
-                                                  )
-                                                : Text(
-                                                    '${virtualMeterjson[index]['objectId']}'),
-                                          ),
+                                              } else {
+                                                formulastrList.remove(
+                                                    '-${virtualMeterjson[index]['objectId']}');
+                                              }
+                                              String formulaString =
+                                                  formulajson[Selectindexrow]
+                                                          ['formula'] =
+                                                      formulastrList
+                                                          .join(' ');
+                                            });
+                                          },
                                         ),
                                       ),
-                                ],
-                              ),
-                            ))),
-                  ),
+                                    )
+                                  else
+                                    DataCell(
+                                      Center(
+                                        // '${virtualMeterjson[index]['sNo']}',
+                                        child: InkWell(
+                                          child: (formulaEditlist[i] != 'ID')
+                                              ? Text(
+                                                  '${index+1}',
+                                                  style: const TextStyle(
+                                                      fontSize: 16),
+                                                )
+                                              : Text(
+                                                  '${virtualMeterjson[index]['objectId']}'),
+                                        ),
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ))),
                 ),
               ),
+            ),
             const SizedBox(
               height: 20,
             ),
@@ -724,7 +725,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
           borderRadius: BorderRadius.circular(15.0),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.5),
+              color: Colors.grey.withValues(alpha: 0.5),
               spreadRadius: 5,
               blurRadius: 7,
               offset: const Offset(0, 3),
@@ -755,7 +756,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                           borderRadius: BorderRadius.circular(5.0),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.grey.withValues(alpha: 0.1),
                               spreadRadius: 5,
                               blurRadius: 7,
                               offset: const Offset(0, 3),
@@ -768,154 +769,153 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
                         )),
                   )
                 : Container(),
-            if (Selectindexrow != null)
-              Flexible(
-                flex: 3,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Container(
-                        height: double.infinity,
-                        width: 280,
-                        child: DataTable2(
-                            headingRowColor: MaterialStateProperty.all<Color>(
-                                Theme.of(context).primaryColorDark),
-                            showBottomBorder: true,
-                            columnSpacing: 12,
-                            horizontalMargin: 12,
-                            minWidth: 80,
-                            fixedTopRows: 0,
-                            fixedLeftColumns: 0,
-                            border: TableBorder.all(
-                                width: 1,
-                                color: Theme.of(context).primaryColorDark.withOpacity(0.2)),
-                            columns: [
-                              for (int i = 0; i < formulaEditlist.length; i++)
-                                DataColumn2(
-                                  label: Center(
-                                      child: Text(
-                                    formulaEditlist[i].toString(),
-                                    style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,color: Colors.white),
-                                    softWrap: true,
-                                  )),
-                                ),
-                            ],
-                            rows: List<DataRow>.generate(
-                              virtualMeterjson.length,
-                              (index) => DataRow(
-                                color: MaterialStateColor.resolveWith((states) {
-                                  return const Color.fromARGB(0, 176, 35, 35);
-                                }),
-                                cells: [
-                                  for (int i = 0;
-                                      i < formulaEditlist.length;
-                                      i++)
-                                    if (formulaEditlist[i] == '+')
-                                      DataCell(
-                                        Center(
-                                          child: Checkbox(
-                                            value: checkboxvalassign(
-                                                formulajson[Selectindexrow]
-                                                    ['formula'],
-                                                virtualMeterjson[index]['objectId'],
-                                                true),
-                                            onChanged: (bool? value) {
-                                              setState(() {
-                                                if (value == true) {
-                                                  if (formulastrList.contains(
-                                                      '-${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.remove(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                    formulastrList.add(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  } else if (!formulastrList
-                                                      .contains(
-                                                          '+${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.add(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  } else {
-                                                    formulastrList.remove(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                  }
+            Flexible(
+              flex: 3,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: SizedBox(
+                      height: double.infinity,
+                      width: 280,
+                      child: DataTable2(
+                          headingRowColor: WidgetStateProperty.all<Color>(
+                              Theme.of(context).primaryColorDark),
+                          showBottomBorder: true,
+                          columnSpacing: 12,
+                          horizontalMargin: 12,
+                          minWidth: 80,
+                          fixedTopRows: 0,
+                          fixedLeftColumns: 0,
+                          border: TableBorder.all(
+                              width: 1,
+                              color: Theme.of(context).primaryColorDark.withValues(alpha: 0.2)),
+                          columns: [
+                            for (int i = 0; i < formulaEditlist.length; i++)
+                              DataColumn2(
+                                label: Center(
+                                    child: Text(
+                                  formulaEditlist[i].toString(),
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,color: Colors.white),
+                                  softWrap: true,
+                                )),
+                              ),
+                          ],
+                          rows: List<DataRow>.generate(
+                            virtualMeterjson.length,
+                            (index) => DataRow(
+                              color: WidgetStateColor.resolveWith((states) {
+                                return const Color.fromARGB(0, 176, 35, 35);
+                              }),
+                              cells: [
+                                for (int i = 0;
+                                    i < formulaEditlist.length;
+                                    i++)
+                                  if (formulaEditlist[i] == '+')
+                                    DataCell(
+                                      Center(
+                                        child: Checkbox(
+                                          value: checkboxvalassign(
+                                              formulajson[Selectindexrow]
+                                                  ['formula'],
+                                              virtualMeterjson[index]['objectId'],
+                                              true),
+                                          onChanged: (bool? value) {
+                                            setState(() {
+                                              if (value == true) {
+                                                if (formulastrList.contains(
+                                                    '-${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.remove(
+                                                      '-${virtualMeterjson[index]['objectId']}');
+                                                  formulastrList.add(
+                                                      '+${virtualMeterjson[index]['objectId']}');
+                                                } else if (!formulastrList
+                                                    .contains(
+                                                        '+${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.add(
+                                                      '+${virtualMeterjson[index]['objectId']}');
                                                 } else {
                                                   formulastrList.remove(
                                                       '+${virtualMeterjson[index]['objectId']}');
                                                 }
-                                                String formulaString =
-                                                    formulajson[Selectindexrow]
-                                                            ['formula'] =
-                                                        formulastrList
-                                                            .join(' ');
-                                              });
-                                            },
-                                          ),
+                                              } else {
+                                                formulastrList.remove(
+                                                    '+${virtualMeterjson[index]['objectId']}');
+                                              }
+                                              String formulaString =
+                                                  formulajson[Selectindexrow]
+                                                          ['formula'] =
+                                                      formulastrList
+                                                          .join(' ');
+                                            });
+                                          },
                                         ),
-                                      )
-                                    else if (formulaEditlist[i] == '-')
-                                      DataCell(
-                                        Center(
-                                          child: Checkbox(
-                                            value: checkboxvalassign(
-                                                formulajson[Selectindexrow]
-                                                    ['formula'],
-                                                virtualMeterjson[index]['objectId'],
-                                                false),
-                                            onChanged: (bool? value) {
-                                              setState(() {
-                                                if (value == true) {
-                                                  if (formulastrList.contains(
-                                                      '+${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.remove(
-                                                        '+${virtualMeterjson[index]['objectId']}');
-                                                    formulastrList.add(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  } else if (!formulastrList
-                                                      .contains(
-                                                          '-${virtualMeterjson[index]['objectId']}')) {
-                                                    formulastrList.add(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  } else {
-                                                    formulastrList.remove(
-                                                        '-${virtualMeterjson[index]['objectId']}');
-                                                  }
+                                      ),
+                                    )
+                                  else if (formulaEditlist[i] == '-')
+                                    DataCell(
+                                      Center(
+                                        child: Checkbox(
+                                          value: checkboxvalassign(
+                                              formulajson[Selectindexrow]
+                                                  ['formula'],
+                                              virtualMeterjson[index]['objectId'],
+                                              false),
+                                          onChanged: (bool? value) {
+                                            setState(() {
+                                              if (value == true) {
+                                                if (formulastrList.contains(
+                                                    '+${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.remove(
+                                                      '+${virtualMeterjson[index]['objectId']}');
+                                                  formulastrList.add(
+                                                      '-${virtualMeterjson[index]['objectId']}');
+                                                } else if (!formulastrList
+                                                    .contains(
+                                                        '-${virtualMeterjson[index]['objectId']}')) {
+                                                  formulastrList.add(
+                                                      '-${virtualMeterjson[index]['objectId']}');
                                                 } else {
                                                   formulastrList.remove(
                                                       '-${virtualMeterjson[index]['objectId']}');
                                                 }
-                                                String formulaString =
-                                                    formulajson[Selectindexrow]
-                                                            ['formula'] =
-                                                        formulastrList
-                                                            .join(' ');
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      DataCell(
-                                        Center(
-                                          child: InkWell(
-                                            child: (formulaEditlist[i] != 'ID')
-                                                ? Text(
-                                                    '${virtualMeterjson[index]['sNo']}',
-                                                    style: const TextStyle(
-                                                        fontSize: 16),
-                                                  )
-                                                : Text(
-                                                    '${virtualMeterjson[index]['objectId']}'),
-                                          ),
+                                              } else {
+                                                formulastrList.remove(
+                                                    '-${virtualMeterjson[index]['objectId']}');
+                                              }
+                                              String formulaString =
+                                                  formulajson[Selectindexrow]
+                                                          ['formula'] =
+                                                      formulastrList
+                                                          .join(' ');
+                                            });
+                                          },
                                         ),
                                       ),
-                                ],
-                              ),
-                            ))),
-                  ),
+                                    )
+                                  else
+                                    DataCell(
+                                      Center(
+                                        child: InkWell(
+                                          child: (formulaEditlist[i] != 'ID')
+                                              ? Text(
+                                                  '${virtualMeterjson[index]['sNo']}',
+                                                  style: const TextStyle(
+                                                      fontSize: 16),
+                                                )
+                                              : Text(
+                                                  '${virtualMeterjson[index]['objectId']}'),
+                                        ),
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ))),
                 ),
               ),
+            ),
             const SizedBox(
               height: 20,
             ),
@@ -1001,7 +1001,7 @@ class _VirtualMeterScreenState extends State<VirtualMeterScreen>
     String minusString =
         minusList.isNotEmpty ? minusList.map((e) => '- $e').join(' ') : '';
 
-    String mergedString = plusString + ' ' + minusString;
+    String mergedString = '$plusString $minusString';
 
     return mergedString;
   }

@@ -7,7 +7,7 @@ import 'googlemap_model.dart';
 import 'oro_map/getlatlong.dart';
 
 class MapScreendevice extends StatefulWidget {
-  const MapScreendevice({Key? key}) : super(key: key);
+  const MapScreendevice({super.key});
 
   @override
   _MapScreendeviceState createState() => _MapScreendeviceState();
@@ -18,9 +18,9 @@ class _MapScreendeviceState extends State<MapScreendevice> {
   final TextEditingController _searchController = TextEditingController();
 
   Set<Marker> _markers = {};
-  Set<Marker> _vertices = {};
-  Set<Polyline> _lines = {};
-  Set<Polygon> _polygons = {};
+  final Set<Marker> _vertices = {};
+  final Set<Polyline> _lines = {};
+  final Set<Polygon> _polygons = {};
 
   LatLng? _selectedPosition;
   DeviceList? _selectedDevice;
@@ -29,14 +29,14 @@ class _MapScreendeviceState extends State<MapScreendevice> {
   late MqttPayloadProvider mqttPayloadProvider;
 
   bool _isDrawerOpen = false;
-  double _drawerWidth = 280;
+  final double _drawerWidth = 280;
   double _currentZoom = 15;
 
   // 🔥 AREA MODE
    bool _isClosed = false;
   List<LatLng> _areaPoints = [];
-  List<List<LatLng>> _undoStack = [];
-  List<List<LatLng>> _redoStack = [];
+  final List<List<LatLng>> _undoStack = [];
+  final List<List<LatLng>> _redoStack = [];
 
 
   @override
@@ -229,7 +229,7 @@ class _MapScreendeviceState extends State<MapScreendevice> {
         Polygon(
           polygonId: const PolygonId("area"),
           points: _areaPoints,
-          fillColor: Colors.blue.withOpacity(0.3),
+          fillColor: Colors.blue.withValues(alpha: 0.3),
           strokeWidth: 0,
         ),
       );
@@ -310,7 +310,7 @@ class _MapScreendeviceState extends State<MapScreendevice> {
         leading: Row(
           children: [
             IconButton(
-              icon: Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back),
               onPressed: () {
                 setState(() {
                   Navigator.pop(context);
@@ -356,7 +356,7 @@ class _MapScreendeviceState extends State<MapScreendevice> {
                       final device = devices[index];
                       return ListTile(
                         selected: device.deviceId == _selectedDevice?.deviceId,
-                        selectedTileColor: Colors.red.withOpacity(0.2),
+                        selectedTileColor: Colors.red.withValues(alpha: 0.2),
                         title: Text(device.deviceName ?? "Device"),
                         subtitle: Text(
                           (device.geography?.area != null &&
@@ -438,13 +438,13 @@ class _MapScreendeviceState extends State<MapScreendevice> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        IconButton(icon: Icon(Icons.undo), onPressed: _undo),
-                        IconButton(icon: Icon(Icons.redo), onPressed: _redo),
+                        IconButton(icon: const Icon(Icons.undo), onPressed: _undo),
+                        IconButton(icon: const Icon(Icons.redo), onPressed: _redo),
                         IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
+                            icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: _clearArea),
                         IconButton(
-                            icon: Icon(Icons.check, color: Colors.green),
+                            icon: const Icon(Icons.check, color: Colors.green),
                             onPressed: _closePolygon),
                       ],
                     ),
@@ -512,8 +512,8 @@ class _MapScreendeviceState extends State<MapScreendevice> {
             points: points,
 
             fillColor: isSelected
-                ? Colors.blue.withOpacity(0.4)
-                : Colors.yellow.withOpacity(0.4),
+                ? Colors.blue.withValues(alpha: 0.4)
+                : Colors.yellow.withValues(alpha: 0.4),
 
             strokeColor:
             isSelected ? Colors.yellow : Colors.white,

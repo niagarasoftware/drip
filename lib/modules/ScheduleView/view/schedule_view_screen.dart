@@ -1,11 +1,9 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
-import 'package:oro_drip_irrigation/Widgets/sized_image.dart';
 import 'package:oro_drip_irrigation/modules/IrrigationProgram/repository/irrigation_program_repo.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
 import 'package:oro_drip_irrigation/modules/ScheduleView/repository/schedule_view_repo.dart';
@@ -141,7 +139,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           MqttService().schedulePayload = [{"message" : convertedJson['message']}];
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       // print('Error: $e');
       // print('stackTrace: $stackTrace');
     }
@@ -380,7 +378,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
                   try {
                     await sentToServer(sentMessage.join('\n'), dataToHardware, widget.userId, widget.controllerId, widget.customerId);
                     _requestScheduleData();
-                  } catch(error, stackTrace) {
+                  } catch(error) {
                     // print("error ==> $error");
                     // print("stackTrace ==> $stackTrace");
                   }
@@ -421,12 +419,12 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           markerMargin: const EdgeInsets.all(2),
           markerDecoration: boxDecoration,
           outsideDecoration: boxDecoration,
-          holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
-          weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
-          defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
+          holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
+          weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
+          defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
           selectedDecoration: boxDecoration.copyWith(color: theme.primaryColor),
           todayTextStyle: const TextStyle(color: Colors.black),
-          todayDecoration: boxDecoration.copyWith(color: theme.primaryColor.withOpacity(0.2), border: Border.all(color: theme.primaryColor)),
+          todayDecoration: boxDecoration.copyWith(color: theme.primaryColor.withValues(alpha: 0.2), border: Border.all(color: theme.primaryColor)),
         ),
         selectedDayPredicate: (day) {
           return isSameDay(date, day);
@@ -1136,7 +1134,7 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
 
         return AlertDialog(
           title: Text('Color indications', style: TextStyle(color: Theme.of(context).primaryColor),),
-          content: Container(
+          content: SizedBox(
             height: 320,
             child: SingleChildScrollView(
               child: Column(

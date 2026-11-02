@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -6,13 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:lottie/lottie.dart';
-import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/repository/ble_repository.dart';
 import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/view/node_dashboard.dart';
-import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/view/scan_screen.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import '../state_management/ble_service.dart';
-import '../utils/snackbar.dart';
 import 'package:provider/provider.dart';
 
 /// Represents the state of the BLE node connection page.

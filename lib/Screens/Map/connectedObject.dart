@@ -6,7 +6,7 @@ import '../../StateManagement/mqtt_payload_provider.dart';
 import 'googlemap_model.dart';
 
 class MapScreenConnectedObjects extends StatefulWidget {
-  const MapScreenConnectedObjects({Key? key, required this.selectindex}) : super(key: key);
+  const MapScreenConnectedObjects({super.key, required this.selectindex});
 
   final int selectindex;
 

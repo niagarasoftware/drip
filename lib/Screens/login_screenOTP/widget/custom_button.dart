@@ -5,7 +5,7 @@ class CustomButton extends StatelessWidget {
   final clickOnLogin;
 
   // ignore: sort_constructors_first
-  const CustomButton(this.clickOnLogin);
+  const CustomButton(this.clickOnLogin, {super.key});
 
   @override
   Widget build(BuildContext context) {

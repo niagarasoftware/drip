@@ -319,7 +319,7 @@ class _StandAloneSettingsState extends State<StandAloneSettings> {
         final response = jsonDecode(result.body);
         showSnackBar(
             message: response['message'], context: context);
-      } catch (error, stackTrace) {
+      } catch (error) {
         if (kDebugMode) {
           // print('Stack trace in the sending valve settings :: $stackTrace');
         }

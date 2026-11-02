@@ -1,11 +1,8 @@
 
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:oro_drip_irrigation/Screens/Map/polygon_area_calculator.dart';
-import 'package:permission_handler/permission_handler.dart';
+ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
 import '../googlemap_model.dart';
@@ -14,7 +11,7 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 
 class SetSelectOroLocation extends StatefulWidget {
-  const SetSelectOroLocation({Key? key, required this.index}) : super(key: key);
+  const SetSelectOroLocation({super.key, required this.index});
   final int index;
   @override
   _SetSelectOroLocationState createState() => _SetSelectOroLocationState();
@@ -30,19 +27,18 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
   late MqttPayloadProvider mqttPayloadProvider;
   ConnectedObject? _selectedObject;
   bool _isDrawerOpen = false;
-  double _drawerWidth = 280;
+  final double _drawerWidth = 280;
 
   List<LatLng> _points = [];
-  Set<Marker> _vertices = {};
-  Set<Polyline> _lines = {};
-  Set<Polygon> _polygons = {};
+  final Set<Marker> _vertices = {};
+  final Set<Polyline> _lines = {};
+  final Set<Polygon> _polygons = {};
 
   bool _isClosed = false;
-  bool _isEditMode = false;
-  List<List<LatLng>> _undoStack = [];
-  List<List<LatLng>> _redoStack = [];
+  final List<List<LatLng>> _undoStack = [];
+  final List<List<LatLng>> _redoStack = [];
   List<LatLng> _finalPolygonPoints = [];
-  List<LatLng> _redoPoints = [];
+  final List<LatLng> _redoPoints = [];
 
 
   @override
@@ -57,23 +53,14 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
-    controller.animateCamera(CameraUpdate.newLatLngZoom(
-      _getInitialCameraPosition(), _currentZoom,
-    ));
   }
 
   /// Load all markers from device's connected objects
   void _loadAllMarkers() {
     final device =
     mqttPayloadProvider.mapModelInstance.data?.deviceList?[widget.index];
-    AppLog.log("load all markers ${device?.geography?.lat}");
-    AppLog.log('Device index: ${widget.index}');
-    AppLog.log('Device geography: ${device?.geography}');
-    AppLog.log('Device geography lat: ${device?.geography?.lat}');
-    AppLog.log('Device geography long: ${device?.geography?.long}');
-    final objects = device?.connectedObject;
-    AppLog.log('Connected objects: ${objects?.length ?? 0}');
 
+    final objects = device?.connectedObject;
 
     if (objects == null || objects.isEmpty) return;
 
@@ -115,7 +102,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
           content: Text("Select Object first"),
         ),
       );
-      return null;
+      return;
     }
 
     final position = LatLng(lat, long);
@@ -186,62 +173,43 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
 
 
   LatLng _getInitialCameraPosition() {
-    print("call _getInitialCameraPosition");
-    // 1. First priority: Selected object
+    // 1️⃣ If selected object has valid lat/long → use it
     if (_selectedObject != null &&
         _selectedObject!.lat != null &&
         _selectedObject!.long != null &&
         _selectedObject!.lat != 0 &&
         _selectedObject!.long != 0) {
-      return LatLng(
-        _selectedObject!.lat!,
-        _selectedObject!.long!,
-      );
+      return LatLng(_selectedObject!.lat!, _selectedObject!.long!);
     }
 
+    // 2️⃣ Otherwise use first valid object
     final device =
     mqttPayloadProvider.mapModelInstance.data?.deviceList?[widget.index];
 
-    print('device---lat-->${device?.geography?.lat}');
-    print('device---long-->${device?.geography?.long}');
-
-    // 2. Second priority: First valid connected object
     final objects = device?.connectedObject;
 
     if (objects != null && objects.isNotEmpty) {
-      for (final obj in objects) {
+      for (var obj in objects) {
         if (obj.lat != null &&
             obj.long != null &&
             obj.lat != 0 &&
             obj.long != 0) {
-          return LatLng(
-            obj.lat!,
-            obj.long!,
-          );
+          return LatLng(obj.lat!, obj.long!);
         }
       }
     }
 
-    // 3. Third priority: Device Geography
-    final device1 =
-    mqttPayloadProvider.mapModelInstance.data?.deviceList?[0];
-    final geography = device1?.geography;
-
-    if (geography?.lat != null &&
-        geography?.long != null &&
-        geography!.lat != 0 &&
-        geography.long != 0) {
-      return LatLng(
-        geography.lat!,
-        geography.long!,
-      );
-    }
-
-    // 4. Final fallback: Existing default location
+    // 3️⃣ Final fallback (safe location)
     return const LatLng(11.1271, 78.6569);
   }
 
 
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.locationWhenInUse.request();
+    if (status == PermissionStatus.granted) {
+      setState(() {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -255,7 +223,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
         leading: Row(
           children: [
             IconButton(
-              icon: Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back),
               onPressed: () {
                 setState(() {
                   Navigator.pop(context);
@@ -306,7 +274,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
                       return ListTile(
                         selected: obj == _selectedObject,
                         selectedTileColor:
-                        Colors.blue.withOpacity(0.2),
+                        Colors.blue.withValues(alpha: 0.2),
                         title: Text(obj.name ??
                             obj.objectName ??
                             "Object"),
@@ -326,11 +294,6 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
                             _lines.clear();
                             _polygons.clear();
                             _isClosed = false;
-                            _isEditMode = false;
-                            _finalPolygonPoints.clear();
-                            _undoStack.clear();
-                            _redoStack.clear();
-                            _redoPoints.clear();
 
                             // ✅ LOAD EXISTING AREA (optional)
                             if (obj.area != null && obj.area!.isNotEmpty) {
@@ -338,8 +301,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
                                   .map((e) => LatLng(e.latitude!, e.longitude!))
                                   .toList();
 
-                              _isClosed = _points.length >= 3;
-                              _finalPolygonPoints = List.from(_points);
+                              _isClosed = true;
                             }
                           });
 
@@ -398,39 +360,31 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
                       IconButton(onPressed: _getCurrentLocation, icon: const Icon(Icons.my_location, color: Colors.blue)),
                     ],
                   ),
-                ),
-                Container(
-                  height: 40,
-                  color: Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.undo),
-                        onPressed: _points.isEmpty ? null : _undo,
-                      ),
-
-                      IconButton(
-                        icon: Icon(Icons.redo),
-                        onPressed: _redoPoints.isEmpty ? null : _redo,
-                      ),
-                      IconButton(
-                        tooltip: _isEditMode ? 'Done Editing' : 'Edit Polygon',
-                        icon: Icon(
-                          _isEditMode ? Icons.check_circle : Icons.edit,
-                          color: _isEditMode ? Colors.green : Colors.blue,
-                        ),
-                        onPressed: _toggleEditMode,
-                      ),
-                      IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
-                          onPressed: _deletePolygon),
-                      IconButton(
-                          icon: Icon(Icons.check, color: Colors.green),
-                          onPressed: _closePolygon),
-                    ],
                   ),
-                ),
+                  Container(
+                    height: 40,
+                    color: Colors.white,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.undo),
+                          onPressed: _points.isEmpty ? null : _undo,
+                        ),
+
+                        IconButton(
+                          icon: const Icon(Icons.redo),
+                          onPressed: _redoPoints.isEmpty ? null : _redo,
+                        ),
+                        IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: _deletePolygon),
+                        IconButton(
+                            icon: const Icon(Icons.check, color: Colors.green),
+                            onPressed: _closePolygon),
+                      ],
+                    ),
+                  ),
 
                 // Google Map
                 Expanded(
@@ -454,9 +408,9 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
                       ..._buildAllPolygons(),
                       ..._polygons,
                     },
-                    onTap: (LatLng latLng) {
-                      _addPoint(latLng); // ✅ polygon point add
-                    },
+                        onTap: (LatLng latLng) {
+                        _addPoint(latLng); // ✅ polygon point add
+                     },
                     myLocationButtonEnabled: true,
                     myLocationEnabled: true,
 
@@ -470,176 +424,66 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       ),
     );
   }
-  // Edit an existing closed polygon without removing its closing edge.
-  // An unfinished polyline stays open until the user manually closes it.
-  void _toggleEditMode() {
-    if (_selectedObject == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select Object first')),
-      );
-      return;
-    }
-    setState(() {
-      // Keep the original manual-close state while editing.
-      // Edit does not automatically close an open polyline.
-      _isEditMode = !_isEditMode;
-      _finalPolygonPoints = List<LatLng>.from(_points);
-      _syncPointsToObject();
-    });
-    _drawPolygon();
-  }
-
   void _closePolygon() {
-    if (_selectedObject == null || _points.length < 3) return;
+    if (_points.length < 2) return;
+
     setState(() {
       _isClosed = true;
-      _isEditMode = false;
-      _finalPolygonPoints = List<LatLng>.from(_points);
-      _syncPointsToObject();
+
+      // ✅ SAVE FINAL SHAPE (freeze)
+      _finalPolygonPoints = List.from(_points);
     });
+
     _drawPolygon();
-
   }
-
-
-  double get _areaInAcres => PolygonAreaCalculator.calculateAcres(_points);
-
-
-
   Widget _buildSelectedObjectBar() {
     if (_selectedObject == null) {
-      return const SizedBox.shrink();
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(5),
+        color: Colors.grey.shade200,
+        child: const Text(
+          "No Object Selected",
+          style: TextStyle(fontSize: 16),
+        ),
+      );
     }
 
-    final obj = _selectedObject!;
-
-    final String valveName =
-        obj.name ?? obj.objectName ?? "Valve";
-
-    final bool isOn = obj.status == 1;
-
-    final Color statusColor =
-    isOn ? Colors.green : Colors.red;
-
-    // Get coordinates from polygon area (same as old code)
-    final bool hasArea =
-        obj.area != null && obj.area!.isNotEmpty;
-
-    final String latitude = hasArea &&
-        obj.area!.first.latitude != null
-        ? obj.area!.first.latitude!.toStringAsFixed(6)
-        : "-";
-
-    final String longitude = hasArea &&
-        obj.area!.first.longitude != null
-        ? obj.area!.first.longitude!.toStringAsFixed(6)
-        : "-";
-
-    return Container(
+    _searchController.text =
+    (_selectedObject?.area != null &&
+        _selectedObject!.area!.isNotEmpty)
+        ? "${_selectedObject!.area!.first.latitude},${_selectedObject!.area!.first.longitude}"
+        : "";    return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 8,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.teal.shade50,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade300,
-          ),
-        ),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(5),
+      color: Colors.teal.shade50,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Valve Name + Status
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  valveName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  "Status: ${isOn ? 'ON' : 'OFF'}",
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          Text(
+            _selectedObject!.name ??
+                _selectedObject!.objectName ??
+                "Connected Object",
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
-
-          // Latitude and Longitude
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Coordinates",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  "Lat: $latitude  Long: $longitude",
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+          Text(
+            (_selectedObject?.area != null &&
+                _selectedObject!.area!.isNotEmpty)
+                ? "Lat: ${_selectedObject!.area!.first.latitude}  "
+                "Long: ${_selectedObject!.area!.first.longitude}"
+                : "Lat: -  Long: -",
           ),
-
-          // Field Area
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Field Area",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _points.length >= 3
-                      ? "${_areaInAcres.toStringAsFixed(3)} Acres"
-                      : "0.000 Acres",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-
-              ],
-            ),
+          Text(
+            "Status: ${_selectedObject!.status == 1 ? "ON" : "OFF"}",
           ),
         ],
       ),
     );
+
+
   }
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
@@ -676,21 +520,20 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
 
   void _addPoint(LatLng point) {
     if (_selectedObject == null) return;
-    if (_isClosed && !_isEditMode) return;
 
-    _saveState();
+    if (_isClosed) return;
+    _saveState(); // ✅ ADD THIS
     setState(() {
       _points.add(point);
-      _redoPoints.clear();
-      // Do NOT auto-close at three points. Only first marker or green
-      // check button closes the shape. Editing an already closed shape
-      // keeps it closed as more points are appended.
-      _finalPolygonPoints = List<LatLng>.from(_points);
-      _syncPointsToObject();
+
+      _selectedObject!.area ??= [];
+      _selectedObject!.area!.add(
+        Area(latitude: point.latitude, longitude: point.longitude),
+      );
     });
+
     _drawPolygon();
   }
-
   void _drawPolygon() {
     _vertices.clear();
     _lines.clear();
@@ -706,9 +549,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
         Marker(
           markerId: MarkerId("point_$i"),
           position: _points[i],
-          draggable: _isEditMode || !_isClosed,
-          consumeTapEvents: true,
-          zIndexInt: 100,
+          draggable: true,
 
           icon: BitmapDescriptor.defaultMarkerWithHue(
             isFirst
@@ -717,13 +558,12 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
           ),
 
           onTap: () {
-            if (isFirst && !_isClosed && _points.length >= 3) {
+            if (isFirst && !_isClosed) {
               _closePolygon();
             }
           },
 
           onDragEnd: (newPos) {
-            if (!_isEditMode && _isClosed) return;
             _saveState();
 
             setState(() {
@@ -734,7 +574,9 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
               _syncPointsToObject();
 
               // ✅ If polygon already closed → update final shape also
-              _finalPolygonPoints = List.from(_points);
+              if (_isClosed) {
+                _finalPolygonPoints = List.from(_points);
+              }
             });
 
             _drawPolygon();
@@ -746,7 +588,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
     // 🔹 LINE (always from editing points)
     List<LatLng> path = List.from(_points);
 
-    if (_isClosed && _points.length >= 3) {
+    if (_isClosed && _points.isNotEmpty) {
       path.add(_points.first);
     }
 
@@ -759,15 +601,13 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       ),
     );
 
-    // BLUE AREA FILL: show automatically from the third point onward.
-    // This does NOT change _isClosed: only the first marker or green check
-    // closes the yellow polyline. Editing keeps the fill up to date.
-    if (_points.length >= 3) {
+    // 🔹 POLYGON (ONLY FROM FINAL SHAPE)
+    if (_isClosed && _finalPolygonPoints.isNotEmpty) {
       _polygons.add(
         Polygon(
           polygonId: const PolygonId("editing"),
-          points: List<LatLng>.from(_points),
-          fillColor: Colors.blue.withOpacity(0.4),
+          points: _finalPolygonPoints, // ✅ NOT _points
+          fillColor: Colors.blue.withValues(alpha: 0.4),
           strokeWidth: 2,
           strokeColor: Colors.blue,
         ),
@@ -775,7 +615,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
     }
 
     setState(() {});
-  }
+   }
   Set<Marker> _buildPolygonLabels() {
     Set<Marker> labels = {};
 
@@ -783,8 +623,6 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
         .mapModelInstance.data?.deviceList?[widget.index].connectedObject ?? [];
 
     for (var obj in objects) {
-      // Keep the selected object's polygon/vertex markers unobstructed.
-      if (obj == _selectedObject) continue;
       final area = obj.area;
 
       if (area != null && area.isNotEmpty) {
@@ -809,7 +647,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
 
     return labels;
   }
-  void _saveState() {
+   void _saveState() {
     _undoStack.add(List.from(_points));
     _redoStack.clear();
   }
@@ -821,11 +659,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       _points.removeLast();
     });
 
-    // Preserve manual close status; a shape with fewer than 3 points
-    // cannot remain a closed polygon after undo.
-    if (_points.length < 3) _isClosed = false;
-    _syncPointsToObject();
-    _finalPolygonPoints = List.from(_points);
+    _syncPointsToObject(); // ✅ IMPORTANT
     _drawPolygon();
   }
   void _redo() {
@@ -835,22 +669,16 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       _points.add(_redoPoints.removeLast());
     });
 
-    // Preserve manual close status; a shape with fewer than 3 points
-    // cannot remain a closed polygon after undo.
-    if (_points.length < 3) _isClosed = false;
-    _syncPointsToObject();
-    _finalPolygonPoints = List.from(_points);
+    _syncPointsToObject(); // ✅ IMPORTANT
     _drawPolygon();
   }
-  Set<Polygon> _buildAllPolygons() {
+   Set<Polygon> _buildAllPolygons() {
     Set<Polygon> polygons = {};
 
     final objects = mqttPayloadProvider
         .mapModelInstance.data?.deviceList?[widget.index].connectedObject ?? [];
 
     for (var obj in objects) {
-      // Keep the selected object's polygon/vertex markers unobstructed.
-      if (obj == _selectedObject) continue;
       final area = obj.area;
 
       if (area != null && area.isNotEmpty) {
@@ -867,8 +695,8 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
             points: points,
 
             fillColor: isSelected
-                ? Colors.blue.withOpacity(0.4)   // ✅ Selected
-                : Colors.yellow.withOpacity(0.3), // ✅ Others
+                ? Colors.blue.withValues(alpha: 0.4)   // ✅ Selected
+                : Colors.yellow.withValues(alpha: 0.3), // ✅ Others
 
             strokeColor:
             isSelected ? Colors.blue : Colors.grey,
@@ -891,10 +719,7 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       _lines.clear();
       _polygons.clear();
       _isClosed = false;
-      _isEditMode = false;
-      _redoPoints.clear();
-      _redoStack.clear();
-      _undoStack.clear();
+
       _selectedObject!.area = [];
     });
   }
@@ -910,4 +735,3 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
   }
 
 }
-

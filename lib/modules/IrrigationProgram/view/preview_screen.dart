@@ -837,7 +837,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     return const Color(0xff15C0E6);
                   }
                 },
-                xValueMapper: (ChartData data, _) => "${data.sequenceName}",
+                xValueMapper: (ChartData data, _) => data.sequenceName,
                 highValueMapper: (ChartData data, _) => data.preValueHigh,
                 lowValueMapper: (ChartData data, _) => data.preValueLow,
               ),
@@ -853,7 +853,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                     return const Color(0xff10E196);
                   }
                 },
-                xValueMapper: (ChartData data, _) => "${data.sequenceName}",
+                xValueMapper: (ChartData data, _) => data.sequenceName,
                 highValueMapper: (ChartData data, _) => data.waterValueHigh,
                 lowValueMapper: (ChartData data, _) => data.waterValueLow,
               ),
@@ -1104,7 +1104,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
     String? title6, itemList5, itemList6, String? title7, itemList7, bool showRow2 = false, bool showWidget2 = false}) {
     print("title3$title3");
     print("itemList3$itemList3");
-    print("itemList3${itemList3}");
+    print("itemList3$itemList3");
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1380,22 +1380,22 @@ List<BoxShadow> customBoxShadow = [
   BoxShadow(
       offset: const Offset(0, 45),
       blurRadius: 112,
-      color: Colors.black.withOpacity(0.06)
+      color: Colors.black.withValues(alpha: 0.06)
   ),
   BoxShadow(
       offset: const Offset(0, 22.78),
       blurRadius: 48.83,
-      color: Colors.black.withOpacity(0.0405)
+      color: Colors.black.withValues(alpha: 0.0405)
   ),
   BoxShadow(
       offset: const Offset(0, 9),
       blurRadius: 18.2,
-      color: Colors.black.withOpacity(0.03)
+      color: Colors.black.withValues(alpha: 0.03)
   ),
   BoxShadow(
       offset: const Offset(0, 1.97),
       blurRadius: 6.47,
-      color: Colors.black.withOpacity(0.0195)
+      color: Colors.black.withValues(alpha: 0.0195)
   ),
 ];
 
@@ -1425,7 +1425,7 @@ dynamic dateFormatConversion(item) {
   return dateFormat.format(DateTime.parse(item));
 }
 
-Widget _buildScheduleDetailsItem(scheduleType, item, {string = false, TextAlign textAlign = TextAlign.start}) {
+Widget _buildScheduleDetailsItem(scheduleType, item, {string = false}) {
   return Text(
       string
           ? '${scheduleType.schedule[item]}'

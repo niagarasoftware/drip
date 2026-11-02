@@ -28,7 +28,7 @@ class _NodeInBootModeState extends State<NodeInBootMode> {
       appBar: bleService.nodeDataFromHw['BOOT'] == "30" ? AppBar(
         title: const Text('Update Firmware'),
         actions: [
-          Text(bleService.connectionState(), style: TextStyle(color: Colors.white),),
+          Text(bleService.connectionState(), style: const TextStyle(color: Colors.white),),
           const SizedBox(width: 20,)
         ],
       ) : null,
@@ -85,7 +85,7 @@ class _NodeInBootModeState extends State<NodeInBootMode> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       spreadRadius: 2,
                       blurRadius: 10,
                     ),
@@ -239,7 +239,7 @@ class _NodeInBootModeState extends State<NodeInBootMode> {
             spacing: 20,
             children: [
 
-              Text(bleService.fileMode.name,style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center,),
+              Text(bleService.fileMode.name,style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center,),
               const SizedBox(
                 width: 200,
                 child: LinearProgressIndicator(

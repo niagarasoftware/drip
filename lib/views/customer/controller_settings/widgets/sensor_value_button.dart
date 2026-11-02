@@ -18,7 +18,7 @@ class SensorValueButton extends StatelessWidget {
       width: 100,
       height: 27,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withOpacity(0.05),
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(3),
         border: Border.all(width: 0.5, color: Colors.grey.shade400),
       ),
@@ -156,13 +156,13 @@ class SensorValueButton extends StatelessWidget {
               }
             },
             style: ButtonStyle(
-              backgroundColor: MaterialStateProperty.all(
+              backgroundColor: WidgetStateProperty.all(
                 operator == 'C' ? Colors.redAccent : Theme.of(context).primaryColor,
               ),
             ),
             child: operator == 'cl'
                 ? const Icon(Icons.backspace_outlined, color: Colors.white)
-                : Text(operator, style: TextStyle(fontSize: 15, color: Colors.white)),
+                : Text(operator, style: const TextStyle(fontSize: 15, color: Colors.white)),
           );
         }).toList(),
       ),

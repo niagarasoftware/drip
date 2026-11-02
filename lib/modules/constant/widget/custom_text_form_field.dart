@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/Constants/properties.dart';
 
 class CustomTextFormField extends StatefulWidget {
   final String value;
@@ -52,7 +51,7 @@ class _CustomTextFormFieldState extends State<CustomTextFormField> {
       child: isEditing ? Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(3),
-          border: Border.all(color: Theme.of(context).primaryColor.withOpacity(0.2))
+          border: Border.all(color: Theme.of(context).primaryColor.withValues(alpha: 0.2))
         ),
         child: TextFormField(
           // inputFormatters: widget.dataType.contains('int') ? AppProperties.regexForNumbers : AppProperties.regexForDecimal,

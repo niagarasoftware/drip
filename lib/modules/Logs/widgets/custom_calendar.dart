@@ -27,13 +27,13 @@ class CustomCalendar extends StatelessWidget {
     final theme = Theme.of(context);
     BoxDecoration boxDecoration = BoxDecoration(
       borderRadius: BorderRadius.circular(10),
-      color: Colors.blueGrey.withOpacity(0.1),
+      color: Colors.blueGrey.withValues(alpha: 0.1),
     );
 
     return Container(
       margin: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        boxShadow: [BoxShadow(blurRadius: 5, color: Colors.grey.withOpacity(0.3))],
+        boxShadow: [BoxShadow(blurRadius: 5, color: Colors.grey.withValues(alpha: 0.3))],
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
@@ -53,13 +53,13 @@ class CustomCalendar extends StatelessWidget {
           markerMargin: const EdgeInsets.all(2),
           markerDecoration: boxDecoration,
           outsideDecoration: boxDecoration,
-          holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1)),
-          weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1)),
-          defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1)),
+          holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1)),
+          weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1)),
+          defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1)),
           selectedDecoration: boxDecoration.copyWith(color: theme.primaryColor),
           todayTextStyle: const TextStyle(color: Colors.black),
           todayDecoration: boxDecoration.copyWith(
-            color: theme.primaryColor.withOpacity(0.2),
+            color: theme.primaryColor.withValues(alpha: 0.2),
             border: Border.all(color: theme.primaryColor),
           ),
         ),

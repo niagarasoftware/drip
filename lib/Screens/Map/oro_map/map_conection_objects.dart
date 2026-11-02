@@ -12,18 +12,17 @@ import 'SetSelectAreatorLocation.dart';
 import 'SetSelectValveOroLocation.dart';
 import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
-import 'map_oro.dart';
 
 
 class MapConnectionObject extends StatefulWidget {
   const MapConnectionObject({
-    Key? key,
+    super.key,
     required this.userId,
     required this.customerId,
     required this.controllerId,
     required this.imeiNo,
     required this.modelId,
-  }) : super(key: key);
+  });
 
   final int userId, customerId, controllerId,modelId;
   final String imeiNo;
@@ -112,7 +111,7 @@ class _MapConnectionObjectState extends State<MapConnectionObject> {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) {
-                  return  widget.modelId == 72 ?  MapScreendevice() : SetSelectOroDeviceLocation();
+                  return  widget.modelId == 72 ?  const MapScreendevice() : const SetSelectOroDeviceLocation();
                 })
             );
             },
@@ -144,7 +143,7 @@ class _MapConnectionObjectState extends State<MapConnectionObject> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.all(12),
                     leading: CircleAvatar(
-                      backgroundColor: Colors.blue.withOpacity(0.1),
+                      backgroundColor: Colors.blue.withValues(alpha: 0.1),
                       child: Image.asset('assets/png/map.png', height: 24),
                     ),
                     title: Text(

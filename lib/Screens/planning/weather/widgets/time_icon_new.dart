@@ -24,7 +24,7 @@ class TimeIconNew extends StatelessWidget {
             gradient: gradient,
             boxShadow: [
               BoxShadow(
-                color: glowColor.withOpacity(0.6),
+                color: glowColor.withValues(alpha: 0.6),
                 blurRadius: 20,
                 spreadRadius: 6,
               ),

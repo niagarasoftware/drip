@@ -11,12 +11,12 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 class MapScreenAllArea extends StatefulWidget {
   const MapScreenAllArea({
-    Key? key,
+    super.key,
     required this.userId,
     required this.customerId,
     required this.controllerId,
     required this.imeiNo,
-  }) : super(key: key);
+  });
 
   final int userId, customerId, controllerId;
   final String imeiNo;
@@ -104,7 +104,7 @@ class _MapScreenAllAreaState extends State<MapScreenAllArea> {
             points: valve.area,
             strokeColor: strokeColor,
             strokeWidth: 1,
-            fillColor: getColorByStatus(valve.status,valve.percentage).withOpacity(0.7),
+            fillColor: getColorByStatus(valve.status,valve.percentage).withValues(alpha: 0.7),
           ),
         );
 
@@ -234,7 +234,7 @@ class _MapScreenAllAreaState extends State<MapScreenAllArea> {
             markers: _markers,
           ),
           if (_isLoading)
-            Center(
+            const Center(
               child: CircularProgressIndicator(backgroundColor: Colors.red,),
             ),
         ],
@@ -245,9 +245,9 @@ class _MapScreenAllAreaState extends State<MapScreenAllArea> {
 
 class TextOnImage extends StatelessWidget {
   const TextOnImage({
-    Key? key,
+    super.key,
     required this.text,
-  }) : super(key: key);
+  });
 
   final String text;
 

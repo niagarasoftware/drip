@@ -316,7 +316,7 @@ class _ConnectionState extends State<Connection> {
       firstEight = firstEight - (8 - to);
     }
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+      margin: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
       width: to > 8 ? 500 : 250,
       height: 280,
       padding: const EdgeInsets.all(10),
@@ -545,7 +545,7 @@ class _ConnectionState extends State<Connection> {
                 child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                        color: widget.configPvd.selectedModelControllerId == model.controllerId ? Color(0xff1C863F) :Colors.grey.shade300,
+                        color: widget.configPvd.selectedModelControllerId == model.controllerId ? const Color(0xff1C863F) :Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(8)
                     ),
                     child: Column(

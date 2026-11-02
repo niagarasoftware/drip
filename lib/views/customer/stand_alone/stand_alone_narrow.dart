@@ -63,7 +63,7 @@ class _StandAloneNarrowState extends State<StandAloneNarrow> with SingleTickerPr
                         width: 175,
                         child: DropdownButtonFormField(
                           dropdownColor: Theme.of(context).primaryColorLight,
-                          value: viewModel.programList.isNotEmpty ?
+                          initialValue: viewModel.programList.isNotEmpty ?
                           viewModel.programList[viewModel.ddCurrentPosition] : null,
                           items: viewModel.programList.map((item) {
                             return DropdownMenuItem(
@@ -101,7 +101,7 @@ class _StandAloneNarrowState extends State<StandAloneNarrow> with SingleTickerPr
                             dropdownColor: Theme.of(context).primaryColorLight,
                             iconEnabledColor: Colors.white,
                             iconDisabledColor: Colors.white,
-                            value: viewModel.programList.isNotEmpty
+                            initialValue: viewModel.programList.isNotEmpty
                                 ? viewModel.programList[viewModel.ddCurrentPosition]
                                 : null,
                             items: viewModel.programList.map((item) {
@@ -144,7 +144,7 @@ class _StandAloneNarrowState extends State<StandAloneNarrow> with SingleTickerPr
                               return Colors.black;
                             }),
                             overlayColor: WidgetStateProperty.all(
-                              Theme.of(context).primaryColorLight.withOpacity(0.1),
+                              Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                             ),
                             surfaceTintColor: WidgetStateProperty.all(Colors.white),
                             side: WidgetStateProperty.all(

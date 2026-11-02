@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -31,7 +30,7 @@ class ControllerLog extends StatefulWidget {
   final String deviceID;
   final String communicationType;
 
-  const ControllerLog({Key? key, required this.deviceID, required this.communicationType}) : super(key: key);
+  const ControllerLog({super.key, required this.deviceID, required this.communicationType});
 
   @override
   _ControllerLogState createState() => _ControllerLogState();
@@ -199,9 +198,9 @@ class _ControllerLogState extends State<ControllerLog> with SingleTickerProvider
       String filePath = '$appDocPath/$localFileNameForTrace.txt';
       final localFile = File(filePath);
       await localFile.writeAsString(traceData.join('\n'));
-      int uploadResponse = await sftpService.uploadFile(localFileName: localFileNameForTrace, remoteFilePath: '/home/ubuntu/oro2024/OroGem/OroGemLogs/${widget.deviceID}_${type}_${dateString}.txt');
+      int uploadResponse = await sftpService.uploadFile(localFileName: localFileNameForTrace, remoteFilePath: '/home/ubuntu/oro2024/OroGem/OroGemLogs/${widget.deviceID}_${type}_$dateString.txt');
       if(uploadResponse == 200){
-        _showSnackBar("/home/ubuntu/oro2024/OroGem/OroGemLogs/${widget.deviceID}_${type}_${dateString}.txt \n FTP upload success'...");
+        _showSnackBar("/home/ubuntu/oro2024/OroGem/OroGemLogs/${widget.deviceID}_${type}_$dateString.txt \n FTP upload success'...");
         AppLog.log('upload success');
       }else{
         _showSnackBar("FTP upload failed...");
@@ -580,7 +579,7 @@ class _ControllerLogState extends State<ControllerLog> with SingleTickerProvider
 class ScrollableTextWithSearch extends StatefulWidget {
   final String text;
 
-  ScrollableTextWithSearch({
+  const ScrollableTextWithSearch({super.key, 
     required this.text,
   });
 
@@ -591,9 +590,9 @@ class ScrollableTextWithSearch extends StatefulWidget {
 
 class _ScrollableTextWithSearchState extends State<ScrollableTextWithSearch> {
   String _searchQuery = '';  // Query text to match
-  ScrollController _scrollController = ScrollController();
+  final ScrollController _scrollController = ScrollController();
   List<int> _matches = [];   // List of match positions
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   int _matchCount = 0;
 
   @override
@@ -629,7 +628,7 @@ class _ScrollableTextWithSearchState extends State<ScrollableTextWithSearch> {
       if (start < pos) children.add(TextSpan(text: text.substring(start, pos)));
       children.add(TextSpan(
         text: text.substring(pos, pos + _searchQuery.length),
-        style: TextStyle(backgroundColor: Colors.yellow),
+        style: const TextStyle(backgroundColor: Colors.yellow),
       ));
       start = pos + _searchQuery.length;
     }
@@ -663,7 +662,7 @@ class _ScrollableTextWithSearchState extends State<ScrollableTextWithSearch> {
 
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
   }
@@ -694,9 +693,9 @@ class _ScrollableTextWithSearchState extends State<ScrollableTextWithSearch> {
             controller: _searchController,
             decoration: InputDecoration(
               labelText: 'Search',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
               suffixIcon: IconButton(
-                icon: Icon(Icons.search),
+                icon: const Icon(Icons.search),
                 onPressed: () {
                   setState(() {
                     _searchQuery = _searchController.text;
@@ -709,7 +708,7 @@ class _ScrollableTextWithSearchState extends State<ScrollableTextWithSearch> {
         ),
         Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Text('Matches found: $_matchCount', style: TextStyle(fontSize: 16)),
+          child: Text('Matches found: $_matchCount', style: const TextStyle(fontSize: 16)),
         ),
         Expanded(
           child: SingleChildScrollView(

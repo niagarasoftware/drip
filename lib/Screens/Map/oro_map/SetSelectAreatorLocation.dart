@@ -12,7 +12,7 @@ import '../googlemap_model.dart';
 import 'getlatlong.dart';
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({Key? key, required this.index}) : super(key: key);
+  const MapScreen({super.key, required this.index});
   final int index;
 
   @override
@@ -29,13 +29,13 @@ class _MapScreenState extends State<MapScreen> {
   late MqttPayloadProvider mqttPayloadProvider;
   ConnectedObject? _selectedObject;
   bool _isDrawerOpen = false;
-  double _drawerWidth = 280;
+  final double _drawerWidth = 280;
 
-  List<LatLng> _points = [];
+  final List<LatLng> _points = [];
   bool _isClosed = false;
-  Set<Marker> _vertices = {};
-  Set<Polyline> _lines = {};
-  Set<Polygon> _fill = {};
+  final Set<Marker> _vertices = {};
+  final Set<Polyline> _lines = {};
+  final Set<Polygon> _fill = {};
   BitmapDescriptor? _dotIcon;
 
   @override
@@ -160,7 +160,7 @@ class _MapScreenState extends State<MapScreen> {
     });
 
     AppLog.log('Lat: ${_selectedObject?.lat}, Long: ${_selectedObject?.long}');
-    AppLog.log('Lat: ${lat}, Long: ${long}');
+    AppLog.log('Lat: $lat, Long: $long');
     AppLog.log('_selectedObject:${_selectedObject?.name} ${_selectedObject?.objectId}');
     _selectedObject!.lat = lat;
     _selectedObject!.long = long;
@@ -308,7 +308,7 @@ class _MapScreenState extends State<MapScreen> {
           polygonId: const PolygonId("area_fill"),
           points: _points,
           strokeWidth: 0, // Border is handled by Polyline
-          fillColor: Colors.blue.withOpacity(0.3),
+          fillColor: Colors.blue.withValues(alpha: 0.3),
         ));
       }
     });
@@ -337,7 +337,7 @@ class _MapScreenState extends State<MapScreen> {
         leading: Row(
           children: [
             IconButton(
-              icon: Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back),
               onPressed: () {
                 setState(() {
                   Navigator.pop(context);
@@ -410,7 +410,7 @@ class _MapScreenState extends State<MapScreen> {
                       return ListTile(
                         selected: obj == _selectedObject,
                         selectedTileColor:
-                        Colors.blue.withOpacity(0.2),
+                        Colors.blue.withValues(alpha: 0.2),
                         title: Text(obj.name ??
                             obj.objectName ??
                             "Object"),

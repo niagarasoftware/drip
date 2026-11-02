@@ -10,7 +10,7 @@ class DropDownSearchField extends StatefulWidget {
   final Map<String, dynamic> oldDevice;
   final int masterOrNode;
 
-  DropDownSearchField({super.key, required this.productStock, required this.oldDevice, required this.masterOrNode});
+  const DropDownSearchField({super.key, required this.productStock, required this.oldDevice, required this.masterOrNode});
 
   @override
   _DropDownSearchFieldState createState() => _DropDownSearchFieldState();

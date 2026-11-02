@@ -4,6 +4,8 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 
 class PhoneAuthScreen extends StatefulWidget {
+  const PhoneAuthScreen({super.key});
+
   @override
   _PhoneAuthScreenState createState() => _PhoneAuthScreenState();
 }
@@ -52,24 +54,24 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Phone Auth')),
+      appBar: AppBar(title: const Text('Phone Auth')),
       body: Column(
         children: <Widget>[
           TextField(
             controller: _phoneController,
-            decoration: InputDecoration(labelText: 'Phone Number'),
+            decoration: const InputDecoration(labelText: 'Phone Number'),
           ),
           ElevatedButton(
             onPressed: _verifyPhoneNumber,
-            child: Text('Verify Phone Number'),
+            child: const Text('Verify Phone Number'),
           ),
           TextField(
             controller: _smsController,
-            decoration: InputDecoration(labelText: 'SMS Code'),
+            decoration: const InputDecoration(labelText: 'SMS Code'),
           ),
           ElevatedButton(
             onPressed: _signInWithPhoneNumber,
-            child: Text('Sign In'),
+            child: const Text('Sign In'),
           ),
         ],
       ),

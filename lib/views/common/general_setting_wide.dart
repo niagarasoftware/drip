@@ -329,18 +329,31 @@ class _GeneralSettingWideState extends State<GeneralSettingWide> {
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold),
                                 ),
-                                viewModel.controllerVersion != viewModel.newVersion? const SizedBox(width: 16,):
-                                const SizedBox(),
-                                viewModel.controllerVersion != viewModel.newVersion? TextButton(
-                                  onPressed: () {
-                                  },
-                                  child: AnimatedOpacity(
-                                    opacity: viewModel.opacity,
-                                    duration: const Duration(seconds: 2),
-                                    child: Text('New Version available - ${viewModel.newVersion}', style: const TextStyle(color: Colors.black54),),
+                                viewModel.controllerVersion != viewModel.newVersion
+                                    ? SizedBox(
+                                  height: 40,
+                                  child: TextButton(
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    onPressed: () {},
+                                    child: AnimatedOpacity(
+                                      opacity: viewModel.opacity,
+                                      duration: const Duration(seconds: 2),
+                                      child: Text(
+                                        'New Version available - ${viewModel.newVersion}',
+                                        style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ),
-                                ):
-                                const SizedBox(),
+                                )
+                                    : const SizedBox(),
                               ],
                             ),
                           ),

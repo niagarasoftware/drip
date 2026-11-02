@@ -4,7 +4,7 @@ import '../../../Constants/properties.dart';
 
 class BlinkingContainer extends StatefulWidget {
   final Widget child;
-  BlinkingContainer({
+  const BlinkingContainer({
     super.key,
     required this.child
   });

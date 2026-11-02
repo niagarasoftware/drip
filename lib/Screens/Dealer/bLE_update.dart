@@ -292,7 +292,7 @@ class _FirmwareBLEPageState extends State<FirmwareBLEPage> {
             ],
 
             DropdownButtonFormField<String>(
-              value: selectedFile,
+              initialValue: selectedFile,
               decoration: InputDecoration(
                 labelText: 'Select File',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

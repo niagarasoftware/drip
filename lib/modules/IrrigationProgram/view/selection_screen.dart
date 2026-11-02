@@ -19,7 +19,7 @@ final greenLight = const Color(0xffECF5EF).withValues(alpha: 0.5);
 final greenDark = const Color(0xff10E196).withValues(alpha: 0.35);
 const yellowLight = Color(0xffFFF7E5);
 const yellowDark = Color(0xfffdce7f);
-final primaryColorLight = const Color(0xffE3FFF5).withOpacity(0.5);
+final primaryColorLight = const Color(0xffE3FFF5).withValues(alpha: 0.5);
 
 class SelectionScreen extends StatefulWidget{
   final List<NodeListModel> nodeList;
@@ -91,7 +91,7 @@ class _SelectionScreenState extends State<SelectionScreen> with SingleTickerProv
     return irrigationProgramProvider.sampleIrrigationLine != null ? LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final irrigationLine = irrigationProgramProvider.sampleIrrigationLine!;
-        final primaryColorDark = Theme.of(context).primaryColor.withOpacity(0.35);
+        final primaryColorDark = Theme.of(context).primaryColor.withValues(alpha: 0.35);
         final centralFertilizerSite = irrigationProgramProvider.fertilizerSite!.where((site) {
           for (var i = 0; i < irrigationProgramProvider.selectedObjects!.length; i++) {
             if (site.siteMode == 1 && irrigationProgramProvider.selectedObjects![i].objectId == 3 && irrigationProgramProvider.selectedObjects![i].sNo == site.fertilizerSite?.sNo) {
@@ -141,7 +141,7 @@ class _SelectionScreenState extends State<SelectionScreen> with SingleTickerProv
                 if(!allSelectedValvesExist)
                   buildSection(
                     title: "Main Valves",
-                    dataList: irrigationLine!.map((e) => e.mainValve ?? []).expand((list) => list).toList(),
+                    dataList: irrigationLine.map((e) => e.mainValve ?? []).expand((list) => list).toList(),
                     lightColor: yellowLight,
                     darkColor: yellowDark,
                     image: Image.asset(

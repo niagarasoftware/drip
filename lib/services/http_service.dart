@@ -5,7 +5,6 @@ import '../utils/shared_preferences_helper.dart';
 import 'api_service.dart';
 import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
-
 class HttpService implements ApiService {
   @override
   Future<http.Response> getRequest(String endpoint, {String? type, Map<String, String>? queryParams}) async {
@@ -72,5 +71,6 @@ class HttpService implements ApiService {
       headers: headers,
       body: jsonEncode(bodyData),
     );
+
   }
 }

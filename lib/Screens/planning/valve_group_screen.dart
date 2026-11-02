@@ -93,7 +93,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
   }
 
   void _showAddEditValveGroupDialog({bool editCheck = false, int? selectedGroupIndex}) {
-    final TextEditingController _controller = TextEditingController();
+    final TextEditingController controller = TextEditingController();
     IrrigationLine? selectedIrrigationLine;
     List<Valve> selectedValves = [];
     List<double> selectedValveSnos = [];
@@ -104,7 +104,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
       // Deep copy to avoid modifying the original data
       selectedValves = List.from(_groupdata.data!.valveGroup![selectedGroupIndex].valve);
       selectedValveSnos = selectedValves.map((e) => e.sNo).toList();
-      _controller.text = _groupdata.data!.valveGroup![selectedGroupIndex].groupName;
+      controller.text = _groupdata.data!.valveGroup![selectedGroupIndex].groupName;
       double selectedIrrigationLineSno = _groupdata.data!.valveGroup![selectedGroupIndex].sNo;
       selectedIrrigationLine = _groupdata.data!.defaultData.irrigationLine
           .firstWhere((line) => line.sNo == selectedIrrigationLineSno);
@@ -122,7 +122,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
             return AlertDialog(
               title: Text(
                 editCheck ? 'Edit Valve Group' : 'Add Valve Group',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -133,7 +133,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
                         child: TextFormField(
-                          controller: _controller,
+                          controller: controller,
                           decoration: const InputDecoration(labelText: 'Group Name:'),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
@@ -221,7 +221,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
                     ValveGroup vdate = ValveGroup(
                       groupID: groupId,
                       objectId: _groupdata.data!.defaultData.irrigationLine[selectLineIndex].objectId,
-                      groupName: _controller.text,
+                      groupName: controller.text,
                       irrigationLineName: _groupdata.data!.defaultData.irrigationLine[selectLineIndex].name,
                       sNo: _groupdata.data!.defaultData.irrigationLine[selectLineIndex].sNo,
                       name: _groupdata.data!.defaultData.irrigationLine[selectLineIndex].name,
@@ -243,7 +243,7 @@ class _GroupListScreenState extends State<GroupListScreen> {
                       : null,
                   child: Text(
                     editCheck ? 'Update' : 'Create',
-                    style: TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.white),
                   ),
                 ),
               ],
@@ -358,9 +358,9 @@ class _GroupListScreenState extends State<GroupListScreen> {
             Text(group.irrigationLineName, style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
-        SizedBox(width: 5,),
+        const SizedBox(width: 5,),
         Container(width: 1, height: 100, color: Colors.grey),
-        SizedBox(width: 5,),
+        const SizedBox(width: 5,),
         Expanded(
           child: Wrap(
             spacing: 5.0,

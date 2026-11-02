@@ -393,9 +393,9 @@ class _SequenceScreenState extends State<SequenceScreen> {
     final sequence = _provider.irrigationLine!.sequence;
     final indexToShow = _getIndexToShow;
 
-    return ButtonBar(
+    return OverflowBar(
       alignment: MainAxisAlignment.end,
-      layoutBehavior: ButtonBarLayoutBehavior.constrained,
+
       children: [
         _buildAddNextButton(context, sequence, indexToShow),
         _buildDeleteButton(context, indexToShow),
@@ -751,7 +751,7 @@ class _SequenceScreenState extends State<SequenceScreen> {
         ? sequence[indexToShow]['mainValve']?.any((e) => e['sNo'] == item.sNo) ?? false
         : sequence[indexToShow]['valve']?.any((e) => e['sNo'] == item.sNo) ?? false;
     for(var i in sequence[indexToShow]['mainValve']){
-      print('flow valve => ${i}');
+      print('flow valve => $i');
     }
     print("sequence[indexToShow]['selectedGroup'] : ${sequence[indexToShow]['selectedGroup']}");
 

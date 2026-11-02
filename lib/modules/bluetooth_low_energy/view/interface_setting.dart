@@ -291,7 +291,7 @@ class _InterfaceSettingState extends State<InterfaceSetting> {
                     print('listOfBytes : $listOfBytes');
                     print('sumOfAscii : $sumOfAscii');
                     print('crc : ${sumOfAscii % 256}');
-                    print('payload : ${payload}');
+                    print('payload : $payload');
                     bleService.sendDataToHw(listOfBytes);
                     loadingDialog();
                   },

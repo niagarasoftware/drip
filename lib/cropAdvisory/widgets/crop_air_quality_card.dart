@@ -22,13 +22,13 @@ class AirQualityCard extends StatelessWidget {
             style: const TextStyle(fontSize: 18),
           ),
 
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
 
           const LinearProgressIndicator(
             value: 0.3,
           ),
 
-          Spacer(),
+          const Spacer(),
 
           const Text(
             "\"Air quality is great! Perfect for outdoor activities.\"",

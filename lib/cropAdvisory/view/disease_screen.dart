@@ -73,7 +73,7 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
       backgroundColor: Colors.white,
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(
+          constraints: const BoxConstraints(
             maxWidth: kIsWeb ? 800 : double.infinity,
           ),
           child: SingleChildScrollView(
@@ -116,7 +116,7 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
                                 color: Colors.lightGreen,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Color(0xFF1B7F8A).withOpacity(0.8),
+                                    color: const Color(0xFF1B7F8A).withValues(alpha: 0.8),
                                     blurRadius: 15,
                                     spreadRadius: 15,
                                   ),
@@ -130,7 +130,7 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
                     if (_isScanning)
                       Positioned.fill(
                         child: Container(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -155,7 +155,7 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
                     if (_image == null && !_isScanning)
                       Positioned.fill(
                         child: Container(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                         ),
                       ),
                     
@@ -168,8 +168,8 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
                             border: Border.all(color: Colors.white, width: 2),
                             gradient: LinearGradient(
                               colors: [
-                                Colors.orange.withOpacity(0.5),
-                                Colors.green.withOpacity(0.5),
+                                Colors.orange.withValues(alpha: 0.5),
+                                Colors.green.withValues(alpha: 0.5),
                               ],
                             ),
                           ),
@@ -183,7 +183,7 @@ class _DiseaseScreenState extends State<DiseaseScreen> with SingleTickerProvider
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -358,7 +358,7 @@ class _InfoCard extends StatelessWidget {
         border: Border.all(color: const Color(0xFFEEEEEE)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

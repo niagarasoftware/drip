@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -16,7 +15,7 @@ import '../../utils/environment.dart';
 
 class WeatherScreen extends StatefulWidget {
   const WeatherScreen(
-      {Key? key,
+      {super.key,
         required this.userId,
         required this.controllerId,
         required this.deviceID});
@@ -76,73 +75,70 @@ class _WeatherScreenState extends State<WeatherScreen> {
       sunset = '${weatherData['results']['sunset']}';
       daylight = 'Day Light Length: ${weatherData['results']['day_length']}';
     }
-    if (weathernewlive == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    else if (weathernewlive.stations.isEmpty) {
-      // return const Center(child: Text('Currently No Weather Data Available'));
-      return const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Center(
-              child: Text('Currently No Weather Data Available...')),
+    if (weathernewlive.stations.isEmpty) {
+    // return const Center(child: Text('Currently No Weather Data Available'));
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Center(
+            child: Text('Currently No Weather Data Available...')),
 
 
-        ],
-      );
-    }
-    else {
-      return DefaultTabController(
-        length: weathernewlive.stations.length,
-        child: Scaffold(
-          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: Center(
-            child: SizedBox(
-              width: MediaQuery.sizeOf(context).width,
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 30,
-                    child: TabBar(
-                      // controller: _tabController,
+      ],
+    );
+  }
+  else {
+    return DefaultTabController(
+      length: weathernewlive.stations.length,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Center(
+          child: SizedBox(
+            width: MediaQuery.sizeOf(context).width,
+            child: Column(
+              children: [
+                SizedBox(
+                  height: 30,
+                  child: TabBar(
+                    // controller: _tabController,
 
-                      indicatorColor:Theme.of(context).primaryColorLight,
-                      isScrollable: true,
-                      unselectedLabelColor: Colors.black,
-                      labelColor: Theme.of(context).primaryColor,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                      tabs: [
-                        for (var i = 0;
-                        i < weathernewlive.stations.length;
-                        i++)
-                          Tab(
-                            text:'${deviceFind(weathernewlive.stations[i].deviceId)?.deviceName ?? 'Weather Station'}',
-                          ),
-                      ],
-                      onTap: (value) {
-                        setState(() {
-                          tabclickindex = value;
-                        });
-                      },
-                    ),
+                    indicatorColor:Theme.of(context).primaryColorLight,
+                    isScrollable: true,
+                    unselectedLabelColor: Colors.black,
+                    labelColor: Theme.of(context).primaryColor,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    tabs: [
+                      for (var i = 0;
+                      i < weathernewlive.stations.length;
+                      i++)
+                        Tab(
+                          text:deviceFind(weathernewlive.stations[i].deviceId)?.deviceName ?? 'Weather Station',
+                        ),
+                    ],
+                    onTap: (value) {
+                      setState(() {
+                        tabclickindex = value;
+                      });
+                    },
                   ),
-                  Expanded(
-                    child: Container(
-                      child: TabBarView(children: [
-                        for (var i = 0;
-                        i < weathernewlive.stations.length;
-                        i++)
-                          buildTab(i)
-                      ]),
-                    ),
+                ),
+                Expanded(
+                  child: Container(
+                    child: TabBarView(children: [
+                      for (var i = 0;
+                      i < weathernewlive.stations.length;
+                      i++)
+                        buildTab(i)
+                    ]),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
   }
 
   String getSensorUnit(double sno) {
@@ -190,7 +186,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                           height: 350, // Increased height from 300 to 350 to accommodate content
                           child: Stack(
                             children: [
-                              AnimatedClouds(),
+                              const AnimatedClouds(),
                               Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -322,7 +318,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                                     fit: BoxFit.cover,
                                   ),
                                   Text(
-                                    '$sunrise',
+                                    sunrise,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.normal,
                                         fontSize: 18),
@@ -338,7 +334,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                                     fit: BoxFit.cover,
                                   ),
                                   Text(
-                                    '$sunset',
+                                    sunset,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.normal,
                                         fontSize: 18),
@@ -349,7 +345,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
                           ),
                         ),
                         Text(
-                          '$daylight',
+                          daylight,
                           style: const TextStyle(
                               fontWeight: FontWeight.normal, fontSize: 15),
                         ),
@@ -465,7 +461,7 @@ class _WeatherScreenState extends State<WeatherScreen> {
       child: Container(
         padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
-          color: Theme.of(context).primaryColor.withOpacity(0.6), // Adjust opacity and color
+          color: Theme.of(context).primaryColor.withValues(alpha: 0.6), // Adjust opacity and color
           borderRadius: BorderRadius.circular(16), // Rounded corners
           border: Border.all(
             color: Colors.teal, // Subtle border
@@ -632,7 +628,7 @@ print("value$value");
   }
 // Find irrigation line by controllerId using .where
   String? findIrrigationLine(int controllerId) {
-    int? devicctrlid = deviceFind(controllerId)?.controllerId!;
+    int? devicctrlid = deviceFind(controllerId)?.controllerId;
     var irrigationLine = weatherdatairrigationline.where((line) => line.weatherStation.contains(devicctrlid)).toList();
     return irrigationLine.isNotEmpty ? irrigationLine.first.name : 'All Line';
   }
@@ -738,7 +734,7 @@ print("value$value");
                     // fit: BoxFit.cover,
                   ),
                 ),
-                SizedBox(height: 30, width: 150, child: Text('$title',textAlign: TextAlign.center, style: const TextStyle(fontSize: 15,fontWeight: FontWeight.bold))),
+                SizedBox(height: 30, width: 150, child: Text(title,textAlign: TextAlign.center, style: const TextStyle(fontSize: 15,fontWeight: FontWeight.bold))),
               ],
             ),
             Container(height: 200,
@@ -777,7 +773,7 @@ print("value$value");
                           annotations: <GaugeAnnotation>[
                             GaugeAnnotation(
                                 widget: Container(
-                                    child: Text('${value} ${Unit}',
+                                    child: Text('$value $Unit',
                                         style: const TextStyle(
                                             fontSize: 21,
                                             fontWeight: FontWeight.bold))),
@@ -813,7 +809,7 @@ print("value$value");
                     // fit: BoxFit.cover,
                   ),
                 ),
-                SizedBox(height: 30, width: 160, child: Text('$title',textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
+                SizedBox(height: 30, width: 160, child: Text(title,textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
               ],
             ),
             Container(
@@ -882,7 +878,7 @@ print("value$value");
                     // fit: BoxFit.cover,
                   ),
                 ),
-                SizedBox(height: 30, width: 160, child: Text('$title',textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
+                SizedBox(height: 30, width: 160, child: Text(title,textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
               ],
             ),
             Container(height: 200,
@@ -939,7 +935,7 @@ print("value$value");
                           annotations: <GaugeAnnotation>[
                             GaugeAnnotation(
                                 widget: Container(
-                                    child: Text('${value} ${Unit}',
+                                    child: Text('$value $Unit',
                                         style: const TextStyle(
                                             fontSize: 21,
                                             fontWeight: FontWeight.bold))),
@@ -972,7 +968,7 @@ print("value$value");
                     // fit: BoxFit.cover,
                   ),
                 ),
-                SizedBox(height: 30, width: 150, child: Text('$title',textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
+                SizedBox(height: 30, width: 150, child: Text(title,textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
               ],
             ),
             Container(
@@ -1006,7 +1002,7 @@ print("value$value");
                           canScaleToFit: false,
                           showTicks: false,
                           minimum: 0,
-                          ranges: <GaugeRange>[],
+                          ranges: const <GaugeRange>[],
                           pointers: <GaugePointer>[
                             MarkerPointer(
                               value: double.parse(value),
@@ -1065,7 +1061,7 @@ print("value$value");
                     // fit: BoxFit.cover,
                   ),
                 ),
-                SizedBox(height: 30, width: 150, child: Text('$title',textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
+                SizedBox(height: 30, width: 150, child: Text(title,textAlign: TextAlign.center, style: const TextStyle(fontSize: 14,fontWeight: FontWeight.bold))),
               ],
             ),
             Container(
@@ -1123,7 +1119,7 @@ print("value$value");
                           annotations: <GaugeAnnotation>[
                             GaugeAnnotation(
                                 widget: Container(
-                                    child: Text('${value} ${Unit}',
+                                    child: Text('$value $Unit',
                                         style: const TextStyle(
                                             fontSize: 21,
                                             fontWeight: FontWeight.bold))),
@@ -1150,7 +1146,7 @@ print("value$value");
                 style: const TextStyle(color: Colors.black, fontSize: 14),
               ),
               TextSpan(
-                text: '$Mval',
+                text: Mval,
                 style: const TextStyle(color: Colors.red, fontSize: 14,fontWeight: FontWeight.bold),
               ),
 
@@ -1281,7 +1277,7 @@ print("value$value");
         });
       }
     } catch (e, stackTrace) {
-      print(' trace overAll getData  => ${stackTrace}');
+      print(' trace overAll getData  => $stackTrace');
     }
   }
 }

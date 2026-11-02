@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:mqtt_client/mqtt_client.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/state_management/preference_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../Constants/constants.dart';
 import '../../../services/communication_service.dart';
 import '../../../services/mqtt_service.dart';
-import '../../../utils/environment.dart';
 
 class PayloadProgressDialog extends StatefulWidget {
   final List<String> payloads;

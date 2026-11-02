@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/cupertino.dart';
@@ -19,7 +18,7 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 class OtpVerifyScreen extends StatefulWidget {
   String contact;
 
-  OtpVerifyScreen({required this.contact});
+  OtpVerifyScreen({super.key, required this.contact});
 
   @override
   _OtpVerifyScreenState createState() => _OtpVerifyScreenState();
@@ -184,9 +183,9 @@ class _OtpVerifyScreenState extends State<OtpVerifyScreen> {
 
    Future<void> generateOtp(String contact) async {
     AppLog.log("generateOtp called");
-    final PhoneCodeSent smsOTPSent = (verId, forceResendingToken) {
+    void smsOTPSent(String verId, int? forceResendingToken) {
       verificationId = verId;
-    };
+    }
     try {
       await _auth.verifyPhoneNumber(
         phoneNumber: contact,

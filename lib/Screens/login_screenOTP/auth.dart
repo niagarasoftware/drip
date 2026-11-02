@@ -3,9 +3,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:oro_drip_irrigation/Screens/login_screenOTP/user.dart';
- import 'package:provider/provider.dart';
 
 class AuthService{
   final FirebaseAuth _auth  = FirebaseAuth.instance;
@@ -81,9 +79,9 @@ class AuthService{
         codeAutoRetrievalTimeout: (String verificationId) async{
           print('TimeOut');
         },
-        timeout: await Duration(seconds: 60),
+        timeout: const Duration(seconds: 60),
       );
-      print(await 'verificationIdReceived : ${verificationIdReceived}.............');
+      print('verificationIdReceived : $verificationIdReceived.............');
       return completer.future;
     }on FirebaseAuthException catch(e) {
       print('Error verifying phone number: ${e.message}');

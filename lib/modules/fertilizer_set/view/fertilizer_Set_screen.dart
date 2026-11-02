@@ -35,8 +35,8 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
   HardwareAcknowledgementState payloadState = HardwareAcknowledgementState.notSent;
   List<Map<String, dynamic>> popUpItemList = [
     {'name' : 'Select', 'mode' : SelectMode.select},
-    {'name' : 'Unselect', 'mode' : SelectMode.unSelect},
-    {'name' : 'Select All', 'mode' : SelectMode.selectAll},
+    {'name' : 'unSelect', 'mode' : SelectMode.unSelect},
+    {'name' : 'selectAll', 'mode' : SelectMode.selectAll},
   ];
   SelectMode popUpSelectedValue = SelectMode.unSelect;
   String name = '';
@@ -146,7 +146,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                                               children: [
                                                 Container(
                                                   height: 30,
-                                                  color: themeData.primaryColorLight.withOpacity(0.1),
+                                                  color: themeData.primaryColorLight.withValues(alpha: 0.1),
                                                   child: Row(
                                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                     children: [
@@ -160,7 +160,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                                                 ...recipe.channel.map((channel) {
                                                   return  Container(
                                                     height: 40,
-                                                    color: recipe.channel.indexOf(channel).isOdd ? themeData.primaryColorLight.withOpacity(0.05) : null,
+                                                    color: recipe.channel.indexOf(channel).isOdd ? themeData.primaryColorLight.withValues(alpha: 0.05) : null,
                                                     child: Row(
                                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                       children: [
@@ -177,13 +177,13 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                                                         ),
                                                         tableRowCell(
                                                             width: 50,
-                                                            widget: Text('Ch ${recipe.channel.indexOf(channel) + 1}', style: TextStyle(color: Colors.black54),)
+                                                            widget: Text('Ch ${recipe.channel.indexOf(channel) + 1}', style: const TextStyle(color: Colors.black54),)
                                                         ),
                                                         tableRowCell(
                                                             width: 120,
                                                             widget : CustomDropDownButton(
                                                               value: channel.method,
-                                                              list: ['Time', 'Pro.time', 'Quantity', 'Pro.quantity', 'Pro.quant per 1000L'],
+                                                              list: const ['Time', 'Pro.time', 'Quantity', 'Pro.quantity', 'Pro.qty per 1000L'],
                                                               onChanged: (value) {
                                                                 setState(() {
                                                                   channel.method = value!;
@@ -405,7 +405,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
       width:  width ?? 100,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withOpacity(0.3)),
+        border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withValues(alpha: 0.3)),
       ),
       child: TextFormField(
         key: Key(key),
@@ -467,23 +467,6 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
 
   Widget recipeListTile(FertilizerSiteSettingModel recipe){
     return ListTile(
-      onTap: popUpSelectedValue != SelectMode.unSelect
-          ? () {
-              setState(() {
-                recipe.select = !recipe.select;
-              });
-            }
-          : null,
-      leading: popUpSelectedValue != SelectMode.unSelect
-          ? Checkbox(
-              value: recipe.select,
-              onChanged: (bool? value) {
-                setState(() {
-                  recipe.select = value ?? false;
-                });
-              },
-            )
-          : null,
       title: Text(recipe.recipeName, style: themeData.textTheme.labelLarge,),
       trailing: IntrinsicWidth(
         child: Row(
@@ -493,70 +476,12 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                 color: Colors.orange,
                 icon: Icons.edit_note_outlined,
                 onTap: (){
-                  editRecipeName(recipe);
+
                 }
             ),
           ],
         ),
       ),
-    );
-  }
-
-  void editRecipeName(FertilizerSiteSettingModel recipe){
-    final editController = TextEditingController(text: recipe.recipeName);
-    final editFormKey = GlobalKey<FormState>();
-
-    showDialog(
-        context: context,
-        builder: (context){
-          return AlertDialog(
-            title: const Text('Edit Recipe Name'),
-            content: Form(
-              key: editFormKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: editController,
-                    textAlign: TextAlign.center,
-                    cursorHeight: 20,
-                    validator: (value){
-                      if(value == null || value.trim().isEmpty){
-                        return 'Name must not be empty';
-                      }
-                      return null;
-                    },
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.only(bottom: 10),
-                      counterText: '',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              CustomMaterialButton(
-                title: 'Cancel',
-                outlined: true,
-                onPressed: (){
-                  Navigator.pop(context);
-                },
-              ),
-              CustomMaterialButton(
-                title: 'Save',
-                onPressed: (){
-                  if(editFormKey.currentState!.validate()){
-                    setState(() {
-                      recipe.recipeName = editController.text.trim();
-                    });
-                    Navigator.pop(context);
-                  }
-                },
-              )
-            ],
-          );
-        }
     );
   }
 
@@ -570,7 +495,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
+            color: color.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(3)
         ),
         child: Icon(icon, color: color,),
@@ -593,10 +518,6 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                 onTap: (){
                   setState(() {
                     selectedFertilizerSite = site;
-                    popUpSelectedValue = SelectMode.unSelect;
-                    for(var i in listOfFertilizerSet){
-                      i.select = false;
-                    }
                   });
                 },
                 child: AnimatedContainer(
@@ -700,17 +621,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
           popUpSelectedValue = value as SelectMode;
           if(popUpSelectedValue == SelectMode.selectAll){
             for(var i in listOfFertilizerSet){
-              if(listOfFertilizerSite.isNotEmpty && selectedFertilizerSite < listOfFertilizerSite.length){
-                if(i.sNo == listOfFertilizerSite[selectedFertilizerSite].sNo){
-                  i.select = true;
-                }
-              } else {
-                i.select = true;
-              }
-            }
-          } else if(popUpSelectedValue == SelectMode.unSelect || popUpSelectedValue == SelectMode.select){
-            for(var i in listOfFertilizerSet){
-              i.select = false;
+              i.select = true;
             }
           }
         });
@@ -737,7 +648,7 @@ class _FertilizerSetScreenState extends State<FertilizerSetScreen> {
                       });
                     },
                     textAlign: TextAlign.center,
-                    keyboardType: TextInputType.text,
+                    keyboardType: TextInputType.number,
                     cursorHeight: 20,
                     validator: (value){
                       if(value!.isEmpty){

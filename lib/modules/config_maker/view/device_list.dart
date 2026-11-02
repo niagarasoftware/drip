@@ -98,7 +98,7 @@ class _DeviceListState extends State<DeviceList> {
                 Expanded(
                 child: DataTable2(
                     minWidth: 1050,
-                    headingRowColor: WidgetStatePropertyAll(themeData.colorScheme.onBackground),
+                    headingRowColor: WidgetStatePropertyAll(themeData.colorScheme.onSurface),
                     dataRowColor: const WidgetStatePropertyAll(Colors.white),
                     fixedLeftColumns: 2,
                     columns: [
@@ -508,7 +508,7 @@ class _DeviceListState extends State<DeviceList> {
                   }
                 }
                 print('configPvd.masterData ::: ${configPvd.masterData}');
-                print('listOfDevices ::: ${listOfDevices}');
+                print('listOfDevices ::: $listOfDevices');
 
                 List<DeviceModel> possibleNodeToConfigUnderMaster = listOfDevices.where((node) {
                   List<int> nodeUnderPumpWithValveModel = [15, 17, 23, 25, 42];
@@ -548,8 +548,8 @@ class _DeviceListState extends State<DeviceList> {
                                   child: SizedBox(
                                     width: MediaQuery.of(context).size.width >= 500 ? 500 : MediaQuery.of(context).size.width,
                                     child: DataTable(
-                                      headingRowColor: WidgetStatePropertyAll(themeData.colorScheme.onBackground),
-                                      dataRowColor: WidgetStatePropertyAll(themeData.colorScheme.onBackground),
+                                      headingRowColor: WidgetStatePropertyAll(themeData.colorScheme.onSurface),
+                                      dataRowColor: WidgetStatePropertyAll(themeData.colorScheme.onSurface),
                                       columns: [
                                         DataColumn(
                                             label: Checkbox(

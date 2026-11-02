@@ -10,7 +10,7 @@ class WaveView extends StatefulWidget {
   final double height;
   final double borderRadius;
 
-  WaveView({super.key, this.percentageValue = 100.0, this.width = 50, this.height = 100, this.borderRadius = 80});
+  const WaveView({super.key, this.percentageValue = 100.0, this.width = 50, this.height = 100, this.borderRadius = 80});
 
   @override
   _WaveViewState createState() => _WaveViewState();
@@ -100,7 +100,7 @@ class _WaveViewState extends State<WaveView> with TickerProviderStateMixin {
                     clipper: WaveClipper(animationController!.value, animList1),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.5),
+                        color: Colors.blue.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(widget.borderRadius),
                         border: Border.all(color: Colors.blue.shade100, width: 0.3),
                         gradient: LinearGradient(
@@ -163,7 +163,7 @@ class _WaveViewState extends State<WaveView> with TickerProviderStateMixin {
                         width: 4,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.white.withValues(alpha: 0.4),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -182,7 +182,7 @@ class _WaveViewState extends State<WaveView> with TickerProviderStateMixin {
                         width: 3,
                         height: 3,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.4),
+                          color: Colors.white.withValues(alpha: 0.4),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -199,8 +199,8 @@ class _WaveViewState extends State<WaveView> with TickerProviderStateMixin {
                         width: 4,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(
-                              animationController!.status == AnimationStatus.reverse
+                          color: Colors.white.withValues(
+                              alpha: animationController!.status == AnimationStatus.reverse
                                   ? 0.0
                                   : 0.4),
                           shape: BoxShape.circle,

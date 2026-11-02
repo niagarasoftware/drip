@@ -19,7 +19,7 @@ class CustomSwitchRow extends DataRow {
       DataCell(Transform.scale(
         scale: 0.7,
         child: Switch(
-          activeColor: Colors.teal,
+          activeThumbColor: Colors.teal,
           hoverColor: Colors.pink.shade100,
           value: value,
           onChanged: onChanged,
