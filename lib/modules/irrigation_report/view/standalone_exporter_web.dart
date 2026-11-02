@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:html' as html;
+import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
+import 'irrigation_log_pdf_builder.dart';
 
 Future<bool> exportStandaloneExcel(
   Map<String, dynamic> data,
@@ -51,6 +53,42 @@ Future<bool> exportStandaloneExcel(
     return true;
   } catch (e) {
     debugPrint("Error exporting Standalone Excel Web: $e");
+    return false;
+  }
+}
+
+Future<bool> exportStandalonePdf(
+  Map<String, dynamic> data,
+  List<String> standaloneColumn,
+  String name,
+) async {
+  try {
+    final fixedCols = data['fixedColumnData'] as List? ?? [];
+    final standaloneCols = data['standaloneColumnData'] as List? ?? [];
+
+    if (fixedCols.isEmpty) {
+      return false;
+    }
+
+    final Map<String, dynamic> reportData = {
+      'fixedColumn': 'Date',
+      'fixedColumnData': fixedCols,
+      'generalColumn': standaloneColumn,
+      'generalColumnData': standaloneCols,
+    };
+
+    final Uint8List bytes = generateIrrigationLogPdfBytes(reportData, name);
+    final content = base64Encode(bytes);
+
+    html.AnchorElement(
+      href: 'data:application/pdf;base64,$content',
+    )
+      ..setAttribute('download', '$name.pdf')
+      ..click();
+
+    return true;
+  } catch (e) {
+    debugPrint("Error exporting Standalone PDF Web: $e");
     return false;
   }
 }

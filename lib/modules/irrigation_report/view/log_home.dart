@@ -21,6 +21,7 @@ import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 // import 'dart:html' as html;
 import 'dart:async';
+import '../model/data_parsing_and_sorting_model.dart';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
 import '../model/data_parsing_and_sorting_model.dart';
 import '../model/general_parameter_model.dart';
@@ -56,6 +57,7 @@ class _LogHomeState extends State<LogHome> {
   final ScrollController _scrollController = ScrollController();
   dynamic dataSource = [];
   List<dynamic> _localNameData = [];
+  List<dynamic> _filterSiteData = [];
   int _selectedIndex = 0;
   List<List<dynamic>> _irrigationOptionWise = [['Date',true],['Program',false],['Line',false],['Valve',false],['Status',false]];
   bool graphMode = false;
@@ -89,108 +91,13 @@ class _LogHomeState extends State<LogHome> {
     'ActualStartTime','ActualEndTime','ActualStartReason','ActualStopReason',
     'SequenceData','ValveFlowrate','IrrigationDurationCompleted','ProgramName',
     'IrrigationMethod','IrrigationDuration_Quantity','IrrigationQuantityCompleted','ProgramCategoryName','Pretime','PostTime',
-    'CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
+    'CentralFilterSite','LocalFilterSite','CentralFilterOnDuration','LocalFilterOnDuration', 'CentralFertOnOff', 'LocalFertOnOff'
   ];
 
   int httpError = 0;
 
   Map<String,dynamic> dataToShow = {};
-  dynamic IrrigationLogParameterFromServer = {
-    'general' : {
-      'ProgramName' : ['Program',true,1],
-      'Status' : ['Status',true,1],
-      'ZoneS_No' : ['Sequence',true,1],
-      'SequenceData' : ['Valves',true,1],
-      // 'ZoneName' : ['Sequence',true,1],
-      'Date' : ['Date',true,1],
-      'ProgramCategoryName' : ['Line',true,1],
-      'ActualStartTime' : ['Actual Start Time',true,1],
-      'ActualEndTime' : ['Actual End Time',true,1],
-      'ActualStartReason' : ['Actual Start Reason',true,1],
-      'ActualStopReason' : ['Actual Stop Reason',true,1],
-      'Pump' : ['Pump',true,1],
-      'ScheduledStartTime' : ['Start Time',false,1],
-      'overAll' : ['over all',true,1],
-    },
-    'irrigation' : {
-      'IrrigationMethod' : ['Method',true,2],
-      'IrrigationDuration_Quantity' : ['Planned',true,2],
-      'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    // 'filter' : {
-    //   'CentralFilterName' : ['Central Filter',true,2],
-    //   'LocalFilterName' : ['Local Filter',true,2],
-    //   'overAll' : ['over all',true,1]
-    // },
-    'prePost' : {
-      'PrePostMethod' : ['Method',true,2],
-      'Pretime/PreQty' : ['Pre',true,2],
-      'PostTime/PostQty' : ['Post',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'centralEcPh' : {
-      'CentralPhSetValue' : ['Central Ph Avg',true,3],
-      'CentralEcSetValue' : ['Central Ec Avg',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH1>' : {
-      'CentralFertChannelName' : ['Channel1 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH2>' : {
-      'CentralFertChannelName' : ['Channel2 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH3>' : {
-      'CentralFertChannelName' : ['Channel3 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH4>' : {
-      'CentralFertChannelName' : ['Channel4 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH5>' : {
-      'CentralFertChannelName' : ['Channel5 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH6>' : {
-      'CentralFertChannelName' : ['Channel6 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH7>' : {
-      'CentralFertChannelName' : ['Channel7 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH8>' : {
-      'CentralFertChannelName' : ['Channel8 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-  };
+  dynamic IrrigationLogParameterFromServer = {};
   IrrigationLogModel irrigationParameterArray = IrrigationLogModel();
   IrrigationLogModel irrigationParameterArrayDuplicate = IrrigationLogModel();
   String _selectedDate = '';
@@ -202,11 +109,7 @@ class _LogHomeState extends State<LogHome> {
   void initState() {
     // TODO: implement initState
     _localNameData = List.from(widget.nameData);
-    if (_localNameData.isEmpty &&
-        (widget.masterData?.configObjects == null ||
-            widget.masterData!.configObjects.isEmpty)) {
-      _fetchConfigObjects();
-    }
+    _fetchConfigObjects();
     if (kDebugMode) {
       print('parameters => $parameters');
     }
@@ -224,7 +127,9 @@ class _LogHomeState extends State<LogHome> {
         dateDuplicate = [];
         status = [];
         statusDuplicate = [];
-        IrrigationLogParameterFromServer = mergeDefaultLogParameters(widget.serverData['irrigationLog']);
+        IrrigationLogParameterFromServer = mergeDefaultLogParameters(
+            widget.serverData['irrigationLog'] ?? widget.serverData['default'] ?? widget.serverData,
+            widget.serverData['default']);
         for(var globalParameter in IrrigationLogParameterFromServer.keys){
           for(var localParameter in IrrigationLogParameterFromServer[globalParameter].keys){
             var data = IrrigationLogParameterFromServer[globalParameter][localParameter];
@@ -275,14 +180,23 @@ class _LogHomeState extends State<LogHome> {
       };
       var configResponse = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> configJsonData = jsonDecode(configResponse.body);
-      if (configJsonData['code'] == 200 &&
-          configJsonData['data']?['configObject'] != null) {
+      if (configJsonData['code'] == 200 && configJsonData['data'] != null) {
         if (mounted) {
           setState(() {
-            _localNameData = configJsonData['data']['configObject'];
-            irrigationParameterArray.editName(_localNameData);
-            irrigationParameterArrayDuplicate.editName(_localNameData);
+            if (configJsonData['data']['configObject'] != null) {
+              _localNameData = configJsonData['data']['configObject'];
+              irrigationParameterArray.editName(_localNameData);
+              irrigationParameterArrayDuplicate.editName(_localNameData);
+            }
+            if (configJsonData['data']['filterSite'] != null) {
+              _filterSiteData = configJsonData['data']['filterSite'];
+              irrigationParameterArray.editFilterSite(_filterSiteData);
+              irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
+            }
           });
+          if (dataSource != null && dataSource.isNotEmpty) {
+            _reprocessAndFilterData();
+          }
         }
       }
     } catch (e) {
@@ -447,10 +361,12 @@ class _LogHomeState extends State<LogHome> {
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
 
     irrigationParameterArray.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArray.editName(widget.nameData);
+    irrigationParameterArray.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
+    irrigationParameterArray.editFilterSite(_filterSiteData);
 
     irrigationParameterArrayDuplicate.editParameter(IrrigationLogParameterFromServer);
-    irrigationParameterArrayDuplicate.editName(widget.nameData);
+    irrigationParameterArrayDuplicate.editName(_localNameData.isNotEmpty ? _localNameData : widget.nameData);
+    irrigationParameterArrayDuplicate.editFilterSite(_filterSiteData);
     try{
       String? startMonth = selectedDateRange?.start.month.toString();
 
@@ -488,6 +404,15 @@ class _LogHomeState extends State<LogHome> {
     }
   }
 
+  bool _isValidIndex(dynamic listObj, int index) {
+    if (listObj == null) return true;
+    if (listObj is List) {
+      if (listObj.isEmpty) return true;
+      return index < listObj.length;
+    }
+    return true;
+  }
+
   void _reprocessAndFilterData() {
     if (!mounted) return;
     if (dataSource == null || dataSource is! Map || dataSource['log'] == null) return;
@@ -511,8 +436,7 @@ class _LogHomeState extends State<LogHome> {
           //Todo date
           try {
             for (var howManyDate = 0; howManyDate < data['irrigation']['Date'].length; howManyDate++) {
-              if (data['irrigation']['HeadUnit'] == null ||
-                  howManyDate < data['irrigation']['HeadUnit'].length) {
+              if (_isValidIndex(data['irrigation']['HeadUnit'], howManyDate)) {
                 setState(() {
                   if (!date.any((element) => element['name'] == data['irrigation']['Date'][howManyDate])) {
                     date.add({
@@ -536,8 +460,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['Status'] != null) {
               for (var howManyStatus = 0; howManyStatus < data['irrigation']['Status'].length; howManyStatus++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyStatus < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyStatus)) {
                   setState(() {
                     if (!status.any((element) => element['name'] == data['irrigation']['Status'][howManyStatus])) {
                       status.add({
@@ -562,8 +485,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['ProgramS_No'] != null) {
               for (var howManyProgram = 0; howManyProgram < data['irrigation']['ProgramS_No'].length; howManyProgram++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyProgram < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyProgram)) {
                   setState(() {
                     if (!program.any((element) => element['name'] == data['irrigation']['ProgramS_No'][howManyProgram])) {
                       program.add({
@@ -595,10 +517,11 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['ProgramCategory'] != null) {
               for (var howManyLine = 0; howManyLine < data['irrigation']['ProgramCategory'].length; howManyLine++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyLine < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyLine)) {
                   for (var splitLine in data['irrigation']['ProgramCategory'][howManyLine].toString().split('_')) {
-                    var lineName = (data['irrigation']['HeadUnit'] != null && howManyLine < data['irrigation']['HeadUnit'].length)
+                    var lineName = (data['irrigation']['HeadUnit'] != null &&
+                            data['irrigation']['HeadUnit'] is List &&
+                            howManyLine < data['irrigation']['HeadUnit'].length)
                         ? data['irrigation']['HeadUnit'][howManyLine].toString().split('_')
                         : [splitLine];
                     setState(() {
@@ -628,8 +551,7 @@ class _LogHomeState extends State<LogHome> {
           try {
             if (data['irrigation']['SequenceData'] != null) {
               for (var howManyValve = 0; howManyValve < data['irrigation']['SequenceData'].length; howManyValve++) {
-                if (data['irrigation']['HeadUnit'] == null ||
-                    howManyValve < data['irrigation']['HeadUnit'].length) {
+                if (_isValidIndex(data['irrigation']['HeadUnit'], howManyValve)) {
                   for (var splitValve in data['irrigation']['SequenceData'][howManyValve].toString().split('_')) {
                     setState(() {
                       if (splitValve.contains('13')) {
@@ -776,6 +698,8 @@ class _LogHomeState extends State<LogHome> {
       'ValveFlowrate',
       'Pretime',
       'PostTime',
+      'CentralFilterName',
+      'LocalFilterName',
       'CentralFilterOnDuration',
       'LocalFilterOnDuration',
       'CentralFertOnOff',
@@ -1028,114 +952,20 @@ class _LogHomeState extends State<LogHome> {
                     ? const SizedBox(
                         width: 18,
                         height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : Icon(
                         Icons.refresh_outlined,
-                        color: isLiveLoaded ? Colors.green : Colors.black,
+                        color: isLiveLoaded ? Colors.green : Colors.white,
                       ),
               ),
               IconButton(
                 onPressed: (){
                   sideSheet(constraint);
                 },
-                icon: const Icon(Icons.filter_list_alt,color: Colors.black,),
+                icon: const Icon(Icons.filter_list_alt, color: Colors.white),
               ),
-              PopupMenuButton<int>(
-                onSelected: (value){
-                  if(value == 1){
-                    setState(() {
-                      selectedIcon = const Icon(Icons.bar_chart,color: Colors.white,);
-                      selectedChart = 'Bar';
-                    });
-                  }else if(value == 2){
-                    setState(() {
-                      selectedIcon =  const Icon(Icons.stacked_line_chart,color: Colors.white,);
-                      selectedChart = 'Line';
-                    });
-                  }else{
-                    setState(() {
-                      selectedIcon = const Icon(Icons.pie_chart,color: Colors.white,);
-                    });
-                  }
-                },
-                child: Container(
-                  width: 100,
-                  height: 40,
-                  decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColorDark,
-                      borderRadius: BorderRadius.circular(8)
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Checkbox(
-                          value: graphMode,
-                          onChanged: (value){
-                            getDialog(context);
-                            Future.delayed(const Duration(seconds: 1),(){
-                              setState(() {
-                                graphMode = value!;
-                              });
-                              Navigator.pop(context);
-                            });
-                          }
-                      ),
-                      selectedIcon,
-                    ],
-                  ),
-                ),
-                itemBuilder: (context) => [
-                  // popupmenu item 1
-                  // const PopupMenuItem(
-                  //   value: 1,
-                  //   // row has two child icon and text.
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.bar_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("bar chart")
-                  //     ],
-                  //   ),
-                  // ),
-                  // // popupmenu item 2
-                  // const PopupMenuItem(
-                  //   value: 2,
-                  //   // row has two child icon and text
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.stacked_line_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("line chart")
-                  //     ],
-                  //   ),
-                  // ),
-                  // const PopupMenuItem(
-                  //   value: 3,
-                  //   // row has two child icon and text
-                  //   child: Row(
-                  //     children: [
-                  //       Icon(Icons.pie_chart),
-                  //       SizedBox(
-                  //         // sized box with width 10
-                  //         width: 10,
-                  //       ),
-                  //       Text("pie chart")
-                  //     ],
-                  //   ),
-                  // ),
-                ],
-                offset: const Offset(0, 50),
-                color: Colors.white,
-                elevation: 2,
-              ),
-              const SizedBox(width: 20,),
+              const SizedBox(width: 10),
             ],
           ),
           body: SafeArea(
@@ -1213,6 +1043,7 @@ class _LogHomeState extends State<LogHome> {
                   if(graphMode == false)
                     Expanded(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           if(dataToShow.isNotEmpty)
                             ScrollingTable(
@@ -1222,6 +1053,10 @@ class _LogHomeState extends State<LogHome> {
                               generalColumnData: filterDataByPages(data: dataToShow['generalColumnData']),
                               waterColumn: dataToShow['waterColumn'],
                               waterColumnData: filterDataByPages(data: dataToShow['waterColumnData']),
+                              centralFilterColumn: dataToShow['centralFilterColumn'] ?? [],
+                              centralFilterColumnData: filterDataByPages(data: dataToShow['centralFilterColumnData'] ?? []),
+                              localFilterColumn: dataToShow['localFilterColumn'] ?? [],
+                              localFilterColumnData: filterDataByPages(data: dataToShow['localFilterColumnData'] ?? []),
                               filterColumn: dataToShow['filterColumn'],
                               filterColumnData: filterDataByPages(data: dataToShow['filterColumnData']),
                               prePostColumn: dataToShow['prePostColumn'],
@@ -1361,45 +1196,54 @@ class _LogHomeState extends State<LogHome> {
                                                       // title: AxisTitle(text: "Dur/Qty"),
                                                       minimum: 0,
                                                     ),
+                                                    legend: Legend(
+                                                      isVisible: true,
+                                                      position: LegendPosition.bottom,
+                                                      overflowMode: LegendItemOverflowMode.wrap,
+                                                    ),
                                                     zoomPanBehavior: ZoomPanBehavior(
                                                       enablePanning: true,
                                                     ),
                                                     series: <CartesianSeries>[
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Pre',
                                                           borderRadius: BorderRadius.zero,
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade200,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.preFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.preTo
+                                                          lowValueMapper: (dynamic data, _) => data.preFrom,
+                                                          highValueMapper: (dynamic data, _) => data.preTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Actual',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.greenAccent,
+                                                          color: Colors.green,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.actualFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.actualTo
+                                                          lowValueMapper: (dynamic data, _) => data.actualFrom,
+                                                          highValueMapper: (dynamic data, _) => data.actualTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Post',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
                                                           color: Colors.blue.shade400,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.postFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.postTo
+                                                          lowValueMapper: (dynamic data, _) => data.postFrom,
+                                                          highValueMapper: (dynamic data, _) => data.postTo
                                                       ),
                                                       RangeColumnSeries<dynamic, String>(
+                                                          name: 'Planned',
                                                           borderRadius: BorderRadius.circular(0),
                                                           dataSource: (i['data']) ?? [],
                                                           width: 0.4,
-                                                          color: Colors.grey.shade300,
+                                                          color: Colors.amber.shade700,
                                                           xValueMapper: (dynamic data, _) => "${data.seqName}",
-                                                          highValueMapper: (dynamic data, _) => data.plannedFrom,
-                                                          lowValueMapper: (dynamic data, _) => data.plannedTo
+                                                          lowValueMapper: (dynamic data, _) => data.plannedFrom,
+                                                          highValueMapper: (dynamic data, _) => data.plannedTo
                                                       ),
                                                     ],
                                                   )
@@ -1547,7 +1391,6 @@ class _LogHomeState extends State<LogHome> {
                                         onPressed: () async {
                                           Navigator.pop(context); // Close the name dialog
 
-                                          // Optionally show a progress dialog
                                           showDialog(
                                             context: context,
                                             barrierDismissible: false,
@@ -1562,37 +1405,51 @@ class _LogHomeState extends State<LogHome> {
                                             },
                                           );
 
-                                          // Run the function and await result
                                           bool result = await generateExcel(dataToShow, fileName);
 
-                                          // Close progress dialog
                                           if (context.mounted) Navigator.pop(context);
 
-                                          // Show result dialog
                                           if (context.mounted) {
-                                            showDialog(
-                                              context: context,
-                                              builder: (context) {
-                                                return AlertDialog(
-                                                  title: Text(result
-                                                      ? '$fileName saved successfully'
-                                                      : 'Failed to save $fileName'),
-                                                  content: Text(result
-                                                      ? '/storage/emulated/0/Download/$fileName.xlsx'
-                                                      : ''),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(context),
-                                                      child: const Text('Ok'),
-                                                    ),
-                                                  ],
-                                                );
-                                              },
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(result ? '$fileName.xlsx downloaded successfully' : 'Failed to save $fileName.xlsx')),
                                             );
                                           }
                                         },
+                                        child: const Text('Download Excel')
+                                    ),
+                                    ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF006573),
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () async {
+                                          Navigator.pop(context);
 
-                                        child: const Text('Click to download')
+                                          showDialog(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (context) {
+                                              return const AlertDialog(
+                                                title: Text('Generating PDF...'),
+                                                content: SizedBox(
+                                                  height: 50,
+                                                  child: Center(child: CircularProgressIndicator()),
+                                                ),
+                                              );
+                                            },
+                                          );
+
+                                          bool result = await generatePdf(dataToShow, fileName);
+
+                                          if (context.mounted) Navigator.pop(context);
+
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(result ? '$fileName.pdf downloaded successfully' : 'Failed to generate PDF')),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('Download PDF')
                                     )
                                   ],
                                 );

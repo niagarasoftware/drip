@@ -78,4 +78,56 @@ class DataConvert{
     return formattedTime;
   }
 
+  /// Parses raw Pump CT string (e.g. "1:16.40,3:15.70_2:15.80")
+  /// Splits by '_' to separate pump segments (Pump 1, Pump 2, ...).
+  /// For each pump, splits by ',' to extract phase entries (1=Red, 2=Yellow, 3=Blue).
+  /// Missing/unspecified phases for a pump remain null so only active phases are shown.
+  List<List<String?>>? parseAllPumpCtData(String? raw) {
+    if (raw == null) return null;
+    String data = raw.trim();
+    if (data.isEmpty || data == '-' || data == 'null' || data == 'N/A') return null;
+
+    List<String> pumpSegments = data.split('_');
+    List<List<String?>> result = [];
+
+    for (String segment in pumpSegments) {
+      String seg = segment.trim();
+      if (seg.isEmpty || seg == '-' || seg == 'null') continue;
+
+      String? rVal, yVal, bVal;
+      List<String> phaseEntries = seg.split(',');
+
+      for (String entry in phaseEntries) {
+        String p = entry.trim();
+        if (p.contains(':')) {
+          List<String> kv = p.split(':');
+          if (kv.length >= 2) {
+            String key = kv[0].trim();
+            String val = kv[1].trim();
+            if (key == '1') {
+              rVal = val;
+            } else if (key == '2') {
+              yVal = val;
+            } else if (key == '3') {
+              bVal = val;
+            }
+          }
+        }
+      }
+
+      if (rVal != null || yVal != null || bVal != null) {
+        result.add([rVal, yVal, bVal]);
+      }
+    }
+
+    return result.isEmpty ? null : result;
+  }
+
+  /// Returns [Red, Yellow, Blue] phase values for the first pump in [raw].
+  List<String?>? parsePumpCtData(String? raw) {
+    final all = parseAllPumpCtData(raw);
+    if (all == null || all.isEmpty) return null;
+    return all.first;
+  }
+
 }

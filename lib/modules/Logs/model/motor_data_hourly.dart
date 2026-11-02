@@ -94,81 +94,77 @@ class MotorDataHourly {
     required this.otherTripTime3,
     required this.totalFlowToday3,
   });
-  factory MotorDataHourly.fromJson(Map<String, dynamic> json){
-    int getFirstNonZeroIndex(String value) {
-      if (value == "-" || value == "0.0") {
-        return -1;
+  factory MotorDataHourly.fromJson(Map<String, dynamic> json) {
+    String getCumulativeFlow(Map<String, dynamic> json, String key) {
+      final raw = json[key]?.toString().trim() ?? "";
+      if (raw.isEmpty || raw == "-" || raw == "null") {
+        return "0";
       }
-
-      for (int i = 0; i < value.length; i++) {
-        if (int.parse(value[i]) > 0) {
-          return i;
+      int firstIndex = -1;
+      for (int i = 0; i < raw.length; i++) {
+        final code = raw.codeUnitAt(i);
+        if (code >= 49 && code <= 57) { // '1' - '9'
+          firstIndex = i;
+          break;
         }
       }
-
-      return -1;
-    }
-
-    String getCumulativeFlow(Map<String, dynamic> json, String key) {
-      print("json => $json");
-      final value = json[key];
-      int firstIndex = getFirstNonZeroIndex(value);
-
       if (firstIndex == -1) {
         return "0";
       }
-
-      return value.substring(firstIndex);
+      return raw.substring(firstIndex);
     }
 
+    final int numPumps = json['numberOfPumps'] is int
+        ? (json['numberOfPumps'] > 3 ? 3 : json['numberOfPumps'])
+        : (int.tryParse(json['numberOfPumps']?.toString() ?? '1') ?? 1);
+
     return MotorDataHourly(
-      date: json['date'],
-      numberOfPumps: json['numberOfPumps'] > 3 ? 3 : json['numberOfPumps'],
-      twoPhasePowerOnTime: json['twoPhasePowerOnTime'],
-      twoPhaseLastPowerOnTime: json['twoPhaseLastPowerOnTime'],
-      threePhasePowerOnTime: json['threePhasePowerOnTime'],
+      date: json['date']?.toString() ?? "",
+      numberOfPumps: numPumps > 3 ? 3 : (numPumps < 1 ? 1 : numPumps),
+      twoPhasePowerOnTime: json['twoPhasePowerOnTime']?.toString() ?? "00:00:00",
+      twoPhaseLastPowerOnTime: json['twoPhaseLastPowerOnTime']?.toString() ?? "00:00:00",
+      threePhasePowerOnTime: json['threePhasePowerOnTime']?.toString() ?? "00:00:00",
       overAllCumulativeFlow: getCumulativeFlow(json, 'overAllCumulativeFlow'),
-      flowRate: json['flowRate'],
-      pressure: json['pressure'],
-      level: json['level'],
-      totalInstantEnergy: json['totalInstantEnergy'],
-      cumulativeEnergy: json['cumulativeEnergy'],
-      powerFactorR: json['powerFactorR'],
-      powerFactorY: json['powerFactorY'],
-      powerFactorB: json['powerFactorB'],
-      powerR: json['powerR'],
-      powerY: json['powerY'],
-      powerB: json['powerB'],
-      threePhaseLastPowerOnTime: json['threePhaseLastPowerOnTime'],
-      powerOffTime: json['powerOffTime'],
-      lastPowerOnTime: json['lastPowerOnTime'],
-      totalPowerOnTime: json['totalPowerOnTime'],
-      totalPowerOffTime: json['totalPowerOffTime'],
-      motorRunTime1: json['motorRunTime1'],
-      motorIdleTime1: json['motorIdleTime1'],
-      lastDateRunTime1: json['lastDateRunTime1'],
-      lastDateRunFlow1: json['lastDateRunFlow1'],
-      dryRunTripTime1: json['dryRunTripTime1'],
-      cyclicTripTime1: json['cyclicTripTime1'],
-      otherTripTime1: json['otherTripTime1'],
+      flowRate: json['flowRate']?.toString() ?? "0.0",
+      pressure: json['pressure']?.toString() ?? "0.0",
+      level: json['level']?.toString() ?? "0.0",
+      totalInstantEnergy: json['totalInstantEnergy']?.toString(),
+      cumulativeEnergy: json['cumulativeEnergy']?.toString(),
+      powerFactorR: json['powerFactorR']?.toString(),
+      powerFactorY: json['powerFactorY']?.toString(),
+      powerFactorB: json['powerFactorB']?.toString(),
+      powerR: json['powerR']?.toString(),
+      powerY: json['powerY']?.toString(),
+      powerB: json['powerB']?.toString(),
+      threePhaseLastPowerOnTime: json['threePhaseLastPowerOnTime']?.toString() ?? "00:00:00",
+      powerOffTime: json['powerOffTime']?.toString() ?? "00:00:00",
+      lastPowerOnTime: json['lastPowerOnTime']?.toString() ?? "00:00:00",
+      totalPowerOnTime: json['totalPowerOnTime']?.toString() ?? "00:00:00",
+      totalPowerOffTime: json['totalPowerOffTime']?.toString() ?? "00:00:00",
+      motorRunTime1: json['motorRunTime1']?.toString() ?? "00:00:00",
+      motorIdleTime1: json['motorIdleTime1']?.toString() ?? "00:00:00",
+      lastDateRunTime1: json['lastDateRunTime1']?.toString() ?? "00:00:00",
+      lastDateRunFlow1: json['lastDateRunFlow1']?.toString() ?? "0",
+      dryRunTripTime1: json['dryRunTripTime1']?.toString() ?? "00:00:00",
+      cyclicTripTime1: json['cyclicTripTime1']?.toString() ?? "00:00:00",
+      otherTripTime1: json['otherTripTime1']?.toString() ?? "00:00:00",
       totalFlowToday1: getCumulativeFlow(json, 'totalFlowToday1'),
-      motorRunTime2: json['motorRunTime2'],
-      motorIdleTime2: json['motorIdleTime2'],
-      lastDateRunTime2: json['lastDateRunTime2'],
-      lastDateRunFlow2: json['lastDateRunFlow2'],
-      dryRunTripTime2: json['dryRunTripTime2'],
-      cyclicTripTime2: json['cyclicTripTime2'],
-      otherTripTime2: json['otherTripTime2'],
+      motorRunTime2: json['motorRunTime2']?.toString() ?? "00:00:00",
+      motorIdleTime2: json['motorIdleTime2']?.toString() ?? "00:00:00",
+      lastDateRunTime2: json['lastDateRunTime2']?.toString() ?? "00:00:00",
+      lastDateRunFlow2: json['lastDateRunFlow2']?.toString() ?? "0",
+      dryRunTripTime2: json['dryRunTripTime2']?.toString() ?? "00:00:00",
+      cyclicTripTime2: json['cyclicTripTime2']?.toString() ?? "00:00:00",
+      otherTripTime2: json['otherTripTime2']?.toString() ?? "00:00:00",
       totalFlowToday2: getCumulativeFlow(json, 'totalFlowToday2'),
-      motorRunTime3: json['motorRunTime3'],
-      motorIdleTime3: json['motorIdleTime3'],
-      lastDateRunTime3: json['lastDateRunTime3'],
-      lastDateRunFlow3: json['lastDateRunFlow3'],
-      dryRunTripTime3: json['dryRunTripTime3'],
-      cyclicTripTime3: json['cyclicTripTime3'],
-      otherTripTime3: json['otherTripTime3'],
+      motorRunTime3: json['motorRunTime3']?.toString() ?? "00:00:00",
+      motorIdleTime3: json['motorIdleTime3']?.toString() ?? "00:00:00",
+      lastDateRunTime3: json['lastDateRunTime3']?.toString() ?? "00:00:00",
+      lastDateRunFlow3: json['lastDateRunFlow3']?.toString() ?? "0",
+      dryRunTripTime3: json['dryRunTripTime3']?.toString() ?? "00:00:00",
+      cyclicTripTime3: json['cyclicTripTime3']?.toString() ?? "00:00:00",
+      otherTripTime3: json['otherTripTime3']?.toString() ?? "00:00:00",
       totalFlowToday3: getCumulativeFlow(json, 'totalFlowToday3'),
-      // totalFlowToday3: json['totalFlowToday3'],
     );
   }
 }

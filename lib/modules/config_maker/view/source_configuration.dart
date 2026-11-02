@@ -9,6 +9,7 @@ import '../../../Constants/dialog_boxes.dart';
 import '../../../Constants/properties.dart';
 import '../model/source_model.dart';
 import '../state_management/config_maker_provider.dart';
+import '../../../Widgets/custom_buttons.dart';
 import '../../../Widgets/custom_drop_down_button.dart';
 import '../../../Widgets/sized_image.dart';
 import '../../../utils/constants.dart';
@@ -144,7 +145,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                       onChanged: (value){
                                         setState(() {
                                           source.sourceType = getTankStringToCode(value!);
-                                          if([4, 5].contains(source.sourceType)){
+                                          if([4, 5, 6, 7].contains(source.sourceType)){
                                             source.inletPump.clear();
                                             source.level = 0.0;
                                             source.topFloatForInletPump = 0.0;
@@ -199,12 +200,12 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                 children: [
                                   for(var pumpMode in [1,2])
                                     ...[
-                                      if(pumpMode == 1 && ![4,5].contains(source.sourceType))
+                                      if(pumpMode == 1 && ![4,5,6,7].contains(source.sourceType))
                                         getPumpSelection(source, pumpMode),
                                       if(pumpMode == 2)
                                         getPumpSelection(source, pumpMode),
                                     ],
-                                  if(![4,5].contains(source.sourceType) && widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.valveObjectId))
+                                  if(![4,5,6,7].contains(source.sourceType) && widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.valveObjectId))
                                     ...[
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -303,11 +304,49 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                         ),
                                       ),
                                     ],
-                                  if(![4,5].contains(source.sourceType))
+                                  if(![4,5,6,7].contains(source.sourceType))
                                     for(var mode in [1,2,3,4,5,6])
                                       getLevelAndFloatSelection(source, mode),
                                   if([6,7].contains(source.sourceType))
                                     ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(8),
+                                          color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.science, color: Colors.black, size: 20),
+                                            const SizedBox(width: 20,),
+                                            const Text('Nutrient : ', style: AppProperties.listTileBlackBoldStyle,),
+                                            Expanded(
+                                              child: Center(
+                                                child: Text(
+                                                  source.nutrient == 0.0
+                                                      ? '-'
+                                                      : (widget.configPvd.getNutrientBySNo(source.nutrient)?.name ?? '-'),
+                                                  style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis),
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                                onPressed: (){
+                                                  showNutrientSelectionDialog(
+                                                    context: context,
+                                                    source: source,
+                                                    configPvd: widget.configPvd,
+                                                    onSelected: () {
+                                                      setState(() {});
+                                                    },
+                                                  );
+                                                },
+                                                icon: Icon(Icons.touch_app, color: Theme.of(context).primaryColor, size: 20,)
+                                            )
+                                          ],
+                                        ),
+                                      ),
                                       if(widget.configPvd.listOfGeneratedObject.any((object) => object.objectId == AppConstants.tankValveObjectId))
                                         ...[
                                           Container(
@@ -1054,4 +1093,134 @@ Widget getTankImage(SourceModel source ,ConfigMakerProvider configPvd, {bool das
       height: 120* configPvd.ratio,
     );
   }
+}
+
+void showNutrientSelectionDialog({
+  required BuildContext context,
+  required SourceModel source,
+  required ConfigMakerProvider configPvd,
+  required void Function() onSelected,
+}) {
+  showDialog(
+    context: context,
+    builder: (context) {
+      double selectedSNo = source.nutrient;
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Row(
+              children: const [
+                Icon(
+                  Icons.science,
+                  color: Colors.teal,
+                  size: 30,
+                ),
+                SizedBox(width: 10),
+                Text(
+                  'Select Nutrient',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: 500,
+              height: 400,
+              child: configPvd.nutrients.isEmpty
+                  ? const Center(child: Text('No nutrients available'))
+                  : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              setDialogState(() {
+                                selectedSNo = 0.0;
+                              });
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(5),
+                                color: selectedSNo == 0.0
+                                    ? Colors.teal.shade100
+                                    : Colors.grey.shade100,
+                                border: Border.all(
+                                  color: selectedSNo == 0.0 ? Colors.teal : Colors.grey.shade300,
+                                ),
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(Icons.clear, size: 18, color: Colors.grey),
+                                  SizedBox(width: 8),
+                                  Text('None', style: AppProperties.listTileBlackBoldStyle),
+                                ],
+                              ),
+                            ),
+                          ),
+                          for (var category in configPvd.nutrients) ...[
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Text(
+                                category.category,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  color: primary,
+                                ),
+                              ),
+                            ),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: category.list.map((nutrient) {
+                                bool isSelected = selectedSNo == nutrient.sNo;
+                                return InkWell(
+                                  onTap: () {
+                                    setDialogState(() {
+                                      selectedSNo = nutrient.sNo;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(5),
+                                      color: isSelected
+                                          ? Colors.teal.shade300
+                                          : Colors.grey.shade100,
+                                      border: Border.all(
+                                        color: isSelected ? Colors.teal : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      nutrient.name,
+                                      style: TextStyle(
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                        color: isSelected ? Colors.white : Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                            const Divider(height: 20),
+                          ],
+                        ],
+                      ),
+                    ),
+            ),
+            actions: [
+              CustomMaterialButton(
+                onPressed: () {
+                  source.nutrient = selectedSNo;
+                  onSelected();
+                  Navigator.pop(context);
+                },
+              )
+            ],
+          );
+        },
+      );
+    },
+  );
 }

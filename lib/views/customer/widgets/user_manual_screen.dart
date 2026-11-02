@@ -133,3 +133,5 @@ class _UserManualScreenState extends State<UserManualScreen> {
     );
   }
 }
+
+typedef UserManualWidget = UserManualScreen;

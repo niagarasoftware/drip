@@ -45,129 +45,81 @@ String formatMultiReason(dynamic val) {
   return formatted.join('\n');
 }
 
-Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming) {
-  Map<String, dynamic> defaults = {
-    'general' : {
-      'ProgramName' : ['Program',true,1],
-      'Status' : ['Status',true,1],
-      'ZoneS_No' : ['Sequence',true,1],
-      'SequenceData' : ['Valves',true,1],
-      'Date' : ['Date',true,1],
-      'ProgramCategoryName' : ['Line',true,1],
-      'ActualStartTime' : ['Actual Start Time',true,1],
-      'ActualEndTime' : ['Actual End Time',true,1],
-      'ActualStartReason' : ['Actual Start Reason',true,1],
-      'ActualStopReason' : ['Actual Stop Reason',true,1],
-      'Pump' : ['Pump',true,1],
-      'ScheduledStartTime' : ['Start Time',false,1],
-      'overAll' : ['over all',true,1],
-    },
-    'irrigation' : {
-      'IrrigationMethod' : ['Method',true,2],
-      'IrrigationDuration_Quantity' : ['Planned',true,2],
-      'IrrigationDurationCompleted/IrrigationQuantityCompleted' : ['Actual',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'prePost' : {
-      'PrePostMethod' : ['Method',true,2],
-      'Pretime/PreQty' : ['Pre',true,2],
-      'PostTime/PostQty' : ['Post',true,2],
-      'overAll' : ['over all',true,1]
-    },
-    'centralEcPh' : {
-      'CentralPhSetValue' : ['Central Ph Avg',true,3],
-      'CentralEcSetValue' : ['Central Ec Avg',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH1>' : {
-      'CentralFertChannelName' : ['Channel1 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH2>' : {
-      'CentralFertChannelName' : ['Channel2 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH3>' : {
-      'CentralFertChannelName' : ['Channel3 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH4>' : {
-      'CentralFertChannelName' : ['Channel4 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH5>' : {
-      'CentralFertChannelName' : ['Channel5 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH6>' : {
-      'CentralFertChannelName' : ['Channel6 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH7>' : {
-      'CentralFertChannelName' : ['Channel7 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-    '<C - CH8>' : {
-      'CentralFertChannelName' : ['Channel8 Name',true,3],
-      'CentralFertMethod' : ['Method',true,3],
-      'CentralFertilizerChannelDuration/CentralFertilizerChannelQuantity' : ['Planned',true,3],
-      'CentralFertilizerChannelDurationCompleted/CentralFertilizerChannelQuantityCompleted' : ['Actual',true,3],
-      'overAll' : ['over all',true,1]
-    },
-  };
+bool isGeneralParameterRequired(String payloadKey, [String? uiKey]) {
+  final pLower = payloadKey.toLowerCase().trim();
+  final uLower = (uiKey ?? '').toLowerCase().trim();
+  return pLower == 'programname' || uLower == 'program' ||
+         pLower == 'status' || uLower == 'status' ||
+         pLower == 'programcategoryname' || pLower == 'programcategory' || uLower == 'line' ||
+         pLower == 'date' || uLower == 'date' ||
+         pLower == 'sequencedata' || uLower == 'valve' || uLower == 'valves';
+}
 
-  if (incoming == null) return defaults;
+Map<String, dynamic> mergeDefaultLogParameters(dynamic incoming, [dynamic defaultData]) {
+  if (incoming == null && defaultData == null) return {};
+  if (incoming == null) return Map<String, dynamic>.from(defaultData);
 
   Map<String, dynamic> merged = Map<String, dynamic>.from(incoming);
-  defaults.forEach((category, paramMap) {
-    if (!merged.containsKey(category) || merged[category] == null) {
-      merged[category] = Map<String, dynamic>.from(paramMap);
-    } else {
-      Map<String, dynamic> categoryMap = Map<String, dynamic>.from(merged[category]);
-      paramMap.forEach((key, val) {
-        if (!categoryMap.containsKey(key)) {
-          categoryMap[key] = val;
+
+  if (defaultData is Map && defaultData.isNotEmpty) {
+    defaultData.forEach((category, paramMap) {
+      if (!merged.containsKey(category) || merged[category] == null) {
+        if (paramMap is Map) {
+          merged[category] = Map<String, dynamic>.from(paramMap);
         }
-      });
-      merged[category] = categoryMap;
-    }
-  });
+      } else if (paramMap is Map && merged[category] is Map) {
+        Map<String, dynamic> categoryMap = Map<String, dynamic>.from(merged[category]);
+        paramMap.forEach((key, val) {
+          if (!categoryMap.containsKey(key)) {
+            categoryMap[key] = val;
+          }
+        });
+        merged[category] = categoryMap;
+      }
+    });
+  }
 
   if (merged['general'] is Map) {
     Map<String, dynamic> genMap = Map<String, dynamic>.from(merged['general']);
+    genMap.remove('ScheduledStartTime');
     if (genMap.containsKey('ProgramCategory') && genMap.containsKey('ProgramCategoryName')) {
       genMap.remove('ProgramCategory');
     }
-    if (genMap.containsKey('SequenceData') && genMap.containsKey('ZoneName')) {
-      genMap.remove('ZoneName');
-    }
-    if (genMap.containsKey('ZoneS_No') && genMap.containsKey('ZoneName')) {
-      genMap.remove('ZoneName');
+    List<String> keysToRemove = [];
+    genMap.forEach((k, v) {
+      if (v is List && v.isNotEmpty) {
+        String ui = v[0].toString().toLowerCase().trim();
+        if (ui == 'start time') {
+          keysToRemove.add(k);
+        }
+      }
+    });
+    for (var k in keysToRemove) {
+      genMap.remove(k);
     }
     genMap.remove('ProgramStartStopReason');
     genMap.remove('ProgramPauseResumeReason');
     merged['general'] = _repositionActualTimeColumns(genMap);
+  }
+
+  if (merged['filter'] is Map) {
+    Map<String, dynamic> filterMap = Map<String, dynamic>.from(merged['filter']);
+    Set<String> seenUiKeys = {};
+    List<String> duplicateKeysToRemove = [];
+    filterMap.forEach((k, v) {
+      if (k != 'overAll' && v is List && v.isNotEmpty) {
+        String ui = v[0].toString().toLowerCase().trim();
+        if (seenUiKeys.contains(ui)) {
+          duplicateKeysToRemove.add(k);
+        } else {
+          seenUiKeys.add(ui);
+        }
+      }
+    });
+    for (var k in duplicateKeysToRemove) {
+      filterMap.remove(k);
+    }
+    merged['filter'] = filterMap;
   }
 
   return merged;
@@ -185,6 +137,7 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
     'Status',
     'ProgramCategoryName',
     'ProgramCategory',
+    'HeadUnit',
     'Date',
     'ZoneS_No',
     'ZoneName',
@@ -194,7 +147,12 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
     'ActualStartReason',
     'ActualStopReason',
     'Pump',
-    'ScheduledStartTime',
+    'PumpCtAverage',
+    'PumpCtMaximum',
+    'PumpCtMinimum',
+    'PressureAverage',
+    'PressureMaximum',
+    'PressureMinimum',
     'overAll',
   ];
 
@@ -202,15 +160,7 @@ Map<String, dynamic> _repositionActualTimeColumns(Map<String, dynamic> generalMa
 
   for (final key in preferredOrder) {
     if (generalMap.containsKey(key)) {
-      if (key == 'ScheduledStartTime') {
-        var startTimeVal = generalMap[key] is List ? List.from(generalMap[key]) : generalMap[key];
-        if (startTimeVal is List && startTimeVal.length > 1) {
-          startTimeVal[1] = false;
-        }
-        reordered[key] = startTimeVal;
-      } else {
-        reordered[key] = generalMap[key];
-      }
+      reordered[key] = generalMap[key];
     }
   }
 
@@ -247,17 +197,20 @@ class IrrigationLogModel {
   List<GeneralParameterModel> localChannel7ParameterList = [];
   List<GeneralParameterModel> localChannel8ParameterList = [];
   List<dynamic> names = [];
+  List<dynamic> filterSiteData = [];
 
   IrrigationLogModel();
 
   List<GeneralParameterModel> getListOfGeneralParameterModel({required name,required keyList,required data}){
     List<GeneralParameterModel> list = [];
     for(var i in keyList){
+      final bool isReq = (name == 'general') && isGeneralParameterRequired('$i', '${data[name]['$i'][0]}');
       list.add(
           GeneralParameterModel(
               payloadKey: '$i',
               uiKey: '${data[name]['$i'][0]}',
-              show: data[name]['$i'][1]
+              show: isReq ? true : data[name]['$i'][1],
+              isRequired: isReq,
           )
       );
     }
@@ -293,6 +246,10 @@ class IrrigationLogModel {
 
   void editName(List<dynamic> nameData){
     names = nameData;
+  }
+
+  void editFilterSite(List<dynamic> filterData){
+    filterSiteData = filterData;
   }
 
   dynamic toJson(){
@@ -390,6 +347,185 @@ class IrrigationLogModel {
     return serverData;
   }
 
+  String _getCentralFilterSiteValue(Map<String, dynamic> irrigationData, int index) {
+    return _getFilterSiteValueInternal(
+      irrigationData,
+      index,
+      siteKeys: ['CentralFilterSite', 'CentralFilterName'],
+      durKeys: ['CentralFilterOnDuration'],
+    );
+  }
+
+  String _getLocalFilterSiteValue(Map<String, dynamic> irrigationData, int index) {
+    return _getFilterSiteValueInternal(
+      irrigationData,
+      index,
+      siteKeys: ['LocalFilterSite', 'LocalFilterName'],
+      durKeys: ['LocalFilterOnDuration'],
+    );
+  }
+
+  String _getCentralFilterDurationValue(Map<String, dynamic> irrigationData, int index) {
+    return _getFilterDurationValueInternal(
+      irrigationData,
+      index,
+      durKeys: ['CentralFilterOnDuration'],
+    );
+  }
+
+  String _getLocalFilterDurationValue(Map<String, dynamic> irrigationData, int index) {
+    return _getFilterDurationValueInternal(
+      irrigationData,
+      index,
+      durKeys: ['LocalFilterOnDuration'],
+    );
+  }
+
+  String _getFilterSiteValueInternal(
+    Map<String, dynamic> irrigationData,
+    int index, {
+    required List<String> siteKeys,
+    required List<String> durKeys,
+  }) {
+    List<dynamic> cfSites = [];
+    for (var k in siteKeys) {
+      if (irrigationData[k] is List) {
+        cfSites = irrigationData[k];
+        break;
+      }
+    }
+
+    var filterSiteVal = index < cfSites.length && cfSites[index] != null ? '${cfSites[index]}' : '';
+
+    if (filterSiteVal.isEmpty || filterSiteVal == '-' || filterSiteVal == 'null') {
+      return '-';
+    }
+
+    List<dynamic> cfDurs = [];
+    for (var k in durKeys) {
+      if (irrigationData[k] is List) {
+        cfDurs = irrigationData[k];
+        break;
+      }
+    }
+
+    var filterDurationVal = index < cfDurs.length && cfDurs[index] != null ? '${cfDurs[index]}' : '';
+
+    List<String> resultFilterNames = [];
+
+    var listOfSiteSNos = filterSiteVal
+        .split('_')
+        .expand((s) => s.split(','))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    for (var siteSNo in listOfSiteSNos) {
+      dynamic matchedSite;
+      if (filterSiteData.isNotEmpty) {
+        for (var site in filterSiteData) {
+          if (site is Map) {
+            var sNoStr = site['sNo']?.toString();
+            if (sNoStr == siteSNo ||
+                (double.tryParse(sNoStr ?? '') != null &&
+                    double.tryParse(sNoStr ?? '') == double.tryParse(siteSNo))) {
+              matchedSite = site;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matchedSite != null &&
+          matchedSite['filters'] is List &&
+          (matchedSite['filters'] as List).isNotEmpty) {
+        List<dynamic> filtersList = matchedSite['filters'];
+        List<String> durations = [];
+        if (filterDurationVal.isNotEmpty &&
+            filterDurationVal != '-' &&
+            filterDurationVal != 'null') {
+          durations = filterDurationVal.split('_').map((d) => d.trim()).toList();
+        }
+
+        for (int i = 0; i < filtersList.length; i++) {
+          var f = filtersList[i];
+          if (f is Map && f['sNo'] != null) {
+            var filterSNo = f['sNo'].toString();
+
+            bool isFilterActive = true;
+            if (durations.isNotEmpty && i < durations.length) {
+              var dur = durations[i];
+              if (dur == '-' || dur == 'null' || dur.isEmpty || dur == '00:00:00') {
+                isFilterActive = false;
+              }
+            }
+
+            if (isFilterActive) {
+              var filterName = getName(filterSNo);
+              if (filterName.isNotEmpty && filterName != filterSNo) {
+                resultFilterNames.add(filterName);
+              } else if (f['name'] != null && f['name'].toString().isNotEmpty) {
+                resultFilterNames.add(f['name'].toString());
+              } else {
+                resultFilterNames.add(getName(filterSNo));
+              }
+            }
+          }
+        }
+      } else {
+        var fallbackName = getName(siteSNo);
+        if (fallbackName.isNotEmpty) {
+          resultFilterNames.add(fallbackName);
+        }
+      }
+    }
+
+    if (resultFilterNames.isEmpty) {
+      return '-';
+    }
+
+    return resultFilterNames.join('\n');
+  }
+
+  String _getFilterDurationValueInternal(
+    Map<String, dynamic> irrigationData,
+    int index, {
+    required List<String> durKeys,
+  }) {
+    List<dynamic> cfDurs = [];
+    for (var k in durKeys) {
+      if (irrigationData[k] is List) {
+        cfDurs = irrigationData[k];
+        break;
+      }
+    }
+
+    var filterDuration = index < cfDurs.length && cfDurs[index] != null ? '${cfDurs[index]}' : '';
+
+    if (filterDuration.isEmpty || filterDuration == '-' || filterDuration == 'null') {
+      return '-';
+    }
+
+    var listOfDurs = filterDuration.split('_').where((d) => d.trim().isNotEmpty).toList();
+    return listOfDurs.isEmpty ? '-' : listOfDurs.join('\n');
+  }
+
+  String _getFilterSiteValue(Map<String, dynamic> irrigationData, int index) {
+    var val = _getCentralFilterSiteValue(irrigationData, index);
+    if (val == '-') {
+      val = _getLocalFilterSiteValue(irrigationData, index);
+    }
+    return val;
+  }
+
+  String _getFilterDurationValue(Map<String, dynamic> irrigationData, int index) {
+    var val = _getCentralFilterDurationValue(irrigationData, index);
+    if (val == '-') {
+      val = _getLocalFilterDurationValue(irrigationData, index);
+    }
+    return val;
+  }
+
   String calculateTime(double quantity, double flowRate) {
     // Convert flowRate from liters per hour (L/hr) to liters per second (L/s)
     double flowRatePerSecond = flowRate / 3600;
@@ -467,6 +603,14 @@ class IrrigationLogModel {
     return name.isEmpty ? sNo : name;
   }
 
+  String formatPumpName(dynamic val) {
+    if (val == null) return '-';
+    String nameStr = getName(val);
+    if (nameStr.trim().isEmpty || nameStr == '-') return '-';
+    List<String> parts = nameStr.split(RegExp(r'[_,]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return parts.isEmpty ? '-' : parts.join('\n');
+  }
+
   Map<String,dynamic> editValveWise(dynamic dataSource,List<dynamic> noOfValve){
     var generalColumn = [...getColumn(generalParameterList)];
     var generalColumnData = [];
@@ -475,7 +619,21 @@ class IrrigationLogModel {
     var waterColumnData = [];
     var prePostColumn = [...getColumn(prePostParameterList)];
     var prePostColumnData = [];
-    var filterColumn = [...getColumn(filterParameterList)];
+    bool isCentralFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('central') ||
+            p.payloadKey.toLowerCase().contains('central')));
+
+    bool isLocalFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('local') ||
+            p.payloadKey.toLowerCase().contains('local')));
+
+    var centralFilterColumn = isCentralFilterEnabled ? ['Central Filter', 'Duration'] : [];
+    var centralFilterColumnData = [];
+    var localFilterColumn = isLocalFilterEnabled ? ['Local Filter', 'Duration'] : [];
+    var localFilterColumnData = [];
+    var filterColumn = [...centralFilterColumn, ...localFilterColumn];
     var filterColumnData = [];
     var centralEcPhColumn = [...getColumn(centralEcPhParameterList)];
     var centralEcPhColumnData = [];
@@ -534,7 +692,6 @@ class IrrigationLogModel {
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
-                var filterList = [];
                 var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
                   if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
@@ -604,7 +761,7 @@ class IrrigationLogModel {
                       }
                     }
                     else if(parameter.payloadKey == 'Pump') {
-                      myList.add(getName(date['irrigation']['Pump'][howManyValve]));
+                      myList.add(formatPumpName(date['irrigation']['Pump'][howManyValve]));
                     }
                     else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyValve < date['irrigation']['PumpCtAverage'].length){
@@ -698,41 +855,18 @@ class IrrigationLogModel {
                     }
                   }
                 }
-                filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyValve < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyValve] : '';
-                      var filterDuration = howManyValve < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyValve] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
-                  if(parameter.payloadKey == 'LocalFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyValve < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyValve] : '';
-                      var filterDuration = howManyValve < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyValve] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
+                var centralFilterList = [];
+                if (isCentralFilterEnabled) {
+                  centralFilterList.add(_getCentralFilterSiteValue(date['irrigation'], howManyValve));
+                  centralFilterList.add(_getCentralFilterDurationValue(date['irrigation'], howManyValve));
+                  centralFilterColumnData.add(centralFilterList);
+                }
+
+                var localFilterList = [];
+                if (isLocalFilterEnabled) {
+                  localFilterList.add(_getLocalFilterSiteValue(date['irrigation'], howManyValve));
+                  localFilterList.add(_getLocalFilterDurationValue(date['irrigation'], howManyValve));
+                  localFilterColumnData.add(localFilterList);
                 }
                 centralEcPhParameterLoop : for(var parameter in centralEcPhParameterList){
                   if(parameter.payloadKey == 'CentralEcSetValue') {
@@ -869,7 +1003,7 @@ class IrrigationLogModel {
                 generalColumnData.add(myList);
                 waterColumnData.add(waterList);
                 prePostColumnData.add(prePostList);
-                filterColumnData.add(filterList);
+                filterColumnData.add([...centralFilterList, ...localFilterList]);
                 centralEcPhColumnData.add(centralEcPhList);
                 centralChannel1ColumnData.add(getChannelData(channelNo: 0, channelParameterList: centralChannel1ParameterList, date: date, howMany: howManyValve, central: true));
                 centralChannel2ColumnData.add(getChannelData(channelNo: 1, channelParameterList: centralChannel2ParameterList, date: date, howMany: howManyValve, central: true));
@@ -904,6 +1038,10 @@ class IrrigationLogModel {
       'waterColumnData' : waterColumnData,
       'prePostColumn' : prePostColumn,
       'prePostColumnData' : prePostColumnData,
+      'centralFilterColumn' : centralFilterColumn,
+      'centralFilterColumnData' : centralFilterColumnData,
+      'localFilterColumn' : localFilterColumn,
+      'localFilterColumnData' : localFilterColumnData,
       'filterColumn' : filterColumn,
       'filterColumnData' : filterColumnData,
       'centralEcPhColumn' : centralEcPhColumn,
@@ -954,7 +1092,21 @@ class IrrigationLogModel {
     var waterColumnData = [];
     var prePostColumn = [...getColumn(prePostParameterList)];
     var prePostColumnData = [];
-    var filterColumn = [...getColumn(filterParameterList)];
+    bool isCentralFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('central') ||
+            p.payloadKey.toLowerCase().contains('central')));
+
+    bool isLocalFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('local') ||
+            p.payloadKey.toLowerCase().contains('local')));
+
+    var centralFilterColumn = isCentralFilterEnabled ? ['Central Filter', 'Duration'] : [];
+    var centralFilterColumnData = [];
+    var localFilterColumn = isLocalFilterEnabled ? ['Local Filter', 'Duration'] : [];
+    var localFilterColumnData = [];
+    var filterColumn = [...centralFilterColumn, ...localFilterColumn];
     var filterColumnData = [];
     var centralEcPhColumn = [...getColumn(centralEcPhParameterList)];
     var centralEcPhColumnData = [];
@@ -1013,7 +1165,6 @@ class IrrigationLogModel {
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
-                var filterList = [];
                 var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
                   if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
@@ -1083,7 +1234,7 @@ class IrrigationLogModel {
                       }
                     }
                     else if(parameter.payloadKey == 'Pump') {
-                      myList.add(getName(date['irrigation']['Pump'][howManyLine]));
+                      myList.add(formatPumpName(date['irrigation']['Pump'][howManyLine]));
                     }
                     else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyLine < date['irrigation']['PumpCtAverage'].length){
@@ -1176,41 +1327,18 @@ class IrrigationLogModel {
                     }
                   }
                 }
-                filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyLine < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyLine] : '';
-                      var filterDuration = howManyLine < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyLine] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
-                  if(parameter.payloadKey == 'LocalFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyLine < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyLine] : '';
-                      var filterDuration = howManyLine < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyLine] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
+                var centralFilterList = [];
+                if (isCentralFilterEnabled) {
+                  centralFilterList.add(_getCentralFilterSiteValue(date['irrigation'], howManyLine));
+                  centralFilterList.add(_getCentralFilterDurationValue(date['irrigation'], howManyLine));
+                  centralFilterColumnData.add(centralFilterList);
+                }
+
+                var localFilterList = [];
+                if (isLocalFilterEnabled) {
+                  localFilterList.add(_getLocalFilterSiteValue(date['irrigation'], howManyLine));
+                  localFilterList.add(_getLocalFilterDurationValue(date['irrigation'], howManyLine));
+                  localFilterColumnData.add(localFilterList);
                 }
                 centralEcPhParameterLoop : for(var parameter in centralEcPhParameterList){
                   if(parameter.payloadKey == 'CentralEcSetValue') {
@@ -1347,7 +1475,7 @@ class IrrigationLogModel {
                 generalColumnData.add(myList);
                 waterColumnData.add(waterList);
                 prePostColumnData.add(prePostList);
-                filterColumnData.add(filterList);
+                filterColumnData.add([...centralFilterList, ...localFilterList]);
                 centralEcPhColumnData.add(centralEcPhList);
                 centralChannel1ColumnData.add(getChannelData(channelNo: 0, channelParameterList: centralChannel1ParameterList, date: date, howMany: howManyLine, central: true));
                 centralChannel2ColumnData.add(getChannelData(channelNo: 1, channelParameterList: centralChannel2ParameterList, date: date, howMany: howManyLine, central: true));
@@ -1368,14 +1496,12 @@ class IrrigationLogModel {
                 localChannel8ColumnData.add(getChannelData(channelNo: 7, channelParameterList: localChannel8ParameterList, date: date, howMany: howManyLine, central: false));
 
               }
-
             }
           }
-
         }
       }
     }
-    return {
+    var sendingData = {
       'fixedColumn' : fixedColumn,
       'fixedColumnData': fixedColumnData,
       'generalColumn' : generalColumn,
@@ -1384,6 +1510,10 @@ class IrrigationLogModel {
       'waterColumnData' : waterColumnData,
       'prePostColumn' : prePostColumn,
       'prePostColumnData' : prePostColumnData,
+      'centralFilterColumn' : centralFilterColumn,
+      'centralFilterColumnData' : centralFilterColumnData,
+      'localFilterColumn' : localFilterColumn,
+      'localFilterColumnData' : localFilterColumnData,
       'filterColumn' : filterColumn,
       'filterColumnData' : filterColumnData,
       'centralEcPhColumn' : centralEcPhColumn,
@@ -1424,7 +1554,7 @@ class IrrigationLogModel {
       'localChannel8ColumnData' : localChannel8ColumnData,
       'graphData' : graphData
     };
-
+    return sendingData;
   }
 
   Map<String,dynamic> editProgramWise(dynamic dataSource,List<dynamic> noOfProgram){
@@ -1435,7 +1565,21 @@ class IrrigationLogModel {
     var waterColumnData = [];
     var prePostColumn = [...getColumn(prePostParameterList)];
     var prePostColumnData = [];
-    var filterColumn = [...getColumn(filterParameterList)];
+    bool isCentralFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('central') ||
+            p.payloadKey.toLowerCase().contains('central')));
+
+    bool isLocalFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('local') ||
+            p.payloadKey.toLowerCase().contains('local')));
+
+    var centralFilterColumn = isCentralFilterEnabled ? ['Central Filter', 'Duration'] : [];
+    var centralFilterColumnData = [];
+    var localFilterColumn = isLocalFilterEnabled ? ['Local Filter', 'Duration'] : [];
+    var localFilterColumnData = [];
+    var filterColumn = [...centralFilterColumn, ...localFilterColumn];
     var filterColumnData = [];
     var centralEcPhColumn = [...getColumn(centralEcPhParameterList)];
     var centralEcPhColumnData = [];
@@ -1495,7 +1639,6 @@ class IrrigationLogModel {
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
-                var filterList = [];
                 var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
                   if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
@@ -1565,7 +1708,7 @@ class IrrigationLogModel {
                       }
                     }
                     else if(parameter.payloadKey == 'Pump') {
-                      myList.add(getName(date['irrigation']['Pump'][howManyProgram]));
+                      myList.add(formatPumpName(date['irrigation']['Pump'][howManyProgram]));
                     }
                     else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyProgram < date['irrigation']['PumpCtAverage'].length){
@@ -1660,41 +1803,18 @@ class IrrigationLogModel {
                     }
                   }
                 }
-                filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyProgram < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyProgram] : '';
-                      var filterDuration = howManyProgram < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyProgram] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
-                  if(parameter.payloadKey == 'LocalFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyProgram < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyProgram] : '';
-                      var filterDuration = howManyProgram < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyProgram] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
+                var centralFilterList = [];
+                if (isCentralFilterEnabled) {
+                  centralFilterList.add(_getCentralFilterSiteValue(date['irrigation'], howManyProgram));
+                  centralFilterList.add(_getCentralFilterDurationValue(date['irrigation'], howManyProgram));
+                  centralFilterColumnData.add(centralFilterList);
+                }
+
+                var localFilterList = [];
+                if (isLocalFilterEnabled) {
+                  localFilterList.add(_getLocalFilterSiteValue(date['irrigation'], howManyProgram));
+                  localFilterList.add(_getLocalFilterDurationValue(date['irrigation'], howManyProgram));
+                  localFilterColumnData.add(localFilterList);
                 }
                 centralEcPhParameterLoop : for(var parameter in centralEcPhParameterList){
                   if(parameter.payloadKey == 'CentralEcSetValue') {
@@ -1831,7 +1951,7 @@ class IrrigationLogModel {
                 generalColumnData.add(myList);
                 waterColumnData.add(waterList);
                 prePostColumnData.add(prePostList);
-                filterColumnData.add(filterList);
+                filterColumnData.add([...centralFilterList, ...localFilterList]);
                 centralEcPhColumnData.add(centralEcPhList);
                 centralChannel1ColumnData.add(getChannelData(channelNo: 0, channelParameterList: centralChannel1ParameterList, date: date, howMany: howManyProgram, central: true));
                 centralChannel2ColumnData.add(getChannelData(channelNo: 1, channelParameterList: centralChannel2ParameterList, date: date, howMany: howManyProgram, central: true));
@@ -1865,6 +1985,10 @@ class IrrigationLogModel {
       'waterColumnData' : waterColumnData,
       'prePostColumn' : prePostColumn,
       'prePostColumnData' : prePostColumnData,
+      'centralFilterColumn' : centralFilterColumn,
+      'centralFilterColumnData' : centralFilterColumnData,
+      'localFilterColumn' : localFilterColumn,
+      'localFilterColumnData' : localFilterColumnData,
       'filterColumn' : filterColumn,
       'filterColumnData' : filterColumnData,
       'centralEcPhColumn' : centralEcPhColumn,
@@ -1915,7 +2039,21 @@ class IrrigationLogModel {
     var waterColumnData = [];
     var prePostColumn = [...getColumn(prePostParameterList)];
     var prePostColumnData = [];
-    var filterColumn = [...getColumn(filterParameterList)];
+    bool isCentralFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('central') ||
+            p.payloadKey.toLowerCase().contains('central')));
+
+    bool isLocalFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('local') ||
+            p.payloadKey.toLowerCase().contains('local')));
+
+    var centralFilterColumn = isCentralFilterEnabled ? ['Central Filter', 'Duration'] : [];
+    var centralFilterColumnData = [];
+    var localFilterColumn = isLocalFilterEnabled ? ['Local Filter', 'Duration'] : [];
+    var localFilterColumnData = [];
+    var filterColumn = [...centralFilterColumn, ...localFilterColumn];
     var filterColumnData = [];
     var centralEcPhColumn = [...getColumn(centralEcPhParameterList)];
     var centralEcPhColumnData = [];
@@ -1972,7 +2110,6 @@ class IrrigationLogModel {
                 fixedColumnData.add(findDate['name']);
                 var myList = [];
                 var waterList = [];
-                var filterList = [];
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
@@ -2045,7 +2182,7 @@ class IrrigationLogModel {
                       }
                     }
                     else if(parameter.payloadKey == 'Pump') {
-                      myList.add(getName(date['irrigation']['Pump'][howManyDate]));
+                      myList.add(formatPumpName(date['irrigation']['Pump'][howManyDate]));
                     }
                     else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyDate < date['irrigation']['PumpCtAverage'].length){
@@ -2140,41 +2277,18 @@ class IrrigationLogModel {
                     }
                   }
                 }
-                filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyDate < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyDate] : '';
-                      var filterDuration = howManyDate < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyDate] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(name < listOfFilterDuration.length){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
-                  if(parameter.payloadKey == 'LocalFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyDate < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyDate] : '';
-                      var filterDuration = howManyDate < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyDate] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
+                var centralFilterList = [];
+                if (isCentralFilterEnabled) {
+                  centralFilterList.add(_getCentralFilterSiteValue(date['irrigation'], howManyDate));
+                  centralFilterList.add(_getCentralFilterDurationValue(date['irrigation'], howManyDate));
+                  centralFilterColumnData.add(centralFilterList);
+                }
+
+                var localFilterList = [];
+                if (isLocalFilterEnabled) {
+                  localFilterList.add(_getLocalFilterSiteValue(date['irrigation'], howManyDate));
+                  localFilterList.add(_getLocalFilterDurationValue(date['irrigation'], howManyDate));
+                  localFilterColumnData.add(localFilterList);
                 }
                 centralEcPhParameterLoop : for(var parameter in centralEcPhParameterList){
                   if(parameter.payloadKey == 'CentralEcSetValue') {
@@ -2310,7 +2424,7 @@ class IrrigationLogModel {
                 }
                 generalColumnData.add(myList);
                 waterColumnData.add(waterList);
-                filterColumnData.add(filterList);
+                filterColumnData.add([...centralFilterList, ...localFilterList]);
                 prePostColumnData.add(prePostList);
                 centralEcPhColumnData.add(centralEcPhList);
                 centralChannel1ColumnData.add(getChannelData(channelNo: 0, channelParameterList: centralChannel1ParameterList, date: date, howMany: howManyDate, central: true));
@@ -2344,6 +2458,10 @@ class IrrigationLogModel {
       'generalColumnData' : generalColumnData,
       'waterColumn' : waterColumn,
       'waterColumnData' : waterColumnData,
+      'centralFilterColumn' : centralFilterColumn,
+      'centralFilterColumnData' : centralFilterColumnData,
+      'localFilterColumn' : localFilterColumn,
+      'localFilterColumnData' : localFilterColumnData,
       'filterColumn' : filterColumn,
       'filterColumnData' : filterColumnData,
       'prePostColumn' : prePostColumn,
@@ -2395,7 +2513,21 @@ class IrrigationLogModel {
     var fixedColumnData = [];
     var waterColumn = [...getColumn(waterParameterList)];
     var waterColumnData = [];
-    var filterColumn = [...getColumn(filterParameterList)];
+    bool isCentralFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('central') ||
+            p.payloadKey.toLowerCase().contains('central')));
+
+    bool isLocalFilterEnabled = filterParameterList.any((p) =>
+        p.show == true &&
+        (p.uiKey.toLowerCase().contains('local') ||
+            p.payloadKey.toLowerCase().contains('local')));
+
+    var centralFilterColumn = isCentralFilterEnabled ? ['Central Filter', 'Duration'] : [];
+    var centralFilterColumnData = [];
+    var localFilterColumn = isLocalFilterEnabled ? ['Local Filter', 'Duration'] : [];
+    var localFilterColumnData = [];
+    var filterColumn = [...centralFilterColumn, ...localFilterColumn];
     var filterColumnData = [];
     var prePostColumn = [...getColumn(prePostParameterList)];
     var prePostColumnData = [];
@@ -2457,7 +2589,6 @@ class IrrigationLogModel {
                 var prePostList = [];
                 var centralEcPhList = [];
                 var localEcPhList = [];
-                var filterList = [];
                 var addedUiKeys = <String>{};
                 generalParameterLoop : for(var parameter in generalParameterList){
                   if(parameter.show == true && generalColumn.contains(parameter.uiKey) && !addedUiKeys.contains(parameter.uiKey)){
@@ -2527,7 +2658,7 @@ class IrrigationLogModel {
                       }
                     }
                     else if(parameter.payloadKey == 'Pump') {
-                      myList.add(getName(date['irrigation']['Pump'][howManyStatus]));
+                      myList.add(formatPumpName(date['irrigation']['Pump'][howManyStatus]));
                     }
                     else if(parameter.payloadKey == 'PumpCtAverage') {
                       if(howManyStatus < date['irrigation']['PumpCtAverage'].length){
@@ -2622,41 +2753,18 @@ class IrrigationLogModel {
                     }
                   }
                 }
-                filterParameterLoop : for(var parameter in filterParameterList){
-                  if(parameter.payloadKey == 'CentralFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyStatus < date['irrigation']['CentralFilterName'].length ? date['irrigation']['CentralFilterName'][howManyStatus] : '';
-                      var filterDuration = howManyStatus < date['irrigation']['CentralFilterOnDuration'].length ? date['irrigation']['CentralFilterOnDuration'][howManyStatus] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
-                  if(parameter.payloadKey == 'LocalFilterName') {
-                    if(parameter.show == true){
-                      var filterName = howManyStatus < date['irrigation']['LocalFilterName'].length ? date['irrigation']['LocalFilterName'][howManyStatus] : '';
-                      var filterDuration = howManyStatus < date['irrigation']['LocalFilterOnDuration'].length ? date['irrigation']['LocalFilterOnDuration'][howManyStatus] : '';
-                      var listOfFilterName = (filterName == null || filterName.isEmpty) ? [] : filterName.split('_');
-                      var listOfFilterDuration = (filterDuration == null || filterDuration.isEmpty) ? [] : filterDuration.split('_');
-                      var listOfNameAndDuration = [];
-                      for(var name = 0;name < listOfFilterName.length;name++){
-                        if(listOfFilterDuration.length > name){
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - ${listOfFilterDuration[name]}');
-                        }else{
-                          listOfNameAndDuration.add('${listOfFilterName[name]} - N/A');
-                        }
-                      }
-                      filterList.add(listOfNameAndDuration.join('\n'));
-                    }
-                  }
+                var centralFilterList = [];
+                if (isCentralFilterEnabled) {
+                  centralFilterList.add(_getCentralFilterSiteValue(date['irrigation'], howManyStatus));
+                  centralFilterList.add(_getCentralFilterDurationValue(date['irrigation'], howManyStatus));
+                  centralFilterColumnData.add(centralFilterList);
+                }
+
+                var localFilterList = [];
+                if (isLocalFilterEnabled) {
+                  localFilterList.add(_getLocalFilterSiteValue(date['irrigation'], howManyStatus));
+                  localFilterList.add(_getLocalFilterDurationValue(date['irrigation'], howManyStatus));
+                  localFilterColumnData.add(localFilterList);
                 }
                 centralEcPhParameterLoop : for(var parameter in centralEcPhParameterList){
                   if(parameter.payloadKey == 'CentralEcSetValue') {
@@ -2793,7 +2901,7 @@ class IrrigationLogModel {
                 generalColumnData.add(myList);
                 waterColumnData.add(waterList);
                 prePostColumnData.add(prePostList);
-                filterColumnData.add(filterList);
+                filterColumnData.add([...centralFilterList, ...localFilterList]);
                 centralEcPhColumnData.add(centralEcPhList);
                 centralChannel1ColumnData.add(getChannelData(channelNo: 0, channelParameterList: centralChannel1ParameterList, date: date, howMany: howManyStatus, central: true));
                 centralChannel2ColumnData.add(getChannelData(channelNo: 1, channelParameterList: centralChannel2ParameterList, date: date, howMany: howManyStatus, central: true));
@@ -2827,6 +2935,10 @@ class IrrigationLogModel {
       'waterColumnData' : waterColumnData,
       'prePostColumn' : prePostColumn,
       'prePostColumnData' : prePostColumnData,
+      'centralFilterColumn' : centralFilterColumn,
+      'centralFilterColumnData' : centralFilterColumnData,
+      'localFilterColumn' : localFilterColumn,
+      'localFilterColumnData' : localFilterColumnData,
       'filterColumn' : filterColumn,
       'filterColumnData' : filterColumnData,
       'centralEcPhColumn' : centralEcPhColumn,
@@ -2911,8 +3023,18 @@ class IrrigationLogModel {
     for(var parameter in parameterList){
       if(parameter.show == true){
         if(parameter.payloadKey != 'overAll'){
-          if (!list.contains(parameter.uiKey)) {
-            list.add(parameter.uiKey);
+          String uiLabel = parameter.uiKey;
+          if (parameter.payloadKey == 'CentralFilterOnDuration' ||
+              parameter.payloadKey == 'LocalFilterOnDuration' ||
+              parameter.payloadKey == 'LocalFilterName') {
+            uiLabel = 'Duration';
+          } else if (parameter.payloadKey == 'CentralFilterSite' ||
+                     parameter.payloadKey == 'CentralFilterName' ||
+                     parameter.payloadKey == 'CentralFilterOnOff') {
+            uiLabel = 'Central Filter';
+          }
+          if (!list.contains(uiLabel)) {
+            list.add(uiLabel);
           }
         }
       }

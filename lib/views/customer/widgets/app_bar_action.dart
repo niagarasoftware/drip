@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
 import '../../../Screens/planning/FactoryReset.dart';
+import '../../../cropAdvisory/view/crop_list_screen.dart';
 import '../../../cropAdvisory/view/getUserInformationScreen.dart';
 import '../../../flavors.dart';
 import '../../../models/customer/site_model.dart';
@@ -21,6 +22,7 @@ import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/enums.dart';
+import '../../../utils/helpers/mqtt_status_indicator.dart';
 import '../../../utils/helpers/screen_helper.dart';
 import '../../../utils/routes.dart';
 import '../../../utils/shared_preferences_helper.dart';
@@ -48,6 +50,8 @@ List<Widget> appBarActions(
     return [
       _buildProgramRunningIcon(vm),
       const SizedBox(width: 8),
+      const MqttStatusIndicator(),
+      const SizedBox(width: 10),
       AlarmButton(
         alarmPayload: vm.alarmDL,
         deviceID: master.deviceId,
@@ -82,6 +86,8 @@ List<Widget> appBarActions(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           _buildProgramRunningIcon(vm),
+          const SizedBox(width: 10),
+          const MqttStatusIndicator(),
           const SizedBox(width: 10),
           if (vm.lineLiveMessage.isNotEmpty && master.irrigationLine.length > 1)
             _buildPauseResumeButton(context, vm),
@@ -182,7 +188,8 @@ Widget _buildHelpMenu(
     CustomerScreenControllerViewModel vm,
     dynamic loggedInUser,
     dynamic viewedCustomer,
-    MasterControllerModel master) {
+    MasterControllerModel master)
+{
 
   final loggedUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
 
@@ -214,7 +221,8 @@ Widget _buildHelpMenu(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWidget(pdfUrl: pdfUrl),
+                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
                         ),
                       );
                     }
@@ -228,7 +236,7 @@ Widget _buildHelpMenu(
 
                 },
               ),
-              (! loggedUser.configPermission  && ![...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V, ...AppConstants.pumpList]
+              (! loggedUser.configPermission  && ![...AppConstants.pumpWifiDefault]
                   .contains(vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId))  ? ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Controller info'),

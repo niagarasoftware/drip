@@ -155,7 +155,7 @@ class ConnectedObject {
             : List<Area>.from(
             json["area"].map((x) => Area.fromJson(x))),
        );
-
+// lat long null single valve marker remove
   Map<String, dynamic> toJson() => {
     "objectId": objectId,
     "sNo": sNo,

@@ -13,6 +13,9 @@ import '../repository/irrigation_repository.dart';
 import 'zone_log_exporter_stub.dart'
     if (dart.library.html) 'zone_log_exporter_web.dart';
 import '../../../utils/constants.dart';
+import '../../Logs/repository/log_repos.dart';
+import '../../Logs/model/motor_data_hourly.dart';
+import '../../../services/http_service.dart';
 
 class ZoneLogEntry {
   final int no;
@@ -112,18 +115,22 @@ class CumulativeDayData {
   int durationSeconds;
   num quantity;
   bool hasRun;
+  int powerOnSeconds;
+  int powerOffSeconds;
 
   CumulativeDayData({
     this.durationSeconds = 0,
     this.quantity = 0,
     this.hasRun = false,
+    this.powerOnSeconds = 0,
+    this.powerOffSeconds = 0,
   });
 
   String get durationStr => durationSeconds > 0
       ? SequenceDayData._formatSecondsToHMS(durationSeconds)
       : '00:00:00';
   String get qtyStr => quantity > 0
-      ? (quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toString())
+      ? (quantity % 1 == 0 ? "${quantity.toInt()} L" : "$quantity L")
       : '-';
 }
 
@@ -135,6 +142,8 @@ class CumulativeRowData {
   final Map<String, CumulativeDayData> dayEntries;
   int totalDurationSeconds;
   num totalQuantity;
+  int totalPowerOnSeconds;
+  int totalPowerOffSeconds;
 
   CumulativeRowData({
     required this.key,
@@ -144,6 +153,8 @@ class CumulativeRowData {
     required this.dayEntries,
     this.totalDurationSeconds = 0,
     this.totalQuantity = 0,
+    this.totalPowerOnSeconds = 0,
+    this.totalPowerOffSeconds = 0,
   });
 }
 
@@ -168,6 +179,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   late final ScrollController _pinnedLeftVerticalController;
   late final ScrollController _verticalScrollController;
   late final ScrollController _pinnedTotalVerticalController;
+  final ScrollController _zoneGraphScrollController = ScrollController();
+  final ScrollController _cumGraphScrollController = ScrollController();
+  final ScrollController _seqDialogGraphScrollController = ScrollController();
+  final ScrollController _chanDialogGraphScrollController = ScrollController();
+  final ScrollController _pumpGraphScrollController = ScrollController();
+  final ScrollController _pumpDialogGraphScrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -180,13 +197,23 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   List<SequenceRowData> _sequenceRows = [];
   List<DateTime> _dateColumns = [];
   List<String> _programDropdownOptions = ['All Programs'];
+  // ignore: prefer_final_fields
   int _selectedViewTab = 0; // 0 = Table View, 1 = Graph View
   String _selectedGraphMetric =
       'Duration'; // 'Duration' (Green) or 'Quantity' (Orange)
+  // ignore: prefer_final_fields
   String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
   final Set<String> _expandedBreakdownKeys = {};
   int _selectedLogTypeTab = 0; // 0 = Zone Log, 1 = Cumulative Log
   List<CumulativeRowData> _cumulativeRows = [];
+
+  // Pump Log State
+  List<CumulativeRowData> _pumpRows = [];
+  String _selectedPumpFilter = 'All Pumps';
+  List<String> _pumpDropdownOptions = ['All Pumps'];
+  bool _isPumpLoading = false;
+  String _selectedPumpGraphMetric =
+      'Runtime'; // 'Runtime', 'Total Power', 'Total Power Off'
   List<String> _cumulativeDropdownOptions = ['All Channels'];
   String _selectedCumulativeFilter = 'All Channels';
   final Map<String, String> _channelNameMap = {};
@@ -206,6 +233,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
 
     fetchZoneLogApi();
+    fetchPumpLogApi();
   }
 
   @override
@@ -214,6 +242,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     _pinnedLeftVerticalController.dispose();
     _verticalScrollController.dispose();
     _pinnedTotalVerticalController.dispose();
+    _zoneGraphScrollController.dispose();
+    _cumGraphScrollController.dispose();
+    _seqDialogGraphScrollController.dispose();
+    _chanDialogGraphScrollController.dispose();
+    _pumpGraphScrollController.dispose();
+    _pumpDialogGraphScrollController.dispose();
     super.dispose();
   }
 
@@ -341,6 +375,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           });
         }
       }
+      fetchPumpLogApi();
     } catch (e, stackTrace) {
       debugPrint('Error in Zone Log API: ${e.toString()}');
       debugPrint('Stack trace: $stackTrace');
@@ -1206,9 +1241,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     ? (_selectedViewTab == 0
                         ? _buildCumulativeLogMatrixTable(context)
                         : _buildCumulativeLogGraphView(context))
-                    : (_selectedViewTab == 0
-                        ? _buildMultiDayMatrixTable(context)
-                        : _buildZoneLogGraphView(context)),
+                    : (_selectedLogTypeTab == 2
+                        ? (_selectedViewTab == 0
+                            ? _buildPumpLogMatrixTable(context)
+                            : _buildPumpLogGraphView(context))
+                        : (_selectedViewTab == 0
+                            ? _buildMultiDayMatrixTable(context)
+                            : _buildZoneLogGraphView(context))),
               ),
             ],
           ),
@@ -1219,6 +1258,77 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Future<void> _handleExcelExport(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
+    if (_selectedLogTypeTab == 2) {
+      List<CumulativeRowData> activeRows = _getFilteredPumpRows();
+      if (_dateColumns.isEmpty || activeRows.isEmpty) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "No records available to export"),
+        );
+        return;
+      }
+
+      Map<String, int> dailyRunTotals = {};
+      Map<String, int> dailyPowerOnTotals = {};
+      Map<String, int> dailyPowerOffTotals = {};
+      int grandTotalRunSec = 0;
+      int grandTotalPowerOnSec = 0;
+      int grandTotalPowerOffSec = 0;
+
+      for (var d in _dateColumns) {
+        String dKey = DateFormat('yyyy-MM-dd').format(d);
+        int dayRunSum = 0;
+        int dayPowerOnSum = 0;
+        int dayPowerOffSum = 0;
+        Set<String> processedCategories = {};
+
+        for (var r in activeRows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            final entry = r.dayEntries[dKey]!;
+            dayRunSum += entry.durationSeconds;
+
+            if (!processedCategories.contains(r.channelCategory)) {
+              processedCategories.add(r.channelCategory);
+              dayPowerOnSum += entry.powerOnSeconds;
+              dayPowerOffSum += entry.powerOffSeconds;
+            }
+          }
+        }
+
+        dailyRunTotals[dKey] = dayRunSum;
+        dailyPowerOnTotals[dKey] = dayPowerOnSum;
+        dailyPowerOffTotals[dKey] = dayPowerOffSum;
+
+        grandTotalRunSec += dayRunSum;
+        grandTotalPowerOnSec += dayPowerOnSum;
+        grandTotalPowerOffSec += dayPowerOffSum;
+      }
+
+      String fileName =
+          "PUMPLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+
+      String? res = await exportPumpLogMatrixToExcel(
+        dateColumns: _dateColumns,
+        rows: activeRows,
+        dailyRunTotals: dailyRunTotals,
+        dailyPowerOnTotals: dailyPowerOnTotals,
+        dailyPowerOffTotals: dailyPowerOffTotals,
+        grandTotalRunSeconds: grandTotalRunSec,
+        grandTotalPowerOnSeconds: grandTotalPowerOnSec,
+        grandTotalPowerOffSeconds: grandTotalPowerOffSec,
+        fileName: fileName,
+      );
+
+      if (res != null) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Excel downloaded successfully: $res"),
+        );
+      } else {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Failed to export Excel"),
+        );
+      }
+      return;
+    }
     if (_selectedLogTypeTab == 1) {
       var activeRows = _getFilteredCumulativeRows();
       if (_dateColumns.isEmpty || activeRows.isEmpty) {
@@ -1238,7 +1348,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         int dayQty = 0;
         for (var r in activeRows) {
           if (r.dayEntries.containsKey(dKey)) {
-            daySum += r.dayEntries[dKey]!.durationSeconds;
+            daySum += (r.dayEntries[dKey]!.durationSeconds as num).toInt();
             dayQty += r.dayEntries[dKey]!.quantity.toInt();
           }
         }
@@ -1350,6 +1460,209 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
   }
 
+  Future<void> _handlePdfExport(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (_selectedLogTypeTab == 2) {
+      List<CumulativeRowData> activeRows = _getFilteredPumpRows();
+      if (_dateColumns.isEmpty || activeRows.isEmpty) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "No records available to export"),
+        );
+        return;
+      }
+
+      Map<String, int> dailyRunTotals = {};
+      Map<String, int> dailyPowerOnTotals = {};
+      Map<String, int> dailyPowerOffTotals = {};
+      int grandTotalRunSec = 0;
+      int grandTotalPowerOnSec = 0;
+      int grandTotalPowerOffSec = 0;
+
+      for (var d in _dateColumns) {
+        String dKey = DateFormat('yyyy-MM-dd').format(d);
+        int dayRunSum = 0;
+        int dayPowerOnSum = 0;
+        int dayPowerOffSum = 0;
+        Set<String> processedCategories = {};
+
+        for (var r in activeRows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            final entry = r.dayEntries[dKey]!;
+            dayRunSum += entry.durationSeconds;
+
+            if (!processedCategories.contains(r.channelCategory)) {
+              processedCategories.add(r.channelCategory);
+              dayPowerOnSum += entry.powerOnSeconds;
+              dayPowerOffSum += entry.powerOffSeconds;
+            }
+          }
+        }
+
+        dailyRunTotals[dKey] = dayRunSum;
+        dailyPowerOnTotals[dKey] = dayPowerOnSum;
+        dailyPowerOffTotals[dKey] = dayPowerOffSum;
+
+        grandTotalRunSec += dayRunSum;
+        grandTotalPowerOnSec += dayPowerOnSum;
+        grandTotalPowerOffSec += dayPowerOffSum;
+      }
+
+      String fileName =
+          "PUMPLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+
+      String? res = await exportPumpLogMatrixToPdf(
+        dateColumns: _dateColumns,
+        rows: activeRows,
+        dailyRunTotals: dailyRunTotals,
+        dailyPowerOnTotals: dailyPowerOnTotals,
+        dailyPowerOffTotals: dailyPowerOffTotals,
+        grandTotalRunSeconds: grandTotalRunSec,
+        grandTotalPowerOnSeconds: grandTotalPowerOnSec,
+        grandTotalPowerOffSeconds: grandTotalPowerOffSec,
+        fileName: fileName,
+      );
+
+      if (res != null) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "PDF downloaded successfully: $res"),
+        );
+      } else {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Failed to export PDF"),
+        );
+      }
+      return;
+    }
+    if (_selectedLogTypeTab == 1) {
+      var activeRows = _getFilteredCumulativeRows();
+      if (_dateColumns.isEmpty || activeRows.isEmpty) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "No records available to export"),
+        );
+        return;
+      }
+
+      Map<String, int> dailyTotals = {};
+      Map<String, int> dailyTotalQuantities = {};
+      int grandTotalSeconds = 0;
+      int grandTotalQuantity = 0;
+      for (var d in _dateColumns) {
+        String dKey = DateFormat('yyyy-MM-dd').format(d);
+        int daySum = 0;
+        int dayQty = 0;
+        for (var r in activeRows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            daySum += (r.dayEntries[dKey]!.durationSeconds as num).toInt();
+            dayQty += r.dayEntries[dKey]!.quantity.toInt();
+          }
+        }
+        dailyTotals[dKey] = daySum;
+        dailyTotalQuantities[dKey] = dayQty;
+        grandTotalSeconds += daySum;
+        grandTotalQuantity += dayQty;
+      }
+
+      List<SequenceRowData> exportRows = activeRows.map((c) {
+        Map<String, SequenceDayData> dayEntries = {};
+        c.dayEntries.forEach((k, v) {
+          dayEntries[k] = SequenceDayData(
+            durationQtySeconds: v.durationSeconds,
+            quantityCompleted: v.quantity.toInt(),
+            hasRun: v.hasRun,
+          );
+        });
+        return SequenceRowData(
+          key: c.key,
+          progName: c.channelCategory,
+          progSNo: 1,
+          seqName: c.channelName,
+          dayEntries: dayEntries,
+          totalDurationSeconds: c.totalDurationSeconds,
+          totalQuantity: c.totalQuantity.toInt(),
+        );
+      }).toList();
+
+      String fileName =
+          "CumulativeLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}";
+
+      String? res = await exportZoneLogMatrixToPdf(
+        dateColumns: _dateColumns,
+        rows: exportRows,
+        dailyTotals: dailyTotals,
+        dailyTotalQuantities: dailyTotalQuantities,
+        grandTotalSeconds: grandTotalSeconds,
+        grandTotalQuantity: grandTotalQuantity,
+        fileName: fileName,
+      );
+
+      if (res != null) {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "PDF downloaded successfully: $res"),
+        );
+      } else {
+        messenger.showSnackBar(
+          CustomSnackBar(message: "Failed to export PDF"),
+        );
+      }
+      return;
+    }
+
+    var filteredRows = _getFilteredSequenceRows();
+    if (_dateColumns.isEmpty || filteredRows.isEmpty) {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "No records available to export"),
+      );
+      return;
+    }
+
+    Map<String, int> dailyTotals = {};
+    Map<String, int> dailyTotalQuantities = {};
+    int grandTotalSeconds = 0;
+    int grandTotalQuantity = 0;
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      int daySum = 0;
+      int dayQty = 0;
+      for (var r in filteredRows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          daySum += r.dayEntries[dKey]!.durationQtySeconds;
+          dayQty += r.dayEntries[dKey]!.quantityCompleted;
+        }
+      }
+      dailyTotals[dKey] = daySum;
+      dailyTotalQuantities[dKey] = dayQty;
+      grandTotalSeconds += daySum;
+      grandTotalQuantity += dayQty;
+    }
+
+    String sanitizeName = (_selectedProgramFilter != 'All Programs'
+            ? _selectedProgramFilter
+            : 'ZoneLog_${DateFormat('yyyyMMdd').format(_fromDate)}_${DateFormat('yyyyMMdd').format(_toDate)}')
+        .replaceAll(RegExp(r'[^\w\s\-]'), '_');
+    String fileName =
+        "${sanitizeName}_${DateFormat('yyyyMMdd').format(DateTime.now())}";
+
+    String? res = await exportZoneLogMatrixToPdf(
+      dateColumns: _dateColumns,
+      rows: filteredRows,
+      dailyTotals: dailyTotals,
+      dailyTotalQuantities: dailyTotalQuantities,
+      grandTotalSeconds: grandTotalSeconds,
+      grandTotalQuantity: grandTotalQuantity,
+      fileName: fileName,
+    );
+
+    if (res != null) {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "PDF downloaded successfully: $res"),
+      );
+    } else {
+      messenger.showSnackBar(
+        CustomSnackBar(message: "Failed to export PDF"),
+      );
+    }
+  }
+
   Future<void> _selectDateRange(BuildContext context) async {
     DateTime tempStart = _fromDate;
     DateTime tempEnd = _toDate;
@@ -1402,6 +1715,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 });
                 Navigator.pop(context);
                 fetchZoneLogApi();
+                fetchPumpLogApi();
               },
             ),
           ],
@@ -1526,6 +1840,57 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       const SizedBox(width: 6),
+                    ] else if (_selectedLogTypeTab == 2) ...[
+                      // Pump Dropdown
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Text("Pump",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Container(
+                                height: 36,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                      color: const Color(0xFFCBD5E1)),
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: Colors.white,
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _pumpDropdownOptions
+                                            .contains(_selectedPumpFilter)
+                                        ? _selectedPumpFilter
+                                        : 'All Pumps',
+                                    isDense: true,
+                                    isExpanded: true,
+                                    items: _pumpDropdownOptions
+                                        .map((e) => DropdownMenuItem(
+                                            value: e,
+                                            child: Text(e,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                    fontSize: 11.5))))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setState(() {
+                                          _selectedPumpFilter = val;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
                     ] else
                       const Spacer(),
                     // Excel Button
@@ -1549,6 +1914,33 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           Text("Excel",
                               style: TextStyle(
                                   color: Color(0xFF2E7D32),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // PDF Button
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 0),
+                        minimumSize: const Size(0, 36),
+                        side: const BorderSide(color: Color(0xFFC62828)),
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6)),
+                      ),
+                      onPressed: () => _handlePdfExport(context),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.picture_as_pdf,
+                              size: 13, color: Color(0xFFC62828)),
+                          SizedBox(width: 3),
+                          Text("PDF",
+                              style: TextStyle(
+                                  color: Color(0xFFC62828),
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold)),
                         ],
@@ -1641,9 +2033,50 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
                   ],
+                )
+              else if (_selectedLogTypeTab == 2)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Pump",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Container(
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.white,
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value:
+                              _pumpDropdownOptions.contains(_selectedPumpFilter)
+                                  ? _selectedPumpFilter
+                                  : 'All Pumps',
+                          isDense: true,
+                          items: _pumpDropdownOptions
+                              .map((e) => DropdownMenuItem(
+                                  value: e,
+                                  child: Text(e,
+                                      style: const TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedPumpFilter = val;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
 
-              // Excel Export Button
+              // Export Buttons
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1660,6 +2093,23 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     label: const Text("Excel",
                         style: TextStyle(
                             color: Color(0xFF2E7D32),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      side: const BorderSide(color: Color(0xFFC62828)),
+                      backgroundColor: Colors.white,
+                    ),
+                    onPressed: () => _handlePdfExport(context),
+                    icon: const Icon(Icons.picture_as_pdf,
+                        size: 14, color: Color(0xFFC62828)),
+                    label: const Text("PDF",
+                        style: TextStyle(
+                            color: Color(0xFFC62828),
                             fontSize: 11,
                             fontWeight: FontWeight.bold)),
                   ),
@@ -1713,118 +2163,120 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 padding: const EdgeInsets.all(2),
+                // ignore: prefer_const_constructors
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
+                  // ignore: prefer_const_literals_to_create_immutables
                   children: [
-                    InkWell(
-                      onTap: () {
-                        if (_selectedViewTab != 0) {
-                          setState(() {
-                            _selectedViewTab = 0;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedViewTab == 0
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedViewTab == 0
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.table_rows_outlined,
-                              size: 14,
-                              color: _selectedViewTab == 0
-                                  ? const Color(0xFF00695C)
-                                  : Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              "Table View",
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: _selectedViewTab == 0
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: _selectedViewTab == 0
-                                    ? const Color(0xFF00695C)
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    InkWell(
-                      onTap: () {
-                        if (_selectedViewTab != 1) {
-                          setState(() {
-                            _selectedViewTab = 1;
-                          });
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: _selectedViewTab == 1
-                              ? Colors.white
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: _selectedViewTab == 1
-                              ? const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.bar_chart_rounded,
-                              size: 14,
-                              color: _selectedViewTab == 1
-                                  ? const Color(0xFF00695C)
-                                  : Colors.white,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              "Graph View",
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: _selectedViewTab == 1
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: _selectedViewTab == 1
-                                    ? const Color(0xFF00695C)
-                                    : Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    // InkWell(
+                    //   onTap: () {
+                    //     if (_selectedViewTab != 0) {
+                    //       setState(() {
+                    //         _selectedViewTab = 0;
+                    //       });
+                    //     }
+                    //   },
+                    //   borderRadius: BorderRadius.circular(4),
+                    //   child: Container(
+                    //     padding: const EdgeInsets.symmetric(
+                    //         horizontal: 10, vertical: 5),
+                    //     decoration: BoxDecoration(
+                    //       color: _selectedViewTab == 0
+                    //           ? Colors.white
+                    //           : Colors.transparent,
+                    //       borderRadius: BorderRadius.circular(4),
+                    //       boxShadow: _selectedViewTab == 0
+                    //           ? const [
+                    //               BoxShadow(
+                    //                 color: Colors.black12,
+                    //                 blurRadius: 2,
+                    //                 offset: Offset(0, 1),
+                    //               )
+                    //             ]
+                    //           : null,
+                    //     ),
+                    //     child: Row(
+                    //       mainAxisSize: MainAxisSize.min,
+                    //       children: [
+                    //         Icon(
+                    //           Icons.table_rows_outlined,
+                    //           size: 14,
+                    //           color: _selectedViewTab == 0
+                    //               ? const Color(0xFF00695C)
+                    //               : Colors.white,
+                    //         ),
+                    //         const SizedBox(width: 5),
+                    //         Text(
+                    //           "Table View",
+                    //           style: TextStyle(
+                    //             fontSize: 11.5,
+                    //             fontWeight: _selectedViewTab == 0
+                    //                 ? FontWeight.bold
+                    //                 : FontWeight.w500,
+                    //             color: _selectedViewTab == 0
+                    //                 ? const Color(0xFF00695C)
+                    //                 : Colors.white,
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
+                    // const SizedBox(width: 2),
+                    // InkWell(
+                    //   onTap: () {
+                    //     if (_selectedViewTab != 1) {
+                    //       setState(() {
+                    //         _selectedViewTab = 1;
+                    //       });
+                    //     }
+                    //   },
+                    //   borderRadius: BorderRadius.circular(4),
+                    //   child: Container(
+                    //     padding: const EdgeInsets.symmetric(
+                    //         horizontal: 10, vertical: 5),
+                    //     decoration: BoxDecoration(
+                    //       color: _selectedViewTab == 1
+                    //           ? Colors.white
+                    //           : Colors.transparent,
+                    //       borderRadius: BorderRadius.circular(4),
+                    //       boxShadow: _selectedViewTab == 1
+                    //           ? const [
+                    //               BoxShadow(
+                    //                 color: Colors.black12,
+                    //                 blurRadius: 2,
+                    //                 offset: Offset(0, 1),
+                    //               )
+                    //             ]
+                    //           : null,
+                    //     ),
+                    //     child: Row(
+                    //       mainAxisSize: MainAxisSize.min,
+                    //       children: [
+                    //         Icon(
+                    //           Icons.bar_chart_rounded,
+                    //           size: 14,
+                    //           color: _selectedViewTab == 1
+                    //               ? const Color(0xFF00695C)
+                    //               : Colors.white,
+                    //         ),
+                    //         const SizedBox(width: 5),
+                    //         Text(
+                    //           "Graph View",
+                    //           style: TextStyle(
+                    //             fontSize: 11.5,
+                    //             fontWeight: _selectedViewTab == 1
+                    //                 ? FontWeight.bold
+                    //                 : FontWeight.w500,
+                    //             color: _selectedViewTab == 1
+                    //                 ? const Color(0xFF00695C)
+                    //                 : Colors.white,
+                    //           ),
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -1873,7 +2325,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : null,
                         ),
                         child: Text(
-                          "Zone Log",
+                          "Zone",
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: _selectedLogTypeTab == 0
@@ -1922,13 +2374,63 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : null,
                         ),
                         child: Text(
-                          "Channel Log",
+                          "Channel",
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: _selectedLogTypeTab == 1
                                 ? FontWeight.bold
                                 : FontWeight.w500,
                             color: _selectedLogTypeTab == 1
+                                ? const Color(0xFF00695C)
+                                : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    InkWell(
+                      onTap: () {
+                        if (_selectedLogTypeTab != 2) {
+                          setState(() {
+                            _selectedLogTypeTab = 2;
+                            _selectedPumpFilter = 'All Pumps';
+                          });
+                          if (_verticalScrollController.hasClients) {
+                            _verticalScrollController.jumpTo(0);
+                          }
+                          if (_horizontalScrollController.hasClients) {
+                            _horizontalScrollController.jumpTo(0);
+                          }
+                          fetchPumpLogApi();
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _selectedLogTypeTab == 2
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: _selectedLogTypeTab == 2
+                              ? const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 2,
+                                    offset: Offset(0, 1),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          "Pump",
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: _selectedLogTypeTab == 2
+                                ? FontWeight.bold
+                                : FontWeight.w500,
+                            color: _selectedLogTypeTab == 2
                                 ? const Color(0xFF00695C)
                                 : Colors.white,
                           ),
@@ -1988,7 +2490,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       num dayQty = 0;
       for (var r in rows) {
         if (r.dayEntries.containsKey(dKey)) {
-          daySum += r.dayEntries[dKey]!.durationSeconds;
+          daySum += (r.dayEntries[dKey]!.durationSeconds as num).toInt();
           dayQty += r.dayEntries[dKey]!.quantity;
         }
       }
@@ -2075,7 +2577,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2128,7 +2630,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFF0FDF4),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2140,6 +2644,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -2174,7 +2679,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP HEADER ROW (Yellow Date Headers)
+                            // TOP HEADER ROW (Gray Date Headers)
                             Row(
                               children: [
                                 for (int dIdx = 0;
@@ -2185,12 +2690,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     height: 38,
                                     alignment: Alignment.center,
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFF5B800),
+                                      color: Color(0xFFE2E8F0),
                                       border: Border(
                                         right: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                         bottom: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                       ),
                                     ),
                                     child: Text(
@@ -2246,6 +2751,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                             rIdx < rows.length;
                                             rIdx++)
                                           Container(
+                                            height: 52,
                                             decoration: BoxDecoration(
                                               color: rIdx % 2 == 0
                                                   ? Colors.white
@@ -2282,6 +2788,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               dailyTotalQuantities,
                               colDateWidth,
                             ),
+                            const SizedBox(height: 15),
                           ],
                         ),
                       ),
@@ -2315,10 +2822,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       height: 38,
                       alignment: Alignment.center,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFF97316),
+                        color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -2374,21 +2881,26 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFDCFCE7),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width < 1100
+                              ? 12.5
+                              : 13.0,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF15803D),
+                          color: const Color(0xFF15803D),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -2469,12 +2981,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           height: 38,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFF5B800),
+                            color: Color(0xFFE2E8F0),
                             border: Border(
                               right: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                               bottom: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                             ),
                           ),
                           child: Text(
@@ -2492,7 +3004,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         height: 38,
                         alignment: Alignment.center,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFF97316),
+                          color: Color(0xFF00695C),
                           border: Border(
                             bottom:
                                 BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -2544,6 +3056,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     colDateWidth,
                     colTotalWidth,
                   ),
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -2603,7 +3116,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -2635,8 +3149,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               String dayTotalFormatted = _formatDuration(daySumSec);
               String qtyStr = daySumQty > 0
                   ? (daySumQty % 1 == 0
-                      ? daySumQty.toInt().toString()
-                      : daySumQty.toString())
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
                   : '-';
 
               return Container(
@@ -2646,7 +3160,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -2655,7 +3169,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF166534),
                   ),
@@ -2671,12 +3185,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? grandTotalQuantity.toInt() : grandTotalQuantity) : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12.5,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF15803D),
               ),
@@ -2706,37 +3220,72 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Text(
-            row.channelCategory,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1E293B),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  row.channelCategory,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize:
+                        MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFFC8E6C9), width: 1),
+                  ),
+                  child: Text(
+                    row.channelName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 2),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-            ),
-            child: Text(
-              row.channelName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2E7D32),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showIndividualChannelGraphDialog(context, row),
+              borderRadius: BorderRadius.circular(4),
+              child: Tooltip(
+                message: "Open ${row.channelName} Graph",
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(4),
+                    border:
+                        Border.all(color: const Color(0xFFB2DFDB), width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    size: 15,
+                    color: Color(0xFF00695C),
+                  ),
+                ),
               ),
             ),
           ),
@@ -2782,8 +3331,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     String qtyStr = row.totalQuantity > 0
         ? (row.totalQuantity % 1 == 0
-            ? row.totalQuantity.toInt().toString()
-            : row.totalQuantity.toString())
+            ? "${row.totalQuantity.toInt()} L"
+            : "${row.totalQuantity} L")
         : '-';
     String formattedText =
         "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr";
@@ -2799,15 +3348,32 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Text(
-        formattedText,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: Color(0xFF15803D),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showIndividualChannelGraphDialog(context, row),
+          borderRadius: BorderRadius.circular(4),
+          child: Tooltip(
+            message: "Tap to view ${row.channelName} graph",
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                formattedText,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: MediaQuery.of(context).size.width < 650
+                      ? 12.0
+                      : (MediaQuery.of(context).size.width < 1100
+                          ? 12.5
+                          : 13.0),
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF15803D),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2823,7 +3389,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -2836,9 +3403,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               String dayTotalFormatted = _formatDuration(daySumSec);
               String qtyStr = daySumQty > 0
                   ? (daySumQty % 1 == 0
-                      ? daySumQty.toInt().toString()
-                      : daySumQty.toString())
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
                   : '-';
+
+              final double screenWidth = MediaQuery.of(context).size.width;
+              final double fontSize =
+                  screenWidth < 650 ? 12.0 : (screenWidth < 1100 ? 12.5 : 13.0);
 
               return Container(
                 width: colDateWidth,
@@ -2847,7 +3418,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -2855,10 +3426,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF166534),
+                    color: const Color(0xFF166534),
                   ),
                 ),
               );
@@ -2868,15 +3439,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildCumulativeLogGraphView(BuildContext context) {
-    if (_isLoading) {
+  Widget _buildCumulativeLogGraphView(BuildContext context,
+      [List<CumulativeRowData>? overrideRows,
+      String title = "Fertilizer Channel Breakdown"]) {
+    if (_isLoading || _isPumpLoading) {
       return const Padding(
         padding: EdgeInsets.all(40.0),
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    var filteredRows = _getFilteredCumulativeRows();
+    var filteredRows = overrideRows ?? _getFilteredCumulativeRows();
 
     if (_dateColumns.isEmpty || filteredRows.isEmpty) {
       return Container(
@@ -2971,44 +3544,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               _buildMetricTab(
                                 label: "Quantity",
                                 icon: Icons.water_drop_outlined,
-                                activeColor: const Color(0xFFF97316),
+                                activeColor: const Color(0xFF16A34A),
                                 isSelected: _selectedGraphMetric == 'Quantity',
                                 onTap: () => setState(
                                     () => _selectedGraphMetric = 'Quantity'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Chart type selector
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          padding: const EdgeInsets.all(2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildGraphTypeIcon(
-                                icon: Icons.bar_chart,
-                                tooltip: "Column Chart",
-                                isSelected: _graphChartType == 'Column',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Column'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.show_chart,
-                                tooltip: "Line Chart",
-                                isSelected: _graphChartType == 'Spline',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Spline'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.area_chart,
-                                tooltip: "Area Chart",
-                                isSelected: _graphChartType == 'Area',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Area'),
                               ),
                             ],
                           ),
@@ -3017,34 +3556,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     ),
                     const SizedBox(height: 12),
 
-                    // SfCartesianChart with horizontal scrolling for date range
-                    LayoutBuilder(
-                      builder: (context, chartConstraints) {
-                        const double minWidthPerDate = 45.0;
-                        final double totalCalculatedWidth =
-                            _dateColumns.length * minWidthPerDate;
-                        final double chartWidth = math.max(
-                            chartConstraints.maxWidth, totalCalculatedWidth);
-
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: chartWidth,
-                              height: 320,
-                              child: _buildCumulativeSfChart(filteredRows),
-                            ),
-                          ),
-                        );
-                      },
+                    // SfCartesianChart with static Y-axis and horizontal scrolling for date range
+                    SizedBox(
+                      height: 320,
+                      child: _buildCumulativeSfChart(
+                        filteredRows,
+                        overrideScrollController: _cumGraphScrollController,
+                      ),
                     ),
                   ],
                 ),
@@ -3054,7 +3572,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
               // 3. Fertilizer Channel Breakdown Cards
               Text(
-                "Fertilizer Channel Breakdown (${filteredRows.length})",
+                "$title (${filteredRows.length})",
                 style: const TextStyle(
                   fontSize: 13.5,
                   fontWeight: FontWeight.bold,
@@ -3074,12 +3592,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildCumulativeSfChart(List<CumulativeRowData> rows) {
+  Widget _buildCumulativeSfChart(
+    List<CumulativeRowData> rows, {
+    String? overrideMetric,
+    String? overrideChartType,
+    ScrollController? overrideScrollController,
+  }) {
     List<_ZoneChartPoint> dataPoints = [];
 
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
-      String label = DateFormat('dd/MM').format(d);
+      String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
       int sumSec = 0;
       num sumQty = 0;
       for (var r in rows) {
@@ -3097,107 +3620,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ));
     }
 
-    final bool isDuration = _selectedGraphMetric == 'Duration';
+    final String metric = overrideMetric ?? _selectedGraphMetric;
+    final String chartType = overrideChartType ?? _graphChartType;
+    final bool isDuration = metric == 'Duration';
+    final ScrollController scrollController =
+        overrideScrollController ?? _cumGraphScrollController;
 
-    return SfCartesianChart(
-      legend: const Legend(
-        isVisible: true,
-        toggleSeriesVisibility: false,
-        position: LegendPosition.top,
-        alignment: ChartAlignment.center,
-        textStyle: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
-      ),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        shared: false,
-        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
-            int seriesIndex) {
-          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
-            return const SizedBox();
-          }
-          final p = dataPoints[pointIndex];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.xLabel,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11.5),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDuration
-                          ? Icons.timer_outlined
-                          : Icons.water_drop_outlined,
-                      size: 12,
-                      color: isDuration
-                          ? const Color(0xFF2DD4BF)
-                          : const Color(0xFFFB923C),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isDuration
-                          ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? p.quantity.toInt().toString() : p.quantity.toString()) : '-'}",
-                      style: TextStyle(
-                        color: isDuration
-                            ? const Color(0xFF2DD4BF)
-                            : const Color(0xFFFB923C),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      primaryXAxis: CategoryAxis(
-        labelRotation: dataPoints.length > 7 ? -45 : 0,
-        labelStyle: const TextStyle(
-          fontSize: 10.5,
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
-        ),
-        majorGridLines: const MajorGridLines(width: 0),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-      ),
-      primaryYAxis: NumericAxis(
-        title: AxisTitle(
-          text: isDuration ? "Duration (mins)" : "Quantity",
-          textStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
-          ),
-        ),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-        majorGridLines: const MajorGridLines(
-          color: Color(0xFFF1F5F9),
-          width: 1,
-        ),
-        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-      ),
-      series: _buildChartSeries(dataPoints, isDuration),
+    return _buildResponsiveStaticAxisChart(
+      dataPoints: dataPoints,
+      isDuration: isDuration,
+      chartType: chartType,
+      scrollController: scrollController,
     );
   }
 
@@ -3219,14 +3652,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
+          color: const Color(0xFFE0F2F1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
         ),
         child: Icon(
           isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
           size: 16,
-          color: const Color(0xFFEA580C),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -3256,28 +3689,28 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     String qtyStr = row.totalQuantity > 0
         ? (row.totalQuantity % 1 == 0
-            ? row.totalQuantity.toInt().toString()
-            : row.totalQuantity.toString())
+            ? "${row.totalQuantity.toInt()} L"
+            : "${row.totalQuantity} L")
         : "-";
 
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.water_drop_outlined,
-              size: 11, color: Color(0xFFEA580C)),
+              size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
             qtyStr,
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFEA580C),
+              color: Color(0xFF166534),
             ),
           ),
         ],
@@ -3467,7 +3900,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -3491,9 +3924,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   ? dayData.durationStr
                                   : '-');
                           String dayQtyStr = (hasRun && qty > 0)
-                              ? (qty % 1 == 0
-                                  ? qty.toInt().toString()
-                                  : qty.toString())
+                              ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
                               : '-';
 
                           Color rowBg = dIdx % 2 == 0
@@ -3548,7 +3979,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           ? FontWeight.bold
                                           : FontWeight.normal,
                                       color: dayQtyStr != '-'
-                                          ? const Color(0xFFEA580C)
+                                          ? const Color(0xFF166534)
                                           : const Color(0xFF94A3B8),
                                     ),
                                   ),
@@ -3603,7 +4034,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -3751,7 +4182,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -3806,7 +4237,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFF0FDF4),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -3818,6 +4251,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -3852,7 +4286,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP HEADER ROW (Yellow Date Headers)
+                            // TOP HEADER ROW (Gray Date Headers)
                             Row(
                               children: [
                                 for (int dIdx = 0;
@@ -3863,12 +4297,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     height: 38,
                                     alignment: Alignment.center,
                                     decoration: const BoxDecoration(
-                                      color: Color(0xFFF5B800),
+                                      color: Color(0xFFE2E8F0),
                                       border: Border(
                                         right: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                         bottom: BorderSide(
-                                            color: Color(0xFFE2E8F0), width: 1),
+                                            color: Color(0xFFCBD5E1), width: 1),
                                       ),
                                     ),
                                     child: Text(
@@ -3941,6 +4375,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               dailyTotalQuantities,
                               colDateWidth,
                             ),
+                            const SizedBox(height: 15),
                           ],
                         ),
                       ),
@@ -3974,10 +4409,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       height: 38,
                       alignment: Alignment.center,
                       decoration: const BoxDecoration(
-                        color: Color(0xFFF97316),
+                        color: Color(0xFF00695C),
                         border: Border(
                           bottom:
-                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
                         ),
                       ),
                       child: const Text(
@@ -4035,21 +4470,26 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       decoration: const BoxDecoration(
                         color: Color(0xFFDCFCE7),
                         border: Border(
-                          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11.5,
+                        style: TextStyle(
+                          fontSize: MediaQuery.of(context).size.width < 1100
+                              ? 12.5
+                              : 13.0,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF15803D),
+                          color: const Color(0xFF15803D),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 15),
                   ],
                 ),
               ),
@@ -4138,12 +4578,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           height: 38,
                           alignment: Alignment.center,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFF5B800),
+                            color: Color(0xFFE2E8F0),
                             border: Border(
                               right: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                               bottom: BorderSide(
-                                  color: Color(0xFFE2E8F0), width: 1),
+                                  color: Color(0xFFCBD5E1), width: 1),
                             ),
                           ),
                           child: Text(
@@ -4161,7 +4601,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         height: 38,
                         alignment: Alignment.center,
                         decoration: const BoxDecoration(
-                          color: Color(0xFFF97316),
+                          color: Color(0xFF00695C),
                           border: Border(
                             bottom:
                                 BorderSide(color: Color(0xFFE2E8F0), width: 1),
@@ -4213,6 +4653,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     colDateWidth,
                     colTotalWidth,
                   ),
+                  const SizedBox(height: 15),
                 ],
               ),
             ),
@@ -4272,7 +4713,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -4302,7 +4744,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
+              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
 
               return Container(
                 width: colDateWidth,
@@ -4311,7 +4753,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -4320,7 +4762,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12.0,
                     fontWeight: FontWeight.bold,
                     color: Color(0xFF166534),
                   ),
@@ -4336,12 +4778,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? grandTotalQuantity : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 12.5,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFF15803D),
               ),
@@ -4353,15 +4795,15 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _buildSubHeaderCell(String text, double width,
-      {bool isTotalCol = false}) {
+      {bool isTotalCol = false, double? height}) {
     return Container(
       width: width.isFinite ? width : null,
-      height: 40,
+      height: height ?? 40,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      decoration: BoxDecoration(
-        color: isTotalCol ? const Color(0xFFFFF7ED) : const Color(0xFFE0F2F1),
-        border: const Border(
+      decoration: const BoxDecoration(
+        color: Color(0xFFE0F2F1),
+        border: Border(
           right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
           bottom: BorderSide(color: Color(0xFFCBD5E1), width: 1),
         ),
@@ -4370,11 +4812,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         text,
         textAlign: TextAlign.center,
         softWrap: true,
-        maxLines: 2,
-        style: const TextStyle(
-          fontSize: 10.5,
+        maxLines: 3,
+        style: TextStyle(
+          fontSize: MediaQuery.of(context).size.width < 650 ? 10.0 : 10.5,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF0F766E),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -4399,39 +4841,74 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          if (row.progName.isNotEmpty && row.progName != row.seqName) ...[
-            Text(
-              row.progName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF1E293B),
-              ),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (row.progName.isNotEmpty && row.progName != row.seqName) ...[
+                  Text(
+                    row.progName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: const Color(0xFFC8E6C9), width: 1),
+                  ),
+                  child: Text(
+                    row.seqName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF2E7D32),
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-          ],
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5E9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
-            ),
-            child: Text(
-              row.seqName,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 9.5,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2E7D32),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showIndividualSequenceGraphDialog(context, row),
+              borderRadius: BorderRadius.circular(4),
+              child: Tooltip(
+                message: "Open ${row.seqName} Graph",
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(4),
+                    border:
+                        Border.all(color: const Color(0xFFB2DFDB), width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    size: 15,
+                    color: Color(0xFF00695C),
+                  ),
+                ),
               ),
             ),
           ),
@@ -4448,6 +4925,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
     return Container(
+      height: 52,
       decoration: BoxDecoration(
         color: rowBg,
         border: const Border(
@@ -4486,7 +4964,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
 
     String formattedText =
-        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? rowTotalQuantity : '-'}";
+        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? '$rowTotalQuantity L' : '-'}";
 
     if (isPinned) {
       return Container(
@@ -4500,15 +4978,32 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
         ),
-        child: Text(
-          formattedText,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF15803D),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showIndividualSequenceGraphDialog(context, row),
+            borderRadius: BorderRadius.circular(4),
+            child: Tooltip(
+              message: "Tap to view ${row.seqName} graph",
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  formattedText,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width < 650
+                        ? 12.0
+                        : (MediaQuery.of(context).size.width < 1100
+                            ? 12.5
+                            : 13.0),
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF15803D),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       );
@@ -4530,10 +5025,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         textAlign: TextAlign.center,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          fontSize: 11,
+        style: TextStyle(
+          fontSize: MediaQuery.of(context).size.width < 650
+              ? 12.0
+              : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
           fontWeight: FontWeight.bold,
-          color: Color(0xFF15803D),
+          color: const Color(0xFF15803D),
         ),
       ),
     );
@@ -4552,7 +5049,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (dayData != null && dayData.hasRun) {
       String dur = dayData.durationQtyStr;
       String qty = dayData.quantityCompleted > 0
-          ? dayData.quantityCompleted.toString()
+          ? "${dayData.quantityCompleted} L"
           : '-';
       cellText = "$dur /\n$qty";
       isBold = dur != '00:00:00' || qty != '-';
@@ -4574,6 +5071,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     bool isBold = false,
     int maxLines = 2,
   }) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize =
+        screenWidth < 650 ? 12.0 : (screenWidth < 1100 ? 12.5 : 13.0);
+
     return Container(
       width: width,
       height: 52,
@@ -4589,7 +5090,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          fontSize: 10.5,
+          fontSize: fontSize,
           fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
           color: (text == '-' ||
                   text == '- /\n-' ||
@@ -4613,7 +5114,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       decoration: const BoxDecoration(
         color: Color(0xFFF0FDF4),
         border: Border(
-          top: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
       child: Row(
@@ -4624,7 +5126,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               int daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? daySumQty.toString() : '-';
+              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
+
+              final double screenWidth = MediaQuery.of(context).size.width;
+              final double fontSize =
+                  screenWidth < 650 ? 12.0 : (screenWidth < 1100 ? 12.5 : 13.0);
 
               return Container(
                 width: colDateWidth,
@@ -4633,7 +5139,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: const BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
                   ),
                 ),
                 child: Text(
@@ -4641,10 +5147,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
+                  style: TextStyle(
+                    fontSize: fontSize,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF166534),
+                    color: const Color(0xFF166534),
                   ),
                 ),
               );
@@ -4760,44 +5266,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               _buildMetricTab(
                                 label: "Quantity",
                                 icon: Icons.water_drop_outlined,
-                                activeColor: const Color(0xFFF97316),
+                                activeColor: const Color(0xFF16A34A),
                                 isSelected: _selectedGraphMetric == 'Quantity',
                                 onTap: () => setState(
                                     () => _selectedGraphMetric = 'Quantity'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Chart type selector
-                        Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          padding: const EdgeInsets.all(2),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildGraphTypeIcon(
-                                icon: Icons.bar_chart,
-                                tooltip: "Column Chart",
-                                isSelected: _graphChartType == 'Column',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Column'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.show_chart,
-                                tooltip: "Line Chart",
-                                isSelected: _graphChartType == 'Spline',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Spline'),
-                              ),
-                              _buildGraphTypeIcon(
-                                icon: Icons.area_chart,
-                                tooltip: "Area Chart",
-                                isSelected: _graphChartType == 'Area',
-                                onTap: () =>
-                                    setState(() => _graphChartType = 'Area'),
                               ),
                             ],
                           ),
@@ -4806,34 +5278,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     ),
                     const SizedBox(height: 12),
 
-                    // SfCartesianChart with horizontal scrolling for 1 month or constrained width
-                    LayoutBuilder(
-                      builder: (context, chartConstraints) {
-                        const double minWidthPerDate = 45.0;
-                        final double totalCalculatedWidth =
-                            _dateColumns.length * minWidthPerDate;
-                        final double chartWidth = math.max(
-                            chartConstraints.maxWidth, totalCalculatedWidth);
-
-                        return ScrollConfiguration(
-                          behavior: ScrollConfiguration.of(context).copyWith(
-                            dragDevices: {
-                              PointerDeviceKind.touch,
-                              PointerDeviceKind.mouse,
-                              PointerDeviceKind.trackpad,
-                              PointerDeviceKind.stylus,
-                            },
-                          ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: chartWidth,
-                              height: 320,
-                              child: _buildSfChart(filteredRows),
-                            ),
-                          ),
-                        );
-                      },
+                    // SfCartesianChart with static Y-axis and horizontal scrolling for date range
+                    SizedBox(
+                      height: 320,
+                      child: _buildSfChart(
+                        filteredRows,
+                        overrideScrollController: _zoneGraphScrollController,
+                      ),
                     ),
                   ],
                 ),
@@ -4891,11 +5342,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       child: _buildSummaryCard(
                         title: "Total Quantity",
                         value: grandTotalQuantity > 0
-                            ? "$grandTotalQuantity"
+                            ? "$grandTotalQuantity L"
                             : "-",
                         icon: Icons.water_drop_outlined,
-                        color: const Color(0xFFF97316),
-                        bgColor: const Color(0xFFFFF7ED),
+                        color: const Color(0xFF16A34A),
+                        bgColor: const Color(0xFFF0FDF4),
                       ),
                     ),
                   ],
@@ -4941,10 +5392,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 Expanded(
                   child: _buildSummaryCard(
                     title: "Total Quantity",
-                    value: grandTotalQuantity > 0 ? "$grandTotalQuantity" : "-",
+                    value:
+                        grandTotalQuantity > 0 ? "$grandTotalQuantity L" : "-",
                     icon: Icons.water_drop_outlined,
-                    color: const Color(0xFFF97316),
-                    bgColor: const Color(0xFFFFF7ED),
+                    color: const Color(0xFF16A34A),
+                    bgColor: const Color(0xFFF0FDF4),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -5022,10 +5474,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: color,
+                    color: Colors.black,
                   ),
                 ),
               ],
@@ -5084,50 +5536,645 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
-  Widget _buildGraphTypeIcon({
+  Widget _buildSummaryBadge({
     required IconData icon,
-    required String tooltip,
-    required bool isSelected,
-    required VoidCallback onTap,
+    required String label,
+    required String value,
+    required Color color,
+    required Color bgColor,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-            boxShadow: isSelected
-                ? const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 2,
-                      offset: Offset(0, 1),
-                    )
-                  ]
-                : null,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            "$label: ",
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color:
-                isSelected ? const Color(0xFF00695C) : const Color(0xFF64748B),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildSfChart(List<SequenceRowData> rows) {
+  void _showIndividualSequenceGraphDialog(
+    BuildContext context,
+    SequenceRowData row,
+  ) {
+    String localMetric = _selectedGraphMetric;
+    String localChartType = _graphChartType;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double dialogWidth = math.min(
+              MediaQuery.of(context).size.width * 0.92,
+              750.0,
+            );
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: math.min(
+                    MediaQuery.of(context).size.height * 0.85,
+                    540.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 20,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  row.progName.isNotEmpty &&
+                                          row.progName != row.seqName
+                                      ? "${row.progName} - ${row.seqName}"
+                                      : row.seqName,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${DateFormat('dd/MM/yyyy').format(_fromDate)} - ${DateFormat('dd/MM/yyyy').format(_toDate)}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+
+                      // Metric Summary Badges
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSummaryBadge(
+                            icon: Icons.timer_outlined,
+                            label: "Total Duration",
+                            value: _formatDuration(row.totalDurationSeconds),
+                            color: const Color(0xFF00897B),
+                            bgColor: const Color(0xFFE0F2F1),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.water_drop_outlined,
+                            label: "Total Quantity",
+                            value: row.totalQuantity > 0
+                                ? "${row.totalQuantity} L"
+                                : "-",
+                            color: const Color(0xFF166534),
+                            bgColor: const Color(0xFFF0FDF4),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: "Total Days",
+                            value: "${_dateColumns.length} Days",
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Controls: Metric & Chart Type Selector
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildMetricTab(
+                                  label: "Duration (mins)",
+                                  icon: Icons.timer_outlined,
+                                  activeColor: const Color(0xFF0D9488),
+                                  isSelected: localMetric == 'Duration',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Duration');
+                                  },
+                                ),
+                                _buildMetricTab(
+                                  label: "Quantity",
+                                  icon: Icons.water_drop_outlined,
+                                  activeColor: const Color(0xFF16A34A),
+                                  isSelected: localMetric == 'Quantity',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Quantity');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Chart Area: Static Y-axis and horizontal scrolling
+                      Expanded(
+                        child: _buildSfChart(
+                          [row],
+                          overrideMetric: localMetric,
+                          overrideChartType: localChartType,
+                          overrideScrollController:
+                              _seqDialogGraphScrollController,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showIndividualChannelGraphDialog(
+    BuildContext context,
+    CumulativeRowData row,
+  ) {
+    String localMetric = _selectedGraphMetric;
+    String localChartType = _graphChartType;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double dialogWidth = math.min(
+              MediaQuery.of(context).size.width * 0.92,
+              750.0,
+            );
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: math.min(
+                    MediaQuery.of(context).size.height * 0.85,
+                    540.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 20,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${row.channelCategory} - ${row.channelName}",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${DateFormat('dd/MM/yyyy').format(_fromDate)} - ${DateFormat('dd/MM/yyyy').format(_toDate)}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+
+                      // Metric Summary Badges
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSummaryBadge(
+                            icon: Icons.timer_outlined,
+                            label: "Total Duration",
+                            value: _formatDuration(row.totalDurationSeconds),
+                            color: const Color(0xFF00897B),
+                            bgColor: const Color(0xFFE0F2F1),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.water_drop_outlined,
+                            label: "Total Quantity",
+                            value: row.totalQuantity > 0
+                                ? (row.totalQuantity % 1 == 0
+                                    ? "${row.totalQuantity.toInt()} L"
+                                    : "${row.totalQuantity} L")
+                                : "-",
+                            color: const Color(0xFF166534),
+                            bgColor: const Color(0xFFF0FDF4),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: "Total Days",
+                            value: "${_dateColumns.length} Days",
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Controls: Metric & Chart Type Selector
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildMetricTab(
+                                  label: "Duration (mins)",
+                                  icon: Icons.timer_outlined,
+                                  activeColor: const Color(0xFF0D9488),
+                                  isSelected: localMetric == 'Duration',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Duration');
+                                  },
+                                ),
+                                _buildMetricTab(
+                                  label: "Quantity",
+                                  icon: Icons.water_drop_outlined,
+                                  activeColor: const Color(0xFF16A34A),
+                                  isSelected: localMetric == 'Quantity',
+                                  onTap: () {
+                                    setDialogState(
+                                        () => localMetric = 'Quantity');
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Chart Area: Static Y-axis and horizontal scrolling
+                      Expanded(
+                        child: _buildCumulativeSfChart(
+                          [row],
+                          overrideMetric: localMetric,
+                          overrideChartType: localChartType,
+                          overrideScrollController:
+                              _chanDialogGraphScrollController,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showIndividualPumpGraphDialog(
+    BuildContext context,
+    CumulativeRowData row,
+  ) {
+    String localMetric = 'Runtime';
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double dialogWidth = math.min(
+              MediaQuery.of(context).size.width * 0.92,
+              750.0,
+            );
+
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.white,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: math.min(
+                    MediaQuery.of(context).size.height * 0.85,
+                    540.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header Row
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2F1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.bar_chart_rounded,
+                              size: 20,
+                              color: Color(0xFF00695C),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${row.channelCategory} - ${row.channelName}",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  "${DateFormat('dd/MM/yyyy').format(_fromDate)} - ${DateFormat('dd/MM/yyyy').format(_toDate)}",
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close,
+                                size: 20, color: Color(0xFF64748B)),
+                            onPressed: () => Navigator.of(dialogCtx).pop(),
+                            splashRadius: 18,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      const SizedBox(height: 10),
+
+                      // Metric Summary Badges: Runtime, Total Power, Total Power Off, Total Days
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildSummaryBadge(
+                            icon: Icons.timer_outlined,
+                            label: "Total Runtime",
+                            value: _formatDuration(row.totalDurationSeconds),
+                            color: const Color(0xFF00897B),
+                            bgColor: const Color(0xFFE0F2F1),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.bolt_outlined,
+                            label: "Total Power On",
+                            value: _formatDuration(row.totalPowerOnSeconds),
+                            color: const Color(0xFF1D4ED8),
+                            bgColor: const Color(0xFFEFF6FF),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.power_off_outlined,
+                            label: "Total Power Off",
+                            value: row.totalPowerOffSeconds > 0
+                                ? _formatDuration(row.totalPowerOffSeconds)
+                                : "0h 0m",
+                            color: const Color(0xFFDC2626),
+                            bgColor: const Color(0xFFFEF2F2),
+                          ),
+                          _buildSummaryBadge(
+                            icon: Icons.calendar_today_outlined,
+                            label: "Total Days",
+                            value: "${_dateColumns.length} Days",
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Controls: Metric Selector Tabs
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildMetricTab(
+                                label: "Runtime (mins)",
+                                icon: Icons.timer_outlined,
+                                activeColor: const Color(0xFF0D9488),
+                                isSelected: localMetric == 'Runtime',
+                                onTap: () {
+                                  setDialogState(() => localMetric = 'Runtime');
+                                },
+                              ),
+                              _buildMetricTab(
+                                label: "Total Power On (mins)",
+                                icon: Icons.bolt_outlined,
+                                activeColor: const Color(0xFF1D4ED8),
+                                isSelected: localMetric == 'Total Power On',
+                                onTap: () {
+                                  setDialogState(
+                                      () => localMetric = 'Total Power On');
+                                },
+                              ),
+                              _buildMetricTab(
+                                label: "Total Power Off (mins)",
+                                icon: Icons.power_off_outlined,
+                                activeColor: const Color(0xFFDC2626),
+                                isSelected: localMetric == 'Total Power Off',
+                                onTap: () {
+                                  setDialogState(
+                                      () => localMetric = 'Total Power Off');
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Chart Area: Static Y-axis and horizontal scrolling
+                      Expanded(
+                        child: _buildPumpSfChart(
+                          [row],
+                          overrideMetric: localMetric,
+                          overrideScrollController:
+                              _pumpDialogGraphScrollController,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSfChart(
+    List<SequenceRowData> rows, {
+    String? overrideMetric,
+    String? overrideChartType,
+    ScrollController? overrideScrollController,
+  }) {
     List<_ZoneChartPoint> dataPoints = [];
 
     // Always Date Wise
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
-      String label = DateFormat('dd/MM').format(d);
+      String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
       int sumSec = 0;
       int sumQty = 0;
       for (var r in rows) {
@@ -5145,141 +6192,289 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ));
     }
 
-    final bool isDuration = _selectedGraphMetric == 'Duration';
+    final String metric = overrideMetric ?? _selectedGraphMetric;
+    final String chartType = overrideChartType ?? _graphChartType;
+    final bool isDuration = metric == 'Duration';
+    final ScrollController scrollController =
+        overrideScrollController ?? _zoneGraphScrollController;
 
-    return SfCartesianChart(
-      legend: const Legend(
-        isVisible: true,
-        toggleSeriesVisibility: false,
-        position: LegendPosition.top,
-        alignment: ChartAlignment.center,
-        textStyle: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF334155),
-        ),
-      ),
-      tooltipBehavior: TooltipBehavior(
-        enable: true,
-        shared: false,
-        builder: (dynamic data, dynamic point, dynamic series, int pointIndex,
-            int seriesIndex) {
-          if (pointIndex < 0 || pointIndex >= dataPoints.length) {
-            return const SizedBox();
-          }
-          final p = dataPoints[pointIndex];
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E293B),
-              borderRadius: BorderRadius.circular(6),
+    return _buildResponsiveStaticAxisChart(
+      dataPoints: dataPoints,
+      isDuration: isDuration,
+      chartType: chartType,
+      scrollController: scrollController,
+    );
+  }
+
+  Widget _buildResponsiveStaticAxisChart({
+    required List<_ZoneChartPoint> dataPoints,
+    required bool isDuration,
+    required String chartType,
+    required ScrollController scrollController,
+  }) {
+    double rawMax = 0;
+    for (var p in dataPoints) {
+      double val = isDuration ? p.durationMinutes : p.quantity;
+      if (val > rawMax) rawMax = val;
+    }
+    if (rawMax <= 0) rawMax = 10;
+    double targetMax = rawMax * 1.15;
+    double magnitude =
+        math.pow(10, (math.log(targetMax) / math.ln10).floor()).toDouble();
+    if (magnitude <= 0) magnitude = 1;
+    double fraction = targetMax / magnitude;
+    double niceStep;
+    if (fraction <= 1.2) {
+      niceStep = 0.2 * magnitude;
+    } else if (fraction <= 2.5) {
+      niceStep = 0.5 * magnitude;
+    } else if (fraction <= 5.0) {
+      niceStep = 1.0 * magnitude;
+    } else {
+      niceStep = 2.0 * magnitude;
+    }
+    double maxY = (targetMax / niceStep).ceil() * niceStep;
+    double intervalY = niceStep;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Static Top Legend
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: isDuration
+                    ? const Color(0xFF0D9488)
+                    : const Color(0xFF16A34A),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  p.xLabel,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11.5),
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isDuration
-                          ? Icons.timer_outlined
-                          : Icons.water_drop_outlined,
-                      size: 12,
-                      color: isDuration
-                          ? const Color(0xFF2DD4BF)
-                          : const Color(0xFFFB923C),
+            const SizedBox(width: 6),
+            Text(
+              isDuration ? "Duration (mins)" : "Quantity",
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // 2. Chart Body: Static Left Y-Axis + Scrollable Right Plot Area
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double yAxisWidth = 56.0;
+              final double availablePlotWidth =
+                  math.max(0, constraints.maxWidth - yAxisWidth);
+              const double minWidthPerDate = 45.0;
+              final double calculatedPlotWidth =
+                  dataPoints.length * minWidthPerDate;
+              final double plotWidth =
+                  math.max(availablePlotWidth, calculatedPlotWidth);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // STATIC LEFT Y-AXIS (Title, Numbers, Ticks)
+                  SizedBox(
+                    width: yAxisWidth,
+                    child: SfCartesianChart(
+                      margin: const EdgeInsets.only(bottom: 22),
+                      plotAreaBorderWidth: 0,
+                      primaryYAxis: NumericAxis(
+                        minimum: 0,
+                        maximum: maxY,
+                        interval: intervalY,
+                        title: AxisTitle(
+                          text: isDuration ? "Duration (mins)" : "Quantity",
+                          textStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDuration
+                                ? const Color(0xFF0F766E)
+                                : const Color(0xFF166534),
+                          ),
+                        ),
+                        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+                        majorTickLines: const MajorTickLines(
+                            size: 4, color: Color(0xFFCBD5E1)),
+                        majorGridLines: const MajorGridLines(width: 0),
+                        labelStyle: const TextStyle(
+                            fontSize: 10, color: Color(0xFF64748B)),
+                      ),
+                      primaryXAxis: CategoryAxis(
+                        isVisible: true,
+                        labelRotation: dataPoints.length > 7 ? -45 : 0,
+                        labelStyle: const TextStyle(
+                            fontSize: 10.5, color: Colors.transparent),
+                        axisLine: const AxisLine(width: 0),
+                        majorTickLines: const MajorTickLines(size: 0),
+                        majorGridLines: const MajorGridLines(width: 0),
+                      ),
+                      series: <CartesianSeries<_ZoneChartPoint, String>>[
+                        ColumnSeries<_ZoneChartPoint, String>(
+                          dataSource:
+                              dataPoints.isNotEmpty ? [dataPoints.first] : [],
+                          xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
+                          yValueMapper: (_ZoneChartPoint p, _) => 0,
+                          color: Colors.transparent,
+                          width: 0,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      isDuration
-                          ? "Duration: ${p.durationFormatted}"
-                          : "Quantity: ${p.quantity > 0 ? p.quantity.toInt().toString() : '-'}",
-                      style: TextStyle(
-                        color: isDuration
-                            ? const Color(0xFF2DD4BF)
-                            : const Color(0xFFFB923C),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                  ),
+
+                  // SCROLLABLE RIGHT PLOT AREA & X-AXIS
+                  Expanded(
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.mouse,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
+                      ),
+                      child: RawScrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        trackVisibility: true,
+                        thickness: 6.0,
+                        radius: const Radius.circular(3),
+                        thumbColor: const Color(0xFF00695C),
+                        trackColor: const Color(0xFFE2E8F0),
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const ClampingScrollPhysics(),
+                          child: SizedBox(
+                            width: plotWidth,
+                            child: SfCartesianChart(
+                              margin: const EdgeInsets.only(bottom: 22),
+                              plotAreaBorderWidth: 0,
+                              tooltipBehavior: TooltipBehavior(
+                                enable: true,
+                                shared: false,
+                                builder: (dynamic data,
+                                    dynamic point,
+                                    dynamic series,
+                                    int pointIndex,
+                                    int seriesIndex) {
+                                  if (pointIndex < 0 ||
+                                      pointIndex >= dataPoints.length) {
+                                    return const SizedBox();
+                                  }
+                                  final p = dataPoints[pointIndex];
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E293B),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.xLabel,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 11.5),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              isDuration
+                                                  ? Icons.timer_outlined
+                                                  : Icons.water_drop_outlined,
+                                              size: 12,
+                                              color: isDuration
+                                                  ? const Color(0xFF2DD4BF)
+                                                  : const Color(0xFF4ADE80),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isDuration
+                                                  ? "Duration: ${p.durationFormatted}"
+                                                  : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
+                                              style: TextStyle(
+                                                color: isDuration
+                                                    ? const Color(0xFF2DD4BF)
+                                                    : const Color(0xFF4ADE80),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              primaryXAxis: CategoryAxis(
+                                labelRotation: dataPoints.length > 7 ? -45 : 0,
+                                labelStyle: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                majorGridLines: const MajorGridLines(width: 0),
+                                axisLine:
+                                    const AxisLine(color: Color(0xFFCBD5E1)),
+                              ),
+                              primaryYAxis: NumericAxis(
+                                minimum: 0,
+                                maximum: maxY,
+                                interval: intervalY,
+                                isVisible: true,
+                                labelsExtent: 0,
+                                labelStyle: const TextStyle(
+                                    fontSize: 0, color: Colors.transparent),
+                                title: const AxisTitle(text: ''),
+                                axisLine: const AxisLine(
+                                    color: Color(0xFFCBD5E1), width: 1),
+                                majorTickLines: const MajorTickLines(size: 0),
+                                majorGridLines: const MajorGridLines(
+                                  color: Color(0xFFF1F5F9),
+                                  width: 1,
+                                ),
+                              ),
+                              series: _buildChartSeries(
+                                  dataPoints, isDuration, chartType),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      primaryXAxis: CategoryAxis(
-        labelRotation: dataPoints.length > 7 ? -45 : 0,
-        labelStyle: const TextStyle(
-          fontSize: 10.5,
-          color: Color(0xFF64748B),
-          fontWeight: FontWeight.w500,
-        ),
-        majorGridLines: const MajorGridLines(width: 0),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-      ),
-      primaryYAxis: NumericAxis(
-        title: AxisTitle(
-          text: isDuration ? "Duration (mins)" : "Quantity",
-          textStyle: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color:
-                isDuration ? const Color(0xFF0F766E) : const Color(0xFFEA580C),
+                  ),
+                ],
+              );
+            },
           ),
         ),
-        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
-        majorGridLines: const MajorGridLines(
-          color: Color(0xFFF1F5F9),
-          width: 1,
-        ),
-        labelStyle: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
-      ),
-      series: _buildChartSeries(dataPoints, isDuration),
+      ],
     );
   }
 
   List<CartesianSeries<_ZoneChartPoint, String>> _buildChartSeries(
-      List<_ZoneChartPoint> data, bool isDuration) {
+      List<_ZoneChartPoint> data, bool isDuration,
+      [String? overrideChartType]) {
     if (isDuration) {
-      // Duration: Green / Teal
-      if (_graphChartType == 'Spline') {
-        return [
-          SplineSeries<_ZoneChartPoint, String>(
-            name: 'Duration (mins)',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
-            color: const Color(0xFF0D9488),
-            width: 3,
-            markerSettings: const MarkerSettings(isVisible: true),
-          ),
-        ];
-      } else if (_graphChartType == 'Area') {
-        return [
-          SplineAreaSeries<_ZoneChartPoint, String>(
-            name: 'Duration (mins)',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.durationMinutes,
-            color: const Color(0xFF0D9488).withValues(alpha: 0.3),
-            borderColor: const Color(0xFF0D9488),
-            borderWidth: 2,
-          ),
-        ];
-      }
-
-      // Default: Column series in Green
+      // Duration: Column series in Green / Teal
       return [
         ColumnSeries<_ZoneChartPoint, String>(
           name: 'Duration (mins)',
@@ -5292,41 +6487,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         ),
       ];
     } else {
-      // Quantity: Orange
-      if (_graphChartType == 'Spline') {
-        return [
-          SplineSeries<_ZoneChartPoint, String>(
-            name: 'Quantity',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFFF97316),
-            width: 3,
-            markerSettings: const MarkerSettings(isVisible: true),
-          ),
-        ];
-      } else if (_graphChartType == 'Area') {
-        return [
-          SplineAreaSeries<_ZoneChartPoint, String>(
-            name: 'Quantity',
-            dataSource: data,
-            xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
-            yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-            color: const Color(0xFFF97316).withValues(alpha: 0.25),
-            borderColor: const Color(0xFFF97316),
-            borderWidth: 2,
-          ),
-        ];
-      }
-
-      // Default: Column series in Orange
+      // Quantity: Column series in Green
       return [
         ColumnSeries<_ZoneChartPoint, String>(
           name: 'Quantity',
           dataSource: data,
           xValueMapper: (_ZoneChartPoint p, _) => p.xLabel,
           yValueMapper: (_ZoneChartPoint p, _) => p.quantity,
-          color: const Color(0xFFF97316),
+          color: const Color(0xFF16A34A),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
           width: 0.4,
         ),
@@ -5352,14 +6520,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFF7ED),
+          color: const Color(0xFFE0F2F1),
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: const Color(0xFFFFEDD5), width: 1),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
         ),
         child: Icon(
           isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
           size: 16,
-          color: const Color(0xFFEA580C),
+          color: const Color(0xFF0F766E),
         ),
       ),
     );
@@ -5390,21 +6558,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED),
+        color: const Color(0xFFF0FDF4),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.water_drop_outlined,
-              size: 11, color: Color(0xFFEA580C)),
+              size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
-            row.totalQuantity > 0 ? "${row.totalQuantity}" : "-",
+            row.totalQuantity > 0 ? "${row.totalQuantity} L" : "-",
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFEA580C),
+              color: Color(0xFF166534),
             ),
           ),
         ],
@@ -5596,7 +6764,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                 style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -5619,8 +6787,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               : (hasRun && dayData.durationQtyStr != '00:00:00'
                                   ? dayData.durationQtyStr
                                   : '-');
-                          String qtyStr =
-                              (hasRun && qty > 0) ? qty.toString() : '-';
+                          String qtyStr = (hasRun && qty > 0) ? "$qty L" : '-';
 
                           Color rowBg = dIdx % 2 == 0
                               ? Colors.white
@@ -5674,7 +6841,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           ? FontWeight.bold
                                           : FontWeight.normal,
                                       color: qtyStr != '-'
-                                          ? const Color(0xFFEA580C)
+                                          ? const Color(0xFF166534)
                                           : const Color(0xFF94A3B8),
                                     ),
                                   ),
@@ -5725,13 +6892,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               flex: 3,
                               child: Text(
                                 row.totalQuantity > 0
-                                    ? "${row.totalQuantity}"
+                                    ? "${row.totalQuantity} L"
                                     : "-",
                                 textAlign: TextAlign.right,
                                 style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFFEA580C),
+                                  color: Color(0xFF166534),
                                 ),
                               ),
                             ),
@@ -5748,6 +6915,2906 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
     );
   }
+
+  // ===========================================================================
+  // PUMP LOG IMPLEMENTATION (Api, Filtering, Tables & Graph)
+  // ===========================================================================
+
+  List<CumulativeRowData> _getFilteredPumpRows() {
+    if (_selectedPumpFilter == 'All Pumps') {
+      return _pumpRows;
+    }
+    return _pumpRows
+        .where((r) => r.channelCategory == _selectedPumpFilter)
+        .toList();
+  }
+
+  List<String> _getPumpNames(MasterControllerModel? masterData,
+      int nodeControllerId, int controllerId) {
+    if (masterData != null) {
+      final targetControllerId =
+          nodeControllerId != 0 ? nodeControllerId : controllerId;
+
+      var targetPumps = masterData.configObjects
+          .where((e) => e.objectId == 5 && e.controllerId == targetControllerId)
+          .toList();
+
+      if (targetPumps.isNotEmpty) {
+        final List<String> names = [];
+        for (var pump in targetPumps) {
+          final name = pump.name.isNotEmpty
+              ? pump.name
+              : (targetPumps.length == 1 ? "Pump" : "Pump ${names.length + 1}");
+          names.add(name);
+        }
+        return names;
+      }
+    }
+    return ["Pump"];
+  }
+
+  Future<void> fetchPumpLogApi() async {
+    if (mounted) {
+      setState(() {
+        _isPumpLoading = true;
+      });
+    }
+
+    try {
+      final int userId =
+          widget.userData['customerId'] ?? widget.userData['userId'] ?? 1002;
+      final int controllerId = widget.masterData?.controllerId ??
+          widget.userData['controllerId'] ??
+          3382;
+
+      final userData = {
+        'userId': userId,
+        'controllerId': controllerId,
+      };
+
+      List fetchedDevices = [];
+      try {
+        final result =
+            await LogRepository(HttpService()).getUserNodePumpList(userData);
+        if (result.statusCode == 200) {
+          final resData = jsonDecode(result.body);
+          if (resData['data'] is List && (resData['data'] as List).isNotEmpty) {
+            fetchedDevices = resData['data'];
+          }
+        }
+      } catch (e) {
+        debugPrint("Error fetching pump device list: $e");
+      }
+
+      if (fetchedDevices.isEmpty && widget.masterData != null) {
+        if (AppConstants.ecoGemAndPlusModelList
+            .contains(widget.masterData!.modelId)) {
+          fetchedDevices = [
+            {
+              'deviceName': widget.masterData!.deviceName,
+              'deviceId': widget.masterData!.deviceId,
+              'controllerId': 0,
+            }
+          ];
+        } else if (widget.masterData!.nodeList.isNotEmpty) {
+          final pumpNodes = widget.masterData!.nodeList.where((n) {
+            return AppConstants.pumpList.contains(n.modelId) ||
+                n.categoryId == 1 ||
+                n.categoryName.toLowerCase().contains('pump');
+          }).toList();
+          final nodesToUse =
+              pumpNodes.isNotEmpty ? pumpNodes : widget.masterData!.nodeList;
+          fetchedDevices = nodesToUse
+              .map((n) => {
+                    'deviceName': n.deviceName.isNotEmpty
+                        ? n.deviceName
+                        : 'Node ${n.serialNumber}',
+                    'deviceId': n.deviceId,
+                    'controllerId': n.controllerId,
+                  })
+              .toList();
+        } else {
+          fetchedDevices = [
+            {
+              'deviceName': widget.masterData!.deviceName,
+              'deviceId': widget.masterData!.deviceId,
+              'controllerId': 0,
+            }
+          ];
+        }
+      }
+
+      if (fetchedDevices.isEmpty) {
+        fetchedDevices = [
+          {
+            'deviceName': 'Pump (L3R)',
+            'deviceId': '',
+            'controllerId': 0,
+          }
+        ];
+      }
+
+      // Ensure _dateColumns is populated
+      if (_dateColumns.isEmpty) {
+        List<DateTime> dates = [];
+        DateTime cur = _fromDate;
+        while (!cur.isAfter(_toDate)) {
+          dates.add(cur);
+          cur = cur.add(const Duration(days: 1));
+        }
+        _dateColumns = dates;
+      }
+
+      String fromDateStr = DateFormat('yyyy-MM-dd').format(_fromDate);
+      String toDateStr = DateFormat('yyyy-MM-dd').format(_toDate);
+
+      List<CumulativeRowData> pumpRows = [];
+      Set<String> pumpFilterOptions = {'All Pumps'};
+
+      for (var dev in fetchedDevices) {
+        int nodeCtrlId = dev['controllerId'] ?? 0;
+        if (nodeCtrlId == controllerId) {
+          nodeCtrlId = 0;
+        }
+
+        String rawDevName = dev['deviceName']?.toString().trim() ?? 'Pump';
+        String devId = dev['deviceId']?.toString().trim() ?? '';
+        String shortMac =
+            devId.length >= 4 ? devId.substring(devId.length - 4) : devId;
+        String devDisplayName = fetchedDevices.length > 1 && shortMac.isNotEmpty
+            ? "$rawDevName ($shortMac)"
+            : rawDevName;
+
+        pumpFilterOptions.add(devDisplayName);
+
+        Map<String, dynamic> reqBody = {
+          "userId": userId,
+          "controllerId": controllerId,
+          "nodeControllerId": nodeCtrlId,
+          "fromDate": fromDateStr,
+          "toDate": toDateStr,
+          "needSum": false,
+        };
+
+        debugPrint('PUMP HOURLY API REQUEST: ${jsonEncode(reqBody)}');
+
+        List<MotorDataHourly> hourlyList = [];
+        try {
+          final res = await LogRepository(HttpService())
+              .getUserPumpHourlyLog(reqBody, nodeCtrlId != 0);
+          if (res.statusCode == 200) {
+            final resJson = jsonDecode(res.body);
+            if (resJson['data'] is List) {
+              hourlyList = (resJson['data'] as List)
+                  .map((item) =>
+                      MotorDataHourly.fromJson(item as Map<String, dynamic>))
+                  .toList();
+            } else if (resJson['data'] is Map) {
+              hourlyList = [
+                MotorDataHourly.fromJson(
+                    resJson['data'] as Map<String, dynamic>)
+              ];
+            }
+          }
+        } catch (e) {
+          debugPrint("Error fetching pump hourly log for $devDisplayName: $e");
+        }
+
+        final pumpNames = _getPumpNames(
+          widget.masterData,
+          nodeCtrlId,
+          controllerId,
+        );
+
+        int numPumps = pumpNames.isNotEmpty ? pumpNames.length : 1;
+        for (var h in hourlyList) {
+          if (h.numberOfPumps > numPumps) numPumps = h.numberOfPumps;
+          if (h.motorRunTime3 != "00:00:00" && numPumps < 3) numPumps = 3;
+          if (h.motorRunTime2 != "00:00:00" && numPumps < 2) numPumps = 2;
+        }
+        numPumps = numPumps.clamp(1, 3);
+
+        // Build entries map by date
+        Map<String, MotorDataHourly> dateMap = {};
+        for (var h in hourlyList) {
+          if (h.date.isNotEmpty) {
+            String rawDate = h.date.split(' ')[0].split('T')[0].trim();
+            String? normalizedDate;
+            try {
+              if (rawDate.contains('-')) {
+                var parts = rawDate.split('-');
+                if (parts[0].length == 4) {
+                  normalizedDate =
+                      "${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}";
+                } else if (parts[2].length == 4) {
+                  normalizedDate =
+                      "${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}";
+                }
+              } else if (rawDate.contains('/')) {
+                var parts = rawDate.split('/');
+                if (parts[0].length == 4) {
+                  normalizedDate =
+                      "${parts[0]}-${parts[1].padLeft(2, '0')}-${parts[2].padLeft(2, '0')}";
+                } else if (parts[2].length == 4) {
+                  normalizedDate =
+                      "${parts[2]}-${parts[1].padLeft(2, '0')}-${parts[0].padLeft(2, '0')}";
+                }
+              }
+            } catch (_) {}
+            normalizedDate ??= rawDate;
+            dateMap[normalizedDate] = h;
+          }
+        }
+
+        if (hourlyList.isNotEmpty &&
+            !dateMap.containsKey(fromDateStr) &&
+            fromDateStr == toDateStr) {
+          dateMap[fromDateStr] = hourlyList.first;
+        }
+
+        // 1. Pump row
+        String p1Name = pumpNames.isNotEmpty && pumpNames[0] != "Pump"
+            ? pumpNames[0]
+            : (numPumps > 1
+                ? "Pump 1"
+                : (pumpNames.isNotEmpty ? pumpNames[0] : "Pump"));
+        Map<String, CumulativeDayData> p1DayEntries = {};
+        int p1TotalSec = 0;
+        int p1TotalPowerOnSec = 0;
+        int p1TotalPowerOffSec = 0;
+
+        for (var d in _dateColumns) {
+          String dKey = DateFormat('yyyy-MM-dd').format(d);
+          int sec = 0;
+          int powerOnSec = 0;
+          int powerOffSec = 0;
+          bool hasRecord = dateMap.containsKey(dKey);
+
+          if (hasRecord) {
+            final h = dateMap[dKey]!;
+            sec = _parseDurationToSeconds(h.motorRunTime1);
+            powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
+            powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+          }
+
+          p1DayEntries[dKey] = CumulativeDayData(
+            durationSeconds: sec,
+            powerOnSeconds: powerOnSec,
+            powerOffSeconds: powerOffSec,
+            hasRun: hasRecord,
+          );
+          p1TotalSec += sec;
+          p1TotalPowerOnSec += powerOnSec;
+          p1TotalPowerOffSec += powerOffSec;
+        }
+
+        pumpRows.add(CumulativeRowData(
+          key: "${devDisplayName}_pump1",
+          channelCategory: devDisplayName,
+          channelName: p1Name,
+          channelSNo: 1,
+          dayEntries: p1DayEntries,
+          totalDurationSeconds: p1TotalSec,
+          totalPowerOnSeconds: p1TotalPowerOnSec,
+          totalPowerOffSeconds: p1TotalPowerOffSec,
+        ));
+
+        // 2. Pump 2 row
+        if (numPumps >= 2) {
+          String p2Name = pumpNames.length > 1 ? pumpNames[1] : "Pump 2";
+          Map<String, CumulativeDayData> p2DayEntries = {};
+          int p2TotalSec = 0;
+          int p2TotalPowerOnSec = 0;
+          int p2TotalPowerOffSec = 0;
+
+          for (var d in _dateColumns) {
+            String dKey = DateFormat('yyyy-MM-dd').format(d);
+            int sec = 0;
+            int powerOnSec = 0;
+            int powerOffSec = 0;
+            bool hasRecord = dateMap.containsKey(dKey);
+
+            if (hasRecord) {
+              final h = dateMap[dKey]!;
+              sec = _parseDurationToSeconds(h.motorRunTime2);
+              powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
+              powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+            }
+
+            p2DayEntries[dKey] = CumulativeDayData(
+              durationSeconds: sec,
+              powerOnSeconds: powerOnSec,
+              powerOffSeconds: powerOffSec,
+              hasRun: hasRecord,
+            );
+            p2TotalSec += sec;
+            p2TotalPowerOnSec += powerOnSec;
+            p2TotalPowerOffSec += powerOffSec;
+          }
+
+          pumpRows.add(CumulativeRowData(
+            key: "${devDisplayName}_pump2",
+            channelCategory: devDisplayName,
+            channelName: p2Name,
+            channelSNo: 2,
+            dayEntries: p2DayEntries,
+            totalDurationSeconds: p2TotalSec,
+            totalPowerOnSeconds: p2TotalPowerOnSec,
+            totalPowerOffSeconds: p2TotalPowerOffSec,
+          ));
+        }
+
+        // 3. Pump 3 row (if available)
+        if (numPumps >= 3) {
+          String p3Name = pumpNames.length > 2 ? pumpNames[2] : "Pump 3";
+          Map<String, CumulativeDayData> p3DayEntries = {};
+          int p3TotalSec = 0;
+          int p3TotalPowerOnSec = 0;
+          int p3TotalPowerOffSec = 0;
+
+          for (var d in _dateColumns) {
+            String dKey = DateFormat('yyyy-MM-dd').format(d);
+            int sec = 0;
+            int powerOnSec = 0;
+            int powerOffSec = 0;
+            bool hasRecord = dateMap.containsKey(dKey);
+
+            if (hasRecord) {
+              final h = dateMap[dKey]!;
+              sec = _parseDurationToSeconds(h.motorRunTime3);
+              powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
+              powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+            }
+
+            p3DayEntries[dKey] = CumulativeDayData(
+              durationSeconds: sec,
+              powerOnSeconds: powerOnSec,
+              powerOffSeconds: powerOffSec,
+              hasRun: hasRecord,
+            );
+            p3TotalSec += sec;
+            p3TotalPowerOnSec += powerOnSec;
+            p3TotalPowerOffSec += powerOffSec;
+          }
+
+          pumpRows.add(CumulativeRowData(
+            key: "${devDisplayName}_pump3",
+            channelCategory: devDisplayName,
+            channelName: p3Name,
+            channelSNo: 3,
+            dayEntries: p3DayEntries,
+            totalDurationSeconds: p3TotalSec,
+            totalPowerOnSeconds: p3TotalPowerOnSec,
+            totalPowerOffSeconds: p3TotalPowerOffSec,
+          ));
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _pumpRows = pumpRows;
+          _pumpDropdownOptions = pumpFilterOptions.toList();
+          if (!_pumpDropdownOptions.contains(_selectedPumpFilter)) {
+            _selectedPumpFilter = 'All Pumps';
+          }
+        });
+      }
+    } catch (e, stack) {
+      debugPrint("Error in fetchPumpLogApi: $e\n$stack");
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPumpLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildPumpLogGraphView(BuildContext context) {
+    if (_isPumpLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(40.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    var filteredRows = _getFilteredPumpRows();
+
+    if (_dateColumns.isEmpty || filteredRows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            "No data available for graph",
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Totals calculation
+    int grandTotalRunSec = 0;
+    int grandTotalPowerOnSec = 0;
+    int grandTotalPowerOffSec = 0;
+    Set<String> processedCategories = {};
+
+    for (var r in filteredRows) {
+      grandTotalRunSec += r.totalDurationSeconds;
+      if (!processedCategories.contains(r.channelCategory)) {
+        processedCategories.add(r.channelCategory);
+        grandTotalPowerOnSec += r.totalPowerOnSeconds;
+        grandTotalPowerOffSec += r.totalPowerOffSeconds;
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              // 1. Metric Summary Cards
+              _buildPumpGraphSummaryCards(
+                grandTotalRunSeconds: grandTotalRunSec,
+                grandTotalPowerOnSeconds: grandTotalPowerOnSec,
+                grandTotalPowerOffSeconds: grandTotalPowerOffSec,
+                totalPumps: filteredRows.length,
+                totalDays: _dateColumns.length,
+              ),
+              const SizedBox(height: 12),
+
+              // 2. Chart Card
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Controls: Metric Selector Tabs
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.all(2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildMetricTab(
+                              label: "Runtime (mins)",
+                              icon: Icons.timer_outlined,
+                              activeColor: const Color(0xFF0D9488),
+                              isSelected: _selectedPumpGraphMetric == 'Runtime',
+                              onTap: () => setState(
+                                  () => _selectedPumpGraphMetric = 'Runtime'),
+                            ),
+                            _buildMetricTab(
+                              label: "Total Power On(mins)",
+                              icon: Icons.bolt_outlined,
+                              activeColor: const Color(0xFF1D4ED8),
+                              isSelected:
+                                  _selectedPumpGraphMetric == 'Total Power On',
+                              onTap: () => setState(() =>
+                                  _selectedPumpGraphMetric = 'Total Power On'),
+                            ),
+                            _buildMetricTab(
+                              label: "Total Power Off (mins)",
+                              icon: Icons.power_off_outlined,
+                              activeColor: const Color(0xFFDC2626),
+                              isSelected:
+                                  _selectedPumpGraphMetric == 'Total Power Off',
+                              onTap: () => setState(() =>
+                                  _selectedPumpGraphMetric = 'Total Power Off'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // SfCartesianChart with static Y-axis and horizontal scrolling
+                    SizedBox(
+                      height: 320,
+                      child: _buildPumpSfChart(
+                        filteredRows,
+                        overrideMetric: _selectedPumpGraphMetric,
+                        overrideScrollController: _pumpGraphScrollController,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              // 3. Pump Breakdown Cards
+              Text(
+                "Pump Breakdown (${filteredRows.length})",
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              for (var row in filteredRows) _buildPumpBreakdownCard(row),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPumpGraphSummaryCards({
+    required int grandTotalRunSeconds,
+    required int grandTotalPowerOnSeconds,
+    required int grandTotalPowerOffSeconds,
+    required int totalPumps,
+    required int totalDays,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double cardWidth = (constraints.maxWidth - (3 * 8)) / 4;
+        if (constraints.maxWidth < 650) {
+          cardWidth = (constraints.maxWidth - 8) / 2;
+        }
+
+        Widget card(
+            String title, String val, IconData icon, Color color, Color bg) {
+          return Container(
+            width: cardWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Icon(icon, size: 18, color: color),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        val,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            card(
+              "Total Runtime",
+              _formatDuration(grandTotalRunSeconds),
+              Icons.timer_outlined,
+              const Color(0xFF0F766E),
+              const Color(0xFFE0F2F1),
+            ),
+            card(
+              "Total Power On",
+              _formatDuration(grandTotalPowerOnSeconds),
+              Icons.bolt_outlined,
+              const Color(0xFF1D4ED8),
+              const Color(0xFFEFF6FF),
+            ),
+            card(
+              "Total Power Off",
+              grandTotalPowerOffSeconds > 0
+                  ? _formatDuration(grandTotalPowerOffSeconds)
+                  : "0h 0m",
+              Icons.power_off_outlined,
+              const Color(0xFFDC2626),
+              const Color(0xFFFEF2F2),
+            ),
+            card(
+              "Total Days",
+              "$totalDays Days",
+              Icons.calendar_today_outlined,
+              const Color(0xFF475569),
+              const Color(0xFFF1F5F9),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPumpBreakdownCard(CumulativeRowData row) {
+    bool isExpanded = _expandedBreakdownKeys.contains(row.key);
+
+    Widget toggleBtn = InkWell(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expandedBreakdownKeys.remove(row.key);
+          } else {
+            _expandedBreakdownKeys.add(row.key);
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE0F2F1),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: const Color(0xFFC8E6C9), width: 1),
+        ),
+        child: Icon(
+          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+          size: 16,
+          color: const Color(0xFF0F766E),
+        ),
+      ),
+    );
+
+    Widget runBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE0F2F1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_outlined, size: 11, color: Color(0xFF0F766E)),
+          const SizedBox(width: 3),
+          Text(
+            _formatDuration(row.totalDurationSeconds),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF0F766E),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Widget powerOnBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.bolt_outlined, size: 11, color: Color(0xFF1D4ED8)),
+          const SizedBox(width: 3),
+          Text(
+            _formatDuration(row.totalPowerOnSeconds),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1D4ED8),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Widget powerOffBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.power_off_outlined,
+              size: 11, color: Color(0xFFDC2626)),
+          const SizedBox(width: 3),
+          Text(
+            row.totalPowerOffSeconds > 0
+                ? _formatDuration(row.totalPowerOffSeconds)
+                : "0h 0m",
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFDC2626),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isNarrow) ...[
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: const Color(0xFFC8E6C9), width: 1),
+                      ),
+                      child: Text(
+                        row.channelName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    if (row.channelCategory.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "(${row.channelCategory})",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      const Spacer(),
+                    ],
+                    toggleBtn,
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    runBadge,
+                    powerOnBadge,
+                    powerOffBadge,
+                  ],
+                ),
+              ] else ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: const Color(0xFFC8E6C9), width: 1),
+                            ),
+                            child: Text(
+                              row.channelName,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ),
+                          if (row.channelCategory.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                "(${row.channelCategory})",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        runBadge,
+                        const SizedBox(width: 6),
+                        powerOnBadge,
+                        const SizedBox(width: 6),
+                        powerOffBadge,
+                        const SizedBox(width: 6),
+                        toggleBtn,
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+              if (isExpanded) ...[
+                const SizedBox(height: 10),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Header
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F9),
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(5)),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Date",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF475569),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Runtime",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Total Power On",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1D4ED8),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: Text(
+                                "Total Power Off",
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Date Rows
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        Builder(builder: (context) {
+                          DateTime d = _dateColumns[dIdx];
+                          String dKey = DateFormat('yyyy-MM-dd').format(d);
+                          CumulativeDayData? dayData = row.dayEntries[dKey];
+
+                          bool hasRun = dayData != null && dayData.hasRun;
+                          int runSec = dayData?.durationSeconds ?? 0;
+                          int powerOnSec = dayData?.powerOnSeconds ?? 0;
+                          int powerOffSec = dayData?.powerOffSeconds ?? 0;
+                          bool hasActivity =
+                              runSec > 0 || powerOnSec > 0 || powerOffSec > 0;
+
+                          String runStr = runSec > 0
+                              ? SequenceDayData._formatSecondsToHMS(runSec)
+                              : (hasActivity || hasRun ? "00:00:00" : "-");
+                          String powerOnStr = powerOnSec > 0
+                              ? SequenceDayData._formatSecondsToHMS(powerOnSec)
+                              : (hasActivity || hasRun ? "00:00:00" : "-");
+                          String powerOffStr = powerOffSec > 0
+                              ? SequenceDayData._formatSecondsToHMS(
+                                  powerOffOffSec(powerOffSec))
+                              : (hasActivity || hasRun ? "00:00:00" : "-");
+
+                          Color rowBg = dIdx % 2 == 0
+                              ? Colors.white
+                              : const Color(0xFFF8FAFC);
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: rowBg,
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: dIdx == _dateColumns.length - 1
+                                      ? Colors.transparent
+                                      : const Color(0xFFE2E8F0),
+                                  width: 0.5,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    DateFormat('dd/MM/yyyy (EEE)').format(d),
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Color(0xFF334155),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    runStr,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: runSec > 0
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: runSec > 0
+                                          ? const Color(0xFF0F766E)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    powerOnStr,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: powerOnSec > 0
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: powerOnSec > 0
+                                          ? const Color(0xFF1D4ED8)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Text(
+                                    powerOffStr,
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: powerOffSec > 0
+                                          ? FontWeight.bold
+                                          : FontWeight.normal,
+                                      color: powerOffSec > 0
+                                          ? const Color(0xFFDC2626)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  static int powerOffOffSec(int s) => s;
+
+  Widget _buildPumpSfChart(
+    List<CumulativeRowData> rows, {
+    String? overrideMetric,
+    ScrollController? overrideScrollController,
+  }) {
+    List<_PumpChartPoint> dataPoints = [];
+
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
+      int sumRunSec = 0;
+      int sumPowerOnSec = 0;
+      int sumPowerOffSec = 0;
+
+      if (rows.length == 1) {
+        final r = rows.first;
+        if (r.dayEntries.containsKey(dKey)) {
+          final entry = r.dayEntries[dKey]!;
+          sumRunSec = entry.durationSeconds;
+          sumPowerOnSec = entry.powerOnSeconds;
+          sumPowerOffSec = entry.powerOffSeconds;
+        }
+      } else {
+        Set<String> processedCategories = {};
+        for (var r in rows) {
+          if (r.dayEntries.containsKey(dKey)) {
+            final entry = r.dayEntries[dKey]!;
+            sumRunSec += entry.durationSeconds;
+            if (!processedCategories.contains(r.channelCategory)) {
+              processedCategories.add(r.channelCategory);
+              sumPowerOnSec += entry.powerOnSeconds;
+              sumPowerOffSec += entry.powerOffSeconds;
+            }
+          }
+        }
+      }
+
+      double runMinutes = sumRunSec / 60.0;
+      double powerOnMinutes = sumPowerOnSec / 60.0;
+      double powerOffMinutes = sumPowerOffSec / 60.0;
+
+      dataPoints.add(_PumpChartPoint(
+        xLabel: label,
+        runTimeMinutes: runMinutes,
+        runTimeFormatted: SequenceDayData._formatSecondsToHMS(sumRunSec),
+        powerOnMinutes: powerOnMinutes,
+        powerOnFormatted: SequenceDayData._formatSecondsToHMS(sumPowerOnSec),
+        powerOffMinutes: powerOffMinutes,
+        powerOffFormatted: SequenceDayData._formatSecondsToHMS(sumPowerOffSec),
+      ));
+    }
+
+    final String metric = overrideMetric ?? _selectedPumpGraphMetric;
+    final ScrollController scrollController =
+        overrideScrollController ?? _pumpGraphScrollController;
+
+    double rawMax = 0;
+    for (var p in dataPoints) {
+      if (metric == 'Runtime') {
+        if (p.runTimeMinutes > rawMax) rawMax = p.runTimeMinutes;
+      } else if (metric == 'Total Power On') {
+        if (p.powerOnMinutes > rawMax) rawMax = p.powerOnMinutes;
+      } else if (metric == 'Total Power Off') {
+        if (p.powerOffMinutes > rawMax) rawMax = p.powerOffMinutes;
+      } else {
+        double m = math.max(
+            p.runTimeMinutes, math.max(p.powerOnMinutes, p.powerOffMinutes));
+        if (m > rawMax) rawMax = m;
+      }
+    }
+    if (rawMax <= 0) rawMax = 10;
+    double targetMax = rawMax * 1.15;
+    double magnitude =
+        math.pow(10, (math.log(targetMax) / math.ln10).floor()).toDouble();
+    if (magnitude <= 0) magnitude = 1;
+    double fraction = targetMax / magnitude;
+    double niceStep;
+    if (fraction <= 1.2) {
+      niceStep = 0.2 * magnitude;
+    } else if (fraction <= 2.5) {
+      niceStep = 0.5 * magnitude;
+    } else if (fraction <= 5.0) {
+      niceStep = 1.0 * magnitude;
+    } else {
+      niceStep = 2.0 * magnitude;
+    }
+    double maxY = (targetMax / niceStep).ceil() * niceStep;
+    double intervalY = niceStep;
+
+    String yAxisTitle = "Time (mins)";
+    Color yAxisColor = const Color(0xFF00695C);
+    if (metric == 'Runtime') {
+      yAxisTitle = "Runtime (mins)";
+      yAxisColor = const Color(0xFF0D9488);
+    } else if (metric == 'Total Power On') {
+      yAxisTitle = "Total Power On (mins)";
+      yAxisColor = const Color(0xFF1D4ED8);
+    } else if (metric == 'Total Power Off') {
+      yAxisTitle = "Total Power Off (mins)";
+      yAxisColor = const Color(0xFFDC2626);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Legend
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (metric == 'All' || metric == 'Runtime') ...[
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0D9488),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "Runtime (mins)",
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+            if (metric == 'All') const SizedBox(width: 16),
+            if (metric == 'All' || metric == 'Total Power On') ...[
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1D4ED8),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "Total Power On (mins)",
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+            if (metric == 'All') const SizedBox(width: 16),
+            if (metric == 'All' || metric == 'Total Power Off') ...[
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "Total Power Off (mins)",
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Static Left Y-Axis + Scrollable Right Plot Area
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const double yAxisWidth = 56.0;
+              final double availablePlotWidth =
+                  math.max(0, constraints.maxWidth - yAxisWidth);
+              const double minWidthPerDate = 45.0;
+              final double calculatedPlotWidth =
+                  dataPoints.length * minWidthPerDate;
+              final double plotWidth =
+                  math.max(availablePlotWidth, calculatedPlotWidth);
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // STATIC LEFT Y-AXIS
+                  SizedBox(
+                    width: yAxisWidth,
+                    child: SfCartesianChart(
+                      margin: const EdgeInsets.only(bottom: 22),
+                      plotAreaBorderWidth: 0,
+                      primaryYAxis: NumericAxis(
+                        minimum: 0,
+                        maximum: maxY,
+                        interval: intervalY,
+                        title: AxisTitle(
+                          text: yAxisTitle,
+                          textStyle: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: yAxisColor,
+                          ),
+                        ),
+                        axisLine: const AxisLine(color: Color(0xFFCBD5E1)),
+                        majorTickLines: const MajorTickLines(
+                            size: 4, color: Color(0xFFCBD5E1)),
+                        majorGridLines: const MajorGridLines(width: 0),
+                        labelStyle: const TextStyle(
+                            fontSize: 10, color: Color(0xFF64748B)),
+                      ),
+                      primaryXAxis: CategoryAxis(
+                        isVisible: true,
+                        labelRotation: dataPoints.length > 7 ? -45 : 0,
+                        labelStyle: const TextStyle(
+                            fontSize: 10.5, color: Colors.transparent),
+                        axisLine: const AxisLine(width: 0),
+                        majorTickLines: const MajorTickLines(size: 0),
+                        majorGridLines: const MajorGridLines(width: 0),
+                      ),
+                      series: <CartesianSeries<_PumpChartPoint, String>>[
+                        ColumnSeries<_PumpChartPoint, String>(
+                          dataSource:
+                              dataPoints.isNotEmpty ? [dataPoints.first] : [],
+                          xValueMapper: (_PumpChartPoint p, _) => p.xLabel,
+                          yValueMapper: (_PumpChartPoint p, _) => 0,
+                          color: Colors.transparent,
+                          width: 0,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // SCROLLABLE RIGHT PLOT AREA & X-AXIS
+                  Expanded(
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(context).copyWith(
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.mouse,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
+                      ),
+                      child: RawScrollbar(
+                        controller: scrollController,
+                        thumbVisibility: true,
+                        trackVisibility: true,
+                        thickness: 6.0,
+                        radius: const Radius.circular(3),
+                        thumbColor: const Color(0xFF00695C),
+                        trackColor: const Color(0xFFE2E8F0),
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const ClampingScrollPhysics(),
+                          child: SizedBox(
+                            width: plotWidth,
+                            child: SfCartesianChart(
+                              margin: const EdgeInsets.only(bottom: 22),
+                              plotAreaBorderWidth: 0,
+                              tooltipBehavior: TooltipBehavior(
+                                enable: true,
+                                shared: true,
+                                builder: (dynamic data,
+                                    dynamic point,
+                                    dynamic series,
+                                    int pointIndex,
+                                    int seriesIndex) {
+                                  if (pointIndex < 0 ||
+                                      pointIndex >= dataPoints.length) {
+                                    return const SizedBox();
+                                  }
+                                  final p = dataPoints[pointIndex];
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E293B),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          p.xLabel,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        if (metric == 'All' ||
+                                            metric == 'Runtime')
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.timer_outlined,
+                                                  size: 12,
+                                                  color: Color(0xFF2DD4BF)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                "Runtime: ${p.runTimeFormatted}",
+                                                style: const TextStyle(
+                                                  color: Color(0xFF2DD4BF),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        if (metric == 'All' ||
+                                            metric == 'Total Power On') ...[
+                                          if (metric == 'All')
+                                            const SizedBox(height: 3),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.bolt_outlined,
+                                                  size: 12,
+                                                  color: Color(0xFF60A5FA)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                "Total Power On: ${p.powerOnFormatted}",
+                                                style: const TextStyle(
+                                                  color: Color(0xFF60A5FA),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                        if (metric == 'All' ||
+                                            metric == 'Total Power Off') ...[
+                                          if (metric == 'All')
+                                            const SizedBox(height: 3),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                  Icons.power_off_outlined,
+                                                  size: 12,
+                                                  color: Color(0xFFF87171)),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                "Total Power Off: ${p.powerOffFormatted}",
+                                                style: const TextStyle(
+                                                  color: Color(0xFFF87171),
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                              primaryXAxis: CategoryAxis(
+                                labelRotation: dataPoints.length > 7 ? -45 : 0,
+                                labelStyle: const TextStyle(
+                                  fontSize: 10.5,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                majorGridLines: const MajorGridLines(width: 0),
+                                axisLine:
+                                    const AxisLine(color: Color(0xFFCBD5E1)),
+                              ),
+                              primaryYAxis: NumericAxis(
+                                minimum: 0,
+                                maximum: maxY,
+                                interval: intervalY,
+                                isVisible: true,
+                                labelsExtent: 0,
+                                labelStyle: const TextStyle(
+                                    fontSize: 0, color: Colors.transparent),
+                                title: const AxisTitle(text: ''),
+                                axisLine: const AxisLine(
+                                    color: Color(0xFFCBD5E1), width: 1),
+                                majorTickLines: const MajorTickLines(size: 0),
+                                majorGridLines: const MajorGridLines(
+                                  color: Color(0xFFF1F5F9),
+                                  width: 1,
+                                ),
+                              ),
+                              series: _buildPumpChartSeries(dataPoints, metric),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<CartesianSeries<_PumpChartPoint, String>> _buildPumpChartSeries(
+    List<_PumpChartPoint> dataPoints,
+    String metric,
+  ) {
+    List<CartesianSeries<_PumpChartPoint, String>> seriesList = [];
+
+    if (metric == 'All' || metric == 'Runtime') {
+      seriesList.add(
+        ColumnSeries<_PumpChartPoint, String>(
+          name: 'Runtime (mins)',
+          dataSource: dataPoints,
+          xValueMapper: (_PumpChartPoint p, _) => p.xLabel,
+          yValueMapper: (_PumpChartPoint p, _) => p.runTimeMinutes,
+          color: const Color(0xFF0D9488),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          spacing: 0.1,
+        ),
+      );
+    }
+
+    if (metric == 'All' || metric == 'Total Power On') {
+      seriesList.add(
+        ColumnSeries<_PumpChartPoint, String>(
+          name: 'Total Power On (mins)',
+          dataSource: dataPoints,
+          xValueMapper: (_PumpChartPoint p, _) => p.xLabel,
+          yValueMapper: (_PumpChartPoint p, _) => p.powerOnMinutes,
+          color: const Color(0xFF1D4ED8),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          spacing: 0.1,
+        ),
+      );
+    }
+
+    if (metric == 'All' || metric == 'Total Power Off') {
+      seriesList.add(
+        ColumnSeries<_PumpChartPoint, String>(
+          name: 'Total Power Off (mins)',
+          dataSource: dataPoints,
+          xValueMapper: (_PumpChartPoint p, _) => p.xLabel,
+          yValueMapper: (_PumpChartPoint p, _) => p.powerOffMinutes,
+          color: const Color(0xFFDC2626),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          spacing: 0.1,
+        ),
+      );
+    }
+
+    return seriesList;
+  }
+
+  Widget _buildPinnedLeftPumpRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colWidth,
+  ) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+    const Color pillBg = Color(0xFFE8F5E9);
+    const Color pillBorder = Color(0xFFC8E6C9);
+    const Color pillText = Color(0xFF2E7D32);
+
+    return Container(
+      width: colWidth,
+      height: 72,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  row.channelCategory,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize:
+                        MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E293B),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: pillBorder, width: 1),
+                  ),
+                  child: Text(
+                    row.channelName,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize:
+                          MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: pillText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showIndividualPumpGraphDialog(context, row),
+              borderRadius: BorderRadius.circular(4),
+              child: Tooltip(
+                message:
+                    "Open ${row.channelCategory} - ${row.channelName} Graph",
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(right: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2F1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: const Color(0xFF80CBC4),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    size: 16,
+                    color: Color(0xFF00695C),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatePumpBlock(
+    CumulativeRowData row,
+    DateTime date,
+    double colDateWidth,
+  ) {
+    String dKey = DateFormat('yyyy-MM-dd').format(date);
+    CumulativeDayData? dayData = row.dayEntries[dKey];
+
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = screenWidth < 650 ? 12.0 : 13.0;
+
+    final bool hasRecord = dayData != null && dayData.hasRun;
+    final int runSec = dayData?.durationSeconds ?? 0;
+    final int powerOnSec = dayData?.powerOnSeconds ?? 0;
+    final int powerOffSec = dayData?.powerOffSeconds ?? 0;
+    final bool hasActivity = runSec > 0 || powerOnSec > 0 || powerOffSec > 0;
+
+    final String runStr = runSec > 0
+        ? "${SequenceDayData._formatSecondsToHMS(runSec)} /"
+        : (hasActivity ? "00:00:00 /" : (hasRecord ? "00:00:00 /" : "- /"));
+    final String powerOnStr = powerOnSec > 0
+        ? "${SequenceDayData._formatSecondsToHMS(powerOnSec)} /"
+        : (hasActivity ? "00:00:00 /" : (hasRecord ? "00:00:00 /" : "- /"));
+    final String powerOffStr = powerOffSec > 0
+        ? SequenceDayData._formatSecondsToHMS(powerOffSec)
+        : (hasActivity ? "00:00:00" : (hasRecord ? "00:00:00" : "-"));
+
+    return Container(
+      width: colDateWidth,
+      height: 72,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. Runtime
+            Text(
+              runStr,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                height: 1.15,
+                fontWeight: runSec > 0 ? FontWeight.bold : FontWeight.w500,
+                color: runSec > 0
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 1),
+            // 2. Total Power
+            Text(
+              powerOnStr,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                height: 1.15,
+                fontWeight: powerOnSec > 0 ? FontWeight.bold : FontWeight.w500,
+                color: powerOnSec > 0
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 1),
+            // 3. Total Power Off Time
+            Text(
+              powerOffStr,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                height: 1.15,
+                fontWeight: powerOffSec > 0 ? FontWeight.bold : FontWeight.w500,
+                color: powerOffSec > 0
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinnedPumpTotalRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colTotalWidth, {
+    bool isPinned = false,
+  }) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = screenWidth < 650 ? 12.0 : 13.0;
+
+    final bool hasRun = row.totalDurationSeconds > 0;
+    final bool hasPowerOn = row.totalPowerOnSeconds > 0;
+    final bool hasPowerOff = row.totalPowerOffSeconds > 0;
+
+    final String runStr =
+        hasRun ? "${_formatDuration(row.totalDurationSeconds)} /" : "- /";
+    final String powerOnStr =
+        hasPowerOn ? "${_formatDuration(row.totalPowerOnSeconds)} /" : "- /";
+    final String powerOffStr =
+        hasPowerOff ? _formatDuration(row.totalPowerOffSeconds) : "-";
+
+    return Container(
+      width: colTotalWidth,
+      height: 72,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showIndividualPumpGraphDialog(context, row),
+          borderRadius: BorderRadius.circular(4),
+          child: Tooltip(
+            message: "Tap to view ${row.channelName} graph",
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    runStr,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      height: 1.15,
+                      fontWeight: hasRun ? FontWeight.bold : FontWeight.w500,
+                      color: hasRun
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    powerOnStr,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      height: 1.15,
+                      fontWeight: hasPowerOn ? FontWeight.bold : FontWeight.w500,
+                      color: hasPowerOn
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    powerOffStr,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      height: 1.15,
+                      fontWeight: hasPowerOff ? FontWeight.bold : FontWeight.w500,
+                      color: hasPowerOff
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDailyPumpFooterTotalRow(
+    Map<String, int> dailyRunTotals,
+    Map<String, int> dailyPowerOnTotals,
+    Map<String, int> dailyPowerOffTotals,
+    double colDateWidth,
+  ) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = screenWidth < 650 ? 12.0 : 13.0;
+
+    return Container(
+      height: 72,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0FDF4),
+        border: Border(
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            Builder(builder: (context) {
+              String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
+              int runSec = dailyRunTotals[dKey] ?? 0;
+              int powerOnSec = dailyPowerOnTotals[dKey] ?? 0;
+              int powerOffSec = dailyPowerOffTotals[dKey] ?? 0;
+
+              bool hasActivity =
+                  runSec > 0 || powerOnSec > 0 || powerOffSec > 0;
+              String runStr = runSec > 0
+                  ? "${_formatDuration(runSec)} /"
+                  : (hasActivity ? "0h 0m /" : "- /");
+              String powerOnStr = powerOnSec > 0
+                  ? "${_formatDuration(powerOnSec)} /"
+                  : (hasActivity ? "0h 0m /" : "- /");
+              String powerOffStr = powerOffSec > 0
+                  ? _formatDuration(powerOffSec)
+                  : (hasActivity ? "0h 0m" : "-");
+
+              return Container(
+                width: colDateWidth,
+                height: 72,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  ),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        runStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              runSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: runSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        powerOnStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              powerOnSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: powerOnSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        powerOffStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              powerOffSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: powerOffSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePumpDataRow(
+    CumulativeRowData row,
+    int rowIndex,
+    double colSeqWidth,
+    double colDateWidth,
+    double colTotalWidth,
+  ) {
+    Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: const Border(
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPinnedLeftPumpRow(row, rowIndex, colSeqWidth),
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            _buildDatePumpBlock(
+              row,
+              _dateColumns[dIdx],
+              colDateWidth,
+            ),
+          _buildPinnedPumpTotalRow(
+            row,
+            rowIndex,
+            colTotalWidth,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePumpFooterTotalRow(
+    Map<String, int> dailyRunTotals,
+    Map<String, int> dailyPowerOnTotals,
+    Map<String, int> dailyPowerOffTotals,
+    int grandTotalRunSec,
+    int grandTotalPowerOnSec,
+    int grandTotalPowerOffSec,
+    double colSeqWidth,
+    double colDateWidth,
+    double colTotalWidth,
+  ) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double fontSize = screenWidth < 650 ? 12.0 : 13.0;
+
+    return Container(
+      height: 72,
+      decoration: const BoxDecoration(
+        color: Color(0xFFF0FDF4),
+        border: Border(
+          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+          bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: colSeqWidth,
+            height: 72,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              border: Border(
+                right: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+              ),
+            ),
+            child: const Text(
+              "Total",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF166534),
+              ),
+            ),
+          ),
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+            Builder(builder: (context) {
+              String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
+              int runSec = dailyRunTotals[dKey] ?? 0;
+              int powerOnSec = dailyPowerOnTotals[dKey] ?? 0;
+              int powerOffSec = dailyPowerOffTotals[dKey] ?? 0;
+
+              bool hasActivity =
+                  runSec > 0 || powerOnSec > 0 || powerOffSec > 0;
+              String runStr = runSec > 0
+                  ? "${_formatDuration(runSec)} /"
+                  : (hasActivity ? "0h 0m /" : "- /");
+              String powerOnStr = powerOnSec > 0
+                  ? "${_formatDuration(powerOnSec)} /"
+                  : (hasActivity ? "0h 0m /" : "- /");
+              String powerOffStr = powerOffSec > 0
+                  ? _formatDuration(powerOffSec)
+                  : (hasActivity ? "0h 0m" : "-");
+
+              return Container(
+                width: colDateWidth,
+                height: 72,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                  ),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        runStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              runSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: runSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        powerOnStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              powerOnSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: powerOnSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        powerOffStr,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          height: 1.15,
+                          fontWeight:
+                              powerOffSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          color: powerOffSec > 0
+                              ? const Color(0xFF0F172A)
+                              : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          Container(
+            width: colTotalWidth,
+            height: 72,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: const BoxDecoration(
+              color: Color(0xFFDCFCE7),
+            ),
+            child: Builder(builder: (context) {
+              bool hasGrandActivity = grandTotalRunSec > 0 ||
+                  grandTotalPowerOnSec > 0 ||
+                  grandTotalPowerOffSec > 0;
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      grandTotalRunSec > 0
+                          ? "${_formatDuration(grandTotalRunSec)} /"
+                          : (hasGrandActivity ? "0h 0m /" : "- /"),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        height: 1.15,
+                        fontWeight: grandTotalRunSec > 0
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: grandTotalRunSec > 0
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      grandTotalPowerOnSec > 0
+                          ? "${_formatDuration(grandTotalPowerOnSec)} /"
+                          : (hasGrandActivity ? "0h 0m /" : "- /"),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        height: 1.15,
+                        fontWeight: grandTotalPowerOnSec > 0
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: grandTotalPowerOnSec > 0
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      grandTotalPowerOffSec > 0
+                          ? _formatDuration(grandTotalPowerOffSec)
+                          : (hasGrandActivity ? "0h 0m" : "-"),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        height: 1.15,
+                        fontWeight: grandTotalPowerOffSec > 0
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: grandTotalPowerOffSec > 0
+                            ? const Color(0xFF0F172A)
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePumpMatrixTable(
+    BuildContext context,
+    List<CumulativeRowData> rows,
+    Map<String, int> dailyRunTotals,
+    Map<String, int> dailyPowerOnTotals,
+    Map<String, int> dailyPowerOffTotals,
+    int grandTotalRunSec,
+    int grandTotalPowerOnSec,
+    int grandTotalPowerOffSec,
+  ) {
+    const double colSeqWidth = 140;
+    const double colDateWidth = 145;
+    const double colTotalWidth = 145;
+    final double totalTableWidth =
+        colSeqWidth + (_dateColumns.length * colDateWidth) + colTotalWidth;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          dragDevices: {
+            PointerDeviceKind.touch,
+            PointerDeviceKind.mouse,
+            PointerDeviceKind.trackpad,
+            PointerDeviceKind.stylus,
+          },
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const ClampingScrollPhysics(),
+          child: SizedBox(
+            width: totalTableWidth,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. TOP HEADER ROW
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: colSeqWidth,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00695C),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          ),
+                        ),
+                        child: const Text(
+                          "Pump Details",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        Container(
+                          width: colDateWidth,
+                          height: 38,
+                          alignment: Alignment.center,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFE2E8F0),
+                            border: Border(
+                              right: BorderSide(
+                                  color: Color(0xFFCBD5E1), width: 1),
+                              bottom: BorderSide(
+                                  color: Color(0xFFCBD5E1), width: 1),
+                            ),
+                          ),
+                          child: Text(
+                            DateFormat('dd/MM/yyyy (E)')
+                                .format(_dateColumns[dIdx]),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E293B),
+                            ),
+                          ),
+                        ),
+                      Container(
+                        width: colTotalWidth,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF00695C),
+                          border: Border(
+                            bottom:
+                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                          ),
+                        ),
+                        child: const Text(
+                          "Total",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // 2. SUB-HEADER ROW
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildSubHeaderCell("Pump", colSeqWidth, height: 52),
+                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                        _buildSubHeaderCell(
+                            "Runtime /\nTotal Power On /\nTotal Power Off Time",
+                            colDateWidth,
+                            height: 52),
+                      _buildSubHeaderCell(
+                          "Runtime /\nTotal Power On/\nTotal Power Off Time",
+                          colTotalWidth,
+                          isTotalCol: true,
+                          height: 52),
+                    ],
+                  ),
+
+                  // 3. DATA ROWS
+                  for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                    _buildMobilePumpDataRow(
+                      rows[rIdx],
+                      rIdx,
+                      colSeqWidth,
+                      colDateWidth,
+                      colTotalWidth,
+                    ),
+
+                  // 4. FOOTER TOTAL ROW
+                  _buildMobilePumpFooterTotalRow(
+                    dailyRunTotals,
+                    dailyPowerOnTotals,
+                    dailyPowerOffTotals,
+                    grandTotalRunSec,
+                    grandTotalPowerOnSec,
+                    grandTotalPowerOffSec,
+                    colSeqWidth,
+                    colDateWidth,
+                    colTotalWidth,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPumpLogMatrixTable(BuildContext context) {
+    if (_isLoading || _isPumpLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(40.0),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    var rows = _getFilteredPumpRows();
+
+    if (_dateColumns.isEmpty || rows.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(40.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Center(
+          child: Text(
+            "No data",
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Calculate daily totals for Run time, Total Power, and Total Power Off Time
+    Map<String, int> dailyRunTotals = {};
+    Map<String, int> dailyPowerOnTotals = {};
+    Map<String, int> dailyPowerOffTotals = {};
+    int grandTotalRunSec = 0;
+    int grandTotalPowerOnSec = 0;
+    int grandTotalPowerOffSec = 0;
+
+    for (var d in _dateColumns) {
+      String dKey = DateFormat('yyyy-MM-dd').format(d);
+      int dayRunSum = 0;
+      int dayPowerOnSum = 0;
+      int dayPowerOffSum = 0;
+      Set<String> processedCategories = {};
+
+      for (var r in rows) {
+        if (r.dayEntries.containsKey(dKey)) {
+          final entry = r.dayEntries[dKey]!;
+          dayRunSum += entry.durationSeconds;
+
+          // Add power on/off once per device category so controller power is not duplicated per pump
+          if (!processedCategories.contains(r.channelCategory)) {
+            processedCategories.add(r.channelCategory);
+            dayPowerOnSum += entry.powerOnSeconds;
+            dayPowerOffSum += entry.powerOffSeconds;
+          }
+        }
+      }
+
+      dailyRunTotals[dKey] = dayRunSum;
+      dailyPowerOnTotals[dKey] = dayPowerOnSum;
+      dailyPowerOffTotals[dKey] = dayPowerOffSum;
+
+      grandTotalRunSec += dayRunSum;
+      grandTotalPowerOnSec += dayPowerOnSum;
+      grandTotalPowerOffSec += dayPowerOffSum;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableWidth = constraints.maxWidth;
+        final bool isMobile = availableWidth < 650;
+
+        if (isMobile) {
+          return _buildMobilePumpMatrixTable(
+            context,
+            rows,
+            dailyRunTotals,
+            dailyPowerOnTotals,
+            dailyPowerOffTotals,
+            grandTotalRunSec,
+            grandTotalPowerOnSec,
+            grandTotalPowerOffSec,
+          );
+        }
+
+        // Base Column Widths
+        const double baseSeqWidth = 160;
+        const double baseDateColWidth = 160;
+        const double baseTotalWidth = 160;
+
+        final double naturalTableWidth = baseSeqWidth +
+            (_dateColumns.length * baseDateColWidth) +
+            baseTotalWidth;
+
+        final double scale =
+            (availableWidth > naturalTableWidth && naturalTableWidth > 0)
+                ? (availableWidth / naturalTableWidth)
+                : 1.0;
+
+        final double colSeqWidth = baseSeqWidth * scale;
+        final double colDateWidth = baseDateColWidth * scale;
+        final double colTotalWidth = baseTotalWidth * scale;
+        final double dateAreaWidth = colDateWidth * _dateColumns.length;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: const Color(0xFFCBD5E1)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 2,
+                offset: Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // 1. PINNED LEFT PUMP COLUMN
+              Container(
+                width: colSeqWidth,
+                height: constraints.maxHeight,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    right: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 4,
+                      offset: Offset(2, 0),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: colSeqWidth,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00695C),
+                        border: Border(
+                          bottom:
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                        ),
+                      ),
+                      child: const Text(
+                        "Pump Details",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    _buildSubHeaderCell("Pump", colSeqWidth, height: 52),
+                    Expanded(
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          dragDevices: {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.mouse,
+                            PointerDeviceKind.trackpad,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        child: SingleChildScrollView(
+                          controller: _pinnedLeftVerticalController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            children: [
+                              for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                                _buildPinnedLeftPumpRow(
+                                  rows[rIdx],
+                                  rIdx,
+                                  colSeqWidth,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: colSeqWidth,
+                      height: 72,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF0FDF4),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        ),
+                      ),
+                      child: const Text(
+                        "Total",
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF166534),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                  ],
+                ),
+              ),
+
+              // 2. DATE COLUMNS AREA
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                      PointerDeviceKind.stylus,
+                    },
+                  ),
+                  child: RawScrollbar(
+                    controller: _horizontalScrollController,
+                    thumbVisibility: true,
+                    trackVisibility: true,
+                    thickness: 8.0,
+                    radius: const Radius.circular(4),
+                    thumbColor: const Color(0x9900695C),
+                    trackColor: const Color(0xFFE2E8F0),
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: SingleChildScrollView(
+                      controller: _horizontalScrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const ClampingScrollPhysics(),
+                      child: SizedBox(
+                        width: dateAreaWidth,
+                        height: constraints.maxHeight,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                for (int dIdx = 0;
+                                    dIdx < _dateColumns.length;
+                                    dIdx++)
+                                  Container(
+                                    width: colDateWidth,
+                                    height: 38,
+                                    alignment: Alignment.center,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFE2E8F0),
+                                      border: Border(
+                                        right: BorderSide(
+                                            color: Color(0xFFCBD5E1), width: 1),
+                                        bottom: BorderSide(
+                                            color: Color(0xFFCBD5E1), width: 1),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      DateFormat('dd/MM/yyyy (E)')
+                                          .format(_dateColumns[dIdx]),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                for (int dIdx = 0;
+                                    dIdx < _dateColumns.length;
+                                    dIdx++)
+                                  _buildSubHeaderCell(
+                                      "Runtime /\nTotal Power On /\nTotal Power Off Time",
+                                      colDateWidth,
+                                      height: 52),
+                              ],
+                            ),
+                            Expanded(
+                              child: ScrollConfiguration(
+                                behavior:
+                                    ScrollConfiguration.of(context).copyWith(
+                                  dragDevices: {
+                                    PointerDeviceKind.touch,
+                                    PointerDeviceKind.mouse,
+                                    PointerDeviceKind.trackpad,
+                                    PointerDeviceKind.stylus,
+                                  },
+                                ),
+                                child: RawScrollbar(
+                                  controller: _verticalScrollController,
+                                  thumbVisibility: true,
+                                  trackVisibility: true,
+                                  thickness: 6.0,
+                                  radius: const Radius.circular(3),
+                                  thumbColor: const Color(0xFF94A3B8),
+                                  child: SingleChildScrollView(
+                                    controller: _verticalScrollController,
+                                    scrollDirection: Axis.vertical,
+                                    physics: const ClampingScrollPhysics(),
+                                    child: Column(
+                                      children: [
+                                        for (int rIdx = 0;
+                                            rIdx < rows.length;
+                                            rIdx++)
+                                          Container(
+                                            height: 72,
+                                            decoration: BoxDecoration(
+                                              color: rIdx % 2 == 0
+                                                  ? Colors.white
+                                                  : const Color(0xFFF8FAFC),
+                                              border: const Border(
+                                                bottom: BorderSide(
+                                                    color: Color(0xFFE2E8F0),
+                                                    width: 1),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                for (int dIdx = 0;
+                                                    dIdx < _dateColumns.length;
+                                                    dIdx++)
+                                                  _buildDatePumpBlock(
+                                                    rows[rIdx],
+                                                    _dateColumns[dIdx],
+                                                    colDateWidth,
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            _buildDailyPumpFooterTotalRow(
+                              dailyRunTotals,
+                              dailyPowerOnTotals,
+                              dailyPowerOffTotals,
+                              colDateWidth,
+                            ),
+                            const SizedBox(height: 15),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 3. PINNED RIGHT TOTAL COLUMN
+              Container(
+                width: colTotalWidth,
+                height: constraints.maxHeight,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    left: BorderSide(color: Color(0xFFCBD5E1), width: 1.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1A000000),
+                      blurRadius: 4,
+                      offset: Offset(-2, 0),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      height: 38,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF00695C),
+                        border: Border(
+                          bottom:
+                              BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                        ),
+                      ),
+                      child: const Text(
+                        "Total",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    _buildSubHeaderCell(
+                        "Runtime /\nTotal Power On /\nTotal Power Off Time",
+                        colTotalWidth,
+                        isTotalCol: true,
+                        height: 52),
+                    Expanded(
+                      child: ScrollConfiguration(
+                        behavior: ScrollConfiguration.of(context).copyWith(
+                          dragDevices: {
+                            PointerDeviceKind.touch,
+                            PointerDeviceKind.mouse,
+                            PointerDeviceKind.trackpad,
+                            PointerDeviceKind.stylus,
+                          },
+                        ),
+                        child: SingleChildScrollView(
+                          controller: _pinnedTotalVerticalController,
+                          scrollDirection: Axis.vertical,
+                          physics: const ClampingScrollPhysics(),
+                          child: Column(
+                            children: [
+                              for (int rIdx = 0; rIdx < rows.length; rIdx++)
+                                _buildPinnedPumpTotalRow(
+                                  rows[rIdx],
+                                  rIdx,
+                                  colTotalWidth,
+                                  isPinned: true,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: colTotalWidth,
+                      height: 72,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 2),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFDCFCE7),
+                        border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                          bottom:
+                              BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                        ),
+                      ),
+                      child: Builder(builder: (context) {
+                        bool hasGrandActivity = grandTotalRunSec > 0 ||
+                            grandTotalPowerOnSec > 0 ||
+                            grandTotalPowerOffSec > 0;
+                        return FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.center,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                grandTotalRunSec > 0
+                                    ? "${_formatDuration(grandTotalRunSec)} /"
+                                    : (hasGrandActivity ? "0h 0m /" : "- /"),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize:
+                                      MediaQuery.of(context).size.width < 1100
+                                          ? 12.5
+                                          : 13.0,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.bold,
+                                  color: grandTotalRunSec > 0
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                grandTotalPowerOnSec > 0
+                                    ? "${_formatDuration(grandTotalPowerOnSec)} /"
+                                    : (hasGrandActivity ? "0h 0m /" : "- /"),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize:
+                                      MediaQuery.of(context).size.width < 1100
+                                          ? 12.5
+                                          : 13.0,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.bold,
+                                  color: grandTotalPowerOnSec > 0
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                              const SizedBox(height: 1),
+                              Text(
+                                grandTotalPowerOffSec > 0
+                                    ? _formatDuration(grandTotalPowerOffSec)
+                                    : (hasGrandActivity ? "0h 0m" : "-"),
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize:
+                                      MediaQuery.of(context).size.width < 1100
+                                          ? 12.5
+                                          : 13.0,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.bold,
+                                  color: grandTotalPowerOffSec > 0
+                                      ? const Color(0xFF0F172A)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 15),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ZoneChartPoint {
@@ -5761,5 +9828,25 @@ class _ZoneChartPoint {
     required this.durationMinutes,
     required this.durationFormatted,
     required this.quantity,
+  });
+}
+
+class _PumpChartPoint {
+  final String xLabel;
+  final double runTimeMinutes;
+  final String runTimeFormatted;
+  final double powerOnMinutes;
+  final String powerOnFormatted;
+  final double powerOffMinutes;
+  final String powerOffFormatted;
+
+  _PumpChartPoint({
+    required this.xLabel,
+    required this.runTimeMinutes,
+    required this.runTimeFormatted,
+    required this.powerOnMinutes,
+    required this.powerOnFormatted,
+    required this.powerOffMinutes,
+    required this.powerOffFormatted,
   });
 }

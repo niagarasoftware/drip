@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:excel/excel.dart';
 
 import 'excel_builder.dart';
+import 'irrigation_log_pdf_builder.dart';
 
 Future<bool> generateExcel(
     dynamic data,
@@ -53,6 +54,34 @@ Future<bool> generateExcel(
   } catch (e, stackTrace) {
     debugPrint('Error generating Excel: $e');
     debugPrint('StackTrace generating Excel: $stackTrace');
+    return false;
+  }
+}
+
+Future<bool> generatePdf(
+    dynamic data,
+    String name,
+    ) async {
+  try {
+    final Uint8List bytes = generateIrrigationLogPdfBytes(data, name);
+    final saver = BetterDownloadSaver();
+
+    final String? savedPath = await saver.saveToDownloads(
+      fileName: '$name.pdf',
+      bytes: bytes,
+      mimeType: 'application/pdf',
+    );
+
+    if (savedPath == null) {
+      debugPrint('PDF save failed');
+      return false;
+    }
+
+    debugPrint('PDF saved successfully: $savedPath');
+    return true;
+  } catch (e, stackTrace) {
+    debugPrint('Error generating PDF: $e');
+    debugPrint('StackTrace generating PDF: $stackTrace');
     return false;
   }
 }

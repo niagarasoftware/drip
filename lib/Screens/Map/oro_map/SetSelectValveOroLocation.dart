@@ -1,7 +1,10 @@
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:oro_drip_irrigation/Screens/Map/polygon_area_calculator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
@@ -495,52 +498,148 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
       _syncPointsToObject();
     });
     _drawPolygon();
+
   }
+
+
+  double get _areaInAcres => PolygonAreaCalculator.calculateAcres(_points);
+
+
 
   Widget _buildSelectedObjectBar() {
     if (_selectedObject == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(5),
-        color: Colors.grey.shade200,
-        child: const Text(
-          "No Object Selected",
-          style: TextStyle(fontSize: 16),
-        ),
-      );
+      return const SizedBox.shrink();
     }
+
+    final obj = _selectedObject!;
+
+    final String valveName =
+        obj.name ?? obj.objectName ?? "Valve";
+
+    final bool isOn = obj.status == 1;
+
+    final Color statusColor =
+    isOn ? Colors.green : Colors.red;
+
+    // Get coordinates from polygon area (same as old code)
+    final bool hasArea =
+        obj.area != null && obj.area!.isNotEmpty;
+
+    final String latitude = hasArea &&
+        obj.area!.first.latitude != null
+        ? obj.area!.first.latitude!.toStringAsFixed(6)
+        : "-";
+
+    final String longitude = hasArea &&
+        obj.area!.first.longitude != null
+        ? obj.area!.first.longitude!.toStringAsFixed(6)
+        : "-";
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(5),
-      color: Colors.teal.shade50,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.teal.shade50,
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.grey.shade300,
+          ),
+        ),
+      ),
+      child: Row(
         children: [
-          Text(
-            _selectedObject!.name ??
-                _selectedObject!.objectName ??
-                "Connected Object",
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          // Valve Name + Status
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  valveName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  "Status: ${isOn ? 'ON' : 'OFF'}",
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            (_selectedObject?.area != null &&
-                _selectedObject!.area!.isNotEmpty)
-                ? "Lat: ${_selectedObject!.area!.first.latitude}  "
-                "Long: ${_selectedObject!.area!.first.longitude}"
-                : "Lat: -  Long: -",
+
+          // Latitude and Longitude
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Coordinates",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  "Lat: $latitude  Long: $longitude",
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          Text(
-            "Status: ${_selectedObject!.status == 1 ? "ON" : "OFF"}",
+
+          // Field Area
+          Expanded(
+            flex: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Field Area",
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _points.length >= 3
+                      ? "${_areaInAcres.toStringAsFixed(3)} Acres"
+                      : "0.000 Acres",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+
+              ],
+            ),
           ),
         ],
       ),
     );
-
-
   }
   Future<void> _getCurrentLocation() async {
     bool serviceEnabled;
@@ -811,3 +910,4 @@ class _SetSelectOroLocationState extends State<SetSelectOroLocation> {
   }
 
 }
+

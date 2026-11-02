@@ -1,18 +1,15 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_datepicker/datepicker.dart';
-
 import '../model/fertigation_card_model.dart';
 import '../repository/irrigation_repository.dart';
 import '../services/fertigation_card_mapper.dart';
 import 'excel_download_stub.dart' if (dart.library.html) 'excel_download_web.dart';
+import 'zone_log_pdf_builder.dart' if (dart.library.html) 'zone_log_exporter_web.dart';
 
 import 'widgets/program_wise_view.dart';
-import 'widgets/sequence_wise_view.dart';
-import 'widgets/line_wise_view.dart';
-import 'widgets/status_wise_view.dart';
+import 'widgets/fertigation_table_view.dart';
 
 class FertigationCardListPage extends StatefulWidget {
   final dynamic serverData;
@@ -32,20 +29,18 @@ class FertigationCardListPage extends StatefulWidget {
 }
 
 class _FertigationCardListPageState
-    extends State<FertigationCardListPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
-
+    extends State<FertigationCardListPage> {
   bool _isLoading = false;
   String? _fetchError;
+  String? _noDataMessage;
+  bool _isTableView = false;
 
   dynamic dataSource = {};
   List<FertigationCardModel> allCards = [];
 
   String _selectedDateStr = '';
 
-  DateTime _fromDate =
-  DateTime.now().subtract(const Duration(days: 7));
+  DateTime _fromDate = DateTime.now();
   DateTime _toDate = DateTime.now();
 
   int _requestId = 0;
@@ -53,12 +48,6 @@ class _FertigationCardListPageState
   @override
   void initState() {
     super.initState();
-
-    _tabController = TabController(
-      length: 4,
-      vsync: this,
-    );
-
     _updateDateLabel();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,7 +60,6 @@ class _FertigationCardListPageState
   @override
   void dispose() {
     _requestId++;
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -213,6 +201,9 @@ class _FertigationCardListPageState
     setState(() {
       _isLoading = true;
       _fetchError = null;
+      _noDataMessage = null;
+      allCards = [];
+      dataSource = {};
     });
 
     try {
@@ -251,6 +242,8 @@ class _FertigationCardListPageState
           "ProgramCategoryName",
           "Pretime",
           "PostTime",
+          "CentralFilterName",
+          "LocalFilterName",
           "CentralFilterOnDuration",
           "LocalFilterOnDuration",
           "CentralFertOnOff",
@@ -334,6 +327,17 @@ class _FertigationCardListPageState
 
       debugPrint('API CODE: ${jsonData['code']}');
       debugPrint('API MESSAGE: ${jsonData['message']}');
+
+      if (response.statusCode == 200 && jsonData['code'].toString() != '200') {
+        if (!mounted || currentRequest != _requestId) return;
+        setState(() {
+          dataSource = {};
+          allCards = [];
+          _fetchError = null;
+          _noDataMessage = jsonData['message']?.toString() ?? 'User irrigation log not found';
+        });
+        return;
+      }
 
       if (response.statusCode != 200 ||
           jsonData['code'].toString() != '200') {
@@ -420,6 +424,7 @@ class _FertigationCardListPageState
         dataSource = rawData;
         allCards = mappedCards;
         _fetchError = null;
+        _noDataMessage = null;
       });
     } catch (e, stackTrace) {
       debugPrint(
@@ -435,6 +440,7 @@ class _FertigationCardListPageState
 
       setState(() {
         _fetchError = e.toString();
+        _noDataMessage = null;
       });
     } finally {
       if (mounted && currentRequest == _requestId) {
@@ -458,6 +464,26 @@ class _FertigationCardListPageState
         SnackBar(
           content: Text(
             result ? 'Excel report downloaded successfully' : 'Failed to download Excel report',
+          ),
+          backgroundColor: result ? const Color(0xFF006573) : Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadPdf() async {
+    if (allCards.isEmpty) return;
+
+    final multiSheetData = _buildMultiSheetData(allCards);
+    final fileName = 'Fertigation_Report_${DateFormat('yyyy-MM-dd').format(_toDate)}';
+
+    final result = await generatePdf(multiSheetData, fileName);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result ? 'PDF report downloaded successfully' : 'Failed to download PDF report',
           ),
           backgroundColor: result ? const Color(0xFF006573) : Colors.red,
         ),
@@ -699,17 +725,139 @@ class _FertigationCardListPageState
       );
     }
 
+    if (_noDataMessage != null) {
+      return Center(
+        child: Text(
+          _noDataMessage!,
+          style: const TextStyle(
+            color: Color(0xFF637D7A),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
     if (_fetchError != null) {
       return _buildErrorView();
     }
 
-    return TabBarView(
-      controller: _tabController,
+    if (allCards.isEmpty) {
+      return const Center(
+        child: Text(
+          'No Fertigation Records Found',
+          style: TextStyle(
+            color: Color(0xFF637D7A),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+    }
+
+    int running = allCards.where((c) => c.status.toLowerCase().contains('run')).length;
+    int skipped = allCards.where((c) => c.status.toLowerCase().contains('skip')).length;
+    int completed = allCards.where((c) => c.status.toLowerCase().contains('complete')).length;
+    int pending = allCards.where((c) => c.status.toLowerCase().contains('pend')).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 1. Overall Fertigation Status Summary at the top
+          Center(
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Card View'),
+                  icon: Icon(Icons.grid_view),
+                ),
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('Table View'),
+                  icon: Icon(Icons.table_chart),
+                ),
+              ],
+              selected: {_isTableView},
+              onSelectionChanged: (Set<bool> newSelection) {
+                setState(() {
+                  _isTableView = newSelection.first;
+                });
+              },
+              style: ButtonStyle(
+                backgroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return const Color(0xFF006573);
+                  }
+                  return Colors.white;
+                }),
+                foregroundColor: WidgetStateProperty.resolveWith<Color>((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return Colors.white;
+                  }
+                  return const Color(0xFF006573);
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFF006573).withValues(alpha: 0.2), width: 1),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  ' Fertigation Status Summary',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF006573)),
+                ),
+                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDF4F4),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _statusCountItem('Running', running, Colors.orange),
+                      _statusCountItem('Skipped', skipped, Colors.blueGrey),
+                      _statusCountItem('Completed', completed, Colors.green),
+                      _statusCountItem('Pending', pending, Colors.grey),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 5),
+          // 2. Card View | Table View toggle
+
+          // 3. Selected report view
+          _isTableView
+              ? FertigationTableView(cards: allCards)
+              : ProgramWiseView(cards: allCards),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusCountItem(String label, int count, Color color) {
+    return Column(
       children: [
-        ProgramWiseView(cards: allCards),
-        SequenceWiseView(cards: allCards),
-        LineWiseView(cards: allCards),
-        StatusWiseView(cards: allCards),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text('$count', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }
@@ -753,13 +901,39 @@ class _FertigationCardListPageState
             tooltip: 'Select Date Range',
             onPressed: _showDatePickerDialog,
           ),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(
               Icons.download,
               color: Colors.white,
             ),
-            tooltip: 'Download Excel Report',
-            onPressed: (_isLoading || allCards.isEmpty) ? null : _downloadExcel,
+            tooltip: 'Download Report',
+            enabled: !_isLoading && allCards.isNotEmpty,
+            onSelected: (value) {
+              if (value == 'excel') _downloadExcel();
+              if (value == 'pdf') _downloadPdf();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'excel',
+                child: Row(
+                  children: [
+                    Icon(Icons.table_chart, color: Color(0xFF006573)),
+                    SizedBox(width: 8),
+                    Text('Download Excel'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Download PDF'),
+                  ],
+                ),
+              ),
+            ],
           ),
           IconButton(
             icon: const Icon(
@@ -770,20 +944,6 @@ class _FertigationCardListPageState
             onPressed: _isLoading ? null : _fetchData,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Program'),
-            Tab(text: 'Sequence'),
-            Tab(text: 'Line'),
-            Tab(text: 'Status'),
-          ],
-        ),
       ),
       body: _buildBody(),
     );

@@ -66,7 +66,7 @@ class CommunicationService {
       if (blueService.isConnected) {
         debugPrint("bluetooth connected...");
         try {
-          blueService.write(payload);
+          await blueService.write(payload);
           result['bluetooth'] = true;
           debugPrint('📱 Sent via Classic Bluetooth');
         } catch (e) {

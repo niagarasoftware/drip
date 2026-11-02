@@ -11,7 +11,7 @@ class SequenceWiseView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cards.isEmpty) {
       return const Center(
-        child: Text('No sequence records available', style: TextStyle(color: Colors.black54)),
+        child: Text('No Fertigation Records Found', style: TextStyle(color: Color(0xFF637D7A), fontSize: 14, fontWeight: FontWeight.w500)),
       );
     }
 

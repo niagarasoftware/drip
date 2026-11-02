@@ -1,4 +1,5 @@
-
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
@@ -13,7 +14,10 @@ import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../views/common/user_dashboard/widgets/valve_status_legend.dart';
 import '../MapDeviceList.dart';
+import '../polygon_area_calculator.dart';
 import 'map_conection_objects.dart';
+import '../../../services/mqtt_service.dart';
+import '../../../utils/environment.dart';
 
 
 class MapScreenOro extends StatefulWidget {
@@ -43,17 +47,177 @@ class _MapScreenOroState extends State<MapScreenOro> {
   Set<Marker> markers = {};
   Map<String, BitmapDescriptor> markerIcons = {};
   Set<Polygon> polygons = {};
+  Set<Polyline> irrigationRows = {};
+  Set<Circle> waterDrops = {};
+  Set<Circle> plantDots = {};
+  final List<_WaterRow> _runningRows = [];
+  Timer? _flowTimer;
+  double _flowPhase = 0;
+  // Visual spacing in metres. These are schematic, not surveyed pipe positions.
+  static const double _rowSpacingMeters = 8;
+  static const int _maxRowsPerValve = 45;
+
   String _sentTime = "";
+  List<_ValveAreaEntry> _valveAreas = [];
+
+  bool _isValve(dynamic obj) =>
+      (obj['objectName'] ?? '').toString().toLowerCase().contains('valve');
+
+  bool _isValveRunning(int status) => status == 1;
+
+  void _requestLiveData() {
+    final payload = jsonEncode({
+      '3001': ''
+    });
+
+    MqttService().topicToPublishAndItsMessage(
+      payload,
+      '${Environment.mqttPublishTopic}/${widget.imeiNo}',
+    );
+  }
+
+  // Compact single-row overlay: area metrics, valve chips, live sync and actions.
+  // On narrow screens the whole bar scrolls horizontally without overflowing.
+  Widget _buildAreaSummary() {
+    final total = _valveAreas.fold<double>(0, (sum, e) => sum + e.acres);
+    final running = _valveAreas.fold<double>(
+      0, (sum, e) => sum + (e.running ? e.acres : 0),
+    );
+    final inactive = math.max(0.0, total - running);
+
+    return Material(
+      color: Colors.white.withOpacity(0.94),
+      borderRadius: BorderRadius.circular(10),
+      elevation: 2,
+      child: SizedBox(
+        height: 66,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: math.max(constraints.maxWidth, 900.0),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    children: [
+                      _areaMetric('Total', total, Colors.black87),
+                      const SizedBox(width: 16),
+                      _areaMetric('Irrigating', running, Colors.green),
+                      const SizedBox(width: 16),
+                      _areaMetric('Not Irrigating', inactive, Colors.grey),
+                      const SizedBox(width: 12),
+                      const VerticalDivider(width: 12),
+                      Expanded(
+                        child: _valveAreas.isEmpty
+                            ? const Center(child: Text('No valve areas', style: TextStyle(fontSize: 11)))
+                            : ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _valveAreas.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 6),
+                          itemBuilder: (context, i) {
+                            final e = _valveAreas[i];
+                            return Chip(
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              label: Text(
+                                '${e.name}: ${e.acres.toStringAsFixed(2)} ac',
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                              avatar: CircleAvatar(
+                                radius: 5,
+                                backgroundColor: e.running ? Colors.green : e.color,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const VerticalDivider(width: 12),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Live Sync', style: TextStyle(
+                            color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold,
+                          )),
+                          Text(
+                            _sentTime.isEmpty ? '--' : _sentTime,
+                            style: const TextStyle(fontSize: 11, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                      if (kIsWeb) ...[
+                        IconButton(
+                          tooltip: 'Refresh',
+                          icon: const Icon(Icons.refresh, color: Colors.red),
+                          onPressed: () async {
+                             await _init();
+                          },
+                        ),
+                        if (!widget.isCheckDashboard)
+                          IconButton(
+                            tooltip: 'Edit',
+                            icon: const Icon(Icons.map_outlined, color: Colors.red),
+                            onPressed: () {
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (context) => MapConnectionObject(
+                                  userId: widget.userId,
+                                  customerId: widget.customerId,
+                                  controllerId: widget.controllerId,
+                                  imeiNo: widget.imeiNo,
+                                  modelId: widget.modelId,
+                                ),
+                              ));
+                            },
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _areaMetric(String label, double value, Color color) =>
+      Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 10, color: color)),
+          Text('${value.toStringAsFixed(2)} ac', style: TextStyle(
+            fontSize: 15, color: color, fontWeight: FontWeight.bold,
+          )),
+        ],
+      );
 
   @override
   void initState() {
     super.initState();
     _init();
+    _flowTimer = Timer.periodic(const Duration(milliseconds: 160), (_) {
+      if (!mounted || _runningRows.isEmpty || _currentZoom < 17) return;
+      _flowPhase += 0.035;
+      _updateWaterDrops();
+    });
+  }
+
+  @override
+  void dispose() {
+    _flowTimer?.cancel();
+    mapController?.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
     await _loadIcons();
     await _fetchData();
+    _requestLiveData();
   }
 
   // ---------------- ICON LOAD ----------------
@@ -79,6 +243,8 @@ class _MapScreenOroState extends State<MapScreenOro> {
     };
   }
 
+
+
   // ---------------- FETCH DATA ----------------
   Future<void> _fetchData() async {
     try {
@@ -88,6 +254,7 @@ class _MapScreenOroState extends State<MapScreenOro> {
         "controllerId": widget.controllerId,
       });
 
+      print("user id :${widget.customerId},controller id:${widget.controllerId}") ;
       if (response.statusCode != 200) return;
 
       final data = jsonDecode(response.body);
@@ -98,6 +265,10 @@ class _MapScreenOroState extends State<MapScreenOro> {
 
       Set<Marker> newMarkers = {};
       Set<Polygon> newPolygons = {};
+      Set<Polyline> newRows = {};
+      Set<Circle> newPlantDots = {};
+      final List<_WaterRow> newRunningRows = [];
+      final List<_ValveAreaEntry> newValveAreas = [];
 
       for (var device in deviceList) {
         final geo = device["geography"];
@@ -154,6 +325,14 @@ class _MapScreenOroState extends State<MapScreenOro> {
 
               // ✅ GET COLOR FROM FUNCTION
               Color areaColor = _getAreaColor(st, per);
+              if (_isValve(obj) && points.length >= 3) {
+                newValveAreas.add(_ValveAreaEntry(
+                  name: (obj['name'] ?? obj['objectName'] ?? 'Valve').toString(),
+                  acres: PolygonAreaCalculator.calculateAcres(points),
+                  running: _isValveRunning(st),
+                  color: areaColor,
+                ));
+              }
 
               // ✅ ADD POLYGON
               newPolygons.add(
@@ -166,11 +345,26 @@ class _MapScreenOroState extends State<MapScreenOro> {
                 ),
               );
 
+              // ---------------- AUTO IRRIGATION ROWS + RUNNING WATER DOTS ----------------
+              // Rows, plant dots and moving water particles appear ONLY while running.
+              if (points.length >= 3 && st == 1 && per < 100 &&
+                  (obj["objectName"] ?? "").toString().toLowerCase().contains('valve')) {
+                _generatePlantation(
+                  id: '${device["deviceId"]}-${obj["sNo"]}',
+                  boundary: points,
+                  isRunning: st == 1 && per < 100,
+                  statusColor: areaColor,
+                  rows: newRows,
+                  plants: newPlantDots,
+                  runningRows: newRunningRows,
+                );
+              }
+
               // ---------------- AREA LABEL ----------------
               final centerPoint = _getPolygonCenter(points);
 
               final labelIcon = await _getLabelIcon(
-                "${obj["name"] ?? obj["objectName"]} ($per%)",areaColor
+                  "${obj["name"] ?? obj["objectName"]} ($per%)",areaColor
               );
 
               newMarkers.add(
@@ -195,6 +389,13 @@ class _MapScreenOroState extends State<MapScreenOro> {
       setState(() {
         markers = newMarkers;
         polygons = newPolygons;
+        irrigationRows = newRows;
+        _valveAreas = newValveAreas;
+        plantDots = newPlantDots;
+        _runningRows
+          ..clear()
+          ..addAll(newRunningRows);
+        waterDrops = {};
         if (initialCenter != null) {
           center = initialCenter;
         }
@@ -472,7 +673,7 @@ class _MapScreenOroState extends State<MapScreenOro> {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () async {
-              await _init();
+               await _init();
             },
           ),
           if (!widget.isCheckDashboard)
@@ -493,7 +694,11 @@ class _MapScreenOroState extends State<MapScreenOro> {
           GoogleMap(
             mapType: MapType.hybrid,
             onCameraMove: (CameraPosition position) {
+              final oldVisible = _currentZoom >= 17;
               _currentZoom = position.zoom;
+              if (oldVisible != (_currentZoom >= 17)) {
+                setState(() {});
+              }
             },
             initialCameraPosition: CameraPosition(
               target: center,
@@ -501,52 +706,18 @@ class _MapScreenOroState extends State<MapScreenOro> {
             ),
             markers: markers,
             polygons: polygons,
+            polylines: irrigationRows,
+            circles: {
+              if (_currentZoom >= 17) ...plantDots,
+              if (_currentZoom >= 17) ...waterDrops,
+            },
             onMapCreated: _onMapCreated,
           ),
           Positioned(
-            top: 0,
-            left: 20,
-            right: 20,
-            child: Container(
-              color: Colors.white.withOpacity(0.7),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        "Live sync: $_sentTime",
-                        style: const TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (kIsWeb)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.refresh,
-                        color: Colors.red,
-                      ),
-                      onPressed: () async {
-                        await _init();
-                      },
-                    ),
-                  if (kIsWeb)
-                    if (!widget.isCheckDashboard)
-                      IconButton(
-                        icon: Icon(Icons.map_outlined,color: Colors.red,),
-                        onPressed: () {
-                          Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => MapConnectionObject(userId: widget.userId, customerId: widget.customerId, controllerId: widget.controllerId, imeiNo: widget.imeiNo,modelId: widget.modelId,),
-                          ));
-                        },
-                        tooltip: 'Edit',
-                      ),
-                ],
-              ),
-            ),
+            top: 8,
+            left: 12,
+            right: 12,
+            child: _buildAreaSummary(),
           ),
           Positioned(
             bottom: 0,
@@ -558,6 +729,105 @@ class _MapScreenOroState extends State<MapScreenOro> {
       ),
     );
   }
+  // Build horizontal irrigation rows clipped to each irregular valve area.
+  // Coordinates are projected locally to metres to maintain sensible spacing.
+  void _generatePlantation({
+    required String id,
+    required List<LatLng> boundary,
+    required bool isRunning,
+    required Color statusColor,
+    required Set<Polyline> rows,
+    required Set<Circle> plants,
+    required List<_WaterRow> runningRows,
+  }) {
+    final lat0 = boundary.map((p) => p.latitude).reduce((a,b) => a+b) / boundary.length;
+    final lng0 = boundary.map((p) => p.longitude).reduce((a,b) => a+b) / boundary.length;
+    final xScale = 111320.0 * math.cos(lat0 * math.pi / 180);
+    const yScale = 110540.0;
+    if (xScale.abs() < 1) return;
+    final xy = boundary.map((p) => _XY((p.longitude-lng0)*xScale, (p.latitude-lat0)*yScale)).toList();
+    final minY = xy.map((p) => p.y).reduce(math.min);
+    final maxY = xy.map((p) => p.y).reduce(math.max);
+    final height = maxY-minY;
+    if (height <= 0) return;
+    final rowStep = math.max(_rowSpacingMeters, height / _maxRowsPerValve);
+    int rowIndex = 0;
+    LatLng toLatLng(double x, double y) => LatLng(lat0+y/yScale, lng0+x/xScale);
+
+    for (double y=minY+rowStep/2; y<maxY; y+=rowStep) {
+      final crossings = <double>[];
+      for (int i=0; i<xy.length; i++) {
+        final a=xy[i], b=xy[(i+1)%xy.length];
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+          crossings.add(a.x+(y-a.y)*(b.x-a.x)/(b.y-a.y));
+        }
+      }
+      crossings.sort();
+      for (int j=0; j+1<crossings.length; j+=2) {
+        final start=crossings[j], end=crossings[j+1];
+        if (end-start < 2) continue;
+        final a=toLatLng(start,y), b=toLatLng(end,y);
+        final key='$id-$rowIndex-$j';
+        rows.add(Polyline(
+          polylineId: PolylineId('plant-row-$key'),
+          points: [a,b],
+          color: statusColor.withOpacity(.8),
+          width: 2,
+          zIndex: 2,
+        ));
+        if (isRunning) {
+          runningRows.add(_WaterRow(key,a,b));
+          // Static plant dots along the row, distinct from moving water drops.
+          // Cap the count to protect Google Maps performance on large farms.
+          final lengthMeters = end - start;
+          final count = math.min(18, (lengthMeters / 6).floor());
+          for (int k = 1; k <= count; k++) {
+            final t = k / (count + 1);
+            plants.add(Circle(
+              circleId: CircleId('plant-$key-$k'),
+              center: toLatLng(start + lengthMeters * t, y),
+              radius: 1.4,
+              fillColor: Colors.green,
+              strokeColor: Colors.green,
+              strokeWidth: 0,
+              zIndex: 3,
+            ));
+          }
+        }
+      }
+      rowIndex++;
+    }
+  }
+
+  void _updateWaterDrops() {
+    final drops = <Circle>{};
+    // Keep particle count bounded on large farms.
+    for (final row in _runningRows.take(180)) {
+      for (int i=0; i<2; i++) {
+        // Each row gets a stable, different starting point and speed.
+        // This prevents all water particles from jumping together.
+        final hash = row.id.codeUnits.fold<int>(17, (h, c) => (h * 31 + c) & 0x7fffffff);
+        final offset = (hash % 997) / 997.0;
+        final speed = 0.55 + ((hash ~/ 997) % 55) / 100.0;
+        final particleGap = 0.38 + ((hash ~/ 113) % 20) / 100.0;
+        final t = (_flowPhase * speed + offset + i * particleGap) % 1.0;
+        drops.add(Circle(
+          circleId: CircleId('water-${row.id}-$i'),
+          center: LatLng(
+            row.start.latitude+(row.end.latitude-row.start.latitude)*t,
+            row.start.longitude+(row.end.longitude-row.start.longitude)*t,
+          ),
+          radius: 2.0,
+          fillColor: Colors.blue,
+          strokeColor: Colors.white,
+          strokeWidth: 1,
+          zIndex: 4,
+        ));
+      }
+    }
+    setState(() => waterDrops=drops);
+  }
+
   void _fitMapToBounds(Set<Marker> markers, Set<Polygon> polygons) {
     if (mapController == null) return;
     if (markers.isEmpty && polygons.isEmpty) return;
@@ -608,3 +878,28 @@ class _MapScreenOroState extends State<MapScreenOro> {
   }
 
 }
+class _XY {
+  const _XY(this.x,this.y);
+  final double x,y;
+}
+
+class _WaterRow {
+  const _WaterRow(this.id,this.start,this.end);
+  final String id;
+  final LatLng start,end;
+}
+
+
+class _ValveAreaEntry {
+  const _ValveAreaEntry({
+    required this.name,
+    required this.acres,
+    required this.running,
+    required this.color,
+  });
+  final String name;
+  final double acres;
+  final bool running;
+  final Color color;
+}
+ 

@@ -316,8 +316,13 @@ class _ValveWidgetMobileState extends State<ValveWidgetMobile> {
     if (status == 0 && cPer == 100) return Colors.blue;
     if (status == 0 && cPer > 0 && cPer < 100) return Colors.yellow;
     if (status == 2) return Colors.orange;
-    return Colors.red;
+    if (status == 3) return Colors.red;
+    if (status == 4) return const Color(0xFF7C3AED);
+    if (status == 5) return const Color(0xFFE81FAF);
+    if (status == 6) return const Color(0xFF7D50CA);
+    return const Color(0xFF634610);
   }
+
 
   Widget _buildWaterSource(ValveModel valve) {
     final source = valve.waterSources[0];

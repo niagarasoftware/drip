@@ -126,6 +126,10 @@ class AppConstants {
   static const String mainValveON = "main_valve_green.png";
   static const String mainValveNotON = "main_valve_orange.png";
   static const String mainValveNotOFF = "main_valve_red.png";
+  static const String mainValveHLP = "main_valve_hlp.png";
+  static const String mainValveHP = "main_valve_hp.png";
+  static const String mainValveLLP= "main_valve_llp.png";
+  static const String mainValveLP= "main_valve_lp.png";
 
   static const String valveOFF = "valve_gray.png";
   static const String valveRunning = "valve_green.png";
@@ -133,6 +137,11 @@ class AppConstants {
   static const String valveNotON = "valve_orange.png";
   static const String valveNotOFF = "valve_red.png";
   static const String valvePending = "valve_yellow.png";
+  static const String valveHLP = "valve_hlp.png";
+  static const String valveHP = "valve_hp.png";
+  static const String valveLLP= "valve_llp.png";
+  static const String valveLP = "valve_lp.png";
+
 
   static const String valveLjOFF = "valve_gray_lj.png";
   static const String valveLjRunning = "valve_green_lj.png";
@@ -140,6 +149,10 @@ class AppConstants {
   static const String valveLjNotON = "valve_orange_lj.png";
   static const String valveLjNotOFF = "valve_red_lj.png";
   static const String valveLjPending = "valve_yellow_lj.png";
+  static const String valveLjHLP = "valve_lj_hlp.png";
+  static const String valveLjHP= "valve_lj_hp.png";
+  static const String valveLjLLP= "valve_lj_llp.png";
+  static const String valveLjLP = "valve_lj_lp.png";
 
   static const String valveCwsOFF = "valve_gray_cws.png";
   static const String valveCwsRunning = "valve_green_cws.png";
@@ -147,6 +160,10 @@ class AppConstants {
   static const String valveCwsNotON = "valve_orange_cws.png";
   static const String valveCwsNotOFF = "valve_red_cws.png";
   static const String valveCwsPending = "valve_yellow_cws.png";
+  static const String valveCwsHLP = "valve_cws_hlp.png";
+  static const String valveCwsHP = "valve_cws_hp.png";
+  static const String valveCwsLLP= "valve_cws_llp.png";
+  static const String valveCwsLP = "valve_cws_lp.png";
 
   static const String lightOFF = "light_gray.png";
   static const String lightON = "light_yellow.png";
@@ -623,10 +640,19 @@ class AppConstants {
         return mainValveNotON;
       case 3:
         return mainValveNotOFF;
+      case 4:
+        return mainValveHLP;
+      case 5:
+        return mainValveHP;
+      case 6:
+        return mainValveLLP;
+      case 7:
+        return mainValveLP;
       default:
         return '';
     }
   }
+
 
   static String _getValveImagePath(int status, cPer) {
     switch (status) {
@@ -643,11 +669,18 @@ class AppConstants {
         return valveNotON;
       case 3:
         return valveNotOFF;
+      case 4:
+        return valveHLP;
+      case 5:
+        return valveHP;
+      case 6:
+        return valveLLP;
+      case 7:
+        return valveLP;
       default:
         return '';
     }
   }
-
 
 
   static String _getValveLjImagePath(int status, int cPer) {
@@ -665,6 +698,14 @@ class AppConstants {
         return valveLjNotON;
       case 3:
         return valveLjNotOFF;
+      case 4:
+        return valveLjHLP;
+      case 5:
+        return valveLjHP;
+      case 6:
+        return valveLjLLP;
+      case 7:
+        return valveLjLP;
       default:
         return '';
     }
@@ -685,10 +726,19 @@ class AppConstants {
         return valveCwsNotON;
       case 3:
         return valveCwsNotOFF;
+      case 4:
+        return valveCwsHLP;
+      case 5:
+        return valveCwsHP;
+      case 6:
+        return valveCwsLLP;
+      case 7:
+        return valveCwsLP;
       default:
         return '';
     }
   }
+
 
   static String _getLightImagePath(int status) {
     switch (status) {

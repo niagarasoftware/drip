@@ -48,6 +48,7 @@ dependencies:
   label_marker: ^1.0.1
   widget_to_marker: ^1.0.6
   google_maps_flutter: ^2.12.1
+  maps_toolkit: ^3.1.0
   shared_preferences: ^2.5.3
   connectivity_plus: ^6.1.4
   webview_flutter: ^4.11.0
@@ -88,7 +89,10 @@ dependencies:
   better_download_saver: ^0.0.1
   fl_chart: ^1.2.0
   easy_pdf_viewer: ^1.0.8
-#  pdfrx: ^2.4.5
+  pdf: ^3.12.0
+  pdfrx: ^2.4.5
+  web: ^1.0.0
+  file_saver: ^0.4.0
 #  audioplayers: ^6.5.0
 #  record: ^6.0.0
 

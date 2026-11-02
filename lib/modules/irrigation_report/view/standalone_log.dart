@@ -77,12 +77,16 @@ class _StandaloneLogState extends State<StandaloneLog> {
   late LinkedScrollControllerGroup _scrollable2;
   late ScrollController _horizontalScroll1;
   late ScrollController _horizontalScroll2;
-  List<String> standaloneColumn = ['Program','Method','Start Time','Zone Name','Device Id','Others'];
+  List<String> standaloneColumn = ['Program','Method','Start Time',
+    // 'Zone Name',
+    'Pump','Others'];
   String _selectedDate = '';
   DateRange? selectedDateRange;
   DateRange? lastSelectedDateRange;
   List<dynamic> parameters = [
-    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No','ZoneName','IrrigationMethod','MacAddress'
+    'Date','ProgramCategory','SequenceData','ScheduledStartTime','S_No',
+    'ZoneName',
+    'IrrigationMethod','Pump'
   ];
   dynamic standaloneData = {
     'fixedColumnData' : [],
@@ -116,8 +120,8 @@ class _StandaloneLogState extends State<StandaloneLog> {
   }
 
 
-  void getUserName()async{
-    try{
+  void getUserName() async {
+    try {
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
@@ -125,15 +129,38 @@ class _StandaloneLogState extends State<StandaloneLog> {
       var response = await IrrigationRepository().getUserNames(body);
       Map<String, dynamic> configData = jsonDecode(response.body);
       print("jsonData : ${configData}");
-      configObject = configData['data']['configObject'];
-
-    }catch(e,stackTrace){
+      if (mounted) {
+        setState(() {
+          configObject = configData['data']['configObject'] ?? [];
+        });
+      }
+    } catch (e, stackTrace) {
       print('error in name = > ${e.toString()}');
       print('error in name stackTrace= > $stackTrace');
     }
   }
 
-  void getStandaloneData()async{
+  /// Converts a raw sNo string (e.g. "5.005" or "13.046_9.002") into the
+  /// configured object names joined with "__". Falls back to the raw sNo
+  /// when the name is not found in [configObject].
+  String _resolveNames(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return '';
+    final names = <String>[];
+    for (final sNo in value.split('_')) {
+      final key = sNo.trim();
+      if (key.isEmpty) continue;
+      final objectData = configObject.firstWhere(
+            (element) => element['sNo']?.toString() == key,
+        orElse: () => null,
+      );
+      final name = objectData?['name'];
+      names.add(name != null && '$name'.trim().isNotEmpty ? '$name' : key);
+    }
+    return names.join('__');
+  }
+
+  void getStandaloneData() async {
     print('data request to the server.............');
     setState(() {
       standaloneData['fixedColumnData'] = [];
@@ -148,14 +175,12 @@ class _StandaloneLogState extends State<StandaloneLog> {
     List<String> parts1 = dateString1.split('/');
     List<String> parts2 = dateString2.split('/');
 
-    // Create DateTime objects
     DateTime date1 = DateTime(int.parse(parts1[2]), int.parse(parts1[1]), int.parse(parts1[0]));
     DateTime date2 = DateTime(int.parse(parts2[2]), int.parse(parts2[1]), int.parse(parts2[0]));
 
-    // Format DateTime objects into desired format
     String formattedDate1 = "${date1.year}-${_formatNumber(date1.month)}-${_formatNumber(date1.day)}";
     String formattedDate2 = "${date2.year}-${_formatNumber(date2.month)}-${_formatNumber(date2.day)}";
-    try{
+    try {
       String? startMonth = selectedDateRange?.start.month.toString();
       print('startMonth : $startMonth');
 
@@ -165,37 +190,64 @@ class _StandaloneLogState extends State<StandaloneLog> {
       var body = {
         "userId": widget.userData['customerId'],
         "controllerId": widget.userData['controllerId'],
-        "logType" : "Standalone",
-        "fromDate" : formattedDate1,
-        "toDate" : formattedDate2,
-        "parameters" : parameters,
+        "logType": "Standalone",
+        "fromDate": formattedDate1,
+        "toDate": formattedDate2,
+        "parameters": parameters,
       };
       var response = await IrrigationRepository().getLogDateWise(body);
       Map<String, dynamic> jsonData = jsonDecode(response.body);
-      // standaloneData = jsonData['data'];
+
+      var standaloneDataFromHttp = jsonData['data'] != null ? jsonData['data']['log'] as List? ?? [] : [];
+
       setState(() {
         print('jsonData : $jsonData');
-        var standaloneDataFromHttp = jsonData['data']['log'];
-        for(var date = 0;date < standaloneDataFromHttp.length;date++){
-          for(var schedule = 0;schedule < standaloneDataFromHttp[date]['standalone']['Date'].length;schedule++){
-            standaloneData['fixedColumnData'].add(standaloneDataFromHttp[date]['standalone']['Date'][schedule]);
+        for (var date = 0; date < standaloneDataFromHttp.length; date++) {
+          var standaloneMap = standaloneDataFromHttp[date]['standalone'];
+          if (standaloneMap == null || standaloneMap is! Map) continue;
+
+          var datesList = standaloneMap['Date'] as List? ?? [];
+          var catList = standaloneMap['ProgramCategory'] as List? ?? [];
+          var methodList = standaloneMap['IrrigationMethod'] as List? ?? [];
+          var startTimes = standaloneMap['ScheduledStartTime'] as List? ?? [];
+          var zoneNames = standaloneMap['ZoneName'] as List? ?? [];
+          var pumpList = standaloneMap['Pump'] as List? ?? [];
+          var seqList = standaloneMap['SequenceData'] as List? ?? [];
+
+          for (var schedule = 0; schedule < datesList.length; schedule++) {
+            standaloneData['fixedColumnData'].add(datesList[schedule]);
             var list = [];
-            list.add(standaloneDataFromHttp[date]['standalone']['ProgramCategory'][schedule]);
-            var method = standaloneDataFromHttp[date]['standalone']['IrrigationMethod'][schedule];
+
+            // 0: Program
+            list.add(schedule < catList.length ? catList[schedule] : '-');
+
+            // 1: Method
+            var method = schedule < methodList.length ? methodList[schedule] : null;
             list.add(method == 1 ? 'Time' : method == 2 ? 'Flow' : 'TimeLess');
-            list.add(standaloneDataFromHttp[date]['standalone']['ScheduledStartTime'][schedule]);
-            list.add(standaloneDataFromHttp[date]['standalone']['ZoneName'][schedule]);
-            list.add(standaloneDataFromHttp[date]['standalone']['MacAddress'][schedule]);
-            var valveName = '';
-            for(var valve in standaloneDataFromHttp[date]['standalone']['SequenceData'][schedule].split('_')){
-              valveName += valveName.isNotEmpty ? '__' : '';
-              var objectData = configObject.firstWhere(
-                    (element) => element['sNo'].toString() == valve,
-                orElse: () => null,
-              );
-              valveName += '${objectData != null ? objectData['name'] : valve}';
-            }
-            list.add(valveName);
+
+            // 2: Start Time
+            list.add(schedule < startTimes.length ? startTimes[schedule] : '-');
+
+            // 3: Zone Name (directly from server payload)
+            // String rawZoneName = (schedule < zoneNames.length && zoneNames[schedule] != null)
+            //     ? zoneNames[schedule].toString()
+            //     : '';
+            // list.add(rawZoneName);
+
+            // 3: Pump (sNo like "5.005" resolved to the configured pump name)
+            String rawPump = (schedule < pumpList.length && pumpList[schedule] != null)
+                ? pumpList[schedule].toString()
+                : '';
+            String pumpName = _resolveNames(rawPump);
+            list.add(pumpName.isNotEmpty ? pumpName : '-');
+
+            // 4: Others (Valves)
+            String seqData = (schedule < seqList.length && seqList[schedule] != null)
+                ? seqList[schedule].toString()
+                : '';
+            String valveName = _resolveNames(seqData);
+            list.add(valveName.isNotEmpty ? valveName : '-');
+
             standaloneData['standaloneColumnData'].add(list);
           }
         }
@@ -210,7 +262,7 @@ class _StandaloneLogState extends State<StandaloneLog> {
         }
         selectedPages = 1;
       });
-    }catch(e,stackTrace){
+    } catch (e, stackTrace) {
       setState(() {
         httpError = 1;
       });
@@ -231,9 +283,9 @@ class _StandaloneLogState extends State<StandaloneLog> {
       case 2:
         return 140; // Start Time
       case 3:
-        return 160; // Zone Name
+        return 160; // Pump
       case 4:
-        return 180; // Device Id
+        return 180; // Others
       default:
         return 500; // Others
     }
@@ -781,25 +833,53 @@ class _StandaloneLogState extends State<StandaloneLog> {
                               final success = await generateExcelForStandAlone(standaloneData, cleanName);
 
                               if (context.mounted) {
-                                Navigator.pop(context); // dismiss progress indicator
-                                showDialog(
-                                  context: context,
-                                  builder: (resCtx) => AlertDialog(
-                                    title: Text(success ? 'Download Successful' : 'Download Failed'),
-                                    content: Text(success
-                                        ? '$cleanName.xlsx downloaded successfully to Downloads.'
-                                        : 'Failed to save $cleanName.xlsx. Please try again.'),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(resCtx),
-                                        child: const Text('OK'),
-                                      ),
-                                    ],
-                                  ),
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(success ? '$cleanName.xlsx downloaded successfully.' : 'Failed to download Excel.')),
                                 );
                               }
                             },
-                            child: const Text('Click to download'),
+                            child: const Text('Download Excel'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF006573),
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(dialogCtx);
+
+                              final fixedData = standaloneData['fixedColumnData'] as List?;
+                              if (fixedData == null || fixedData.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No standalone data available to download.')),
+                                );
+                                return;
+                              }
+
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const AlertDialog(
+                                  title: Text('Generating PDF...'),
+                                  content: SizedBox(
+                                    height: 50,
+                                    child: Center(child: CircularProgressIndicator()),
+                                  ),
+                                ),
+                              );
+
+                              final cleanName = fileName.trim().isEmpty ? 'file' : fileName.trim();
+                              final success = await generatePdfForStandAlone(standaloneData, cleanName);
+
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(success ? '$cleanName.pdf downloaded successfully.' : 'Failed to generate PDF.')),
+                                );
+                              }
+                            },
+                            child: const Text('Download PDF'),
                           ),
                         ],
                       );
@@ -816,6 +896,10 @@ class _StandaloneLogState extends State<StandaloneLog> {
 
   Future<bool> generateExcelForStandAlone(Map<String, dynamic> data, String name) async {
     return await exportStandaloneExcel(data, standaloneColumn, name);
+  }
+
+  Future<bool> generatePdfForStandAlone(Map<String, dynamic> data, String name) async {
+    return await exportStandalonePdf(data, standaloneColumn, name);
   }
 
   List<dynamic> filterDataByPages({required data}){

@@ -16,7 +16,6 @@ class EventLog {
   });
 
   factory EventLog.fromJson(String data) {
-    print("data : ${data}");
     return EventLog(
       onReason: data.split(",")[0],
       onTime: data.split(",")[1],

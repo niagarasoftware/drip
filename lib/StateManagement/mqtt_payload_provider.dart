@@ -12,7 +12,7 @@ import '../utils/enums.dart';
 
 
 class MqttPayloadProvider with ChangeNotifier {
-   final MQTTConnectionState _appConnectionState = MQTTConnectionState.disconnected;
+   MQTTConnectionState _appConnectionState = MQTTConnectionState.disconnected;
 
   dynamic spa = '';
   String dashBoardPayload = '', schedulePayload = '';
@@ -203,6 +203,12 @@ class MqttPayloadProvider with ChangeNotifier {
    bool get isClassicConnected {
      return _connectedDeviceClassic != null &&
          _connectedDeviceClassic!.connectionState == BlueConnectionState.connected;
+   }
+
+   void updateAppConnectionState(MQTTConnectionState state) {
+     if (_appConnectionState == state) return;
+     _appConnectionState = state;
+     notifyListeners();
    }
 
 
@@ -692,7 +698,7 @@ class MqttPayloadProvider with ChangeNotifier {
 
       try {
         Map<String, dynamic> data = _receivedPayload.isNotEmpty? jsonDecode(_receivedPayload) : {};
-         // debugPrint('_receivedPayload------>:$_receivedPayload');
+          debugPrint('_receivedPayload------>:$_receivedPayload');
 
         if (data.containsKey('cD') && data.containsKey('cT')) {
           liveDateAndTime = '${data['cD'] ?? "--"} ${data['cT'] ?? "--"}';
