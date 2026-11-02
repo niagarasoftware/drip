@@ -504,3 +504,380 @@ Uint8List generateZoneLogMatrixPdfBytes({
 
   return Uint8List.fromList(pdfBytes);
 }
+
+Uint8List generatePumpLogMatrixPdfBytes({
+  required List<DateTime> dateColumns,
+  required List<dynamic> rows,
+  required Map<String, int> dailyRunTotals,
+  required Map<String, int> dailyPowerOnTotals,
+  required Map<String, int> dailyPowerOffTotals,
+  required int grandTotalRunSeconds,
+  required int grandTotalPowerOnSeconds,
+  required int grandTotalPowerOffSeconds,
+  required String fileName,
+}) {
+  final List<int> pdfBytes = [];
+  final List<int> offsets = [0];
+
+  void writeString(String s) {
+    pdfBytes.addAll(utf8.encode(s));
+  }
+
+  void startObj(int id) {
+    while (offsets.length <= id) {
+      offsets.add(0);
+    }
+    offsets[id] = pdfBytes.length;
+    writeString("$id 0 obj\n");
+  }
+
+  writeString("%PDF-1.4\n%\xFF\xFF\xFF\xFF\n");
+
+  String sanitizePdfText(String txt) {
+    return txt
+        .replaceAll('\n', ' ')
+        .replaceAll('\r', '')
+        .replaceAll('\\', '\\\\')
+        .replaceAll('(', '\\(')
+        .replaceAll(')', '\\)')
+        .replaceAll(RegExp(r'[^\x20-\x7E]'), '');
+  }
+
+  String formatDur(int totalSecs) {
+    if (totalSecs <= 0) return "0h 0m";
+    int h = totalSecs ~/ 3600;
+    int m = (totalSecs % 3600) ~/ 60;
+    int s = totalSecs % 60;
+    if (s > 0) return "${h}h ${m}m ${s}s";
+    return "${h}h ${m}m";
+  }
+
+  String formatHMS(int totalSecs) {
+    int h = totalSecs ~/ 3600;
+    int m = (totalSecs % 3600) ~/ 60;
+    int s = totalSecs % 60;
+    return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
+  }
+
+  const int recordsPerPage = 10;
+  const int datesPerPage = 6;
+
+  int totalDates = dateColumns.length;
+  int dateChunks = (totalDates / datesPerPage).ceil();
+  if (dateChunks < 1) dateChunks = 1;
+
+  int totalRecords = rows.length;
+  int rowsPagesPerChunk =
+      (totalRecords == 0) ? 1 : (totalRecords / recordsPerPage).ceil();
+
+  List<Map<String, dynamic>> allPages = [];
+
+  for (int dc = 0; dc < dateChunks; dc++) {
+    int startDIdx = dc * datesPerPage;
+    int endDIdx = (startDIdx + datesPerPage < totalDates)
+        ? startDIdx + datesPerPage
+        : totalDates;
+    List<DateTime> chunkDates = dateColumns.sublist(startDIdx, endDIdx);
+
+    for (int p = 0; p < rowsPagesPerChunk; p++) {
+      int startRIdx = p * recordsPerPage;
+      int endRIdx = (startRIdx + recordsPerPage < totalRecords)
+          ? startRIdx + recordsPerPage
+          : totalRecords;
+      List<dynamic> chunkRows = rows.sublist(startRIdx, endRIdx);
+
+      allPages.add({
+        'chunkDates': chunkDates,
+        'chunkRows': chunkRows,
+        'dateChunkIdx': dc + 1,
+        'totalDateChunks': dateChunks,
+        'rowPageIdx': p + 1,
+        'totalRowPages': rowsPagesPerChunk,
+      });
+    }
+  }
+
+  if (allPages.isEmpty) {
+    allPages.add({
+      'chunkDates': <DateTime>[],
+      'chunkRows': [],
+      'dateChunkIdx': 1,
+      'totalDateChunks': 1,
+      'rowPageIdx': 1,
+      'totalRowPages': 1,
+    });
+  }
+
+  int numPages = allPages.length;
+
+  startObj(1);
+  writeString("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  startObj(2);
+  StringBuffer kidsBuf = StringBuffer();
+  for (int i = 0; i < numPages; i++) {
+    int pageObjId = 6 + i * 2;
+    kidsBuf.write("$pageObjId 0 R ");
+  }
+  writeString(
+      "<< /Type /Pages /Kids [ ${kidsBuf.toString().trim()} ] /Count $numPages >>\nendobj\n");
+
+  startObj(3);
+  writeString(
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n");
+
+  startObj(4);
+  writeString("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
+
+  startObj(5);
+  writeString("<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>\nendobj\n");
+
+  final nowStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+
+  for (int p = 0; p < numPages; p++) {
+    int pageObjId = 6 + p * 2;
+    int contentObjId = 6 + p * 2 + 1;
+
+    startObj(pageObjId);
+    writeString(
+        "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 842 595 ] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents $contentObjId 0 R >>\nendobj\n");
+
+    final pageData = allPages[p];
+    final List<DateTime> chunkDates =
+        List<DateTime>.from(pageData['chunkDates']);
+    final List<dynamic> chunkRows = List<dynamic>.from(pageData['chunkRows']);
+    final int dateChunkIdx = pageData['dateChunkIdx'];
+    final int totalDateChunks = pageData['totalDateChunks'];
+    final int rowPageIdx = pageData['rowPageIdx'];
+    final int totalRowPages = pageData['totalRowPages'];
+
+    StringBuffer streamBuf = StringBuffer();
+
+    streamBuf.write("0.00 0.40 0.45 rg\n");
+    String chunkTitle =
+        totalDateChunks > 1 ? " (Dates Part $dateChunkIdx/$totalDateChunks)" : "";
+    streamBuf.write(
+        "BT /F1 14 Tf 40 555 Td (${sanitizePdfText("$fileName$chunkTitle")}) Tj ET\n");
+    streamBuf.write("0.4 0.4 0.4 rg\n");
+    streamBuf.write(
+        "BT /F2 9 Tf 40 540 Td (${sanitizePdfText("Generated on: $nowStr  |  Page ${p + 1} of $numPages")}) Tj ET\n");
+
+    List<String> headers = ['Pump Details'];
+    for (var d in chunkDates) {
+      headers.add(DateFormat('MM/dd (E)').format(d));
+    }
+    headers.add('Total');
+
+    int numCols = headers.length;
+    double startX = 40.0;
+    double tableWidth = 762.0;
+
+    double col0Width = 142.0;
+    double otherColWidth =
+        (numCols > 1) ? (tableWidth - col0Width) / (numCols - 1) : tableWidth;
+
+    double getColX(int c) {
+      if (c == 0) return startX;
+      return startX + col0Width + ((c - 1) * otherColWidth);
+    }
+
+    // Header 1 Background
+    streamBuf.write("0.90 0.95 0.95 rg 40 508 762 20 re f\n");
+    streamBuf.write("0.70 0.80 0.80 RG 0.8 w 40 508 762 20 re S\n");
+
+    streamBuf.write("0.1 0.1 0.1 rg\n");
+    for (int c = 0; c < numCols; c++) {
+      double cx = getColX(c) + 4;
+      String hText = headers[c];
+      streamBuf
+          .write("BT /F1 8 Tf $cx 514 Td (${sanitizePdfText(hText)}) Tj ET\n");
+    }
+
+    // Subheader 2 Background
+    streamBuf.write("0.94 0.97 0.97 rg 40 492 762 16 re f\n");
+    streamBuf.write("0.75 0.82 0.82 RG 0.5 w 40 492 762 16 re S\n");
+
+    streamBuf.write("0.25 0.35 0.35 rg\n");
+    for (int c = 0; c < numCols; c++) {
+      double cx = getColX(c) + 4;
+      String subText = (c == 0) ? "Pump" : "Run / On / Off";
+      streamBuf
+          .write("BT /F1 6.5 Tf $cx 497 Td (${sanitizePdfText(subText)}) Tj ET\n");
+    }
+
+    double currentY = 492.0;
+
+    for (int r = 0; r < chunkRows.length; r++) {
+      final row = chunkRows[r];
+      String cat = row.channelCategory?.toString() ?? '';
+      String name = row.channelName?.toString() ?? '';
+
+      List<String> cell0Lines = [
+        if (cat.isNotEmpty) cat,
+        if (name.isNotEmpty) name,
+      ];
+      if (cell0Lines.isEmpty) cell0Lines = ['Pump'];
+
+      List<List<String>> rowCellLines = [cell0Lines];
+
+      for (int d = 0; d < chunkDates.length; d++) {
+        String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
+        var dayData = row.dayEntries[dKey];
+        int sec = dayData?.durationSeconds ?? 0;
+        int onSec = dayData?.powerOnSeconds ?? 0;
+        int offSec = dayData?.powerOffSeconds ?? 0;
+        bool hasAct = sec > 0 || onSec > 0 || offSec > 0;
+        bool hasRun = dayData != null && dayData.hasRun;
+
+        List<String> dLines;
+        if (hasAct || hasRun) {
+          dLines = [
+            sec > 0 ? "${formatHMS(sec)} /" : "00:00:00 /",
+            onSec > 0 ? "${formatHMS(onSec)} /" : "00:00:00 /",
+            offSec > 0 ? formatHMS(offSec) : "00:00:00",
+          ];
+        } else {
+          dLines = ['- /', '- /', '-'];
+        }
+        rowCellLines.add(dLines);
+      }
+
+      int totSec = row.totalDurationSeconds ?? 0;
+      int totOnSec = row.totalPowerOnSeconds ?? 0;
+      int totOffSec = row.totalPowerOffSeconds ?? 0;
+
+      List<String> totLines = [
+        totSec > 0 ? "${formatDur(totSec)} /" : "- /",
+        totOnSec > 0 ? "${formatDur(totOnSec)} /" : "- /",
+        totOffSec > 0 ? formatDur(totOffSec) : "-",
+      ];
+      rowCellLines.add(totLines);
+
+      double rowHeight = 32.0;
+      double drawTop = currentY - rowHeight;
+
+      if (r % 2 == 1) {
+        streamBuf.write(
+            "0.97 0.98 0.98 rg $startX $drawTop $tableWidth $rowHeight re f\n");
+      }
+      streamBuf.write(
+          "0.88 0.90 0.90 RG 0.5 w $startX $drawTop $tableWidth $rowHeight re S\n");
+
+      for (int c = 0; c < numCols; c++) {
+        double cx = getColX(c) + 4;
+        List<String> lines = rowCellLines[c];
+        if (c == 0) {
+          streamBuf.write("0.15 0.20 0.25 rg\n");
+          for (int lIdx = 0; lIdx < lines.length && lIdx < 2; lIdx++) {
+            double lineY = currentY - 12 - (lIdx * 10.0);
+            String font = (lIdx == 1) ? "/F1" : "/F2";
+            streamBuf.write(
+                "BT $font 7.5 Tf $cx $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
+          }
+        } else {
+          for (int lIdx = 0; lIdx < lines.length && lIdx < 3; lIdx++) {
+            double lineY = currentY - 10 - (lIdx * 8.5);
+            if (lines[lIdx].startsWith("-")) {
+              streamBuf.write("0.6 0.65 0.7 rg\n");
+            } else {
+              streamBuf.write("0.1 0.1 0.1 rg\n");
+            }
+            String font = (c == numCols - 1) ? "/F1" : "/F2";
+            streamBuf.write(
+                "BT $font 6.8 Tf $cx $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
+          }
+        }
+      }
+
+      currentY -= rowHeight;
+    }
+
+    // BOTTOM TOTAL SUMMARY ROW
+    if (rowPageIdx == totalRowPages) {
+      List<List<String>> footerCellLines = [
+        ['Total']
+      ];
+
+      for (int d = 0; d < chunkDates.length; d++) {
+        String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
+        int dayRun = dailyRunTotals[dKey] ?? 0;
+        int dayOn = dailyPowerOnTotals[dKey] ?? 0;
+        int dayOff = dailyPowerOffTotals[dKey] ?? 0;
+        bool hasAct = dayRun > 0 || dayOn > 0 || dayOff > 0;
+
+        List<String> dLines = [
+          dayRun > 0 ? "${formatDur(dayRun)} /" : (hasAct ? "0h 0m /" : "- /"),
+          dayOn > 0 ? "${formatDur(dayOn)} /" : (hasAct ? "0h 0m /" : "- /"),
+          dayOff > 0 ? formatDur(dayOff) : (hasAct ? "0h 0m" : "-"),
+        ];
+        footerCellLines.add(dLines);
+      }
+
+      bool hasGAct = grandTotalRunSeconds > 0 ||
+          grandTotalPowerOnSeconds > 0 ||
+          grandTotalPowerOffSeconds > 0;
+      List<String> gLines = [
+        grandTotalRunSeconds > 0
+            ? "${formatDur(grandTotalRunSeconds)} /"
+            : (hasGAct ? "0h 0m /" : "- /"),
+        grandTotalPowerOnSeconds > 0
+            ? "${formatDur(grandTotalPowerOnSeconds)} /"
+            : (hasGAct ? "0h 0m /" : "- /"),
+        grandTotalPowerOffSeconds > 0
+            ? formatDur(grandTotalPowerOffSeconds)
+            : (hasGAct ? "0h 0m" : "-"),
+      ];
+      footerCellLines.add(gLines);
+
+      double footerHeight = 34.0;
+      double drawTop = currentY - footerHeight;
+
+      streamBuf.write(
+          "0.86 0.98 0.90 rg $startX $drawTop $tableWidth $footerHeight re f\n");
+      streamBuf.write(
+          "0.70 0.88 0.78 RG 0.8 w $startX $drawTop $tableWidth $footerHeight re S\n");
+
+      for (int c = 0; c < numCols; c++) {
+        double cx = getColX(c) + 4;
+        List<String> lines = footerCellLines[c];
+        if (c == 0) {
+          streamBuf.write("0.0 0.35 0.15 rg\n");
+          double lineY = currentY - 19;
+          streamBuf.write(
+              "BT /F1 8.5 Tf $cx $lineY Td (${sanitizePdfText(lines[0])}) Tj ET\n");
+        } else {
+          for (int lIdx = 0; lIdx < lines.length && lIdx < 3; lIdx++) {
+            double lineY = currentY - 10 - (lIdx * 8.5);
+            if (lines[lIdx].startsWith("-")) {
+              streamBuf.write("0.6 0.65 0.7 rg\n");
+            } else {
+              streamBuf.write("0.1 0.1 0.1 rg\n");
+            }
+            streamBuf.write(
+                "BT /F1 6.8 Tf $cx $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
+          }
+        }
+      }
+
+      currentY -= footerHeight;
+    }
+
+    final bytes = utf8.encode(streamBuf.toString());
+    startObj(contentObjId);
+    writeString("<< /Length ${bytes.length} >>\nstream\n");
+    pdfBytes.addAll(bytes);
+    writeString("\nendstream\nendobj\n");
+  }
+
+  int xrefOffset = pdfBytes.length;
+  writeString("xref\n0 ${offsets.length}\n0000000000 65535 f \n");
+  for (int i = 1; i < offsets.length; i++) {
+    String offStr = offsets[i].toString().padLeft(10, '0');
+    writeString("$offStr 00000 n \n");
+  }
+
+  writeString(
+      "trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n$xrefOffset\n%%EOF\n");
+
+  return Uint8List.fromList(pdfBytes);
+}
