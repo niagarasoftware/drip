@@ -71,6 +71,75 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   int _selectedPumpIndex = 0;
   int _activeNodeControllerId = 0;
 
+  String get waterMeterName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.waterMeterObjectId ||
+          obj.objectId == AppConstants.analogWaterMeterObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  String get pressureSensorName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.pressureSensorObjectId ||
+          obj.objectId == AppConstants.pressureSwitchObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  String get levelSensorName {
+    for (var obj in widget.masterData.configObjects) {
+      if (obj.objectId == AppConstants.levelObjectId ||
+          obj.objectId == AppConstants.floatObjectId) {
+        if (obj.name.isNotEmpty) return obj.name;
+        if (obj.objectName.isNotEmpty) return obj.objectName;
+      }
+    }
+    return '';
+  }
+
+  bool isPressureAvailable(MotorDataHourly? motorData) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.pressureSensorObjectId ||
+        e.objectId == AppConstants.pressureSwitchObjectId);
+    final val = motorData?.pressure;
+    final hasData = val != null && val != "-" && val != "" && val != "0" && val != "0.0";
+    return hasConfig || hasData;
+  }
+
+  bool isFlowAvailable(MotorDataHourly? motorData, String totalFlow) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.waterMeterObjectId ||
+        e.objectId == AppConstants.analogWaterMeterObjectId);
+    final cumFlow = motorData?.overAllCumulativeFlow;
+    final rate = motorData?.flowRate;
+    final hasData = (cumFlow != null && cumFlow != "-" && cumFlow != "" && cumFlow != "0" && cumFlow != "0.0") ||
+        (totalFlow.isNotEmpty && totalFlow != "-" && totalFlow != "0" && totalFlow != "0.0") ||
+        (rate != null && rate != "-" && rate != "" && rate != "0" && rate != "0.0");
+    return hasConfig || hasData;
+  }
+
+  bool isLevelAvailable(MotorDataHourly? motorData) {
+    final hasConfig = widget.masterData.configObjects.any((e) =>
+        e.objectId == AppConstants.levelObjectId ||
+        e.objectId == AppConstants.floatObjectId);
+    final val = motorData?.level;
+    final hasData = val != null && val != "-" && val != "" && val != "0" && val != "0.0";
+    return hasConfig || hasData;
+  }
+
+  bool get hasPressureSensor => isPressureAvailable(null);
+  bool get hasFlowMeter => isFlowAvailable(null, "");
+  bool get hasLevelSensor => isLevelAvailable(null);
+
+
+
   // Power Graph state
   int _powerPeriodIndex = 0; // 0: Daily, 1: Weekly, 2: Monthly
   int _selectedMotorIndex = 0;
@@ -1405,6 +1474,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   // ---------------------------------------------------------------------------
   // CENTER COLUMN: Metrics Grid
   // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // CENTER COLUMN: Metrics Grid
+  // ---------------------------------------------------------------------------
   Widget _buildNewPowerGraphCenter({
     required MotorDataHourly? motorData,
     required String totalFlow,
@@ -1421,6 +1493,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final String flowVal = (totalFlow.isNotEmpty && totalFlow != '-') ? totalFlow : "0";
     final bool hasNoFlowToday = _toSeconds(motorRunTime) == 0 || flowVal == "0";
 
+    final bool pressureActive = isPressureAvailable(motorData);
+    final bool flowActive = isFlowAvailable(motorData, totalFlow);
+    final bool levelActive = isLevelAvailable(motorData);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1431,6 +1507,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 title: 'Pressure',
                 value: clean(motorData?.pressure),
                 unit: 'bar',
+                isAvailable: pressureActive,
+                inactiveHintText: 'No pressure sensor added',
+                sensorName: pressureSensorName,
               ),
             ),
             const SizedBox(width: 10),
@@ -1439,6 +1518,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 title: flow.isAverage ? 'Avg flow rate' : 'Flow rate',
                 value: flow.value,
                 unit: 'Lps',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
             const SizedBox(width: 10),
@@ -1447,6 +1529,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 title: 'Level',
                 value: clean(motorData?.level),
                 unit: 'feet',
+                isAvailable: levelActive,
+                inactiveHintText: 'No level sensor added',
+                sensorName: levelSensorName,
               ),
             ),
           ],
@@ -1460,6 +1545,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 title: 'Cumulative flow',
                 value: motorData?.overAllCumulativeFlow ?? "0",
                 unit: 'Litres',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
             const SizedBox(width: 10),
@@ -1470,6 +1558,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                     : (_powerPeriodIndex == 2 ? 'Monthly total flow ' : 'Today total flow '),
                 value: flowVal,
                 unit: 'Litres',
+                isAvailable: flowActive,
+                inactiveHintText: 'No flow meter added',
+                sensorName: waterMeterName,
               ),
             ),
           ],
@@ -1482,20 +1573,25 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required String title,
     required String value,
     required String unit,
+    bool isAvailable = true,
+    String? inactiveHintText,
+    String? sensorName,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isAvailable ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDF2F4)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: isAvailable ? const Color(0xFFEDF2F4) : const Color(0xFFE2E8F0)),
+        boxShadow: isAvailable
+            ? const [
+                BoxShadow(
+                  color: Color(0x04000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1504,32 +1600,61 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF8C98A4), fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 11,
+              color: isAvailable ? const Color(0xFF8C98A4) : const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w500,
+            ),
           ),
+          if (sensorName != null && sensorName.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              sensorName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                color: isAvailable ? const Color(0xFF006775) : const Color(0xFF94A3B8),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
+          if (isAvailable)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1E293B),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
+                const SizedBox(width: 4),
+                Text(
+                  unit,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
+              ],
+            )
+          else
+            Text(
+              inactiveHintText ?? 'Not added',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -1540,72 +1665,111 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     required String value,
     required String unit,
     String? badgeText,
+    bool isAvailable = true,
+    String? inactiveHintText,
+    String? sensorName,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isAvailable ? Colors.white : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEDF2F4)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: isAvailable ? const Color(0xFFEDF2F4) : const Color(0xFFE2E8F0)),
+        boxShadow: isAvailable
+            ? const [
+                BoxShadow(
+                  color: Color(0x04000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.water_drop_outlined, size: 14, color: Color(0xFF64748B)),
+              Icon(
+                Icons.water_drop_outlined,
+                size: 14,
+                color: isAvailable ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+              ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isAvailable ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (sensorName != null && sensorName.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        sensorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isAvailable ? const Color(0xFF006775) : const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Flexible(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1E293B),
+          if (isAvailable)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Flexible(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                unit,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
+                const SizedBox(width: 6),
+                Text(
+                  unit,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
+              ],
+            )
+          else
+            Text(
+              inactiveHintText ?? 'Not added',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF94A3B8),
               ),
-            ],
-          ),
-          if (badgeText != null) ...[
+            ),
+          if (isAvailable && badgeText != null) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
