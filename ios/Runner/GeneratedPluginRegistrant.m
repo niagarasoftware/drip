@@ -30,6 +30,12 @@
 @import easy_pdf_viewer;
 #endif
 
+#if __has_include(<file_saver/FileSaverPlugin.h>)
+#import <file_saver/FileSaverPlugin.h>
+#else
+@import file_saver;
+#endif
+
 #if __has_include(<firebase_app_check/FirebaseAppCheckPlugin.h>)
 #import <firebase_app_check/FirebaseAppCheckPlugin.h>
 #else
@@ -181,6 +187,7 @@
   [ConnectivityPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"ConnectivityPlusPlugin"]];
   [FPPDeviceInfoPlusPlugin registerWithRegistrar:[registry registrarForPlugin:@"FPPDeviceInfoPlusPlugin"]];
   [EasyPdfViewerPlugin registerWithRegistrar:[registry registrarForPlugin:@"EasyPdfViewerPlugin"]];
+  [FileSaverPlugin registerWithRegistrar:[registry registrarForPlugin:@"FileSaverPlugin"]];
   [FirebaseAppCheckPlugin registerWithRegistrar:[registry registrarForPlugin:@"FirebaseAppCheckPlugin"]];
   [FLTFirebaseAuthPlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseAuthPlugin"]];
   [FLTFirebaseCorePlugin registerWithRegistrar:[registry registrarForPlugin:@"FLTFirebaseCorePlugin"]];
