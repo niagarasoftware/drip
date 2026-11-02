@@ -78,7 +78,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(8),
-                                  color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                  color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -211,7 +211,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(8),
-                                          color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                          color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -255,7 +255,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(8),
-                                          color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                          color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -265,7 +265,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                             const Text('Outlet Valve : ', style: AppProperties.listTileBlackBoldStyle,),
                                             Expanded(
                                               child: Center(
-                                                child: Text(source.outletValves.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis),),
+                                                child: Text(source.outletValves.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis),),
                                               ),
                                             ),
                                             IconButton(
@@ -506,7 +506,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -515,7 +515,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           const SizedBox(width: 20,),
           Text('${pumpMode == 1 ? 'Inlet' : 'Outlet'} Pump : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(currentParameter.isEmpty ? '-' : currentParameter.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(currentParameter.isEmpty ? '-' : currentParameter.map((sNo) => getObjectName(sNo, widget.configPvd).name!).join(', '), style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){
@@ -573,7 +573,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -582,7 +582,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           const SizedBox(width: 20,),
           Text('${currentObjectName[mode]} : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(currentSno[mode] == 0.0 ? '-' : getObjectName(currentSno[mode]!, widget.configPvd).name!, style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(currentSno[mode] == 0.0 ? '-' : getObjectName(currentSno[mode]!, widget.configPvd).name!, style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){

@@ -66,7 +66,9 @@ class _CustomerScreenWideState
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+
           NavigationRail(
+            scrollable: true,
             selectedIndex: navRail.selectedIndex,
             labelType: NavigationRailLabelType.all,
             elevation: 5,
@@ -75,6 +77,7 @@ class _CustomerScreenWideState
             },
             destinations: NavigationDestinationsBuilder.build(context, cMaster),
           ),
+
           Expanded(
             child: Column(
               children: [

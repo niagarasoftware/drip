@@ -16,7 +16,7 @@ import '../../modules/IrrigationProgram/view/program_library.dart';
 
 class watersourceUI extends StatefulWidget {
   const watersourceUI(
-      {Key? key,
+      {super.key,
       required this.userId,
       required this.controllerId,
       required this.menuId,
@@ -71,7 +71,7 @@ class _watersourceUIState extends State<watersourceUI>
     catch (e, stackTrace) {
       mqttPayloadProvider.httpError = true;
       print(' Error overAll getData => ${e.toString()}');
-      print(' trace overAll getData  => ${stackTrace}');
+      print(' trace overAll getData  => $stackTrace');
     }
 
 
@@ -158,7 +158,7 @@ class _watersourceUIState extends State<watersourceUI>
                                     borderRadius: BorderRadius.circular(15.0),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.grey.withOpacity(0.2),
+                                        color: Colors.grey.withValues(alpha: 0.2),
                                         spreadRadius: 5,
                                         blurRadius: 7,
                                         offset: const Offset(0, 3),
@@ -173,7 +173,7 @@ class _watersourceUIState extends State<watersourceUI>
                                           setState(() {
                                             _selectedIndex = index;
                                           });
-                                          print('Tapped on ${index}');
+                                          print('Tapped on $index');
                                         },
                                         child: Container(
                                           // decoration: BoxDecoration(
@@ -307,7 +307,7 @@ class _watersourceUIState extends State<watersourceUI>
                           ),
                         ),
                         SingleChildScrollView(
-                            child: Container(
+                            child: SizedBox(
                               height: 400,
                               child: TabBarView(children: [
                               for (var i = 0; i < _watersource.data!.waterSource!.length; i++)
@@ -373,7 +373,7 @@ class _watersourceUIState extends State<watersourceUI>
           borderRadius: BorderRadius.circular(15.0),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
+              color: Colors.grey.withValues(alpha: 0.2),
               spreadRadius: 5,
               blurRadius: 7,
               offset: const Offset(0, 3),
@@ -381,7 +381,7 @@ class _watersourceUIState extends State<watersourceUI>
           ],
         ),
         child: DataTable2(
-            headingRowColor: MaterialStateProperty.all<Color>(Theme.of(context).primaryColor,
+            headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColor,
             ),
             // fixedCornerColor: myTheme.primaryColor,
             columnSpacing: 12,

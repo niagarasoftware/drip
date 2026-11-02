@@ -18,23 +18,23 @@ class CropRainfallCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "${rainfall} mm",
+            "$rainfall mm",
             style: const TextStyle(
               color: Colors.white,
               fontSize: 24,
             ),
           ),
 
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
 
-          Text(
+          const Text(
             "Rainfall: 0.2 in expected",
             style: TextStyle(color: Colors.white),
           ),
 
-          Spacer(),
+          const Spacer(),
 
-          Text(
+          const Text(
             "Light rain expected\nin the evening.",
             style: TextStyle(color: Colors.white),
           ),

@@ -13,12 +13,11 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
  // MapScreenArea widget
 class MapScreenArea extends StatefulWidget {
-  const MapScreenArea({Key? key,
+  const MapScreenArea({super.key,
     required this.userId,
     required this.customerId,
     required this.controllerId,
-    required this.imeiNo})
-      : super(key: key);
+    required this.imeiNo});
   final int userId, customerId, controllerId;
   final String imeiNo;
 
@@ -29,7 +28,7 @@ class MapScreenArea extends StatefulWidget {
 class _MapScreenAreaState extends State<MapScreenArea> {
   GoogleMapController? _mapController;
   bool _isDrawerOpen = false;
-  double _drawerWidth = 280;
+  final double _drawerWidth = 280;
   double _currentZoom = 15;
   final Set<Polygon> _polygons = {};
   final Set<Marker> _markers = {};
@@ -76,7 +75,7 @@ class _MapScreenAreaState extends State<MapScreenArea> {
     }
     catch (e, stackTrace) {
       AppLog.log(' Error overAll getData => ${e.toString()}');
-      AppLog.log(' trace overAll getData  => ${stackTrace}');
+      AppLog.log(' trace overAll getData  => $stackTrace');
     }
   }
 
@@ -185,7 +184,7 @@ class _MapScreenAreaState extends State<MapScreenArea> {
             points: valve.area,
             strokeColor: valve.status == 1 ? Colors.green : Colors.red,
             strokeWidth: 1,
-            fillColor: valve.status == 1 ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+            fillColor: valve.status == 1 ? Colors.green.withValues(alpha: 0.3) : Colors.red.withValues(alpha: 0.3),
           ));
         }
 
@@ -308,7 +307,7 @@ class _MapScreenAreaState extends State<MapScreenArea> {
 
     // 3️⃣ Final fallback (Safe default)
     return  CameraPosition(
-      target: LatLng(11.1387361, 76.9764367),
+      target: const LatLng(11.1387361, 76.9764367),
       zoom: _currentZoom,
     );
   }
@@ -469,7 +468,7 @@ class _MapScreenAreaState extends State<MapScreenArea> {
                         selectedValve?.name ==
                             valve.name,
                         selectedTileColor:
-                        Colors.blue.withOpacity(0.2),
+                        Colors.blue.withValues(alpha: 0.2),
                         title: Text(valve.name),
                         subtitle: Text(
                             "Points: ${valve.area.length}\nStatus: ${valve.status == 1 ? "ON" : "OFF"}"),

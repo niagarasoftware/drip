@@ -1,11 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/app.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/view/preference_main_screen.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/view/pump_dashboard_screen.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/widget/custom_outline_button.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/customer_fab_menu.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
@@ -14,7 +12,6 @@ import '../../../providers/user_provider.dart';
 import '../../../view_models/customer/customer_screen_controller_view_model.dart';
 import '../../../views/common/user_dashboard/widgets/valve_status_legend.dart';
 import '../../../views/customer/controller_settings/settings_menu_narrow.dart';
-import '../../../views/customer/controller_settings/wide/controller_settings_wide.dart';
 import '../../Logs/view/power_graph_screen.dart';
 import '../../Logs/view/pump_log.dart';
 import '../../Logs/view/pump_logs_home.dart';
@@ -310,12 +307,12 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
         markerMargin: const EdgeInsets.all(2),
         markerDecoration: boxDecoration,
         outsideDecoration: boxDecoration,
-        holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
-        weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
-        defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withOpacity(0.1),),
+        holidayDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
+        weekendDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
+        defaultDecoration: boxDecoration.copyWith(color: Colors.grey.withValues(alpha: 0.1),),
         selectedDecoration: boxDecoration.copyWith(color: theme.primaryColor),
         todayTextStyle: const TextStyle(color: Colors.black),
-        todayDecoration: boxDecoration.copyWith(color: theme.primaryColor.withOpacity(0.2), border: Border.all(color: theme.primaryColor)),
+        todayDecoration: boxDecoration.copyWith(color: theme.primaryColor.withValues(alpha: 0.2), border: Border.all(color: theme.primaryColor)),
       ),
       selectedDayPredicate: (day) {
         return isSameDay(provider.selectedDate, day);

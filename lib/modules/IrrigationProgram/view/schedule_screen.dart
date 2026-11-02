@@ -13,8 +13,6 @@ import '../widgets/custom_drop_down.dart';
 import '../widgets/custom_native_time_picker.dart';
 import '../widgets/custom_tile.dart';
 import '../widgets/custome_text_form_field.dart';
-import 'conditions_screen.dart';
-import 'irrigation_program_main.dart';
 const lightColor1 = Color(0xffD6EDFC);
 const darkColor1 = Color(0xff39a4fc);
 const lightColor2 = Color(0xffF9DEFB);
@@ -689,7 +687,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           context: context,
                           color: lightColor4,
                           iconColor: darkColor4,
-                          backGroundColor: darkColor2.withOpacity(0.3),
+                          backGroundColor: darkColor2.withValues(alpha: 0.3),
                           title: "Stop on end date",
                           icon: Icons.stop,
                           showIcon: !isForceToEndDate,
@@ -698,7 +696,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           additionalInfo: !isForceToEndDate ? "Not Needed" : "Needed",
                           child: Switch(
                             value: isForceToEndDate,
-                            activeColor: Colors.white,
+                            activeThumbColor: Colors.white,
                             activeTrackColor: darkColor4,
                             onChanged: (newValue) {
                               irrigationProgramProvider.updateForceToEndDate2(newValue: newValue);
@@ -1313,7 +1311,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                           onPressed: [() => addTab(functionCondition), () => deleteTab(functionCondition)][i],
                           icon: Icon([Icons.add, Icons.delete][i], color: [Colors.green, Colors.red][i],),
                           style: ButtonStyle(
-                              backgroundColor: MaterialStateProperty.all(Colors.black.withOpacity(0.05))
+                              backgroundColor: WidgetStateProperty.all(Colors.black.withValues(alpha: 0.05))
                           ),
                         )
                     ],

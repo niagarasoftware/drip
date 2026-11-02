@@ -26,7 +26,7 @@ class CustomCardTable extends StatelessWidget {
             width: double.infinity,
             height: 40,
             decoration: BoxDecoration(
-              color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+              color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(5.0),
                 topRight: Radius.circular(5.0),

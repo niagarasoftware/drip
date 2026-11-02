@@ -106,6 +106,7 @@ class MoistureSettings extends StatelessWidget {
   }
 }
 
+
 class _SwitchTile extends StatelessWidget {
   final String title;
   final bool value;

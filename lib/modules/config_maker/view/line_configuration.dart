@@ -276,7 +276,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
                                         children: [
                                           CircleAvatar(
                                             radius: 30,
-                                            backgroundColor: themeData.primaryColor.withOpacity(0.1),
+                                            backgroundColor: themeData.primaryColor.withValues(alpha: 0.1),
                                             child: Padding(
                                               padding: const EdgeInsets.all(10.0),
                                               child: Image.asset(
@@ -459,7 +459,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: themeData.primaryColor.withOpacity(0.3))
+          border: Border.all(color: themeData.primaryColor.withValues(alpha: 0.3))
       ),
       child: ResponsiveGridList(
         horizontalGridMargin: 0,
@@ -594,7 +594,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: Theme.of(context).colorScheme.onBackground,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
         child: Row(
           spacing: 10,
@@ -753,7 +753,7 @@ class _LineConfigurationState extends State<LineConfiguration> {
     );
   }
 
-  Widget oneSourceAndOneTank({required SourceModel boreOthers, required SourceModel sumpTankWell, required IrrigationLineModel selectedIrrigationLine, required List<FiltrationModel> filterSite, required List<FertilizationModel> fertilizerSite}){;
+  Widget oneSourceAndOneTank({required SourceModel boreOthers, required SourceModel sumpTankWell, required IrrigationLineModel selectedIrrigationLine, required List<FiltrationModel> filterSite, required List<FertilizationModel> fertilizerSite}){
   return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [

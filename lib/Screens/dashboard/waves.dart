@@ -37,6 +37,8 @@ class WavePainter extends CustomPainter {
 }
 
 class WaveAnimation extends StatefulWidget {
+  const WaveAnimation({super.key});
+
   @override
   _WaveAnimationState createState() => _WaveAnimationState();
 }
@@ -50,7 +52,7 @@ class _WaveAnimationState extends State<WaveAnimation>
     super.initState();
     _controller = AnimationController(
       vsync: this, // Synchronize animation with this widget
-      duration: Duration(seconds: 1), // Animation duration
+      duration: const Duration(seconds: 1), // Animation duration
     )..repeat(reverse: true); // Repeat the animation back and forth
   }
 
@@ -60,7 +62,7 @@ class _WaveAnimationState extends State<WaveAnimation>
       animation: _controller,
       builder: (context, child) {
         return CustomPaint(
-          size: Size(
+          size: const Size(
               140,
               140), // Set the size of the custom paint
           painter: WavePainter(

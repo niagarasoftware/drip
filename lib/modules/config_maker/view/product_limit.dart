@@ -1,6 +1,4 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import '../../../Constants/communication_codes.dart';
 import '../../../Constants/properties.dart';
@@ -163,7 +161,7 @@ class _ProductLimitState extends State<ProductLimit> {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withOpacity(0.2)),
+          border: Border.all(width: 1, color: Theme.of(context).primaryColorDark.withValues(alpha: 0.2)),
         ),
         child: Wrap(
           runSpacing: 10,

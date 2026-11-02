@@ -11,12 +11,12 @@ class BLEMobileScreen extends StatelessWidget {
   final  userId, controllerId;
 
   const BLEMobileScreen({
-    Key? key,
+    super.key,
     required this.deviceID,
     required this.communicationType,
     required this.userId,
     required this.controllerId,
-   }) : super(key: key);
+   });
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +45,7 @@ class BLEMobileScreen extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => FirmwareBLEPage(
+                          builder: (context) => const FirmwareBLEPage(
                            ),
                         ),
                       );

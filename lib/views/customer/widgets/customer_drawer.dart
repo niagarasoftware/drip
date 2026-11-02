@@ -10,7 +10,6 @@ import '../../../view_models/customer/customer_screen_controller_view_model.dart
 import '../../common/user_profile/user_profile.dart';
 import '../app_info.dart';
 import '../customer_product.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../help_support.dart';
 

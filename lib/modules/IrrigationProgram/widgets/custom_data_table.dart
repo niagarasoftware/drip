@@ -15,7 +15,7 @@ import 'custom_paginated_data_table.dart';
   final double columnSpacing;
 
   CustomDataTable({
-    Key? key,
+    super.key,
     this.headerText,
     required this.columns,
     required this.dataList,
@@ -30,13 +30,12 @@ import 'custom_paginated_data_table.dart';
     int index = entry.key;
     dynamic data = entry.value;
     return DataRow(
-      color: const MaterialStatePropertyAll<Color>(Colors.white),
+      color: const WidgetStatePropertyAll<Color>(Colors.white),
       cells: List.generate(columns.length, (cellIndex) {
         return cellBuilders[cellIndex](data, index);
       }),
     );
-  }).toList(),
-        super(key: key);
+  }).toList();
 
   final scrollController = ScrollController();
 
@@ -48,7 +47,7 @@ import 'custom_paginated_data_table.dart';
         controller: scrollController,
         columnSpacing: columnSpacing,
         arrowHeadColor: Theme.of(context).primaryColor,
-        headingRowColor: MaterialStatePropertyAll<Color>(Theme.of(context).primaryColor),
+        headingRowColor: WidgetStatePropertyAll<Color>(Theme.of(context).primaryColor),
         headingRowHeight: 40,
         showFirstLastButtons: rowsPerPage > rows.length ? true : false,
         dataRowMaxHeight: dataRowMaxHeight,

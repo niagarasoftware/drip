@@ -183,7 +183,7 @@ class Constant extends StatelessWidget {
                                                   ? 'Disable': 'Enable',
                                               child: Switch(
                                                 hoverColor: Theme.of(context).primaryColor,
-                                                activeColor: Theme.of(context).primaryColorLight,
+                                                activeThumbColor: Theme.of(context).primaryColorLight,
                                                 value: vm.userConstant.constant.generalMenu[index].value,
                                                 onChanged:
                                                     (value) {
@@ -362,7 +362,7 @@ class Constant extends StatelessWidget {
                                 horizontalMargin: 12,
                                 minWidth: 1020,
                                 headingRowColor:
-                                MaterialStateProperty.all(
+                                WidgetStateProperty.all(
                                     const Color(0xFFFDFDFD)),
                                 columns: const [
                                   DataColumn(
@@ -439,7 +439,7 @@ class Constant extends StatelessWidget {
                                   left: BorderSide(color: Color(0xFFDFE0E1), width: 1),
                                   right: BorderSide(color: Color(0xFFDFE0E1), width: 1),
                                 ),
-                                headingRowColor: MaterialStateProperty.all(const Color(0xFFFDFDFD)),
+                                headingRowColor: WidgetStateProperty.all(const Color(0xFFFDFDFD)),
                                 columnSpacing: 12,
                                 horizontalMargin: 12,
                                 minWidth: 1020,
@@ -453,7 +453,7 @@ class Constant extends StatelessWidget {
 
                                 rows: List.generate(  vm.userConstant.constant.irrigationLineList!.length, (index) {
                                   return DataRow(
-                                      color: MaterialStateProperty.resolveWith<Color?>(
+                                      color: WidgetStateProperty.resolveWith<Color?>(
                                             (Set<WidgetState> states) {
                                           return index.isEven ? const Color(0xFFF6F6F6) : const Color(0xFFFDFDFD) ; // Alternating row colors
                                         },
@@ -543,7 +543,7 @@ class Constant extends StatelessWidget {
                                   left: BorderSide(color: Color(0xFFDFE0E1), width: 1),
                                   right: BorderSide(color: Color(0xFFDFE0E1), width: 1),
                                 ),
-                                headingRowColor: MaterialStateProperty.all(const Color(0xFFFDFDFD)),
+                                headingRowColor: WidgetStateProperty.all(const Color(0xFFFDFDFD)),
                                 columnSpacing: 12,
                                 horizontalMargin: 12,
                                 minWidth: 1020,
@@ -554,8 +554,8 @@ class Constant extends StatelessWidget {
 
                                 rows: List.generate( vm.userConstant.constant.waterMeterList!.length, (index) {
                                   return DataRow(
-                                      color: MaterialStateProperty.resolveWith<Color?>(
-                                            (Set<MaterialState> states) {
+                                      color: WidgetStateProperty.resolveWith<Color?>(
+                                            (Set<WidgetState> states) {
                                           return index.isEven ? const Color(0xFFF6F6F6) : const Color(0xFFFDFDFD) ; // Alternating row colors
                                         },
                                       ),
@@ -670,7 +670,7 @@ class Constant extends StatelessWidget {
                                                     Container(
                                                       width: 12.29,
                                                       height: 12.29,
-                                                      decoration: BoxDecoration(
+                                                      decoration: const BoxDecoration(
                                                         color: Colors.red,
                                                         shape: BoxShape.circle,
                                                       ),
@@ -692,7 +692,7 @@ class Constant extends StatelessWidget {
                                                     .map((String value) => PopupMenuItem<String>(
                                                   value: value,
                                                   height: 30,
-                                                  child: Text(value, style: TextStyle(fontSize: 17),),
+                                                  child: Text(value, style: const TextStyle(fontSize: 17),),
                                                 )).toList();
                                               },
                                               icon: null,
@@ -784,7 +784,7 @@ class Constant extends StatelessWidget {
                                                 ? 'Disable': 'Enable',
                                             child: Switch(
                                               hoverColor: Theme.of(context).primaryColor,
-                                              activeColor: Theme.of(context).primaryColorLight,
+                                              activeThumbColor: Theme.of(context).primaryColorLight,
                                               value: vm.userConstant.constant.globalAlarm![index].value,
                                               onChanged:
                                                   (value) {

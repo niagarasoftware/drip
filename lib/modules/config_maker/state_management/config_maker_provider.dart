@@ -1,6 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/model/ec_model.dart';
 import 'package:oro_drip_irrigation/modules/config_maker/repository/config_maker_repository.dart';

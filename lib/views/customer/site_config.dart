@@ -89,7 +89,7 @@ class SiteConfig extends StatelessWidget {
                                               ...masterData.outputObjectId.split(','),
                                               ...masterData.inputObjectId.split(','),
                                             ],
-                                            "productStock" : []
+                                            "productStock" : const []
                                           },
                                         );
                                       }),

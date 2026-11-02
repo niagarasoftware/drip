@@ -39,7 +39,7 @@ class AppProperties {
       end: Alignment.bottomRight,
       colors: [
         const Color(0xff054750),
-        const Color(0xff054750).withOpacity(0.8),
+        const Color(0xff054750).withValues(alpha: 0.8),
       ]
   );
   static final linearGradientPrimaryLite = LinearGradient(
@@ -47,7 +47,7 @@ class AppProperties {
       end: Alignment.bottomRight,
       colors: [
         const Color(0xff1C7B86),
-        const Color(0xff1C7B86).withOpacity(0.8),
+        const Color(0xff1C7B86).withValues(alpha: 0.8),
       ]
   );
 
@@ -56,44 +56,44 @@ class AppProperties {
     BoxShadow(
         offset: const Offset(0,45),
         blurRadius: 112,
-        color: Colors.black.withOpacity(0.06)
+        color: Colors.black.withValues(alpha: 0.06)
     ),
     BoxShadow(
         offset: const Offset(0,22.78),
         blurRadius: 48.83,
-        color: Colors.black.withOpacity(0.04)
+        color: Colors.black.withValues(alpha: 0.04)
     ),
     BoxShadow(
         offset: const Offset(0,9),
         blurRadius: 18.2,
-        color: Colors.black.withOpacity(0.03)
+        color: Colors.black.withValues(alpha: 0.03)
     ),
     BoxShadow(
         offset: const Offset(0,1.97),
         blurRadius: 6.47,
-        color: Colors.black.withOpacity(0.02)
+        color: Colors.black.withValues(alpha: 0.02)
     ),
   ];
   static final List<BoxShadow> customBoxShadowDarkTheme = [
     BoxShadow(
         offset: const Offset(0,45),
         blurRadius: 112,
-        color: Colors.white.withOpacity(0.06)
+        color: Colors.white.withValues(alpha: 0.06)
     ),
     BoxShadow(
         offset: const Offset(0,22.78),
         blurRadius: 48.83,
-        color: Colors.white.withOpacity(0.04)
+        color: Colors.white.withValues(alpha: 0.04)
     ),
     BoxShadow(
         offset: const Offset(0,9),
         blurRadius: 18.2,
-        color: Colors.white.withOpacity(0.03)
+        color: Colors.white.withValues(alpha: 0.03)
     ),
     BoxShadow(
         offset: const Offset(0,1.97),
         blurRadius: 6.47,
-        color: Colors.white.withOpacity(0.02)
+        color: Colors.white.withValues(alpha: 0.02)
     ),
   ];
 
@@ -107,7 +107,7 @@ class AppProperties {
     end: Alignment.bottomCenter,
     colors: F.appFlavor!.name.contains('oro')
         ? [const Color(0xff1D808E), const Color(0xff044851)]
-        : [SmartCommTheme.lightTheme.primaryColor.withOpacity(0.7), SmartCommTheme.lightTheme.primaryColorDark],
+        : [SmartCommTheme.lightTheme.primaryColor.withValues(alpha: 0.7), SmartCommTheme.lightTheme.primaryColorDark],
   );
 
   static LinearGradient linearGradientLeading2 = LinearGradient(
@@ -115,7 +115,7 @@ class AppProperties {
     end: Alignment.centerRight,
     colors: F.appFlavor!.name.contains('oro')
         ? [const Color(0xff1D808E), const Color(0xff044851)]
-        : [SmartCommTheme.lightTheme.primaryColor.withOpacity(0.7), SmartCommTheme.lightTheme.primaryColorDark],
+        : [SmartCommTheme.lightTheme.primaryColor.withValues(alpha: 0.7), SmartCommTheme.lightTheme.primaryColorDark],
   );
 
   static LinearGradient redLinearGradientLeading = LinearGradient(

@@ -39,7 +39,7 @@ class ReportScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Color(0xFFE0E0E0)),
+                border: Border.all(color: const Color(0xFFE0E0E0)),
               ),
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -79,11 +79,11 @@ class ReportScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Color(0xFFDDDDDD)),
+                          border: Border.all(color: const Color(0xFFDDDDDD)),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Row(
-                          children: const [
+                        child: const Row(
+                          children: [
                             Text(
                               'Export As Pdf',
                               style: TextStyle(
@@ -198,10 +198,10 @@ class _IrrigationBarChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Y-axis labels
-          Column(
+          const Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: const [
+            children: [
               Text('15h',
                   style: TextStyle(fontSize: 11, color: Colors.black38)),
               Text('10h',
@@ -309,7 +309,7 @@ class _InfoCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
-              ),
+              )
             ],
           ),
           const SizedBox(height: 8),

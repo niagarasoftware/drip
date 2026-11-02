@@ -1,7 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 class PushNotificationService {
-  FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
 
   Future initialize() async {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {

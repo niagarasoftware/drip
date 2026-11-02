@@ -231,8 +231,8 @@ class _CalibrationState extends State<Calibration> {
                           if (kDebugMode) {
                             print('sumOfAscii : $sumOfAscii');
                             print('crc : ${sumOfAscii % 256}');
-                            print('fullData : ${fullData}');
-                            print('payload : ${payload}');
+                            print('fullData : $fullData');
+                            print('payload : $payload');
                           }
 
                           bleService.sendDataToHw(fullData);
@@ -342,8 +342,8 @@ class _CalibrationState extends State<Calibration> {
                           if (kDebugMode) {
                             print('sumOfAscii : $sumOfAscii');
                             print('crc : ${sumOfAscii % 256}');
-                            print('fullData : ${fullData}');
-                            print('payload : ${payload}');
+                            print('fullData : $fullData');
+                            print('payload : $payload');
                           }
 
                           bleService.sendDataToHw(fullData);
@@ -423,7 +423,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ec1FactorController : bleService.ec2FactorController,
                             decoration: InputDecoration(
@@ -432,20 +432,20 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Container(
                       height: 50,
                       width: 50,
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Colors.black12,
                             blurRadius: 4,
@@ -454,7 +454,7 @@ class _CalibrationState extends State<Calibration> {
                         ],
                       ),
                       child: IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
                         onPressed: (){
                           bleService.onRefresh();
                           setState(() {
@@ -480,7 +480,7 @@ class _CalibrationState extends State<Calibration> {
                         },
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,7 +493,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ec1Controller : bleService.ec2Controller,
                             decoration: InputDecoration(
@@ -503,7 +503,7 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
@@ -526,7 +526,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ec1_FactorController : bleService.ec2_FactorController,
                             decoration: InputDecoration(
@@ -535,20 +535,20 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Container(
                       height: 50,
                       width: 50,
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Colors.black12,
                             blurRadius: 4,
@@ -557,7 +557,7 @@ class _CalibrationState extends State<Calibration> {
                         ],
                       ),
                       child: IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
                         onPressed: (){
                           bleService.onRefresh();
                           setState(() {
@@ -584,7 +584,7 @@ class _CalibrationState extends State<Calibration> {
                         },
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -597,7 +597,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ec1_Controller : bleService.ec2_Controller,
                             decoration: InputDecoration(
@@ -607,7 +607,7 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
@@ -631,7 +631,7 @@ class _CalibrationState extends State<Calibration> {
                                 color: Colors.grey[700],
                               ),
                             ),
-                            SizedBox(height: 6),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: sensorCount == 0 ? bleService.ec1__FactorController : bleService.ec2__FactorController,
                               decoration: InputDecoration(
@@ -640,20 +640,20 @@ class _CalibrationState extends State<Calibration> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 contentPadding:
-                                EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Container(
                         height: 50,
                         width: 50,
                         decoration: BoxDecoration(
                           color: Colors.blue,
                           borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
+                          boxShadow: const [
                             BoxShadow(
                               color: Colors.black12,
                               blurRadius: 4,
@@ -662,7 +662,7 @@ class _CalibrationState extends State<Calibration> {
                           ],
                         ),
                         child: IconButton(
-                          icon: Icon(Icons.refresh, color: Colors.white),
+                          icon: const Icon(Icons.refresh, color: Colors.white),
                           onPressed: (){
                             bleService.onRefresh();
                             setState(() {
@@ -689,7 +689,7 @@ class _CalibrationState extends State<Calibration> {
                           },
                         ),
                       ),
-                      SizedBox(width: 12),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -702,7 +702,7 @@ class _CalibrationState extends State<Calibration> {
                                 color: Colors.grey[700],
                               ),
                             ),
-                            SizedBox(height: 6),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: sensorCount == 0 ? bleService.ec1__Controller : bleService.ec2__Controller,
                               decoration: InputDecoration(
@@ -712,7 +712,7 @@ class _CalibrationState extends State<Calibration> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 contentPadding:
-                                EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                               ),
                             ),
                           ],
@@ -761,8 +761,8 @@ class _CalibrationState extends State<Calibration> {
                         if (kDebugMode) {
                           print('sumOfAscii : $sumOfAscii');
                           print('crc : ${sumOfAscii % 256}');
-                          print('fullData : ${fullData}');
-                          print('payload : ${payload}');
+                          print('fullData : $fullData');
+                          print('payload : $payload');
                         }
                         bleService.sendDataToHw(fullData);
                         loadingDialog('Ec calibration setting sent successfully...');
@@ -845,7 +845,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ph1FactorController : bleService.ph2FactorController,
                             decoration: InputDecoration(
@@ -854,20 +854,20 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Container(
                       height: 50,
                       width: 50,
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Colors.black12,
                             blurRadius: 4,
@@ -876,7 +876,7 @@ class _CalibrationState extends State<Calibration> {
                         ],
                       ),
                       child: IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
                         onPressed: (){
                           bleService.onRefresh();
                           setState(() {
@@ -902,7 +902,7 @@ class _CalibrationState extends State<Calibration> {
                         },
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -915,7 +915,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ph1Controller : bleService.ph2Controller,
                             decoration: InputDecoration(
@@ -925,7 +925,7 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
@@ -948,7 +948,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ph1_FactorController : bleService.ph2_FactorController,
                             decoration: InputDecoration(
@@ -957,20 +957,20 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Container(
                       height: 50,
                       width: 50,
                       decoration: BoxDecoration(
                         color: Colors.blue,
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Colors.black12,
                             blurRadius: 4,
@@ -979,7 +979,7 @@ class _CalibrationState extends State<Calibration> {
                         ],
                       ),
                       child: IconButton(
-                        icon: Icon(Icons.refresh, color: Colors.white),
+                        icon: const Icon(Icons.refresh, color: Colors.white),
                         onPressed: (){
                           bleService.onRefresh();
                           setState(() {
@@ -1006,7 +1006,7 @@ class _CalibrationState extends State<Calibration> {
                         },
                       ),
                     ),
-                    SizedBox(width: 12),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1019,7 +1019,7 @@ class _CalibrationState extends State<Calibration> {
                               color: Colors.grey[700],
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           TextFormField(
                             controller: sensorCount == 0 ? bleService.ph1_Controller : bleService.ph2_Controller,
                             decoration: InputDecoration(
@@ -1029,7 +1029,7 @@ class _CalibrationState extends State<Calibration> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                              const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                             ),
                           ),
                         ],
@@ -1077,8 +1077,8 @@ class _CalibrationState extends State<Calibration> {
                         if (kDebugMode) {
                           print('sumOfAscii : $sumOfAscii');
                           print('crc : ${sumOfAscii % 256}');
-                          print('fullData : ${fullData}');
-                          print('payload : ${payload}');
+                          print('fullData : $fullData');
+                          print('payload : $payload');
                         }
                         bleService.sendDataToHw(fullData);
                         loadingDialog('Ph Calibration Setting Send Successfully..');

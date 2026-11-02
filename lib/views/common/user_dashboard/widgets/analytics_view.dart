@@ -117,3 +117,4 @@ class AnalyticsView extends StatelessWidget {
     );
   }
 }
+

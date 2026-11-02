@@ -580,7 +580,7 @@ class _FilterModeSelectionWidgetState extends State<FilterModeSelectionWidget> {
         showDialog(context: context, builder: (context){
           return StatefulBuilder(builder: (context,stateSetter){
             return AlertDialog(
-              title: Text('Select Filter Type'),
+              title: const Text('Select Filter Type'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

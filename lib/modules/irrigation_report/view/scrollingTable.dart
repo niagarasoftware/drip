@@ -65,6 +65,7 @@ class ScrollingTable extends StatefulWidget {
   final List<String> groupOptions;
   final ValueChanged<String>? onGroupChanged;
 
+
   ScrollingTable({
     super.key,
     required this.fixedColumn,

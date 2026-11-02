@@ -3,7 +3,6 @@ import 'package:oro_drip_irrigation/views/customer/controller_settings/wide/noti
 
 import '../../../../Screens/Dealer/controllerlogfile.dart';
 import '../../../../Screens/Dealer/dealer_definition.dart';
-import '../../../../Screens/Map/allAreaBoundry.dart';
 import '../../../../Screens/Map/oro_map/map_oro.dart';
 import '../../../../Screens/Map/oro_map/map_areator.dart';
 import '../../../../Screens/planning/PumpCondition.dart';

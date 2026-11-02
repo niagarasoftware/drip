@@ -59,7 +59,7 @@ class _ConfigMobileViewState extends State<ConfigMobileView>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: themeData.primaryColorDark.withOpacity(themeMode ? 1.0 : 0.2),
+        backgroundColor: themeData.primaryColorDark.withValues(alpha: themeMode ? 1.0 : 0.2),
         title: const Text("Config Maker"),
         bottom: TabBar(
           tabAlignment: TabAlignment.start,

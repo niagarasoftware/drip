@@ -80,34 +80,51 @@ class ProgramTableHelper {
       final isBypass = buttonName.contains('Bypass');
 
       return DataRow(cells: [
-        DataCell(Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(program.programName),
-            if(!isNova)...[
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: program.programStatusPercentage / 100.0,
-                      color: Colors.blue.shade300,
-                      backgroundColor: Colors.grey.shade200,
-                      minHeight: 2.5,
-                    ),
+        DataCell(
+          SizedBox(
+            height: 40,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  program.programName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (!isNova) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: LinearProgressIndicator(
+                          value: program.programStatusPercentage / 100.0,
+                          color: Colors.blue.shade300,
+                          backgroundColor: Colors.grey.shade200,
+                          minHeight: 2.5,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        '${program.programStatusPercentage}%',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black45,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 7),
-                  Text('${program.programStatusPercentage}%', style: const TextStyle(fontSize: 12, color: Colors.black45)),
                 ],
-              ),
-            ],
-          ],
-        )),
+              ],
+            ),
+          ),
+        ),
         DataCell(Text(program.selectedSchedule, style: const TextStyle(fontSize: 11))),
-        DataCell(Row(
+        DataCell(
+            Row(
           children: [
             Expanded(
               child: Column(
+
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -206,7 +223,7 @@ class ProgramTableHelper {
                             categoryId: categoryId,
                             modelId: modelId,
                             deviceName: deviceId,
-                            categoryName: '', nodeList: [],
+                            categoryName: '', nodeList: const [],
                           ),
                         ),
                       );

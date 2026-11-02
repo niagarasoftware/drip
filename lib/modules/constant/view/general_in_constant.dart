@@ -55,8 +55,8 @@ class _GeneralInConstantState extends State<GeneralInConstant> {
                           boxShadow: [
                             BoxShadow(
                                 color: hoveredSno.value == generalSetting.sNo
-                                    ? Theme.of(context).primaryColorLight.withOpacity(0.8)
-                                    : const Color(0xff000040).withOpacity(0.25),
+                                    ? Theme.of(context).primaryColorLight.withValues(alpha: 0.8)
+                                    : const Color(0xff000040).withValues(alpha: 0.25),
                                 blurRadius: 4,
                                 offset: const Offset(0, 4)
                             )
@@ -80,7 +80,7 @@ class _GeneralInConstantState extends State<GeneralInConstant> {
                                       });
                                       Navigator.pop(context);
                                     },
-                                    popUpItemModelList: [],
+                                    popUpItemModelList: const [],
                                   );
                                 }
                             )

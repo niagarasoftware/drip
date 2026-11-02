@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
@@ -6,8 +5,6 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import '../model/cropadvisory_model.dart';
 import 'package:intl/intl.dart';
 import 'crop_list_screen.dart';
-import 'irrigation_fertigation_screen.dart';
-import 'crop_weatherScreen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String? temperature;
@@ -36,7 +33,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late CropAdvisoryModel _model;
-  int _selectedIndex = 0;
+  final int _selectedIndex = 0;
 
   @override
   void initState() {

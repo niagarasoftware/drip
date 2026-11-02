@@ -231,13 +231,13 @@ class TimeOfDayIcon extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: RadialGradient(
           colors: [
-            glow.withOpacity(0.25),
+            glow.withValues(alpha: 0.25),
             glow,
           ],
         ),
         boxShadow: [
           BoxShadow(
-            color: glow.withOpacity(0.6),
+            color: glow.withValues(alpha: 0.6),
             blurRadius: 25,
             spreadRadius: 6,
           ),

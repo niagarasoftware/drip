@@ -3,15 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:oro_drip_irrigation/modules/open_ai/widget/chat_bubble.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:oro_drip_irrigation/services/ai_service.dart';
 import 'package:oro_drip_irrigation/services/image_verification_service.dart';
-import '../../../cropAdvisory/view/CropDetailsScreen.dart';
 import '../../../cropAdvisory/view/crop_list_screen.dart';
-import '../../../cropAdvisory/view/getUserInformationScreen.dart';
 import '../model/chat_model.dart';
 import '../model/message_model.dart';
 
@@ -27,7 +23,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   List<Message> _messages = [];
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-  bool _isListening = false;
+  final bool _isListening = false;
   File? _selectedImage;
   String? _imageSource;
   List<Chat> _chatHistory = [];
@@ -685,7 +681,7 @@ class ChatInputField extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.3),
+            color: Colors.grey.withValues(alpha: 0.3),
             spreadRadius: 1,
             blurRadius: 5,
             offset: const Offset(0, 2),
@@ -715,10 +711,10 @@ class ChatInputField extends StatelessWidget {
                         (context as Element)
                             .findAncestorStateOfType<_AIChatScreenState>()
                             ?.setState(() {
-                          (context as Element)
+                          (context)
                               .findAncestorStateOfType<_AIChatScreenState>()
                               ?._selectedImage = null;
-                          (context as Element)
+                          (context)
                               .findAncestorStateOfType<_AIChatScreenState>()
                               ?._imageSource = null;
                         });
@@ -857,7 +853,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withValues(alpha: 0.2),
                       spreadRadius: 1,
                       blurRadius: 3,
                       offset: const Offset(0, 2),
@@ -896,7 +892,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                         )
                             :
 
-                        Text(''),),
+                        const Text(''),),
                     if (widget.message.source != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),

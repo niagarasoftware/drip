@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/constants.dart';
 import 'package:oro_drip_irrigation/modules/IrrigationProgram/repository/irrigation_program_repo.dart';
@@ -62,19 +61,13 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
   List<DeviceObjectModel>? _mainValves;
   List<FertilizerSourceTank>? _tank ;
 
-  List<dynamic> _rawWaterSource = [];
-  List<dynamic> get rawWaterSource => _rawWaterSource;
-
-  List<dynamic> _rawFertilizerChannel = [];
-  List<dynamic> get rawFertilizerChannel => _rawFertilizerChannel;
-
   List<DeviceObjectModel>? get agitators => _agitators;
   List<DeviceObjectModel>? get aerators => _aerators;
   List<DeviceObjectModel>? get mainValves => _mainValves;
   List<FertilizerSourceTank>? get tank => _tank ;
 
   List<DeviceObjectModel>? _selectedObjects;
-  List<Map<String, dynamic>> _selectedControllers = [];
+  final List<Map<String, dynamic>> _selectedControllers = [];
   List<DeviceObjectModel>? get selectedObjects=> _selectedObjects;
   List<Map<String, dynamic>> get selectedControllers=> _selectedControllers;
   List<Map<String, dynamic>> irrigationLineFromConfigMaker = [];
@@ -152,13 +145,8 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         _waterSource = (processedData['waterSource'] as List).map((element) => ProgramWaterSource.fromJson(element as Map<String, dynamic>)).toList();
         _pump = (processedData['pump'] as List).map((element) => ProgramPump.fromJson(element as Map<String, dynamic>)).toList();
         _moistureSensor = (processedData['moistureSensor'] as List).map((element) => ProgramMoistureSensor.fromJson(element as Map<String, dynamic>)).toList();
-
-        final configMakerData = configMakerJson['data']?['configMaker'] ?? configMakerJson['data'] ?? {};
-        _rawWaterSource = configMakerData['waterSource'] ?? [];
-        _rawFertilizerChannel = configMakerData['fertilizerChannel'] ?? [];
-
         final List<dynamic> rawFertilizerChannels =
-            _rawFertilizerChannel;
+            configMakerJson['data']['fertilizerChannel'] ?? [];
 
         final Set<String> tankSNos = {};
 
@@ -231,16 +219,13 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         }).then((value) {
           if(irrigationLine!.sequence.isEmpty) {
             addNewSequence(serialNumber: serialNumber, zoneSno: 1);
-          } else {
-            updateSequenceSerialNumber(serialNumber, modelId: modelId);
           }
         });
         if(AppConstants.ecoGemAndPlusModelList.contains(modelId)) {
           for(int i = 0; i < _irrigationLine!.sequence.length; i++) {
             _irrigationLine!.sequence[i]['sNo'] = '${i+1}';
           }
-        } else {
-          updateSequenceSerialNumber(serialNumber, modelId: modelId);
+          // print("Serial number :: ${_irrigationLine!.sequence.map((e) => e['sNo'])}");
         }
       } else {
         log("HTTP Request failed or received an unexpected response.");
@@ -252,45 +237,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       rethrow;
     }
     // notifyListeners();
-  }
-
-  void updateSequenceSerialNumber(int serialNumber, {int? modelId}) {
-    if (_irrigationLine == null || _irrigationLine!.sequence.isEmpty) return;
-
-    final effectiveSno = serialNumber == 0 ? serialNumberCreation : serialNumber;
-    if (effectiveSno <= 0) return;
-
-    final isEcoGem = modelId != null && AppConstants.ecoGemAndPlusModelList.contains(modelId);
-
-    for (var i = 0; i < _irrigationLine!.sequence.length; i++) {
-      final zoneSno = i + 1;
-      final currentName = _irrigationLine!.sequence[i]['name']?.toString() ?? '';
-
-      if (currentName.isEmpty ||
-          currentName.contains('Sequence 0.') ||
-          currentName.contains('Sequence') ||
-          RegExp(r'^Sequence \d+\.\d+$').hasMatch(currentName)) {
-        _irrigationLine!.sequence[i]['name'] = 'Sequence $effectiveSno.$zoneSno';
-      }
-
-      if (isEcoGem) {
-        _irrigationLine!.sequence[i]['sNo'] = '$zoneSno';
-      } else {
-        _irrigationLine!.sequence[i]['sNo'] = '$effectiveSno.$zoneSno';
-      }
-
-      _irrigationLine!.sequence[i]['id'] = 'SEQ$effectiveSno.$zoneSno';
-
-      if (i < sequenceData.length && sequenceData[i] is Map) {
-        final seqName = sequenceData[i]['seqName']?.toString() ?? '';
-        if (seqName.isEmpty ||
-            seqName.contains('Sequence 0.') ||
-            seqName.contains('Sequence') ||
-            RegExp(r'^Sequence \d+\.\d+$').hasMatch(seqName)) {
-          sequenceData[i]['seqName'] = 'Sequence $effectiveSno.$zoneSno';
-        }
-      }
-    }
   }
 
   //TODO:New SEQUENCE SCREEN PROVIDER
@@ -401,13 +347,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
   int currentIndex = 0;
   void assigningCurrentIndex(newIndex) {
     currentIndex = newIndex;
-    if (sequenceData.isNotEmpty && newIndex >= 0 && newIndex < sequenceData.length) {
-      selectedGroup = newIndex;
-      waterQuantity.text = sequenceData[selectedGroup]['quantityValue'] ?? '';
-      preValue.text = sequenceData[selectedGroup]['preValue'] ?? '';
-      postValue.text = sequenceData[selectedGroup]['postValue'] ?? '';
-      refreshTime();
-    }
     notifyListeners();
   }
 
@@ -903,7 +842,14 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
   TextEditingController ph = TextEditingController();
   TextEditingController channel = TextEditingController();
   TextEditingController injectorValue = TextEditingController();
-  final Map<int, TextEditingController> _injectorControllers = {};
+  TextEditingController injectorValue_0 = TextEditingController();
+  TextEditingController injectorValue_1 = TextEditingController();
+  TextEditingController injectorValue_2 = TextEditingController();
+  TextEditingController injectorValue_3 = TextEditingController();
+  TextEditingController injectorValue_4 = TextEditingController();
+  TextEditingController injectorValue_5 = TextEditingController();
+  TextEditingController injectorValue_6 = TextEditingController();
+  TextEditingController injectorValue_7 = TextEditingController();
   ScrollController scrollControllerGroup = ScrollController();
   ScrollController scrollControllerSite = ScrollController();
   ScrollController scrollControllerInjector = ScrollController();
@@ -980,60 +926,31 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<Map<String, dynamic>> getOutletValveForChannel(dynamic channelSNo) {
-    final double? targetChannelSNo = (channelSNo is num)
-        ? channelSNo.toDouble()
-        : double.tryParse(channelSNo.toString());
-
-    dynamic matchedChannel;
-    for (var ch in _rawFertilizerChannel) {
-      final chSNo = (ch['sNo'] is num) ? (ch['sNo'] as num).toDouble() : double.tryParse(ch['sNo']?.toString() ?? '');
-      if (chSNo == targetChannelSNo) {
-        matchedChannel = ch;
-        break;
-      }
-    }
-
-    Set<double> allowedValveSNos = {};
-    if (matchedChannel != null) {
-      var rawValves = matchedChannel['outletTankValve'] ?? matchedChannel['tankValve'];
-      if (rawValves is List && rawValves.isNotEmpty) {
-        for (var v in rawValves) {
-          if (v != null) {
-            final double? parsedSNo = (v is num) ? v.toDouble() : double.tryParse(v.toString());
-            if (parsedSNo != null) {
-              allowedValveSNos.add(parsedSNo);
-            }
-          }
-        }
-      }
-    }
-
-    List<Map<String, dynamic>> result = [];
-
-    // 1. Filter configObjects by allowed outlet tank valve sNos
-    if (allowedValveSNos.isNotEmpty) {
-      for (var obj in configObjects) {
-        final double? objSNo = (obj['sNo'] is num) ? (obj['sNo'] as num).toDouble() : double.tryParse(obj['sNo']?.toString() ?? '');
-        if (objSNo != null && allowedValveSNos.contains(objSNo)) {
-          result.add({
-            'sNo': objSNo,
-            'name': obj['name'] ?? 'Outlet Tank Valve',
-          });
-        }
-      }
-      if (result.isNotEmpty) {
-        return result;
-      }
-    }
-    return result;
-  }
-
   TextEditingController getInjectorController(int index){
-    if (!_injectorControllers.containsKey(index)) {
-      _injectorControllers[index] = TextEditingController();
+    if(index == 0){
+      return injectorValue_0;
     }
-    return _injectorControllers[index]!;
+    else if(index == 1){
+      return injectorValue_1;
+    }
+    else if(index == 2){
+      return injectorValue_2;
+    }
+    else if(index == 3){
+      return injectorValue_3;
+    }
+    else if(index == 4){
+      return injectorValue_4;
+    }
+    else if(index == 5){
+      return injectorValue_5;
+    }
+    else if(index == 6){
+      return injectorValue_6;
+    }
+    else{
+      return injectorValue_7;
+    }
   }
 
   void editSegmentedCentralLocal(int value){
@@ -1102,15 +1019,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         final responseJsonOfRecipe = getRecipe.body;
         final convertedJsonOfRecipe = jsonDecode(responseJsonOfRecipe);
         recipe = convertedJsonOfRecipe['data']['fertilizerSet'];
-        for (var r in recipe) {
-          if (r['channel'] != null) {
-            for (var ch in r['channel']) {
-              if (ch['method'] == 'Pro.qty per 1000L') {
-                ch['method'] = 'Pro.quant per 1000L';
-              }
-            }
-          }
-        }
       }else {
         log("HTTP Request failed for recipe.");
         throw Exception("Failed to load recipe data");
@@ -1131,14 +1039,12 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     bool applyFertilizerForLocal = false;
     String moistureCondition = '-';
     dynamic moistureSno = 0;
-    bool applyMoisture = false;
     if(newSequence == false){
       prePostMethod = sequence[0]['prePostMethod'];
       preValue = sequence[0]['preValue'];
       postValue = sequence[0]['postValue'];
-      moistureCondition = sequence[0]['moistureCondition'] ?? '-';
-      moistureSno = sequence[0]['moistureSno'] ?? 0;
-      applyMoisture = sequence[0]['applyMoisture'] ?? false;
+      moistureCondition = sequence[0]['moistureCondition'];
+      moistureSno = sequence[0]['moistureSno'];
     }
     var centralDuplicate = [];
     for(var i in central){
@@ -1237,7 +1143,7 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
             String method = 'Time';
             String timeValue = '00:00:00';
             String quantityValue = '';
-            double? outletTankValve;
+            String tank = 'Select Tank';
             bool onOff = false;
             if(newSequence == false){
               if(sequence[0]['centralDosing'].isNotEmpty){
@@ -1247,9 +1153,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
                     timeValue = oldFert['timeValue'];
                     quantityValue = oldFert['quantityValue'];
                     onOff = oldFert['onOff'];
-                    if (oldFert['outletTankValve'] != null && oldFert['outletTankValve'] is double) {
-                      outletTankValve = oldFert['outletTankValve'];
-                    }
                     break;
                   }
                 }
@@ -1260,7 +1163,7 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
             fert['timeValue'] = timeValue;
             fert['quantityValue'] = quantityValue;
             fert['onOff'] = onOff;
-            fert['outletTankValve'] = outletTankValve;
+            fert['tank'] = tank;
             fertilizer.add(fert);
           }
 
@@ -1324,7 +1227,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
             String method = 'Time';
             String timeValue = '00:00:00';
             String quantityValue = '';
-            double? outletTankValve;
             bool onOff = false;
             if(newSequence == false){
               if(sequence[0]['localDosing'].isNotEmpty){
@@ -1334,9 +1236,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
                     timeValue = oldFert['timeValue'];
                     quantityValue = oldFert['quantityValue'];
                     onOff = oldFert['onOff'];
-                    if (oldFert['outletTankValve'] != null && oldFert['outletTankValve'] is double) {
-                      outletTankValve = oldFert['outletTankValve'];
-                    }
                     break;
                   }
                 }
@@ -1347,7 +1246,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
             fert['timeValue'] = timeValue;
             fert['quantityValue'] = quantityValue;
             fert['onOff'] = onOff;
-            fert['outletTankValve'] = outletTankValve;
             fertilizer.add(fert);
           }
           if(ld['ecSensor'].length != 0){
@@ -1399,7 +1297,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       'seqName' : sequence[0]['seqName'],
       'moistureCondition' : moistureCondition,
       'moistureSno' : moistureSno,
-      'applyMoisture' : applyMoisture,
       'levelCondition' : '-',
       'levelSno' : 0,
       'prePostMethod' : prePostMethod,
@@ -1560,14 +1457,7 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     sequenceData = generateNew;
     updateEcPhAlarmsFromSequences();
     if(sequenceData.isNotEmpty){
-      if (currentIndex >= 0 && currentIndex < sequenceData.length) {
-        selectedGroup = currentIndex;
-      } else if (selectedGroup >= 0 && selectedGroup < sequenceData.length) {
-        currentIndex = selectedGroup;
-      } else {
-        selectedGroup = 0;
-        currentIndex = 0;
-      }
+      selectedGroup = 0;
       waterValueInTime = sequenceData[selectedGroup]['timeValue'];
       // print('waterValueInTime : ${waterValueInTime}');
       waterQuantity.text = sequenceData[selectedGroup]['quantityValue'] ?? '';
@@ -1615,14 +1505,9 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     }
   }
 
-  String zeroWithUnderScore(int total){
-    return List.generate(total, (index) => '0').join('_');
-  }
-
   dynamic hwPayloadForWF(serialNumber, programType){
     var wf = '';
     var payload = '';
-    int channelLimit = 20;
     editGroupSiteInjector('selectedGroup', 0);
     for(var sq in sequenceData){
       editGroupSiteInjector('selectedGroup', sequenceData.indexOf(sq));
@@ -1634,8 +1519,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       for(var vl in sq['mainValve']){
         mvId += '${mvId.isNotEmpty ? '_' : ''}${vl['sNo']}';
       }
-
-      // final joined strings (used in the payload)
       var centralMethod = '';
       var centralTimeAndQuantity = '';
       var centralFertOnOff = '';
@@ -1652,105 +1535,75 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       var localEcValue = '';
       var localPhActive = 0;
       var localPhValue = '';
-      var centralTankValve = '';
-      var localTankValve = '';
+      var centralEC = '';
+      var centralPH = '';
+      var localEC = '';
+      var localPH = '';
+      var centralFertTank = '0';
+      var localFertTank = '0';
 
-      // lists collected inside the loops, joined after the loops
-      List<String> centralMethodList = [];
-      List<String> centralTimeAndQuantityList = [];
-      List<String> centralFertOnOffList = [];
-      List<String> centralFertSnoList = [];
-      List<String> centralTankValveList = [];
-
-      List<String> localMethodList = [];
-      List<String> localTimeAndQuantityList = [];
-      List<String> localFertOnOffList = [];
-      List<String> localFertIdList = [];
-      List<String> localTankValveList = [];
-
-      // ---------------- CENTRAL ----------------
       if(!isSiteVisible(sq['centralDosing'],'central') || sq[segmentedControlCentralLocal == 0 ? 'applyFertilizerForCentral' : 'applyFertilizerForLocal'] == false || sq['centralDosing'].isEmpty || sq['selectedCentralSite'] == -1){
-        centralMethod = zeroWithUnderScore(channelLimit);
-        centralTimeAndQuantity = zeroWithUnderScore(channelLimit);
-        centralFertOnOff = zeroWithUnderScore(channelLimit);
-        centralTankValve = zeroWithUnderScore(channelLimit);
+        centralMethod = '0_0_0_0_0_0_0_0';
+        centralTimeAndQuantity += '0_0_0_0_0_0_0_0';
+        centralFertOnOff += '0_0_0_0_0_0_0_0';
         centralEcActive = 0;
         centralEcValue = '';
         centralPhActive = 0;
         centralPhValue = '';
       }else{
-        var site = sq['centralDosing'][sq['selectedCentralSite']];
-
-        for(var ft in site['fertilizer']){
-          centralMethodList.add('${fertMethodHw(ft['method'])}');
-          centralFertOnOffList.add('${ft['onOff'] == true ? 1 : 0}');
-          centralFertSnoList.add('${ft['sNo']}');
-          centralTankValveList.add(ft['outletTankValve'] == null ? '' : ft['outletTankValve'].toString());
-          centralTimeAndQuantityList.add('${ft['method'].contains('ime') ? ft['timeValue'] : ft['quantityValue']}');
+        var fertList = [];
+        for(var ft in sq['centralDosing'][sq['selectedCentralSite']]['fertilizer']){
+          centralMethod += '${centralMethod.isNotEmpty ? '_' : ''}${fertMethodHw(ft['method'])}';
+          centralFertOnOff += '${centralFertOnOff.isNotEmpty ? '_' : ''}${ft['onOff'] == true ? 1 : 0}';
+          centralFertSno += '${centralFertSno.isNotEmpty ? '_' : ''}${ft['sNo']}';
+          centralTimeAndQuantity += '${centralTimeAndQuantity.isNotEmpty ? '_' : ''}${ft['method'].contains('ime') ? ft['timeValue'] : ft['quantityValue']}';
+          centralEcActive = sq['centralDosing'][sq['selectedCentralSite']]['needEcValue'] == null ? 0 : sq['centralDosing'][sq['selectedCentralSite']]['needEcValue'] == true ? 1 : 0;
+          centralEcValue = '${sq['centralDosing'][sq['selectedCentralSite']]['ecValue'] ?? 0}';
+          centralPhActive = sq['centralDosing'][sq['selectedCentralSite']]['needPhValue'] == null ? 0 : sq['centralDosing'][sq['selectedCentralSite']]['needPhValue'] == true ? 1 : 0;
+          centralPhValue = '${sq['centralDosing'][sq['selectedCentralSite']]['phValue'] ?? 0}';
+          fertList.add(fertMethodHw(ft['method']));
+          if (centralFertTank == 0 && ft['source'] is List && ft['source'].isNotEmpty) {
+            centralFertTank = ft['source'][0];
+          }
         }
 
-        // EC / PH do not depend on the fertilizer, so set them once
-        centralEcActive = site['needEcValue'] == true ? 1 : 0;
-        centralEcValue = '${site['ecValue'] ?? 0}';
-        centralPhActive = site['needPhValue'] == true ? 1 : 0;
-        centralPhValue = '${site['phValue'] ?? 0}';
-
-        // pad with zeros up to channelLimit
-        for(var i = centralMethodList.length; i < channelLimit; i++){
-          centralMethodList.add('0');
-          centralTimeAndQuantityList.add('0');
-          centralFertOnOffList.add('0');
-          centralTankValveList.add('');
+        for(var coma = fertList.length;coma < 8;coma++){
+          centralMethod += '${centralMethod.isNotEmpty ? '_' : ''}0';
+          centralTimeAndQuantity += '${centralTimeAndQuantity.isNotEmpty ? '_' : ''}0';
+          centralFertOnOff += '${centralFertOnOff.isNotEmpty ? '_' : ''}0';
         }
-
-        // join after the loop
-        centralMethod = centralMethodList.join('_');
-        centralFertOnOff = centralFertOnOffList.join('_');
-        centralFertSno = centralFertSnoList.join('_');
-        centralTankValve = centralTankValveList.join('_');
-        centralTimeAndQuantity = centralTimeAndQuantityList.join('_');
       }
 
-      // ---------------- LOCAL ----------------
       if(!isSiteVisible(sq['localDosing'],'local') || sq[segmentedControlCentralLocal == 0 ? 'applyFertilizerForCentral' : 'applyFertilizerForLocal'] == false || sq['localDosing'].isEmpty || sq['selectedLocalSite'] == -1){
-        localMethod = zeroWithUnderScore(channelLimit);
-        localTimeAndQuantity = zeroWithUnderScore(channelLimit);
-        localFertOnOff = zeroWithUnderScore(channelLimit);
-        localTankValve = zeroWithUnderScore(channelLimit);
+        localMethod = '0_0_0_0_0_0_0_0';
+        localTimeAndQuantity += '0_0_0_0_0_0_0_0';
+        localFertOnOff += '0_0_0_0_0_0_0_0';
         localEcActive = 0;
         localEcValue = '';
         localPhActive = 0;
         localPhValue = '';
       }else{
-        var site = sq['localDosing'][sq['selectedLocalSite']];
-
-        for(var ft in site['fertilizer']){
-          localMethodList.add(fertMethodHw(ft['method']));
-          localFertOnOffList.add('${ft['onOff'] == true ? 1 : 0}');
-          localFertIdList.add('${ft['sNo']}');
-          localTankValveList.add(ft['outletTankValve'] == null ? '' : ft['outletTankValve'].toString());
-          localTimeAndQuantityList.add('${ft['method'].contains('ime') ? ft['timeValue'] : ft['quantityValue']}');
+        var fertList = [];
+        for(var ft in sq['localDosing'][sq['selectedLocalSite']]['fertilizer']){
+          localMethod += '${localMethod.isNotEmpty ? '_' : ''}${fertMethodHw(ft['method'])}';
+          localFertOnOff += '${localFertOnOff.isNotEmpty ? '_' : ''}${ft['onOff'] == true ? 1 : 0}';
+          localFertId += '${localFertId.isNotEmpty ? '_' : ''}${ft['sNo']}';
+          localTimeAndQuantity += '${localTimeAndQuantity.isNotEmpty ? '_' : ''}${ft['method'].contains('ime') ? ft['timeValue'] : ft['quantityValue']}';
+          localEcActive = sq['localDosing'][sq['selectedLocalSite']]['needEcValue'] == null ? 0 : sq['localDosing'][sq['selectedLocalSite']]['needEcValue'] == true ? 1 : 0;
+          localEcValue = '${sq['localDosing'][sq['selectedLocalSite']]['ecValue'] ?? 0}';
+          localPhActive = sq['localDosing'][sq['selectedLocalSite']]['needPhValue'] == null ? 0 : sq['localDosing'][sq['selectedLocalSite']]['needPhValue'] == true ? 1 : 0;
+          localPhValue = '${sq['localDosing'][sq['selectedLocalSite']]['phValue'] ?? 0}';
+          fertList.add(fertMethodHw(ft['method']));
+          if (localFertTank == 0 && ft['source'] is List && ft['source'].isNotEmpty) {
+            localFertTank = ft['source'][0];
+          }
         }
-
-        localEcActive = site['needEcValue'] == true ? 1 : 0;
-        localEcValue = '${site['ecValue'] ?? 0}';
-        localPhActive = site['needPhValue'] == true ? 1 : 0;
-        localPhValue = '${site['phValue'] ?? 0}';
-
-        for(var i = localMethodList.length; i < channelLimit; i++){
-          localMethodList.add('0');
-          localTimeAndQuantityList.add('0');
-          localFertOnOffList.add('0');
-          localTankValveList.add('');
+        for(var coma = fertList.length;coma < 8;coma++){
+          localMethod += '${localMethod.isNotEmpty ? '_' : ''}0';
+          localTimeAndQuantity += '${localTimeAndQuantity.isNotEmpty ? '_' : ''}0';
+          localFertOnOff += '${localFertOnOff.isNotEmpty ? '_' : ''}0';
         }
-
-        localMethod = localMethodList.join('_');
-        localFertOnOff = localFertOnOffList.join('_');
-        localFertId = localFertIdList.join('_');
-        localTankValve = localTankValveList.join('_');
-        localTimeAndQuantity = localTimeAndQuantityList.join('_');
       }
-
       payload += payload.isNotEmpty ? ';' : '';
       print("sq['mainValve'] : ${sq['mainValve']}");
       Map<String, dynamic> jsonPayload = {
@@ -1786,14 +1639,14 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         'ZoneCondition' : sq['moistureSno'],
         'ImmediateStopByCondition' : sq['levelSno'],
         'Name' : sq['seqName'],
-        'CentralFertTank' : centralTankValve,
-        'LocalFertTank' : localTankValve,
+        'CentralFertTank' : centralFertTank,
+        'LocalFertTank' : localFertTank,
       };
+      print('jsonPayload :: $jsonPayload');
       payload += jsonPayload.values.toList().join(',');
     }
     return payload;
   }
-
 
   dynamic ecoGemPayloadForWF(serialNumber){
     var wf = '';
@@ -2086,7 +1939,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       case ('selectedGroup'):{
         // print('waterValueInTime : $waterValueInTime, waterValueInQuantity : $waterValueInQuantity');
         selectedGroup = value;
-        currentIndex = value;
         waterQuantity.text = sequenceData[selectedGroup]['quantityValue'] ?? '';
         preValue.text = sequenceData[selectedGroup]['preValue'];
         postValue.text = sequenceData[selectedGroup]['postValue'];
@@ -2122,29 +1974,19 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       }
       case ('selectedInjector'):{
         selectedInjector = value;
-        var dosingList = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'];
-        int siteIndex = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'selectedCentralSite' : 'selectedLocalSite'];
-        if (siteIndex < 0 || siteIndex >= dosingList.length) siteIndex = 0;
-        if (dosingList.isNotEmpty && siteIndex < dosingList.length) {
-          for(var index = 0;index < dosingList[siteIndex]['fertilizer'].length;index++){
-            getInjectorController(index).text = dosingList[siteIndex]['fertilizer'][index]['quantityValue'].toString() ?? '';
-          }
+        for(var index = 0;index < sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'].length;index++){
+          getInjectorController(index).text = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['quantityValue'].toString() ?? '';
         }
+
         break;
       }
       case ('selectedRecipe') : {
         try{
-          var dosingList = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'];
-          int siteIndex = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'selectedCentralSite' : 'selectedLocalSite'];
-          if (siteIndex < 0 || siteIndex >= dosingList.length) siteIndex = 0;
-          if (dosingList.isNotEmpty && siteIndex < dosingList.length) {
-            dosingList[siteIndex]['recipe'] = value;
-          }
+          sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'selectedCentralSite' : 'selectedLocalSite']]['recipe'] = value;
           if(value != -1){
             int selectedIndex = value;
             var apply = true;
-            for(var channelIndex = 0; channelIndex < recipe[selectedIndex]['channel'].length; channelIndex++){
-              var channel = recipe[selectedIndex]['channel'][channelIndex];
+            for(var channel in recipe[selectedIndex]['channel']){
               if(channel['method'].contains('ime')){
                 int water = parseTimeString(formatTime(waterValueInSec()));
                 int pre = parseTimeString(formatTime(preValueInSec()));
@@ -2159,38 +2001,34 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
                 }
               }else{
                 var diff = waterValueInSec() - preValueInSec() - postValueInSec();
-                selectedInjector = channelIndex;
-                var flowRate = getFlowRate(channelIndex);
-                if(flowRate > 0 && ((channel['quantityValue'] != '' ? int.parse(channel['quantityValue']) : 0)/flowRate > diff)){
+                selectedInjector = value;
+                var flowRate = getFlowRate(selectedIndex);
+                if((channel['quantityValue'] != '' ? int.parse(channel['quantityValue']) : 0)/flowRate > diff){
                   apply = false;
                   return {'message' : '${recipe[selectedIndex]['recipeName']} setting is not match with your current setting'};
                 }
               }
             }
-            if(apply == true && dosingList.isNotEmpty && siteIndex < dosingList.length){
+            if(apply == true){
               if(recipe[selectedIndex]['ecActive'] != null && recipe[selectedIndex]['ecValue'] != null){
                 debugPrint("sequenceData => $sequenceData");
-                dosingList[siteIndex]['needEcValue'] = true;
-                dosingList[siteIndex]['ecValue'] = recipe[selectedIndex]['ecValue'];
+                // sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['needEcValue'] = recipe[selectedIndex]['ecActive'];
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['needEcValue'] = true;
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['ecValue'] = recipe[selectedIndex]['ecValue'];
                 ec.text = recipe[selectedIndex]['ecValue'];
               }
               if(recipe[selectedIndex]['phActive'] != null && recipe[selectedIndex]['phValue'] != null){
-                dosingList[siteIndex]['needPhValue'] = true;
-                dosingList[siteIndex]['phValue'] = recipe[selectedIndex]['phValue'];
+                // sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['needPhValue'] = recipe[selectedIndex]['phActive'];
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['needPhValue'] = true;
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['phValue'] = recipe[selectedIndex]['phValue'];
                 ph.text = recipe[selectedIndex]['phValue'];
               }
-              for(var channel = 0; channel < recipe[selectedIndex]['channel'].length; channel++){
-                if (channel < dosingList[siteIndex]['fertilizer'].length) {
-                  dosingList[siteIndex]['fertilizer'][channel]['onOff'] = recipe[selectedIndex]['channel'][channel]['active'] == 1;
-                  String channelMethod = recipe[selectedIndex]['channel'][channel]['method'];
-                  if (channelMethod == 'Pro.qty per 1000L') {
-                    channelMethod = 'Pro.quant per 1000L';
-                  }
-                  dosingList[siteIndex]['fertilizer'][channel]['method'] = channelMethod;
-                  dosingList[siteIndex]['fertilizer'][channel]['timeValue'] = recipe[selectedIndex]['channel'][channel]['timeValue'];
-                  dosingList[siteIndex]['fertilizer'][channel]['quantityValue'] = recipe[selectedIndex]['channel'][channel]['quantityValue'];
-                  getInjectorController(channel).text = dosingList[siteIndex]['fertilizer'][channel]['quantityValue'].toString() ?? '';
-                }
+              for(var channel = 0;channel < recipe[selectedIndex]['channel'].length;channel++){
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][channel]['onOff'] = recipe[selectedIndex]['channel'][channel]['active'] == 1;
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][channel]['method'] = recipe[selectedIndex]['channel'][channel]['method'];
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][channel]['timeValue'] = recipe[selectedIndex]['channel'][channel]['timeValue'];
+                sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][channel]['quantityValue'] = recipe[selectedIndex]['channel'][channel]['quantityValue'];
+                getInjectorController(channel).text = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][channel]['quantityValue'].toString() ?? '';
               }
             }
           }
@@ -2211,14 +2049,10 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
       }
       break;
       case ('applyMoisture') : {
-        if (value is bool) {
-          sequenceData[selectedGroup]['applyMoisture'] = value;
-        } else if (value is Map) {
-          sequenceData[selectedGroup]['moistureCondition'] = value['name'];
-          sequenceData[selectedGroup]['moistureSno'] = value['sNo'];
-        }
-        break;
+        sequenceData[selectedGroup]['moistureCondition'] = value['name'];
+        sequenceData[selectedGroup]['moistureSno'] = value['sNo'];
       }
+      break;
       case ('applyLevel') : {
         sequenceData[selectedGroup]['levelCondition'] = value['name'];
         sequenceData[selectedGroup]['levelSno'] = value['sNo'];
@@ -2648,25 +2482,12 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
 
   double getFlowRate(int index){
     var nominalFlowRate = 0;
-    try{
-      var dosingList = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'];
-      int siteIndex = sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'selectedCentralSite' : 'selectedLocalSite'];
-      if (siteIndex < 0 || siteIndex >= dosingList.length) siteIndex = 0;
-      if (dosingList.isNotEmpty && siteIndex < dosingList.length) {
-        var fertList = dosingList[siteIndex]['fertilizer'];
-        if (index >= 0 && index < fertList.length) {
-          var targetFert = fertList[index];
-          for(var channelInConstant in constantSetting['fertilizerChannel']){
-            if(channelInConstant['sNo'] == targetFert['sNo']){
-              print("channelInConstant => $channelInConstant");
-              var channelFlowRate = channelInConstant['setting'][0]['value'].toString();
-              nominalFlowRate = channelFlowRate == '' ? 0 : int.parse(channelFlowRate);
-            }
-          }
-        }
+    for(var channelInConstant in constantSetting['fertilizerChannel']){
+      if(channelInConstant['sNo'] == sequenceData[selectedGroup][segmentedControlCentralLocal == 0 ? 'centralDosing' : 'localDosing'][0]['fertilizer'][index]['sNo']){
+        print("channelInConstant => $channelInConstant");
+        var channelFlowRate = channelInConstant['setting'][0]['value'].toString();
+        nominalFlowRate = channelFlowRate == '' ? 0 : int.parse(channelFlowRate);
       }
-    }catch(e){
-      print("getFlowRate error => $e");
     }
     print("nominalFlowRate => $nominalFlowRate");
     return nominalFlowRate * 0.0002778;
@@ -2674,14 +2495,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
 
   dynamic editParticularChannelDetails(String title,String centralOrLocal,dynamic value,int index){
     switch(title){
-      case ('outletTankValve') : {
-        double? outletTankValveSno;
-        if (value != null) {
-          outletTankValveSno = (value is num) ? value.toDouble() : double.tryParse(value.toString());
-        }
-        sequenceData[selectedGroup][centralOrLocal][centralOrLocal == 'centralDosing' ? selectedCentralSite : selectedLocalSite]['fertilizer'][index]['outletTankValve'] = outletTankValveSno;
-        break;
-      }
       case ('method') : {
         sequenceData[selectedGroup][centralOrLocal][centralOrLocal == 'centralDosing' ? selectedCentralSite : selectedLocalSite]['fertilizer'][index ?? selectedInjector]['method'] = value;
         break;
@@ -2693,15 +2506,15 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         var literForOneSeconds = waterFlowRate/3600;
         var fertilizerGapInLiters = literForOneSeconds * diff;
         var userInput = value != '' ? double.parse(value) : 0;
-        var howMany1000In_fertilizerGapInLiters = fertilizerGapInLiters/1000;
-        var injectorPer1000L = howMany1000In_fertilizerGapInLiters * userInput;
+        var howmany1000inFertilizergapinliters = fertilizerGapInLiters/1000;
+        var injectorPer1000L = howmany1000inFertilizergapinliters * userInput;
         var flowRate = getFlowRate(index);
         var maxFertilizerLimitInLiters = diff * flowRate;
-        print('howMany1000In_fertilizerGapInLiters => $howMany1000In_fertilizerGapInLiters  fertilizerGapInLiters => $fertilizerGapInLiters injectorPer1000L => $injectorPer1000L  maxFertilizerLimitInLiters => $maxFertilizerLimitInLiters');
+        print('howMany1000In_fertilizerGapInLiters => $howmany1000inFertilizergapinliters  fertilizerGapInLiters => $fertilizerGapInLiters injectorPer1000L => $injectorPer1000L  maxFertilizerLimitInLiters => $maxFertilizerLimitInLiters');
         if(editingSelectedFertilizer['method'] == 'Pro.quant per 1000L'){
           if(injectorPer1000L > maxFertilizerLimitInLiters){
             editingSelectedFertilizer['quantityValue'] = ((maxFertilizerLimitInLiters /
-                howMany1000In_fertilizerGapInLiters) - 0.1)
+                howmany1000inFertilizergapinliters) - 0.1)
                 .toStringAsFixed(1); // 0.2 for ensure always fertilizer is less than water
             getInjectorController(index).text = editingSelectedFertilizer['quantityValue'].toString();
             return {'message' : 'fertilizer value limit up to ${getInjectorController(index).text}'};
@@ -2730,7 +2543,7 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
   String giveNameForSequence(dynamic data){
     var name = '';
     for(var i in data['selected']){
-      name += '${name.length != 0 ? '&' : ''}$i';
+      name += '${name.isNotEmpty ? '&' : ''}$i';
     }
     return name;
   }
@@ -3001,7 +2814,6 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         selectedProgramType = _programDetails!.programType == '' ? selectedProgramType : _programDetails!.programType;
         defaultProgramName = (_programDetails!.defaultProgramName == '' || _programDetails!.defaultProgramName.isEmpty) ?  "Program $programCount" : _programDetails!.defaultProgramName;
         isCompletionEnabled = _programDetails!.completionOption;
-        updateSequenceSerialNumber(serialNumber);
         Future.delayed(Duration.zero, () {
           notifyListeners();
         });
@@ -3183,64 +2995,61 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
     bool? conditionLibrary,
   }) {
     print("conditionLibrary :: $conditionLibrary");
+    List<String> labels = [];
+    List<IconData> icons = [];
 
-    final currentProgramType = sno == 0
-        ? selectedProgramType
-        : (programType ?? selectedProgramType);
-
-    final irrigationProgram = currentProgramType == "Irrigation Program";
-    final isOtherProgram = currentProgramType == "Other Programs" ||
-        currentProgramType == "Other Program" ||
-        currentProgramType == "Other" ||
-        currentProgramType.toLowerCase().contains("other");
-
-    List<String> baseLabels = [
-      'Sequence',
-      'Schedule',
-      'Conditions',
-      'Selection',
-      irrigationProgram ? 'Water & Fert' : 'Settings',
-      'Alarm',
-      'Additional',
-      'Preview',
-    ];
-
-    List<IconData> baseIcons = [
-      Icons.view_headline_rounded,
-      Icons.calendar_month,
-      Icons.fact_check,
-      Icons.checklist,
-      irrigationProgram ? Icons.local_florist_rounded : Icons.settings,
-      Icons.alarm_rounded,
-      Icons.done_rounded,
-      Icons.preview,
-    ];
-
-    final showConditions = conditionLibrary ?? false;
-
-    List<String> excludedLabels = [];
-    List<IconData> excludedIcons = [];
+    final irrigationProgram = sno == 0
+        ? selectedProgramType == "Irrigation Program"
+        : programType == "Irrigation Program";
 
     if (irrigationProgram) {
-      if (!showConditions) {
-        excludedLabels.add("Conditions");
-        excludedIcons.add(Icons.fact_check);
-      }
-    } else {
-      if (!showConditions) {
-        excludedLabels.add("Conditions");
-        excludedIcons.add(Icons.fact_check);
-      }
-      if (!isOtherProgram) {
-        excludedLabels.add("Selection");
-        excludedIcons.add(Icons.checklist);
-      }
-      excludedLabels.add("Preview");
-      excludedIcons.add(Icons.preview);
-    }
+      // --- Irrigation Program ---
+      commonLabels = commonLabels
+          .map((label) => label == "Settings" ? "Water & Fert" : label)
+          .toList();
+      commonIcons = commonIcons
+          .map((icon) =>
+      icon == Icons.settings ? Icons.local_florist_rounded : icon)
+          .toList();
 
-    final labels = baseLabels.where((e) => !excludedLabels.contains(e)).toList();
-    final icons = baseIcons.where((e) => !excludedIcons.contains(e)).toList();
+      final showConditions = conditionLibrary ?? false;
+      labels = showConditions
+          ? commonLabels
+          : commonLabels.where((e) => e != "Conditions").toList();
+      icons = showConditions
+          ? commonIcons
+          : commonIcons.where((e) => e != Icons.fact_check).toList();
+    } else {
+      // --- Non-Irrigation Program ---
+      commonLabels = commonLabels
+          .map((label) => label == "Water & Fert" ? "Settings" : label)
+          .toList();
+      commonIcons = commonIcons
+          .map((icon) =>
+      icon == Icons.local_florist_rounded ? Icons.settings : icon)
+          .toList();
+
+      final showConditions = conditionLibrary ?? false;
+
+      if (showConditions) {
+        labels = commonLabels
+            .where((e) => !["Selection", "Preview"].contains(e))
+            .toList();
+        icons = commonIcons
+            .where((e) => ![Icons.checklist, Icons.preview].contains(e))
+            .toList();
+      } else {
+        labels = commonLabels
+            .where(
+                (e) => !["Conditions", "Selection", "Preview"].contains(e))
+            .toList();
+        icons = commonIcons
+            .where((e) =>
+        ![Icons.fact_check, Icons.checklist, Icons.preview]
+            .contains(e))
+            .toList();
+      }
+    }
 
     return Tuple(labels, icons);
   }

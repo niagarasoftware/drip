@@ -4,8 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:http_parser/http_parser.dart';
-import 'package:oro_drip_irrigation/repository/repository.dart';
-import 'package:oro_drip_irrigation/services/http_service.dart';
 import '../../utils/constants.dart';
 import '../model/cropadvisory_model.dart';
 import 'package:http/http.dart' as http;
@@ -14,7 +12,6 @@ import '../widgets/ContinueButton.dart';
 import '../widgets/ProgressWidget.dart';
 import '../widgets/SectionCard.dart';
 import 'crop_advisory_main_screen.dart';
-import 'dashboard_screen.dart';
 
 class FieldInformationScreen extends StatefulWidget {
   const FieldInformationScreen({super.key, required this.cropId,required this.edit, required this.userId, required this.controllerId});
@@ -113,7 +110,7 @@ class _FieldInformationScreenState extends State<FieldInformationScreen> {
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
@@ -159,7 +156,7 @@ class _FieldInformationScreenState extends State<FieldInformationScreen> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xff0E8797).withOpacity(0.1)
+                ? const Color(0xff0E8797).withValues(alpha: 0.1)
                 : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -193,7 +190,7 @@ class _FieldInformationScreenState extends State<FieldInformationScreen> {
         width: 100,
         height: 120,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xff0E8797).withOpacity(0.1) : Colors.white,
+          color: isSelected ? const Color(0xff0E8797).withValues(alpha: 0.1) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: isSelected ? const Color(0xff0E8797) : Colors.grey.shade300, width: isSelected ? 2 : 1),
         ),
@@ -427,7 +424,7 @@ class _FieldInformationScreenState extends State<FieldInformationScreen> {
                       print("data:$data");
                       print("responseBody:$responseBody");
                       print("Status Code : ${response.statusCode}");
-                      print("Status Code : ${response}");
+                      print("Status Code : $response");
 
                       if (response.statusCode == 200) {
                         Navigator.push(

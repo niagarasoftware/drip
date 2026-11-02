@@ -11,7 +11,7 @@ class LoginTablet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<LoginViewModel>(context);
-    final isOro = F.appFlavor!.name.contains('oro');
+    final isOro = F.appFlavor?.name.contains('oro') ?? false;
     final isATel = F.appFlavor!.name.contains('agritel');
     return Scaffold(
       body: SafeArea(

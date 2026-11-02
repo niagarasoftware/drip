@@ -26,9 +26,9 @@ class DataEntry {
                     ValueListenableBuilder(
                       valueListenable: isHex,
                       builder: (context, value, _) => SegmentedButton(
-                        segments: [
-                          ButtonSegment(value: false, label: const Text('String')),
-                          ButtonSegment(value: true, label: const Text('Hex')),
+                        segments: const [
+                          ButtonSegment(value: false, label: Text('String')),
+                          ButtonSegment(value: true, label: Text('Hex')),
                         ],
                         selected: {value},
                         multiSelectionEnabled: false,

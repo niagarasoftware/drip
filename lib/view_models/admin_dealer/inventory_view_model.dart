@@ -373,7 +373,7 @@ class InventoryViewModel extends SafeChangeNotifier {
                             children: [
                               selectedOption=='Option 1'?SizedBox(
                                 child: DropdownButtonFormField<StockModel>(
-                                  value: selectedStock,
+                                  initialValue: selectedStock,
                                   hint: const Text("Select your stock"),
                                   decoration: InputDecoration(
                                     contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 5),
@@ -431,7 +431,7 @@ class InventoryViewModel extends SafeChangeNotifier {
                             ),
                           )
                               : const SizedBox(),
-                          SizedBox(height: 16,),
+                          const SizedBox(height: 16,),
                           const Text('TO'),
                           const Divider(),
                           Text('Category : $catName'),

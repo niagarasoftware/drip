@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../Constants/properties.dart';
 
 class ColorLegend extends StatelessWidget {
   final Color color;

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 // ignore: must_be_immutable
 class CountryPicker extends StatefulWidget {
-  CountryPicker({required this.callBackFunction, required this.headerText, required this.headerBackgroundColor, required this.headerTextColor});
+  CountryPicker({super.key, required this.callBackFunction, required this.headerText, required this.headerBackgroundColor, required this.headerTextColor});
 
   final Function callBackFunction;
   final String headerText;
@@ -38,9 +38,6 @@ class _CountryPickerState extends State<CountryPicker> {
 
   // parse json data into model
   List<CountryModel> parseJson(String response) {
-    if (response == null) {
-      return [];
-    }
     final parsed = json.decode(response.toString()).cast<Map<String, dynamic>>();
     return parsed.map<CountryModel>((json) => CountryModel.fromJson(json as Map<String, dynamic>)).toList() as List<CountryModel>;
   }
@@ -96,7 +93,7 @@ class _CountryPickerState extends State<CountryPicker> {
 
 class CustomDialog extends StatefulWidget {
   const CustomDialog(
-      {required this.searchList,
+      {super.key, required this.searchList,
       required this.callBackFunction,
       this.headerText,
       this.headerBackgroundColor,

@@ -16,14 +16,14 @@ class PasswordProtectedSiteConfig extends StatefulWidget {
   final String groupName;
 
   const PasswordProtectedSiteConfig({
-    Key? key,
+    super.key,
     required this.userId,
     required this.customerId,
     required this.customerName,
     required this.allMaster,
     required this.groupId,
     required this.groupName,
-  }) : super(key: key);
+  });
 
   @override
   State<PasswordProtectedSiteConfig> createState() =>

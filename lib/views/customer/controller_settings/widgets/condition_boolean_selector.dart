@@ -13,7 +13,7 @@ class ConditionBooleanSelector extends StatelessWidget {
     return Container(
       width: 100,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor.withOpacity(0.05),
+        color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(3),
         border: Border.all(width: 0.5, color: Colors.grey.shade400),
       ),

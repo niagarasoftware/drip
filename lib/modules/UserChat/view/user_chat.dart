@@ -65,7 +65,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           }
         });
       }
-    } catch (error, stackTrace) {
+    } catch (error) {
       // print("Error in the user chat: $error");
       // print("Stack trace in user chat: $stackTrace");
     }
@@ -86,11 +86,11 @@ class _UserChatScreenState extends State<UserChatScreen> {
           final response = jsonDecode(getUserChat.body);
           if (response['code'] == 200) {
             messages = response['data'];
-            messages.forEach((element) {
+            for (var element in messages) {
               if(((isDealer ? dealerId : widget.userId) == element['toUserId']) && element['readStatus'] == "0") {
                 chatIds.add(element['chatId']);
               }
-            });
+            }
             // print("getUserChat");
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
@@ -101,7 +101,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           }
         });
       }
-    } catch (error, stackTrace) {
+    } catch (error) {
       // print("Error in the user chat: $error");
       // print("Stack trace in user chat: $stackTrace");
     }
@@ -125,7 +125,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           }
         });
       }
-    } catch (error, stackTrace) {
+    } catch (error) {
       // print("Error in the user chat: $error");
       // print("Stack trace in user chat: $stackTrace");
     }
@@ -153,7 +153,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           errorMessage = jsonDecode(createUserChat.body)['message'];
         }
       });
-    } catch (error, stackTrace) {
+    } catch (error) {
       // print("Error in the user chat: $error");
       // print("Stack trace in user chat: $stackTrace");
     }

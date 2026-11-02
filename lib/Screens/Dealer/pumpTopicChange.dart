@@ -207,7 +207,7 @@ class _PumpTopicChangePageState extends State<PumpTopicChangePage> {
      String Sendalldatatopic =
          "${trailRemoveSlash(config!['MQTT_FRONTEND_TOPIC'])},${trailRemoveSlash(config['MQTT_SERVER_TOPIC'])},${trailRemoveSlash(config['MQTT_HARDWARE_TOPIC'])}";
 
-      String Sendalldataip = "${config!['MQTT_USER_NAME']},${config['MQTT_PASSWORD']},${formatIp(config['MQTT_IP'])}";
+      String Sendalldataip = "${config['MQTT_USER_NAME']},${config['MQTT_PASSWORD']},${formatIp(config['MQTT_IP'])}";
 
       AppLog.log('Sendalldataip:   $Sendalldataip');
 
@@ -343,7 +343,7 @@ class _PumpTopicChangePageState extends State<PumpTopicChangePage> {
               children: [
                 const SizedBox(height: 12),
                 DropdownButtonFormField<Map<String, dynamic>>(
-                  value: selectedConfig,
+                  initialValue: selectedConfig,
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: "Select Project",
@@ -486,7 +486,7 @@ class _PumpTopicChangePageState extends State<PumpTopicChangePage> {
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    Spacer(),
+                    const Spacer(),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                           foregroundColor: Colors.white),
@@ -495,7 +495,7 @@ class _PumpTopicChangePageState extends State<PumpTopicChangePage> {
                         },
                       child: const Text("View Settings"),
                     ),
-                    Spacer(),
+                    const Spacer(),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
@@ -505,7 +505,7 @@ class _PumpTopicChangePageState extends State<PumpTopicChangePage> {
                         },
                       child: const Text("Reset"),
                     ),
-                    Spacer(),
+                    const Spacer(),
                   ],
                 ),
                 const SizedBox(height: 10),

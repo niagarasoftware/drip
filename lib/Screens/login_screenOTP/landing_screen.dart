@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
- import 'package:shared_preferences/shared_preferences.dart';
 
  import '../../repository/repository.dart';
 import '../../services/http_service.dart';
@@ -28,10 +27,6 @@ class _LandingScreenState extends State<LandingScreen> with TickerProviderStateM
     checkAuthentication();
   }
 
-  @override
-  void dispose(){
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +104,7 @@ class _LandingScreenState extends State<LandingScreen> with TickerProviderStateM
 
       // If no userId saved → go to login immediately
       if (userId == null || userId == 0) {
-        _navigateTo( LoginScreenOTP());
+        _navigateTo( const LoginScreenOTP());
         return;
       }
 

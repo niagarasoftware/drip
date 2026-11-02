@@ -134,7 +134,7 @@ class _SetSerialScreenState extends State<SetSerialScreen> {
               horizontalMargin: 12,
               minWidth: 400,
               headingRowHeight: 35.0,
-              headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColorDark.withOpacity(0.3)),
+              headingRowColor: WidgetStateProperty.all<Color>(Theme.of(context).primaryColorDark.withValues(alpha: 0.3)),
               columns: const [
                 DataColumn2(
                     label: Center(child: Text('S.No', style: TextStyle(fontWeight: FontWeight.normal, fontSize: 13, color: Colors.black),)),

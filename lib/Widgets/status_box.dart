@@ -15,7 +15,7 @@ class _StatusBoxState extends State<StatusBox> {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-          color: widget.color.withOpacity(0.1),
+          color: widget.color.withValues(alpha: 0.1),
           border: Border.all(color: widget.color),
           borderRadius: BorderRadius.circular(5)
       ),

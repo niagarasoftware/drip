@@ -41,7 +41,7 @@ class CustomSegmentedControl extends StatelessWidget {
       groupValue: groupValue,
       onValueChanged: onChanged,
       thumbColor: Colors.white,
-      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+      backgroundColor: Theme.of(context).primaryColor.withValues(alpha: 0.1),
     );
   }
 }

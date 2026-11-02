@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Constants/properties.dart';
-import 'package:oro_drip_irrigation/modules/Logs/view/pump_log_dashboard.dart';
+import 'package:oro_drip_irrigation/modules/Logs/view/pump_log.dart';
 import 'package:oro_drip_irrigation/modules/Logs/view/voltage_log.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import '../../../models/customer/site_model.dart';
@@ -17,7 +17,7 @@ class PumpList extends StatefulWidget {
   final int userId;
   final Map<String, dynamic> userData;
   final MasterControllerModel masterData;
-  const PumpList({super.key, required this.pumpList,required this.userData, required this.userId, required this.masterData, required int controllerId});
+  const PumpList({super.key, required this.pumpList,required this.userData, required this.userId, required this.masterData});
 
   @override
   State<PumpList> createState() => _PumpListState();
@@ -30,19 +30,8 @@ class _PumpListState extends State<PumpList> {
 
   @override
   void initState() {
-    getUserNodePumpList();
+     getUserNodePumpList();
     super.initState();
-  }
-
-  @override
-  void didUpdateWidget(covariant PumpList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final oldCtrlId = oldWidget.userData['controllerId'] ?? oldWidget.masterData.controllerId;
-    final newCtrlId = widget.userData['controllerId'] ?? widget.masterData.controllerId;
-    if (oldCtrlId != newCtrlId ||
-        oldWidget.userData['customerId'] != widget.userData['customerId']) {
-      getUserNodePumpList();
-    }
   }
 
   @override
@@ -111,7 +100,7 @@ class _PumpListState extends State<PumpList> {
                             () => MediaQuery.of(context).size.width >= 600 ? showModalBottomSheet(
                           context: context,
                           isScrollControlled: true,
-                          builder: (context) => PumpLogDashboardScreen(
+                          builder: (context) => PumpLogScreen(
                             userId: widget.userId,
                             controllerId: widget.masterData.controllerId,
                             nodeControllerId: AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId) ? 0 : pumpItem['controllerId'],
@@ -121,11 +110,11 @@ class _PumpListState extends State<PumpList> {
                         ) : Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => PumpLogDashboardScreen(
+                                    builder: (context) => PumpLogScreen(
                                       userId: widget.userId,
                                       controllerId: widget.masterData.controllerId,
                                       nodeControllerId: AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId) ? 0 : pumpItem['controllerId'],
-                                      masterData: widget.masterData, showMobileCalendar: true,
+                                      masterData: widget.masterData,
                                     ))
                             ),
                             () => MediaQuery.of(context).size.width >= 600 ? showModalBottomSheet(
@@ -201,62 +190,16 @@ class _PumpListState extends State<PumpList> {
     );
   }
 
-  Future<void> getUserNodePumpList() async {
-    final userData = {
-      'userId': widget.userData['customerId'],
-      'controllerId': widget.userData['controllerId']
-    };
-    try {
-      final result = await repository.getUserNodePumpList(userData);
-      List fetched = [];
-      if (result.statusCode == 200 && jsonDecode(result.body)['data'] != null) {
-        final data = jsonDecode(result.body)['data'];
-        if (data is List && data.isNotEmpty) {
-          fetched = data;
-        }
+  Future<void> getUserNodePumpList() async{
+     final userData = {'userId' : widget.userData['customerId'], 'controllerId' :  widget.userData['controllerId']};
+     final result = await repository.getUserNodePumpList(userData);
+    setState(() {
+      if(result.statusCode == 200 && jsonDecode(result.body)['data'] != null) {
+        pumpList = jsonDecode(result.body)['data'];
+      } else {
+        message = jsonDecode(result.body)['message'];
       }
-      if (fetched.isEmpty && widget.masterData.nodeList.isNotEmpty) {
-        final pumpNodes = widget.masterData.nodeList.where((n) {
-          return AppConstants.pumpList.contains(n.modelId) ||
-              n.categoryId == 1 ||
-              n.categoryName.toLowerCase().contains('pump');
-        }).toList();
-
-        final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
-        fetched = nodesToUse.map((n) => {
-          'controllerId': n.controllerId,
-          'deviceId': n.deviceId,
-          'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
-        }).toList();
-      }
-
-      if (mounted) {
-        setState(() {
-          pumpList = fetched;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        List fallback = [];
-        if (widget.masterData.nodeList.isNotEmpty) {
-          final pumpNodes = widget.masterData.nodeList.where((n) {
-            return AppConstants.pumpList.contains(n.modelId) ||
-                n.categoryId == 1 ||
-                n.categoryName.toLowerCase().contains('pump');
-          }).toList();
-
-          final nodesToUse = pumpNodes.isNotEmpty ? pumpNodes : widget.masterData.nodeList;
-          fallback = nodesToUse.map((n) => {
-            'controllerId': n.controllerId,
-            'deviceId': n.deviceId,
-            'deviceName': n.deviceName.isNotEmpty ? n.deviceName : 'Node ${n.serialNumber}',
-          }).toList();
-        }
-        setState(() {
-          pumpList = fallback;
-        });
-      }
-    }
+    });
   }
 
 }

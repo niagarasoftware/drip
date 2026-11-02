@@ -1,7 +1,6 @@
 
 
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
@@ -33,7 +32,7 @@ Future<LatLng?> getLatLngFromInput(String input) async {
     }
 
     final dmsRegExp = RegExp(
-      r"(\d+)[°\s]+(\d+)['\s]+(\d+(?:\.\d+)?)[""'\s]*([NSEW])",
+      r"(\d+)[°\s]+(\d+)['\s]+(\d+(?:\.\d+)?)[""'s]*([NSEW])",
       caseSensitive: false,
     );
 
@@ -63,7 +62,7 @@ Future<LatLng?> getLatLngFromInput(String input) async {
 
     // 3️⃣ Area name → Google Geocoding API
     // final apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
-    final apiKey = 'AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw';
+    const apiKey = 'AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw';
     AppLog.log("apiKey $apiKey");
     final url =
         "https://maps.googleapis.com/maps/api/geocode/json?address=$input&key=$apiKey";

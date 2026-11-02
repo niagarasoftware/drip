@@ -40,7 +40,7 @@ class ConditionTile extends StatelessWidget {
             message: status ? 'deactivate' : 'activate',
             child: Switch(
               hoverColor: Theme.of(context).primaryColor,
-              activeColor: Theme.of(context).primaryColorLight,
+              activeThumbColor: Theme.of(context).primaryColorLight,
               value: status,
               onChanged: onStatusChanged,
             ),

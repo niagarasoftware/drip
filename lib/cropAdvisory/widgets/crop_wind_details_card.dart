@@ -25,37 +25,37 @@ class WindDetailsCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Wind Speed"),
-                    Text("${speed} kph"),
+                    const Text("Wind Speed"),
+                    Text("$speed kph"),
                   ],
                 ),
 
-                Divider(),
+                const Divider(),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Gusts"),
-                    Text("${gust} kph"),
+                    const Text("Gusts"),
+                    Text("$gust kph"),
                   ],
                 ),
 
-                Divider(),
+                const Divider(),
 
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Wind Direction"),
-                    Text("${direction}°NE"),
+                    const Text("Wind Direction"),
+                    Text("$direction°NE"),
                   ],
                 ),
               ],
             ),
           ),
 
-          SizedBox(width: 20),
+          const SizedBox(width: 20),
 
-          CircleAvatar(
+          const CircleAvatar(
             radius: 40,
             child: Text("260°"),
           ),

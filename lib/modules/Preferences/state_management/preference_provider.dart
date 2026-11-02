@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../model/preference_data_model.dart';
 import '../../../services/http_service.dart';
-import '../../../utils/constants.dart';
 import '../repository/preferences_repo.dart';
 
 const actionForGeneral = "getUserPreferenceGeneral";
@@ -15,6 +14,7 @@ const actionForCalibration = "getUserPreferenceCalibration";
 
 class PreferenceProvider extends ChangeNotifier {
   final PreferenceRepository repository = PreferenceRepository(HttpService());
+
 
   bool notReceivingAck = false;
   bool sending = false;
@@ -33,8 +33,7 @@ class PreferenceProvider extends ChangeNotifier {
   GeneralData? get generalDataResult => generalData;
 
   List<IndividualPumpSetting>? individualPumpSetting;
-  List<IndividualPumpSetting>? get individualPumpSettingData =>
-      individualPumpSetting;
+  List<IndividualPumpSetting>? get individualPumpSettingData => individualPumpSetting;
 
   List<CommonPumpSetting>? commonPumpSettings;
   List<CommonPumpSetting>? get commonPumpSettingsData => commonPumpSettings;
@@ -81,104 +80,74 @@ class PreferenceProvider extends ChangeNotifier {
 
     try {
       final response = await repository.getUserPreferenceGeneral(userData);
-      if (response.statusCode == 200) {
+      if(response.statusCode == 200) {
         final result = jsonDecode(response.body);
         generalData = GeneralData.fromJson(result['data'][0]);
       }
-    } catch (error, stackTrace) {
+    } catch(error) {
       // print("Error parsing general data: $error");
       // print("Stack trace general data: $stackTrace");
     }
     try {
       final response = await repository.getUserPreferenceSetting(userData);
-      if (response.statusCode == 200) {
+      if(response.statusCode == 200) {
         final result = jsonDecode(response.body);
-        individualPumpSetting = List.from(result['data']
-                ['individualPumpSetting']
-            .map((json) => IndividualPumpSetting.fromJson(json)));
-        commonPumpSettings = List.from(result['data']['commonPumpSetting']
-            .map((json) => CommonPumpSetting.fromJson(json)));
-        print("modelId in the preference provider ==> $modelId");
-        if (individualPumpSetting != null) {
-          for (var individualPump in individualPumpSetting!) {
-            int minSeconds =
-                (AppConstants.ecoGemAndPlusModelList.contains(modelId) &&
-                        individualPump.pumpType == 2)
-                    ? 30
-                    : 5;
-
-            print("minSeconds ==> $minSeconds");
-            for (var category in individualPump.settingList) {
-              if (AppConstants.timerSetting.contains(category.type)) {
-                for (var setting in category.setting) {
-                  final titleUpper = setting.title.toUpperCase();
-                  if (titleUpper.contains("ON DELAY") ||
-                      setting.serialNumber == 1) {
-                    if (setting.value is String && setting.value.isNotEmpty) {
-                      int sec = _timeStringToSeconds(setting.value);
-                      if (sec < minSeconds) {
-                        setting.value = _secondsToTimeString(minSeconds);
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        individualPumpSetting = List.from(result['data']['individualPumpSetting'].map((json) => IndividualPumpSetting.fromJson(json)));
+        commonPumpSettings = List.from(result['data']['commonPumpSetting'].map((json) => CommonPumpSetting.fromJson(json)));
       }
-    } catch (error, stackTrace) {
+    } catch(error) {
       // print("Error parsing setting data: $error");
       // print("Stack trace setting data: $stackTrace");
     }
     try {
       final response = await repository.getUserPreferenceCalibration(userData);
-      if (response.statusCode == 200) {
+      if(response.statusCode == 200) {
         final result = jsonDecode(response.body);
         print("result in the calibration :: $result");
-        calibrationSetting = List.from(
-            result['data'].map((json) => CommonPumpSetting.fromJson(json)));
+        calibrationSetting = List.from(result['data'].map((json) => CommonPumpSetting.fromJson(json)));
       }
-    } catch (error, stackTrace) {
+    } catch(error, stackTrace) {
       debugPrint("Error parsing setting data: $error");
       debugPrint("Stack trace setting data: $stackTrace");
     }
     notifyListeners();
   }
 
-  Future<void> getStandAloneSettings(
-      {required int userId,
-      required int controllerId,
-      required int selectedIndex}) async {
-    final userData = {"userId": userId, "controllerId": controllerId};
+  Future<void> getStandAloneSettings({
+    required int userId,
+    required int controllerId,
+    required int selectedIndex
+  }) async {
+
+    final userData = {
+      "userId": userId,
+      "controllerId": controllerId
+    };
 
     try {
-      final standAloneResponse =
-          await repository.getUserPreferenceValveStandaloneSetting(userData);
-      if (standAloneResponse.statusCode == 200) {
+      final standAloneResponse = await repository.getUserPreferenceValveStandaloneSetting(userData);
+      if(standAloneResponse.statusCode == 200) {
         // final result = standAloneSettingsSample;
         final result = jsonDecode(standAloneResponse.body);
-        _standaloneSettings =
-            SettingList.fromJson(Map<String, dynamic>.from(result['data']));
+        _standaloneSettings = SettingList.fromJson(Map<String, dynamic>.from(result['data']));
       }
       final response = await repository.getUserPreferenceValveSetting(userData);
-      if (response.statusCode == 200) {
+      if(response.statusCode == 200) {
         // final result = programSettings;
         final result = jsonDecode(response.body);
-        _programSettings = SettingList.fromJson(
-            Map<String, dynamic>.from(result['data']['valveSetting']));
-        _moistureSettings = SettingList.fromJson(
-            Map<String, dynamic>.from(result['data']['moistureSetting']));
+        _programSettings = SettingList.fromJson(Map<String, dynamic>.from(result['data']['valveSetting']));
+        _moistureSettings = SettingList.fromJson(Map<String, dynamic>.from(result['data']['moistureSetting']));
       }
       notifyListeners();
-    } catch (error, stackTrace) {
+
+    } catch(error) {
       // print("Error parsing setting data: $error");
       // print("Stack trace setting data: $stackTrace");
     }
   }
 
   void getMode() {
-    if (_standaloneSettings!.setting[4].value) {
+    if(_standaloneSettings!.setting[4].value) {
       _mode = "Manual";
     } else {
       _mode = "Duration";
@@ -186,14 +155,16 @@ class PreferenceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> checkPassword(
-      {required int userId, required String password}) async {
+  Future<void> checkPassword({required int userId, required String password}) async{
     try {
-      final userData = {'userId': userId, "passkey": password};
+      final userData = {
+        'userId': userId,
+        "passkey": password
+      };
       final response = await repository.checkPassword(userData);
       final result = jsonDecode(response.body);
       passwordValidationCode = result['code'];
-    } catch (error, stackTrace) {
+    } catch(error) {
       // print("Error parsing setting data: $error");
       // print("Stack trace setting data: $stackTrace");
     }
@@ -202,23 +173,19 @@ class PreferenceProvider extends ChangeNotifier {
 
   var temp = [];
 
-  void updateControllerReaStatus(
-      {required String key, required int oroPumpIndex, required bool failed}) {
-    if (key.contains("100")) {
-      commonPumpSettings![oroPumpIndex].settingList[0].controllerReadStatus =
-          "1";
+  void updateControllerReaStatus({required String key, required int oroPumpIndex, required bool failed}) {
+    if(key.contains("100")) {
+      commonPumpSettings![oroPumpIndex].settingList[0].controllerReadStatus = "1";
       individualPumpSetting![oroPumpIndex].settingList[0].changed = false;
     }
-    if (key.contains("200")) {
-      commonPumpSettings![oroPumpIndex].settingList[1].controllerReadStatus =
-          "1";
+    if(key.contains("200")) {
+      commonPumpSettings![oroPumpIndex].settingList[1].controllerReadStatus = "1";
       individualPumpSetting![oroPumpIndex].settingList[1].changed = false;
     }
     int pumpIndex = 0;
     for (var individualPump in individualPumpSetting ?? []) {
-      if (commonPumpSettings![oroPumpIndex].deviceId ==
-          individualPump.deviceId) {
-        if (individualPump.output != null) {
+      if (commonPumpSettings![oroPumpIndex].deviceId == individualPump.deviceId) {
+        if(individualPump.output != null) {
           pumpIndex = individualPump.output;
         } else {
           pumpIndex++;
@@ -226,8 +193,8 @@ class PreferenceProvider extends ChangeNotifier {
         for (var individualPumpSetting in individualPump.settingList) {
           switch (individualPumpSetting.type) {
             case 203:
-              if (key.contains("400-$pumpIndex")) {
-                individualPumpSetting.controllerReadStatus = "1";
+              if(key.contains("400-$pumpIndex")) {
+                individualPumpSetting.controllerReadStatus= "1";
                 individualPumpSetting.changed = false;
                 // print("$key acknowledged");
               }
@@ -235,29 +202,26 @@ class PreferenceProvider extends ChangeNotifier {
             case 202:
               temp.add(key);
               // print("temp variable ==> ${temp.toSet()}");
-              if (temp.toSet().contains("300-$pumpIndex") &&
-                  temp.toSet().contains("500-$pumpIndex")) {
+              if(temp.toSet().contains("300-$pumpIndex") && temp.toSet().contains("500-$pumpIndex")) {
                 individualPumpSetting.controllerReadStatus = "1";
                 individualPumpSetting.changed = false;
                 // print("$key acknowledged");
               }
               break;
             case 205:
-              if (key.contains("600-$pumpIndex")) {
+            if(key.contains("600-$pumpIndex")) {
                 individualPumpSetting.controllerReadStatus = "1";
                 individualPumpSetting.changed = false;
                 // print("$key acknowledged");
-              }
-              ;
+              } {}
               break;
           }
         }
       }
     }
-    if (passwordValidationCode == 200 && calibrationSetting!.isNotEmpty) {
-      if (key.contains("900")) {
-        calibrationSetting![oroPumpIndex].settingList[1].controllerReadStatus =
-            "1";
+    if(passwordValidationCode == 200 && calibrationSetting!.isNotEmpty) {
+      if(key.contains("900")) {
+        calibrationSetting![oroPumpIndex].settingList[1].controllerReadStatus = "1";
         calibrationSetting![oroPumpIndex].settingList[0].changed = false;
       }
     }
@@ -279,10 +243,8 @@ class PreferenceProvider extends ChangeNotifier {
     _mode = newMode;
     notifyListeners();
   }
-
   void updateSettingValue(String title, String newValue) {
-    final setting =
-        standaloneSettings?.setting.firstWhere((e) => e.title == title);
+    final setting = standaloneSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       if (setting.value.toString().contains(',')) {
         final parts = setting.value.split(',');
@@ -297,12 +259,11 @@ class PreferenceProvider extends ChangeNotifier {
   }
 
   void updateMoistureSettingValue(String title, String newValue, bool part1) {
-    final setting =
-        moistureSettings?.setting.firstWhere((e) => e.title == title);
+    final setting = moistureSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
-      if (part1) {
+      if(part1) {
         if (setting.value.toString().contains(',')) {
-          if (part1) {
+          if(part1) {
             setting.value = '$newValue,${setting.value.split(',')[1]}';
             setting.isChanged = true;
           } else {
@@ -319,8 +280,7 @@ class PreferenceProvider extends ChangeNotifier {
   }
 
   void updateSwitchValue(String title, bool newValue) {
-    final setting =
-        standaloneSettings?.setting.firstWhere((e) => e.title == title);
+    final setting = standaloneSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       if (setting.value.toString().contains(',')) {
         final parts = setting.value.split(',');
@@ -330,7 +290,7 @@ class PreferenceProvider extends ChangeNotifier {
         setting.value = newValue;
         setting.isChanged = true;
 
-        /* if(setting.serialNumber == 5) {
+       /* if(setting.serialNumber == 5) {
           if(setting.value) {
             _mode = "Manual";
           } else {
@@ -343,8 +303,7 @@ class PreferenceProvider extends ChangeNotifier {
   }
 
   void updateMoistureSwitchValue(String title, bool newValue) {
-    final setting =
-        moistureSettings?.setting.firstWhere((e) => e.title == title);
+    final setting = moistureSettings?.setting.firstWhere((e) => e.title == title);
     if (setting != null) {
       setting.value = newValue;
       setting.isChanged = true;
@@ -356,10 +315,8 @@ class PreferenceProvider extends ChangeNotifier {
     return value.toString().contains(',') ? value.split(',')[0] : value;
   }
 
-  bool getSwitchState(String value) {
-    return value.toString().contains(',')
-        ? value.split(',')[1] == '1'
-        : value == 'true';
+   bool getSwitchState(String value) {
+    return value.toString().contains(',') ? value.split(',')[1] == '1' : value == 'true';
   }
 
   void updateRadioValue(String title, int value) {
@@ -368,20 +325,4 @@ class PreferenceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  int _timeStringToSeconds(String timeStr) {
-    if (timeStr.isEmpty) return 0;
-    final parts = timeStr.split(':');
-    if (parts.length < 2) return 0;
-    int hours = int.tryParse(parts[0]) ?? 0;
-    int minutes = int.tryParse(parts[1]) ?? 0;
-    int seconds = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
-    return hours * 3600 + minutes * 60 + seconds;
-  }
-
-  String _secondsToTimeString(int totalSeconds) {
-    int hours = totalSeconds ~/ 3600;
-    int minutes = (totalSeconds % 3600) ~/ 60;
-    int seconds = totalSeconds % 60;
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
 }

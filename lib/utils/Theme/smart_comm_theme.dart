@@ -52,7 +52,7 @@ class SmartCommTheme {
           if (states.contains(WidgetState.selected)) {
             return primaryLight;
           }
-          return primaryLight.withOpacity(0.1);
+          return primaryLight.withValues(alpha: 0.1);
         },
         ),
         foregroundColor: WidgetStateProperty.resolveWith<Color?>(
@@ -119,7 +119,7 @@ class SmartCommTheme {
       // onPrimary: primary, // siva
       onSecondary: Colors.white, // siva
       onSurface: Colors.black,
-      onBackground: primary.withOpacity(0.1), // siva
+      onBackground: primary.withValues(alpha: 0.1), // siva
       onError: Colors.white,
       seedColor: primary,
     ),
@@ -173,7 +173,6 @@ class SmartCommTheme {
         side: const BorderSide(color: Colors.white),
       ),
     ),
-    dialogBackgroundColor: Colors.white,
     dialogTheme: DialogThemeData(
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(0)
@@ -252,7 +251,7 @@ class SmartCommTheme {
       onPrimary: primaryLight, // siva
       onSecondary: Colors.white, // siva
       onSurface: Colors.black,
-      onBackground: primaryLight.withOpacity(0.1), // siva
+      onBackground: primaryLight.withValues(alpha: 0.1), // siva
       onError: Colors.white,
       seedColor: primaryDark,
     ),

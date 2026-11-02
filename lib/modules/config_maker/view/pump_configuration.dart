@@ -162,7 +162,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -171,7 +171,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
           const SizedBox(width: 20,),
           Text('$objectName : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){
@@ -225,7 +225,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -234,7 +234,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
           const SizedBox(width: 20,),
           Text('$objectName : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){
@@ -286,7 +286,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+        color: Theme.of(context).primaryColorLight.withValues(alpha: 0.1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -295,7 +295,7 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
           const SizedBox(width: 20,),
           Text('$objectName : ', style: AppProperties.listTileBlackBoldStyle,),
           Center(
-            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
+            child: Text(currentSno == 0.0 ? '-' : getObjectName(currentSno, widget.configPvd).name!, style: const TextStyle(color: Colors.teal, fontSize: 12, fontWeight: FontWeight.bold),),
           ),
           IconButton(
               onPressed: (){

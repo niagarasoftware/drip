@@ -8,11 +8,11 @@ class LoopingGif extends StatelessWidget {
   final double width;
 
   const LoopingGif({
-    Key? key,
+    super.key,
     required this.assetPath,
     required this.height,
     required this.width,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class LoopingGif extends StatelessWidget {
 }
 
 class MyAppgif extends StatefulWidget {
-  const MyAppgif({Key? key}) : super(key: key);
+  const MyAppgif({super.key});
 
   @override
   _MyAppgifState createState() => _MyAppgifState();

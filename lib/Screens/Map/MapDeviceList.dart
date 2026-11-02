@@ -13,12 +13,11 @@ import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 class DeviceListScreen extends StatefulWidget {
   const DeviceListScreen(
-      {Key? key,
+      {super.key,
         required this.userId,
         required this.customerId,
         required this.controllerId,
-        required this.imeiNo})
-      : super(key: key);
+        required this.imeiNo});
   final int userId, customerId, controllerId;
   final String imeiNo;
 
@@ -31,7 +30,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
 
   late MqttPayloadProvider mqttPayloadProvider;
 
-  MapConfigModel _mapConfigModel = MapConfigModel();
+  final MapConfigModel _mapConfigModel = MapConfigModel();
 
   @override
   void initState() {
@@ -67,7 +66,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
      catch (e, stackTrace) {
        mqttPayloadProvider.httpError = true;
        AppLog.log(' Error overAll getData => ${e.toString()}');
-       AppLog.log(' trace overAll getData  => ${stackTrace}');
+       AppLog.log(' trace overAll getData  => $stackTrace');
      }
     }
 
@@ -107,7 +106,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                         //   icon: Icon(Icons.edit_location_alt,color: Colors.white,),
                         //   label: Text('all'),
                         // ),
-                        Spacer(),
+                        const Spacer(),
                         TextButton.icon(
                          onPressed: () {
                            // Navigator.of(context).push(MaterialPageRoute(
@@ -117,11 +116,11 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.white,
                             backgroundColor: Theme.of(context).primaryColor,// text color
-                            padding: EdgeInsets.symmetric(horizontal: 16.0),
-                            textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                           ),
-                         icon: Icon(Icons.edit_location_alt,color: Colors.white,),
-                         label: Text('Edit Node location'),),
+                         icon: const Icon(Icons.edit_location_alt,color: Colors.white,),
+                         label: const Text('Edit Node location'),),
                       ],
                     ),
                    Wrap(

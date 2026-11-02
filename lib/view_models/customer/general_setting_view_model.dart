@@ -107,7 +107,7 @@ class GeneralSettingViewModel extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint("Error getControllerInfo: ${e}");
+      debugPrint("Error getControllerInfo: $e");
     } finally {
       setLoading(false);
     }

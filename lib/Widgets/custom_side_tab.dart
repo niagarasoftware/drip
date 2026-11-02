@@ -25,7 +25,7 @@ class CustomSideTab extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 20),
       width: width,
       decoration: BoxDecoration(
-          color: selected ? Theme.of(context).primaryColorLight.withOpacity(themeMode ? 1.0 : 0.5) : null,
+          color: selected ? Theme.of(context).primaryColorLight.withValues(alpha: themeMode ? 1.0 : 0.5) : null,
           borderRadius: BorderRadius.circular(8)
       ),
       child: ListTile(

@@ -1416,7 +1416,7 @@ class CustomerFabMenu extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 3),
                       ) : Switch(
                         value: wifiStatus == '1' || wifiStatus == '2',
-                        activeColor: Colors.blue,
+                        activeThumbColor: Colors.blue,
                         onChanged: (bool value) async {
                           provider.updateWifiStatus('0', true);
                           final communicationService = context.read<CommunicationService>();

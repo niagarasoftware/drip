@@ -1,6 +1,5 @@
 // lib/main.dart
 import 'dart:convert';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -342,21 +341,21 @@ List<BoxShadow> customBoxShadow = [
   BoxShadow(
     offset: const Offset(0, 45),
     blurRadius: 112,
-    color: Colors.black.withOpacity(0.06),
+    color: Colors.black.withValues(alpha: 0.06),
   ),
   BoxShadow(
     offset: const Offset(0, 22.78),
     blurRadius: 48.83,
-    color: Colors.black.withOpacity(0.0405),
+    color: Colors.black.withValues(alpha: 0.0405),
   ),
   BoxShadow(
     offset: const Offset(0, 9),
     blurRadius: 18.2,
-    color: Colors.black.withOpacity(0.03),
+    color: Colors.black.withValues(alpha: 0.03),
   ),
   BoxShadow(
     offset: const Offset(0, 1.97),
     blurRadius: 6.47,
-    color: Colors.black.withOpacity(0.0195),
+    color: Colors.black.withValues(alpha: 0.0195),
   ),
 ];

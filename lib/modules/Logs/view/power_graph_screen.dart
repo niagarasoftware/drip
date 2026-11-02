@@ -162,7 +162,7 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
           showDialog(context: context, builder: (context){
             return AlertDialog(
               title: Text('$name Download Successfully at'),
-              content: Text('$filePath'),
+              content: Text(filePath),
               actions: [
                 TextButton(
                     onPressed: (){
@@ -527,7 +527,7 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
             children: [
               Container(
                   width: double.maxFinite,
-                  color: Theme.of(context).primaryColor.withOpacity(0.7),
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.7),
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Row(
@@ -606,7 +606,7 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
           Column(
             children: [
               buildAnimatedContainer(
-                  color: [Colors.lightBlueAccent.shade100.withOpacity(0.6), Colors.lightGreenAccent.withOpacity(0.6), Colors.greenAccent.withOpacity(0.6)][i],
+                  color: [Colors.lightBlueAccent.shade100.withValues(alpha: 0.6), Colors.lightGreenAccent.withValues(alpha: 0.6), Colors.greenAccent.withValues(alpha: 0.6)][i],
                   value: [Constants.parseTime(pumpControllerProvider.motorDataList[index].motorRunTime1), Constants.parseTime(pumpControllerProvider.motorDataList[index].motorRunTime2), Constants.parseTime(pumpControllerProvider.motorDataList[index].motorRunTime3)][i],
                   motor: "Motor ${i + 1} consumed",
                   highestValue: selectedIndex == 0 ? const Duration(hours: 24): Constants.parseTime(pumpControllerProvider.motorDataList[index].totalPowerOnTime)

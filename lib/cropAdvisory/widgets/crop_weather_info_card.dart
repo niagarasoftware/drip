@@ -23,39 +23,39 @@ class WeatherInfoCard extends StatelessWidget {
           Column(
             children: [
               Text(
-                "${humm}",
+                humm,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text("Humidity"),
+              const Text("Humidity"),
             ],
           ),
 
           Column(
             children: [
               Text(
-                "${rain}",
+                rain,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text("Rain Fall"),
+              const Text("Rain Fall"),
             ],
           ),
 
           Column(
             children: [
               Text(
-                "${wind}",
+                wind,
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text("Wind Speed"),
+              const Text("Wind Speed"),
             ],
           ),
         ],

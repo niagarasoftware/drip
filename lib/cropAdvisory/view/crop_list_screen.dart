@@ -12,11 +12,11 @@ import 'getUserInformationScreen.dart';
 
 class CropListScreen extends StatefulWidget {
   const CropListScreen({
-    Key? key,
+    super.key,
     required this.userId,
     required this.controllerId,
     this.isInsideTabs = false,
-  }) : super(key: key);
+  });
 
   final int userId, controllerId;
   final bool isInsideTabs;
@@ -161,7 +161,7 @@ class _CropListScreenState extends State<CropListScreen> {
                         }
                       },
                       leading: CircleAvatar(
-                        backgroundColor: const Color(0xff0E8797).withOpacity(0.1),
+                        backgroundColor: const Color(0xff0E8797).withValues(alpha: 0.1),
                         child: const Icon(Icons.eco, color: Color(0xff0E8797)),
                       ),
                       title: Text(

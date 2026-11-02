@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class SensorReportTable extends StatelessWidget {
@@ -17,7 +16,7 @@ class SensorReportTable extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         headingRowColor:
-        MaterialStateProperty.all(Colors.grey.shade200),
+        WidgetStateProperty.all(Colors.grey.shade200),
         columns: const [
           DataColumn(label: Text('Hour')),
           DataColumn(label: Text('Sensor SrNo')),

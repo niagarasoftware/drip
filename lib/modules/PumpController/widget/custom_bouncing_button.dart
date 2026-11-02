@@ -70,7 +70,7 @@ class _BounceEffectButtonState extends State<BounceEffectButton> with SingleTick
                   Shadow(
                     offset: const Offset(2, 2),
                     blurRadius: 6,
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                   ),
                 ],
               ),

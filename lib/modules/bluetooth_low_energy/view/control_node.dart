@@ -188,7 +188,7 @@ class _ControlNodeState extends State<ControlNode> {
                 child: Text('Relay Details',style: TextStyle(color: Colors.white, fontSize: 14),),
               ),
             ),
-            Text('MAC Address : ${bleService.nodeDataFromHw['MAC']}', style: TextStyle(fontSize: 14),)
+            Text('MAC Address : ${bleService.nodeDataFromHw['MAC']}', style: const TextStyle(fontSize: 14),)
           ],
         ),
         Container(
@@ -217,7 +217,7 @@ class _ControlNodeState extends State<ControlNode> {
             children: [
               for(var relay = 0;relay < relayOrLatch;relay++)
                 ListTile(
-                  title: Text('Relay ${relay+1}', style: TextStyle(fontWeight: FontWeight.bold),),
+                  title: Text('Relay ${relay+1}', style: const TextStyle(fontWeight: FontWeight.bold),),
                   trailing: Switch(
                       activeTrackColor: Theme.of(context).primaryColorLight,
                       value: getRelayStatus(relay),
@@ -311,7 +311,7 @@ class _ControlNodeState extends State<ControlNode> {
             spacing: 10,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),textAlign: TextAlign.center,),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),textAlign: TextAlign.center,),
               Text(value, style: TextStyle(color: Theme.of(context).primaryColor, fontSize: 16),)
             ],
           ),

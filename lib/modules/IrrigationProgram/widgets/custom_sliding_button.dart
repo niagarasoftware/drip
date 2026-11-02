@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class SlidingSendButton extends StatefulWidget {
   final Function onSend;
 
-  const SlidingSendButton({Key? key, required this.onSend}) : super(key: key);
+  const SlidingSendButton({super.key, required this.onSend});
 
   @override
   _SlidingSendButtonState createState() => _SlidingSendButtonState();
@@ -84,8 +84,8 @@ class _SlidingSendButtonState extends State<SlidingSendButton> {
               decoration: BoxDecoration(
                 color: isSent ? Colors.green : Theme.of(context).primaryColorLight,
                 borderRadius: BorderRadius.circular(25),
-                boxShadow: [
-                  const BoxShadow(
+                boxShadow: const [
+                  BoxShadow(
                     color: Colors.black26,
                     blurRadius: 5,
                     offset: Offset(0, 2),

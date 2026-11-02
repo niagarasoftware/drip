@@ -1,27 +1,23 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:oro_drip_irrigation/utils/helpers/log_print.dart';
 
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
-import '../MapDeviceList.dart';
 import 'map_conection_objects.dart';
 
 
 class MapScreenValve extends StatefulWidget {
   const MapScreenValve({
-    Key? key,
+    super.key,
     required this.userId,
     required this.customerId,
     required this.controllerId,
     required this.imeiNo,
     required this.modelId,
-  }) : super(key: key);
+  });
 
   final int userId, customerId, controllerId,modelId;
   final String imeiNo;
@@ -39,7 +35,7 @@ class _MapScreenValveState extends State<MapScreenValve> {
   Set<Polygon> polygons = {};
 
   String _sentTime = "";
-  Map<String, LatLng> _gifObjects = {};
+  final Map<String, LatLng> _gifObjects = {};
   Map<String, Offset> _gifOffsets = {};
   late BitmapDescriptor _redAeratorIcon;
 
@@ -221,8 +217,8 @@ class _MapScreenValveState extends State<MapScreenValve> {
       polygonId: PolygonId(id),
       points: latLngPoints,
       strokeWidth: 2,
-      strokeColor: color.withOpacity(1),
-      fillColor: color.withOpacity(0.8),
+      strokeColor: color.withValues(alpha: 1),
+      fillColor: color.withValues(alpha: 0.8),
       geodesic: true,
     );
   }
@@ -491,7 +487,7 @@ class _MapScreenValveState extends State<MapScreenValve> {
               },
             ),
           IconButton(
-          icon: Icon(Icons.map_outlined),
+          icon: const Icon(Icons.map_outlined),
       onPressed: () {
         Navigator.of(context).push(MaterialPageRoute(
           builder: (context) => MapConnectionObject(userId: widget.userId, customerId: widget.customerId, controllerId: widget.controllerId, imeiNo: widget.imeiNo,modelId: widget.modelId,),
@@ -547,7 +543,7 @@ class _MapScreenValveState extends State<MapScreenValve> {
                 height: 50,
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );

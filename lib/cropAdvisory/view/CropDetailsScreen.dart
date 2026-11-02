@@ -4,13 +4,8 @@ import 'package:flutter/material.dart';
 import '../widgets/crop_advisory_web_sidebar.dart';
 import 'package:oro_drip_irrigation/cropAdvisory/view/field_information_screen.dart';
 import 'package:path_provider/path_provider.dart';
-import '../../repository/repository.dart';
-import '../../services/http_service.dart';
-import '../../services/ai_service.dart';
-import '../../services/image_verification_service.dart';
 import '../helper/image_compressor.dart';
 import '../model/cropadvisory_model.dart';
-import 'package:http/http.dart' as http;
 
 import '../widgets/AppTextField.dart';
 import '../widgets/ContinueButton.dart';
@@ -219,7 +214,7 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xff0E8797).withOpacity(0.1)
+                ? const Color(0xff0E8797).withValues(alpha: 0.1)
                 : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -389,7 +384,7 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
     Widget content = SafeArea(
       child: Center(
         child: Container(
-          constraints: BoxConstraints(maxWidth: kIsWeb ? 600 : double.infinity),
+          constraints: const BoxConstraints(maxWidth: kIsWeb ? 600 : double.infinity),
           padding: const EdgeInsets.all(16),
           child: SingleChildScrollView(
             child: Column(

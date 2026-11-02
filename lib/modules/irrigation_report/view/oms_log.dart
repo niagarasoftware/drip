@@ -327,7 +327,7 @@ class _DeviceLogCard extends StatelessWidget {
                   headingRowHeight: 38,
                   dataRowMinHeight: 34,
                   dataRowMaxHeight: 40,
-                  headingRowColor: MaterialStateProperty.all(const Color(0xFFF0F2F5)),
+                  headingRowColor: WidgetStateProperty.all(const Color(0xFFF0F2F5)),
                   columns: const [
                     DataColumn(label: Text('Sequence')),
                     DataColumn(label: Text('Irrigation Method')),

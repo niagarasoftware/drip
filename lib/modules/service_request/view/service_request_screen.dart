@@ -240,7 +240,7 @@ class _ServiceRequestScreenState extends State<ServiceRequestScreen> {
           ),
           Expanded(
             child: _filtered.isEmpty
-                ? Center(
+                ? const Center(
               child: Text('No tickets here', style: TextStyle(color: _Palette.mutedLight, fontSize: 13)),
             )
                 : ListView.builder(
@@ -292,7 +292,7 @@ class _FilterBar extends StatelessWidget {
                     color: isActive ? Colors.white : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: isActive
-                        ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))]
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 2))]
                         : null,
                   ),
                   child: Text(
@@ -340,7 +340,7 @@ class _TicketCard extends StatelessWidget {
               border: Border.all(color: selected ? _Palette.primary : _Palette.border, width: selected ? 1.4 : 1),
               boxShadow: [
                 BoxShadow(
-                  color: selected ? _Palette.primary.withOpacity(0.10) : Colors.black.withOpacity(0.03),
+                  color: selected ? _Palette.primary.withValues(alpha: 0.10) : Colors.black.withValues(alpha: 0.03),
                   blurRadius: selected ? 16 : 10,
                   offset: const Offset(0, 4),
                 ),
@@ -365,7 +365,7 @@ class _TicketCard extends StatelessWidget {
                   ticket.issueDescription,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: _Palette.muted, fontSize: 12.5, height: 1.5),
+                  style: const TextStyle(color: _Palette.muted, fontSize: 12.5, height: 1.5),
                 ),
                 if (ticket.ticketHandler.length > 1) ...[
                   const SizedBox(height: 10),
@@ -374,7 +374,7 @@ class _TicketCard extends StatelessWidget {
                       const Icon(Icons.groups_rounded, size: 13, color: _Palette.mutedLight),
                       const SizedBox(width: 4),
                       Text('${ticket.ticketHandler.length} handlers',
-                          style: TextStyle(color: _Palette.mutedLight, fontSize: 11, fontWeight: FontWeight.w600)),
+                          style: const TextStyle(color: _Palette.mutedLight, fontSize: 11, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
@@ -460,8 +460,8 @@ class _DashedAddButton extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: compact ? 11 : 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: compact ? _Palette.primary.withOpacity(0.02) : null,
-            border: Border.all(color: _Palette.primary.withOpacity(compact ? 0.25 : 0.35), width: 1.4),
+            color: compact ? _Palette.primary.withValues(alpha: 0.02) : null,
+            border: Border.all(color: _Palette.primary.withValues(alpha: compact ? 0.25 : 0.35), width: 1.4),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -494,7 +494,7 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(height: 18),
           const Text('Select a ticket', style: TextStyle(color: _Palette.ink, fontSize: 17, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text('Its timeline and details will show up here', style: TextStyle(color: _Palette.mutedLight, fontSize: 13)),
+          const Text('Its timeline and details will show up here', style: TextStyle(color: _Palette.mutedLight, fontSize: 13)),
         ],
       ),
     );
@@ -583,7 +583,7 @@ class _TimelineNode extends StatelessWidget {
                 height: 34,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: done ? _Palette.success.withOpacity(0.12) : Colors.white,
+                  color: done ? _Palette.success.withValues(alpha: 0.12) : Colors.white,
                   border: Border.all(color: done ? _Palette.success : const Color(0xFFCBD5E1), width: 1.5),
                 ),
                 child: Icon(done ? Icons.check_rounded : icon, size: 17, color: done ? _Palette.success : _Palette.pending),
@@ -593,7 +593,7 @@ class _TimelineNode extends StatelessWidget {
                   child: Container(
                     width: 2,
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    color: done ? _Palette.success.withOpacity(0.35) : const Color(0xFFE2E8F0),
+                    color: done ? _Palette.success.withValues(alpha: 0.35) : const Color(0xFFE2E8F0),
                   ),
                 ),
             ],
@@ -609,11 +609,11 @@ class _TimelineNode extends StatelessWidget {
                       style: TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 14.5, color: done ? _Palette.inkSoft : _Palette.mutedLight)),
                   const SizedBox(height: 3),
-                  Text(d.subtitle, style: TextStyle(color: _Palette.muted, fontSize: 12.5)),
+                  Text(d.subtitle, style: const TextStyle(color: _Palette.muted, fontSize: 12.5)),
                   if (d.date.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 3),
-                      child: Text(d.date, style: TextStyle(color: _Palette.mutedLight, fontSize: 11.5)),
+                      child: Text(d.date, style: const TextStyle(color: _Palette.mutedLight, fontSize: 11.5)),
                     ),
                 ],
               ),
@@ -939,9 +939,9 @@ class _HandlerCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.06),
+        color: accent.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.18)),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Row(
         children: [
@@ -951,11 +951,11 @@ class _HandlerCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: [accent, accent.withOpacity(0.75)],
+                colors: [accent, accent.withValues(alpha: 0.75)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              boxShadow: [BoxShadow(color: accent.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+              boxShadow: [BoxShadow(color: accent.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
             ),
             child: Center(
               child: Text(
@@ -990,7 +990,7 @@ class _HandlerCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   handler.statusMessage.isNotEmpty ? handler.statusMessage : handler.mobileNumber,
-                  style: TextStyle(color: _Palette.muted, fontSize: 13),
+                  style: const TextStyle(color: _Palette.muted, fontSize: 13),
                 ),
               ],
             ),
@@ -1033,7 +1033,7 @@ class _PersonnelCard extends StatelessWidget {
               children: [
                 Text(person.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: _Palette.inkSoft)),
                 if (person.statusMessage.isNotEmpty)
-                  Text(person.statusMessage, style: TextStyle(color: _Palette.muted, fontSize: 12.5)),
+                  Text(person.statusMessage, style: const TextStyle(color: _Palette.muted, fontSize: 12.5)),
               ],
             ),
           ),
@@ -1068,13 +1068,13 @@ class _AddHandlerPlaceholder extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: _Palette.border, width: 1.5),
           ),
-          child: Column(
+          child: const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.person_add_alt_1_outlined, size: 34, color: _Palette.primary),
-              const SizedBox(height: 10),
+              Icon(Icons.person_add_alt_1_outlined, size: 34, color: _Palette.primary),
+              SizedBox(height: 10),
               Text('Add ticket handler', style: TextStyle(color: _Palette.inkSoft, fontSize: 14.5, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text('Assign who owns this ticket', style: TextStyle(color: _Palette.mutedLight, fontSize: 12)),
             ],
           ),
@@ -1092,7 +1092,7 @@ InputDecoration _fieldDecoration({String? hint}) {
   return InputDecoration(
     isDense: true,
     hintText: hint,
-    hintStyle: TextStyle(color: _Palette.mutedLight, fontSize: 13.5),
+    hintStyle: const TextStyle(color: _Palette.mutedLight, fontSize: 13.5),
     filled: true,
     fillColor: _Palette.field,
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1111,7 +1111,7 @@ class _ResponsiveRow extends StatelessWidget {
   final List<Widget> children;
   final double spacing;
   final double breakpoint;
-  const _ResponsiveRow({required this.children, this.spacing = 24, this.breakpoint = 600});
+  const _ResponsiveRow({required this.children, this.spacing = 24}) : breakpoint = 600;
 
   @override
   Widget build(BuildContext context) {
@@ -1169,7 +1169,7 @@ class _SheetShell extends StatelessWidget {
               ),
               Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _Palette.ink, letterSpacing: -0.5)),
               const SizedBox(height: 6),
-              Text(subtitle, style: TextStyle(color: _Palette.muted, fontSize: 14.5)),
+              Text(subtitle, style: const TextStyle(color: _Palette.muted, fontSize: 14.5)),
               const SizedBox(height: 28),
               child,
               const SizedBox(height: 28),
@@ -1178,7 +1178,7 @@ class _SheetShell extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: Text('Cancel', style: TextStyle(color: _Palette.muted, fontWeight: FontWeight.w600)),
+                    child: const Text('Cancel', style: TextStyle(color: _Palette.muted, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(width: 12),
                   ElevatedButton(

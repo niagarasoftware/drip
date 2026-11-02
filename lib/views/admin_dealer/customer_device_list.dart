@@ -96,7 +96,7 @@ class _CustomerDeviceListState extends State<CustomerDeviceList> with TickerProv
                 isScrollable: true,
                 indicatorColor: Colors.white,
                 labelColor: Colors.white,
-                unselectedLabelColor: Colors.white.withOpacity(0.4),
+                unselectedLabelColor: Colors.white.withValues(alpha: 0.4),
                 tabs: tabList.map((label) => Tab(child: Text(label))).toList(),
               ),
             ),

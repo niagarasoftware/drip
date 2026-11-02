@@ -62,13 +62,12 @@ class TimeLine extends StatelessWidget {
       primary: primary,
       itemBuilder: (context, index) {
         final child = children[index];
-        final _indicators = indicators;
+        final indicatorList = this.indicators;
 
         Widget? indicator;
-        if (_indicators != null) {
-          indicator = _indicators[index];
+        if (indicatorList != null) {
+          indicator = indicatorList[index];
         }
-
         final isFirst = index == 0;
         final isLast = index == itemCount - 1;
 

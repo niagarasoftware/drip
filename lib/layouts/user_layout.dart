@@ -128,3 +128,4 @@ class CustomerDashboardLayout extends ScreenLayoutBuilder {
   @override
   Widget buildWide(BuildContext context) => const CustomerHomeWide();
 }
+
