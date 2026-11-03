@@ -342,7 +342,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
     streamBuf.write("0.4 0.4 0.4 rg\n");
     streamBuf.write("BT /F2 9 Tf 40 540 Td (${sanitizePdfText("Generated on: $nowStr  |  Page ${p + 1} of $numPages")}) Tj ET\n");
 
-    List<String> headers = ['Program / Sequence'];
+    List<String> headers = ['Program / Valve / Sequence'];
     for (var d in chunkDates) {
       headers.add(DateFormat('MM/dd (E)').format(d));
     }
@@ -382,9 +382,19 @@ Uint8List generateZoneLogMatrixPdfBytes({
 
     for (int r = 0; r < chunkRows.length; r++) {
       final row = chunkRows[r];
-      String name = (row.progName != null && row.progName.isNotEmpty && row.progName != row.seqName)
-          ? "${row.progName} - ${row.seqName}"
-          : "${row.seqName ?? '-'}";
+      String vName = (row.valveName ?? '').toString();
+      String name = "${row.seqName ?? '-'}";
+      if (vName.isNotEmpty) {
+        name = (row.progName != null &&
+                row.progName.isNotEmpty &&
+                row.progName != row.seqName)
+            ? "${row.progName} - $vName - ${row.seqName}"
+            : "$vName - ${row.seqName}";
+      } else if (row.progName != null &&
+          row.progName.isNotEmpty &&
+          row.progName != row.seqName) {
+        name = "${row.progName} - ${row.seqName}";
+      }
 
       List<String> cell0Lines = _wrapTextLines(name, 22, maxLines: 2);
 

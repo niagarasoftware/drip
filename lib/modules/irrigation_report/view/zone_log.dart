@@ -96,6 +96,7 @@ class SequenceRowData {
   final String progName;
   final int progSNo;
   final String seqName;
+  String valveName;
   final Map<String, SequenceDayData> dayEntries; // dateKey -> SequenceDayData
   int totalDurationSeconds;
   int totalQuantity;
@@ -105,6 +106,7 @@ class SequenceRowData {
     required this.progName,
     required this.progSNo,
     required this.seqName,
+    this.valveName = '',
     required this.dayEntries,
     this.totalDurationSeconds = 0,
     this.totalQuantity = 0,
@@ -217,6 +219,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   List<String> _cumulativeDropdownOptions = ['All Channels'];
   String _selectedCumulativeFilter = 'All Channels';
   final Map<String, String> _channelNameMap = {};
+  final Map<String, String> _valveNameMap = {};
   final List<Map<String, dynamic>> _fertilizerChannelsFromConfig = [];
 
   @override
@@ -304,6 +307,82 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       return "${hours}h ${minutes}m ${seconds}s";
     }
     return "${hours}h ${minutes}m";
+  }
+
+  void _registerConfigName(dynamic sNo, String name) {
+    if (sNo == null || name.trim().isEmpty) return;
+    String sStr = sNo.toString().trim();
+    _valveNameMap[sStr] = name;
+    num? n = num.tryParse(sStr);
+    if (n != null) {
+      _valveNameMap[n.toInt().toString()] = name;
+      _valveNameMap[n.toDouble().toString()] = name;
+      _valveNameMap[n.toStringAsFixed(3)] = name;
+    }
+  }
+
+  String _resolveValveNames(dynamic rawSeqData) {
+    if (rawSeqData == null) return '';
+    if (rawSeqData is List) {
+      return rawSeqData
+          .map((item) => _resolveValveNames(item))
+          .where((s) => s.isNotEmpty)
+          .join(', ');
+    }
+    String raw = rawSeqData.toString().trim();
+    if (raw.isEmpty || raw == '-' || raw == '[]') return '';
+    List<String> resolved = [];
+    for (String part in raw.split(RegExp(r'[_,\s]+'))) {
+      String key = part.trim();
+      if (key.isEmpty) continue;
+      String? name = _valveNameMap[key] ?? _channelNameMap[key];
+      if (name == null) {
+        var numVal = num.tryParse(key);
+        if (numVal != null) {
+          name = _valveNameMap[numVal.toInt().toString()] ??
+              _valveNameMap[numVal.toDouble().toString()] ??
+              _valveNameMap[numVal.toStringAsFixed(3)] ??
+              _channelNameMap[numVal.toInt().toString()] ??
+              _channelNameMap[numVal.toDouble().toString()] ??
+              _channelNameMap[numVal.toStringAsFixed(3)];
+        }
+      }
+      resolved.add((name != null && name.trim().isNotEmpty) ? name : key);
+    }
+    return resolved.join(', ');
+  }
+
+  int _compareNatural(String? a, String? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return -1;
+    if (b == null) return 1;
+    if (a == b) return 0;
+
+    final regex = RegExp(r'(\d+|\D+)');
+    final matchesA =
+        regex.allMatches(a.trim()).map((m) => m.group(0)!).toList();
+    final matchesB =
+        regex.allMatches(b.trim()).map((m) => m.group(0)!).toList();
+
+    int len = math.min(matchesA.length, matchesB.length);
+    for (int i = 0; i < len; i++) {
+      final partA = matchesA[i];
+      final partB = matchesB[i];
+
+      final numA = BigInt.tryParse(partA);
+      final numB = BigInt.tryParse(partB);
+
+      if (numA != null && numB != null) {
+        final cmp = numA.compareTo(numB);
+        if (cmp != 0) return cmp;
+        final lenCmp = partA.length.compareTo(partB.length);
+        if (lenCmp != 0) return lenCmp;
+      } else {
+        final cmp = partA.toLowerCase().compareTo(partB.toLowerCase());
+        if (cmp != 0) return cmp;
+      }
+    }
+    return matchesA.length.compareTo(matchesB.length);
   }
 
   Future<void> fetchZoneLogApi() async {
@@ -448,6 +527,31 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           }
         }
       }
+
+      if (defaultObj['valve'] != null && defaultObj['valve'] is List) {
+        for (var v in defaultObj['valve']) {
+          if (v is Map) {
+            _registerConfigName(
+                v['sNo'], (v['name'] ?? v['valveName'] ?? '').toString());
+          }
+        }
+      }
+      if (defaultObj['valves'] != null && defaultObj['valves'] is List) {
+        for (var v in defaultObj['valves']) {
+          if (v is Map) {
+            _registerConfigName(
+                v['sNo'], (v['name'] ?? v['valveName'] ?? '').toString());
+          }
+        }
+      }
+      if (defaultObj['configObject'] != null &&
+          defaultObj['configObject'] is List) {
+        for (var v in defaultObj['configObject']) {
+          if (v is Map) {
+            _registerConfigName(v['sNo'], (v['name'] ?? '').toString());
+          }
+        }
+      }
     }
 
     // 2. Generate date columns list from _fromDate to _toDate
@@ -476,6 +580,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       String key = "${pSNo}_$name";
       uniqueProgNames.add(progName);
 
+      String defValve = '';
+      if (seq['valve'] != null) defValve = _resolveValveNames(seq['valve']);
+      if (defValve.isEmpty && seq['valves'] != null) {
+        defValve = _resolveValveNames(seq['valves']);
+      }
+      if (defValve.isEmpty && seq['SequenceData'] != null) {
+        defValve = _resolveValveNames(seq['SequenceData']);
+      }
+      if (defValve.isEmpty && seq['sequenceData'] != null) {
+        defValve = _resolveValveNames(seq['sequenceData']);
+      }
+
       rowsMap.putIfAbsent(
         key,
         () => SequenceRowData(
@@ -483,6 +599,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           progName: progName,
           progSNo: pSNo,
           seqName: name,
+          valveName: defValve,
           dayEntries: {},
         ),
       );
@@ -512,6 +629,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         List recordDates = irrigation['Date'] ?? [];
         List programSNos = irrigation['ProgramS_No'] ?? [];
         List zoneSNos = irrigation['ZoneS_No'] ?? [];
+        List sequenceDatas = irrigation['SequenceData'] ?? [];
         List headUnits = irrigation['HeadUnit'] ?? [];
         List pumps = irrigation['Pump'] ?? [];
         List durationQtys = irrigation['IrrigationDuration_Quantity'] ?? [];
@@ -647,6 +765,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
           int qtyCompletedVal = int.tryParse(qtyCompletedStr) ?? 0;
 
+          var seqDataVal =
+              (i < sequenceDatas.length) ? sequenceDatas[i] : null;
+          String valveName = _resolveValveNames(seqDataVal);
+
           String rowKey = "${pSNo}_$seqName";
           SequenceRowData rowData = rowsMap.putIfAbsent(
             rowKey,
@@ -655,9 +777,20 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               progName: progName,
               progSNo: pSNo,
               seqName: seqName,
+              valveName: valveName,
               dayEntries: {},
             ),
           );
+
+          if (valveName.isNotEmpty) {
+            if (rowData.valveName.isEmpty) {
+              rowData.valveName = valveName;
+            } else if (!rowData.valveName
+                .split(RegExp(r',\s*'))
+                .contains(valveName)) {
+              rowData.valveName = "${rowData.valveName}, $valveName";
+            }
+          }
 
           SequenceDayData dayData = rowData.dayEntries.putIfAbsent(
             itemDateKey,
@@ -705,17 +838,29 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       r.totalQuantity = sumQty;
     }
 
-    // 5. Sort rows by Program SNo, then Sequence Name
+    // 5. Sort rows by Program SNo, then Program Name, then Valve Name, then Sequence Name (Natural Order)
     rows.sort((a, b) {
       if (a.progSNo != b.progSNo) return a.progSNo.compareTo(b.progSNo);
-      return a.seqName.compareTo(b.seqName);
+      int pCmp = _compareNatural(a.progName, b.progName);
+      if (pCmp != 0) return pCmp;
+      int vCmp = _compareNatural(a.valveName, b.valveName);
+      if (vCmp != 0) return vCmp;
+      return _compareNatural(a.seqName, b.seqName);
+    });
+
+    // Sort program dropdown options naturally with 'All Programs' always first
+    var sortedProgs = uniqueProgNames.toList();
+    sortedProgs.sort((a, b) {
+      if (a == 'All Programs') return -1;
+      if (b == 'All Programs') return 1;
+      return _compareNatural(a, b);
     });
 
     if (mounted) {
       setState(() {
         _dateColumns = dates;
         _sequenceRows = rows;
-        _programDropdownOptions = uniqueProgNames.toList();
+        _programDropdownOptions = sortedProgs;
       });
     }
   }
@@ -756,6 +901,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         String objectName = (item['objectName'] ?? '').toString();
 
         if (sNo != null && name.isNotEmpty) {
+          _registerConfigName(sNo, name);
           _channelNameMap[sNo.toString()] = name;
           var sNum = num.tryParse(sNo.toString());
           if (sNum != null) {
@@ -770,6 +916,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           _fertilizerChannelsFromConfig.add(Map<String, dynamic>.from(item));
         }
       } else if (item is ConfigObject) {
+        _registerConfigName(item.sNo, item.name);
         _channelNameMap[item.sNo.toString()] = item.name;
         _channelNameMap[item.sNo.toInt().toString()] = item.name;
         _channelNameMap[item.sNo.toStringAsFixed(3)] = item.name;
@@ -806,9 +953,27 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       if (response.statusCode == 200) {
         Map<String, dynamic> configJson = jsonDecode(response.body);
         if (configJson['code'] == 200 && configJson['data'] != null) {
-          var objs = configJson['data']['configObject'];
-          if (objs is List) {
-            _populateConfigNames(objs);
+          var data = configJson['data'];
+          if (data is Map) {
+            if (data['configObject'] is List) {
+              _populateConfigNames(data['configObject']);
+            }
+            if (data['valve'] is List) {
+              for (var v in data['valve']) {
+                if (v is Map) {
+                  _registerConfigName(v['sNo'],
+                      (v['name'] ?? v['valveName'] ?? '').toString());
+                }
+              }
+            }
+            if (data['valves'] is List) {
+              for (var v in data['valves']) {
+                if (v is Map) {
+                  _registerConfigName(v['sNo'],
+                      (v['name'] ?? v['valveName'] ?? '').toString());
+                }
+              }
+            }
           }
         }
       }
@@ -1279,28 +1444,25 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         int dayRunSum = 0;
         int dayPowerOnSum = 0;
         int dayPowerOffSum = 0;
-        Set<String> processedCategories = {};
 
         for (var r in activeRows) {
           if (r.dayEntries.containsKey(dKey)) {
             final entry = r.dayEntries[dKey]!;
             dayRunSum += entry.durationSeconds;
-
-            if (!processedCategories.contains(r.channelCategory)) {
-              processedCategories.add(r.channelCategory);
-              dayPowerOnSum += entry.powerOnSeconds;
-              dayPowerOffSum += entry.powerOffSeconds;
-            }
+            dayPowerOnSum += entry.powerOnSeconds;
+            dayPowerOffSum += entry.powerOffSeconds;
           }
         }
 
         dailyRunTotals[dKey] = dayRunSum;
         dailyPowerOnTotals[dKey] = dayPowerOnSum;
         dailyPowerOffTotals[dKey] = dayPowerOffSum;
+      }
 
-        grandTotalRunSec += dayRunSum;
-        grandTotalPowerOnSec += dayPowerOnSum;
-        grandTotalPowerOffSec += dayPowerOffSum;
+      for (var r in activeRows) {
+        grandTotalRunSec += r.totalDurationSeconds;
+        grandTotalPowerOnSec += r.totalPowerOnSeconds;
+        grandTotalPowerOffSec += r.totalPowerOffSeconds;
       }
 
       String fileName =
@@ -1483,28 +1645,25 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         int dayRunSum = 0;
         int dayPowerOnSum = 0;
         int dayPowerOffSum = 0;
-        Set<String> processedCategories = {};
 
         for (var r in activeRows) {
           if (r.dayEntries.containsKey(dKey)) {
             final entry = r.dayEntries[dKey]!;
             dayRunSum += entry.durationSeconds;
-
-            if (!processedCategories.contains(r.channelCategory)) {
-              processedCategories.add(r.channelCategory);
-              dayPowerOnSum += entry.powerOnSeconds;
-              dayPowerOffSum += entry.powerOffSeconds;
-            }
+            dayPowerOnSum += entry.powerOnSeconds;
+            dayPowerOffSum += entry.powerOffSeconds;
           }
         }
 
         dailyRunTotals[dKey] = dayRunSum;
         dailyPowerOnTotals[dKey] = dayPowerOnSum;
         dailyPowerOffTotals[dKey] = dayPowerOffSum;
+      }
 
-        grandTotalRunSec += dayRunSum;
-        grandTotalPowerOnSec += dayPowerOnSum;
-        grandTotalPowerOffSec += dayPowerOffSum;
+      for (var r in activeRows) {
+        grandTotalRunSec += r.totalDurationSeconds;
+        grandTotalPowerOnSec += r.totalPowerOnSeconds;
+        grandTotalPowerOffSec += r.totalPowerOffSeconds;
       }
 
       String fileName =
@@ -4122,7 +4281,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         }
 
         // Base Column Widths (Program/Sequence, Date column, Total column)
-        const double baseSeqWidth = 160;
+        const double baseSeqWidth = 170;
         const double baseDateColWidth = 145;
         const double baseTotalWidth = 145;
 
@@ -4173,7 +4332,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
                 child: Column(
                   children: [
-                    // Top Header: Program / Sequence
+                    // Top Header: Program / Valve / Sequence
                     Container(
                       width: colSeqWidth,
                       height: 38,
@@ -4186,7 +4345,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: const Text(
-                        "Program / Sequence",
+                        "Program / Valve / Sequence",
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -4195,8 +4354,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
 
-                    // Sub-Header: Program / Sequence
-                    _buildSubHeaderCell("Program /\nSequence", colSeqWidth),
+                    // Sub-Header: Program / Valve / Sequence
+                    _buildSubHeaderCell(
+                        "Program /\nValve /\nSequence", colSeqWidth,
+                        height: 48),
 
                     // Middle Data Rows (Synchronized vertically)
                     Expanded(
@@ -4325,7 +4486,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     dIdx < _dateColumns.length;
                                     dIdx++)
                                   _buildSubHeaderCell(
-                                      "Duration /\nQuantity", colDateWidth),
+                                      "Duration /\nQuantity", colDateWidth,
+                                      height: 48),
                               ],
                             ),
 
@@ -4427,7 +4589,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
                     // Sub-Header: Total Duration / Quantity
                     _buildSubHeaderCell("Duration /\nQuantity", colTotalWidth,
-                        isTotalCol: true),
+                        isTotalCol: true, height: 48),
 
                     // Middle Data Rows (Synchronized vertically)
                     Expanded(
@@ -4508,7 +4670,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalSeconds,
     int grandTotalQuantity,
   ) {
-    const double colSeqWidth = 145;
+    const double colSeqWidth = 155;
     const double colDateWidth = 140;
     const double colTotalWidth = 140;
     final double totalTableWidth =
@@ -4564,7 +4726,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           ),
                         ),
                         child: const Text(
-                          "Program / Sequence",
+                          "Program / Valve / Sequence",
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -4623,13 +4785,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _buildSubHeaderCell("Program /\nSequence", colSeqWidth),
+                      _buildSubHeaderCell(
+                          "Program /\nValve /\nSequence", colSeqWidth,
+                          height: 48),
                       for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
                         _buildSubHeaderCell(
-                            "Duration /\nQuantity", colDateWidth),
+                            "Duration /\nQuantity", colDateWidth,
+                            height: 48),
                       _buildSubHeaderCell(
                           "Total\nDuration /\nQuantity", colTotalWidth,
-                          isTotalCol: true),
+                          isTotalCol: true, height: 48),
                     ],
                   ),
 
@@ -4831,9 +4996,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     return Container(
       width: colSeqWidth,
-      height: 52,
+      height: 64,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
         color: rowBg,
         border: const Border(
@@ -4844,47 +5009,71 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       child: Row(
         children: [
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (row.progName.isNotEmpty && row.progName != row.seqName) ...[
-                  Text(
-                    row.progName,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize:
-                          MediaQuery.of(context).size.width < 650 ? 11.0 : 12.0,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1E293B),
+            child: Tooltip(
+              message:
+                  "${row.progName.isNotEmpty && row.progName != row.seqName ? '${row.progName} - ' : ''}${row.valveName.isNotEmpty ? '${row.valveName} - ' : ''}${row.seqName}",
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (row.progName.isNotEmpty &&
+                      row.progName != row.seqName) ...[
+                    Text(
+                      row.progName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width < 650
+                            ? 10.0
+                            : 11.0,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E293B),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                  ],
+                  if (row.valveName.isNotEmpty) ...[
+                    Text(
+                      row.valveName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width < 650
+                            ? 9.5
+                            : 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF0284C7),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                  ],
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(8),
+                      border:
+                          Border.all(color: const Color(0xFFC8E6C9), width: 1),
+                    ),
+                    child: Text(
+                      row.seqName,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width < 650
+                            ? 9.5
+                            : 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF2E7D32),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
                 ],
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: const Color(0xFFC8E6C9), width: 1),
-                  ),
-                  child: Text(
-                    row.seqName,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize:
-                          MediaQuery.of(context).size.width < 650 ? 10.5 : 11.5,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF2E7D32),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           Material(
@@ -4925,7 +5114,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
     return Container(
-      height: 52,
+      height: 64,
       decoration: BoxDecoration(
         color: rowBg,
         border: const Border(
@@ -4969,7 +5158,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (isPinned) {
       return Container(
         width: colTotalWidth,
-        height: 52,
+        height: 64,
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 4),
         decoration: BoxDecoration(
@@ -5011,7 +5200,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     return Container(
       width: colTotalWidth,
-      height: 52,
+      height: 64,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: const BoxDecoration(
@@ -5062,6 +5251,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       colDateWidth,
       isBold: isBold,
       maxLines: 2,
+      height: 64,
     );
   }
 
@@ -5070,6 +5260,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     double width, {
     bool isBold = false,
     int maxLines = 2,
+    double? height,
   }) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final double fontSize =
@@ -5077,7 +5268,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     return Container(
       width: width,
-      height: 52,
+      height: height ?? 52,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: const BoxDecoration(
@@ -5637,10 +5828,15 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  row.progName.isNotEmpty &&
-                                          row.progName != row.seqName
-                                      ? "${row.progName} - ${row.seqName}"
-                                      : row.seqName,
+                                  row.valveName.isNotEmpty
+                                      ? (row.progName.isNotEmpty &&
+                                              row.progName != row.seqName
+                                          ? "${row.progName} - ${row.valveName} - ${row.seqName}"
+                                          : "${row.valveName} - ${row.seqName}")
+                                      : (row.progName.isNotEmpty &&
+                                              row.progName != row.seqName
+                                          ? "${row.progName} - ${row.seqName}"
+                                          : row.seqName),
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
@@ -6936,10 +7132,24 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           nodeControllerId != 0 ? nodeControllerId : controllerId;
 
       var targetPumps = masterData.configObjects
-          .where((e) => e.objectId == 5 && e.controllerId == targetControllerId)
+          .where((e) =>
+              e.objectId == 5 &&
+              (e.controllerId == targetControllerId ||
+                  ((nodeControllerId == 0 || nodeControllerId == controllerId) &&
+                      (e.controllerId == 0 ||
+                          e.controllerId == null ||
+                          e.controllerId == controllerId))))
           .toList();
 
+      if (targetPumps.isEmpty &&
+          (nodeControllerId == 0 || nodeControllerId == controllerId)) {
+        targetPumps = masterData.configObjects
+            .where((e) => e.objectId == 5)
+            .toList();
+      }
+
       if (targetPumps.isNotEmpty) {
+        targetPumps.sort((a, b) => a.sNo.compareTo(b.sNo));
         final List<String> names = [];
         for (var pump in targetPumps) {
           final name = pump.name.isNotEmpty
@@ -6948,6 +7158,15 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           names.add(name);
         }
         return names;
+      }
+
+      if (nodeControllerId != 0) {
+        final matchingNode = masterData.nodeList
+            .where((n) => n.controllerId == nodeControllerId)
+            .firstOrNull;
+        if (matchingNode != null && matchingNode.deviceName.isNotEmpty) {
+          return [matchingNode.deviceName];
+        }
       }
     }
     return ["Pump"];
@@ -7084,17 +7303,23 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               .getUserPumpHourlyLog(reqBody, nodeCtrlId != 0);
           if (res.statusCode == 200) {
             final resJson = jsonDecode(res.body);
-            if (resJson['data'] is List) {
-              hourlyList = (resJson['data'] as List)
-                  .map((item) =>
-                      MotorDataHourly.fromJson(item as Map<String, dynamic>))
-                  .toList();
-            } else if (resJson['data'] is Map) {
-              hourlyList = [
-                MotorDataHourly.fromJson(
-                    resJson['data'] as Map<String, dynamic>)
-              ];
+            final rawData = resJson['data'];
+            List rawList = [];
+            if (rawData is List) {
+              rawList = rawData;
+            } else if (rawData is Map) {
+              if (rawData['log'] is List) {
+                rawList = rawData['log'];
+              } else if (rawData['data'] is List) {
+                rawList = rawData['data'];
+              } else {
+                rawList = [rawData];
+              }
             }
+            hourlyList = rawList
+                .map((item) => MotorDataHourly.fromJson(
+                    Map<String, dynamic>.from(item as Map)))
+                .toList();
           }
         } catch (e) {
           debugPrint("Error fetching pump hourly log for $devDisplayName: $e");
@@ -7106,12 +7331,29 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           controllerId,
         );
 
+        final int targetCtrlId = nodeCtrlId != 0 ? nodeCtrlId : controllerId;
+        final bool hasConfiguredPumps = widget.masterData != null &&
+            widget.masterData!.configObjects.any((e) =>
+                e.objectId == 5 &&
+                (e.controllerId == targetCtrlId ||
+                    ((nodeCtrlId == 0 || nodeCtrlId == controllerId) &&
+                        (e.controllerId == 0 ||
+                            e.controllerId == null ||
+                            e.controllerId == controllerId))));
+
+        bool hasMotor3Run = hourlyList.any(
+            (h) => _parseDurationToSeconds(h.motorRunTime3) > 0);
+        bool hasMotor2Run = hourlyList.any(
+            (h) => _parseDurationToSeconds(h.motorRunTime2) > 0);
+
         int numPumps = pumpNames.isNotEmpty ? pumpNames.length : 1;
-        for (var h in hourlyList) {
-          if (h.numberOfPumps > numPumps) numPumps = h.numberOfPumps;
-          if (h.motorRunTime3 != "00:00:00" && numPumps < 3) numPumps = 3;
-          if (h.motorRunTime2 != "00:00:00" && numPumps < 2) numPumps = 2;
+        if (!hasConfiguredPumps) {
+          for (var h in hourlyList) {
+            if (h.numberOfPumps > numPumps) numPumps = h.numberOfPumps;
+          }
         }
+        if (hasMotor3Run && numPumps < 3) numPumps = 3;
+        if (hasMotor2Run && numPumps < 2) numPumps = 2;
         numPumps = numPumps.clamp(1, 3);
 
         // Build entries map by date
@@ -7346,15 +7588,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalRunSec = 0;
     int grandTotalPowerOnSec = 0;
     int grandTotalPowerOffSec = 0;
-    Set<String> processedCategories = {};
 
     for (var r in filteredRows) {
       grandTotalRunSec += r.totalDurationSeconds;
-      if (!processedCategories.contains(r.channelCategory)) {
-        processedCategories.add(r.channelCategory);
-        grandTotalPowerOnSec += r.totalPowerOnSeconds;
-        grandTotalPowerOffSec += r.totalPowerOffSeconds;
-      }
+      grandTotalPowerOnSec += r.totalPowerOnSeconds;
+      grandTotalPowerOffSec += r.totalPowerOffSeconds;
     }
 
     return LayoutBuilder(
@@ -8026,16 +8264,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           sumPowerOffSec = entry.powerOffSeconds;
         }
       } else {
-        Set<String> processedCategories = {};
         for (var r in rows) {
           if (r.dayEntries.containsKey(dKey)) {
             final entry = r.dayEntries[dKey]!;
             sumRunSec += entry.durationSeconds;
-            if (!processedCategories.contains(r.channelCategory)) {
-              processedCategories.add(r.channelCategory);
-              sumPowerOnSec += entry.powerOnSeconds;
-              sumPowerOffSec += entry.powerOffSeconds;
-            }
+            sumPowerOnSec += entry.powerOnSeconds;
+            sumPowerOffSec += entry.powerOffSeconds;
           }
         }
       }
@@ -9331,29 +9565,25 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       int dayRunSum = 0;
       int dayPowerOnSum = 0;
       int dayPowerOffSum = 0;
-      Set<String> processedCategories = {};
 
       for (var r in rows) {
         if (r.dayEntries.containsKey(dKey)) {
           final entry = r.dayEntries[dKey]!;
           dayRunSum += entry.durationSeconds;
-
-          // Add power on/off once per device category so controller power is not duplicated per pump
-          if (!processedCategories.contains(r.channelCategory)) {
-            processedCategories.add(r.channelCategory);
-            dayPowerOnSum += entry.powerOnSeconds;
-            dayPowerOffSum += entry.powerOffSeconds;
-          }
+          dayPowerOnSum += entry.powerOnSeconds;
+          dayPowerOffSum += entry.powerOffSeconds;
         }
       }
 
       dailyRunTotals[dKey] = dayRunSum;
       dailyPowerOnTotals[dKey] = dayPowerOnSum;
       dailyPowerOffTotals[dKey] = dayPowerOffSum;
+    }
 
-      grandTotalRunSec += dayRunSum;
-      grandTotalPowerOnSec += dayPowerOnSum;
-      grandTotalPowerOffSec += dayPowerOffSum;
+    for (var r in rows) {
+      grandTotalRunSec += r.totalDurationSeconds;
+      grandTotalPowerOnSec += r.totalPowerOnSeconds;
+      grandTotalPowerOffSec += r.totalPowerOffSeconds;
     }
 
     return LayoutBuilder(
