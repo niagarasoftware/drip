@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/views/customer/controller_settings/wide/notification_wide.dart';
-
 import '../../../../Screens/Dealer/controllerlogfile.dart';
 import '../../../../Screens/Dealer/dealer_definition.dart';
 import '../../../../Screens/Map/allAreaBoundry.dart';

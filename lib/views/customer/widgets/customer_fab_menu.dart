@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/views/customer/widgets/password_field.dart';
 import 'package:provider/provider.dart';
-
 import '../../../Screens/Map/oro_map/map_oro.dart';
 import '../../../models/customer/site_model.dart';
 import '../../../Screens/Dealer/ble_mobile_screen.dart';

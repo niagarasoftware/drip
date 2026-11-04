@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/modules/Preferences/view/preference_main_screen.dart';
 import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_screen.dart';
 import 'package:provider/provider.dart';
-
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
 import '../../../Screens/planning/FactoryReset.dart';
 import '../../../cropAdvisory/view/crop_list_screen.dart';

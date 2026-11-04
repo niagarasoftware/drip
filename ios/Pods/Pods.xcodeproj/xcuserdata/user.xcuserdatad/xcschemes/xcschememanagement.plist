@@ -154,11 +154,6 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
-		<key>Mantle.xcscheme</key>
-		<dict>
-			<key>isShown</key>
-			<false/>
-		</dict>
 		<key>Pods-Runner.xcscheme</key>
 		<dict>
 			<key>isShown</key>
@@ -235,6 +230,11 @@
 			<false/>
 		</dict>
 		<key>easy_pdf_viewer.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>file_saver.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -364,12 +364,7 @@
 			<key>isShown</key>
 			<false/>
 		</dict>
-		<key>path_provider_foundation-path_provider_foundation_privacy.xcscheme</key>
-		<dict>
-			<key>isShown</key>
-			<false/>
-		</dict>
-		<key>path_provider_foundation.xcscheme</key>
+		<key>pdfium_flutter.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>
@@ -420,6 +415,11 @@
 			<false/>
 		</dict>
 		<key>url_launcher_ios.xcscheme</key>
+		<dict>
+			<key>isShown</key>
+			<false/>
+		</dict>
+		<key>vibration-vibration_privacy.xcscheme</key>
 		<dict>
 			<key>isShown</key>
 			<false/>

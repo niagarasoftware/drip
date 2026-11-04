@@ -107,7 +107,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     mqttService.initializeMQTTClient(state: mqttProvider);
     mqttService.connect();
 
-    if (!kIsWeb) {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       bluetoothClassicService.initializeClassicService(state: mqttProvider);
       bluetoothBleService.initializeBleService(state: mqttProvider);
     }
@@ -268,58 +268,6 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------------- SITE / MASTER UPDATES ------------------------
-
-  /*Future<void> getAllMySites(BuildContext context, int customerId,
-      {bool preserveSelection = false}) async {
-
-    setLoading(true);
-
-    try {
-      final ownResponse = await repository.fetchAllMySite({"userId": customerId});
-      final sharedResponse = await repository.fetchSharedUserSite({"userId": customerId});
-      List<dynamic> combinedSites = [];
-
-      // Own Sites
-      if (ownResponse.statusCode == 200) {
-        final ownJson = jsonDecode(ownResponse.body);
-        debugPrint('Own Sites: ${ownResponse.body}');
-        if (ownJson["code"] == 200) {
-          final ownSites = ownJson["data"] ?? [];
-          combinedSites.addAll(ownSites);
-        }
-      }
-
-      // Shared Sites
-      if (sharedResponse.statusCode == 200) {
-        final sharedJson = jsonDecode(sharedResponse.body);
-        debugPrint('Shared Sites: ${sharedResponse.body}');
-        if (sharedJson["code"] == 200) {
-          final sharedSites = sharedJson["data"] ?? [];
-          combinedSites.addAll(sharedSites);
-        }
-      }
-
-      // Remove Duplicate Sites
-      final uniqueSites = <int, dynamic>{};
-      for (final site in combinedSites) {
-        final groupId = site["userGroupId"];
-        uniqueSites[groupId] = site;
-      }
-
-      final finalData = {"data": uniqueSites.values.toList()};
-      _handleFetchedSites(finalData, 'customer', preserveSelection);
-
-    } catch (error) {
-      errorMsg = 'Error fetching site list: $error';
-      debugPrint(errorMsg);
-    } finally {
-      setLoading(false);
-      if (!_disposed && !mqttInitialized && mySiteList.data.isNotEmpty) {
-        _initializeMqttConnection();
-      }
-    }
-  }*/
 
   Future<void> getAllMySites(BuildContext context, int customerId,
       {bool preserveSelection = false}) async {

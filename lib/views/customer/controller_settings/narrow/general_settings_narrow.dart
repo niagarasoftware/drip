@@ -4,7 +4,7 @@ import 'package:loading_indicator/loading_indicator.dart';
 import 'package:oro_drip_irrigation/modules/bluetooth_low_energy/state_management/ble_service.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter/foundation.dart';
 import '../../../../Screens/Dealer/controllerverssionupdate.dart';
 import '../../../../StateManagement/mqtt_payload_provider.dart';
 import '../../../../models/customer/controller_context.dart';
@@ -45,8 +45,10 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
 
     // Initialize the service with the provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<MqttPayloadProvider>(context, listen: false);
-      bleService.initializeBleService(state: provider);
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final provider = Provider.of<MqttPayloadProvider>(context, listen: false);
+        bleService.initializeBleService(state: provider);
+      }
     });
   }
 
