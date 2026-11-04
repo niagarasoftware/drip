@@ -83,7 +83,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
 
-    List<CellValue> header2 = [TextCellValue('Program / Sequence')];
+    List<CellValue> header2 = [TextCellValue('Program / Valve / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
     }
@@ -92,10 +92,15 @@ Future<String?> exportZoneLogMatrixToExcel({
 
     for (var row in rows) {
       List<CellValue> dataRow = [];
-      String displayName =
-          (row.progName.isNotEmpty && row.progName != row.seqName)
-              ? "${row.progName} - ${row.seqName}"
-              : row.seqName;
+      String displayName = row.seqName;
+      String vName = (row.valveName ?? '').toString();
+      if (vName.isNotEmpty) {
+        displayName = (row.progName.isNotEmpty && row.progName != row.seqName)
+            ? "${row.progName} - $vName - ${row.seqName}"
+            : "$vName - ${row.seqName}";
+      } else if (row.progName.isNotEmpty && row.progName != row.seqName) {
+        displayName = "${row.progName} - ${row.seqName}";
+      }
       dataRow.add(TextCellValue(displayName));
 
       int rowTotalSec = 0;
