@@ -324,10 +324,19 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   String _resolveValveNames(dynamic rawSeqData) {
     if (rawSeqData == null) return '';
     if (rawSeqData is List) {
-      return rawSeqData
-          .map((item) => _resolveValveNames(item))
-          .where((s) => s.isNotEmpty)
-          .join(', ');
+      List<String> allResolved = [];
+      for (var item in rawSeqData) {
+        String res = _resolveValveNames(item);
+        if (res.isNotEmpty) {
+          for (var p in res.split(RegExp(r',\s*'))) {
+            String tp = p.trim();
+            if (tp.isNotEmpty && !allResolved.contains(tp)) {
+              allResolved.add(tp);
+            }
+          }
+        }
+      }
+      return allResolved.join(', ');
     }
     String raw = rawSeqData.toString().trim();
     if (raw.isEmpty || raw == '-' || raw == '[]') return '';
@@ -347,7 +356,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               _channelNameMap[numVal.toStringAsFixed(3)];
         }
       }
-      resolved.add((name != null && name.trim().isNotEmpty) ? name : key);
+      String finalName =
+          (name != null && name.trim().isNotEmpty) ? name.trim() : key;
+      if (!resolved.contains(finalName)) {
+        resolved.add(finalName);
+      }
     }
     return resolved.join(', ');
   }
@@ -785,10 +798,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           if (valveName.isNotEmpty) {
             if (rowData.valveName.isEmpty) {
               rowData.valveName = valveName;
-            } else if (!rowData.valveName
-                .split(RegExp(r',\s*'))
-                .contains(valveName)) {
-              rowData.valveName = "${rowData.valveName}, $valveName";
+            } else {
+              List<String> currentList = [];
+              for (var v in rowData.valveName.split(RegExp(r',\s*'))) {
+                String tv = v.trim();
+                if (tv.isNotEmpty && !currentList.contains(tv)) {
+                  currentList.add(tv);
+                }
+              }
+              for (var v in valveName.split(RegExp(r',\s*'))) {
+                String tv = v.trim();
+                if (tv.isNotEmpty && !currentList.contains(tv)) {
+                  currentList.add(tv);
+                }
+              }
+              rowData.valveName = currentList.join(', ');
             }
           }
 
@@ -5828,15 +5852,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  row.valveName.isNotEmpty
-                                      ? (row.progName.isNotEmpty &&
-                                              row.progName != row.seqName
-                                          ? "${row.progName} - ${row.valveName} - ${row.seqName}"
-                                          : "${row.valveName} - ${row.seqName}")
-                                      : (row.progName.isNotEmpty &&
-                                              row.progName != row.seqName
-                                          ? "${row.progName} - ${row.seqName}"
-                                          : row.seqName),
+                                  row.progName.isNotEmpty &&
+                                          row.progName != row.seqName
+                                      ? "${row.progName} - ${row.seqName}"
+                                      : row.seqName,
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
