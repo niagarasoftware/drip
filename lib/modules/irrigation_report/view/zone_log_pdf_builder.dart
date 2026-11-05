@@ -210,9 +210,9 @@ Uint8List generateZoneLogMatrixPdfBytes({
   required List<DateTime> dateColumns,
   required List<dynamic> rows,
   required Map<String, int> dailyTotals,
-  Map<String, int>? dailyTotalQuantities,
+  Map<String, num>? dailyTotalQuantities,
   required int grandTotalSeconds,
-  int grandTotalQuantity = 0,
+  num grandTotalQuantity = 0,
   required String fileName,
 }) {
   final List<int> pdfBytes = [];
@@ -402,7 +402,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
       int maxRowLines = cell0Lines.length;
 
       int rowTotalSec = 0;
-      int rowTotalQty = 0;
+      num rowTotalQty = 0;
 
       for (int d = 0; d < chunkDates.length; d++) {
         String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
@@ -410,11 +410,13 @@ Uint8List generateZoneLogMatrixPdfBytes({
         String cellVal = '- / -';
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? dayData.durationSeconds as int? ?? 0);
-          int qtyVal = (dayData.quantityCompleted as int? ?? dayData.quantity?.toInt() ?? 0);
+          num qtyVal = (dayData.quantityCompleted as num? ?? dayData.quantity as num? ?? 0);
           String durStr = (dayData.durationQtyStr != null && dayData.durationQtyStr.toString().isNotEmpty)
               ? dayData.durationQtyStr.toString()
               : formatDurWithSecs(sec);
-          String qtyStr = qtyVal > 0 ? "$qtyVal L" : '-';
+          String qtyStr = qtyVal > 0
+              ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
+              : '-';
           cellVal = "$durStr / $qtyStr";
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
@@ -425,7 +427,9 @@ Uint8List generateZoneLogMatrixPdfBytes({
       }
 
       String rDur = formatDurWithSecs(rowTotalSec);
-      String rQty = rowTotalQty > 0 ? "$rowTotalQty L" : '-';
+      String rQty = rowTotalQty > 0
+          ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
+          : '-';
       String totalCellVal = "$rDur / $rQty";
       List<String> totLines = _wrapTextLines(totalCellVal, 14, maxLines: 2);
       rowCellLines.add(totLines);
@@ -461,9 +465,11 @@ Uint8List generateZoneLogMatrixPdfBytes({
       for (int d = 0; d < chunkDates.length; d++) {
         String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
         int daySec = dailyTotals[dKey] ?? 0;
-        int dayQty = dailyTotalQuantities?[dKey] ?? 0;
+        num dayQty = dailyTotalQuantities?[dKey] ?? 0;
         String dayDur = formatDurWithSecs(daySec);
-        String dayQtyStr = dayQty > 0 ? "$dayQty L" : '-';
+        String dayQtyStr = dayQty > 0
+            ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
+            : '-';
         String dayCellVal = "$dayDur / $dayQtyStr";
         List<String> dLines = _wrapTextLines(dayCellVal, 14, maxLines: 2);
         footerCellLines.add(dLines);
@@ -471,7 +477,11 @@ Uint8List generateZoneLogMatrixPdfBytes({
       }
 
       String gDur = formatDurWithSecs(grandTotalSeconds);
-      String gQty = grandTotalQuantity > 0 ? "$grandTotalQuantity L" : '-';
+      String gQty = grandTotalQuantity > 0
+          ? (grandTotalQuantity % 1 == 0
+              ? "${grandTotalQuantity.toInt()} L"
+              : "$grandTotalQuantity L")
+          : '-';
       String gCellVal = "$gDur / $gQty";
       List<String> gLines = _wrapTextLines(gCellVal, 14, maxLines: 2);
       footerCellLines.add(gLines);

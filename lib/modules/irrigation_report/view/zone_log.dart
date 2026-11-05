@@ -64,7 +64,7 @@ class ZoneLogEntry {
 class SequenceDayData {
   int durationQtySeconds;
   int durationCompletedSeconds;
-  int quantityCompleted;
+  num quantityCompleted;
   bool hasRun;
 
   SequenceDayData({
@@ -77,7 +77,11 @@ class SequenceDayData {
   String get durationQtyStr => durationQtySeconds > 0
       ? _formatSecondsToHMS(durationQtySeconds)
       : '00:00:00';
-  String get qtyCompletedStr => quantityCompleted.toString();
+  String get qtyCompletedStr => quantityCompleted > 0
+      ? (quantityCompleted % 1 == 0
+          ? quantityCompleted.toInt().toString()
+          : quantityCompleted.toString())
+      : '0';
 
   static String _formatSecondsToHMS(int totalSeconds) {
     if (totalSeconds <= 0) return "00:00:00";
@@ -99,7 +103,7 @@ class SequenceRowData {
   String valveName;
   final Map<String, SequenceDayData> dayEntries; // dateKey -> SequenceDayData
   int totalDurationSeconds;
-  int totalQuantity;
+  num totalQuantity;
 
   SequenceRowData({
     required this.key,
@@ -264,16 +268,34 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       return 0;
     }
     try {
-      var sParts = start.split(':').map((e) => int.tryParse(e) ?? 0).toList();
-      var eParts = end.split(':').map((e) => int.tryParse(e) ?? 0).toList();
-      int sSec = sParts[0] * 3600 +
-          (sParts.length > 1 ? sParts[1] * 60 : 0) +
-          (sParts.length > 2 ? sParts[2] : 0);
-      int eSec = eParts[0] * 3600 +
-          (eParts.length > 1 ? eParts[1] * 60 : 0) +
-          (eParts.length > 2 ? eParts[2] : 0);
-      int diff = eSec - sSec;
-      return diff > 0 ? diff : 0;
+      var sList = start.trim().split('_');
+      var eList = end.trim().split('_');
+      int totalSec = 0;
+      int count = math.min(sList.length, eList.length);
+      for (int i = 0; i < count; i++) {
+        String s = sList[i].trim();
+        String e = eList[i].trim();
+        if (s.isEmpty || e.isEmpty || s == '-' || e == '-') continue;
+        var sParts =
+            s.split(':').map((p) => int.tryParse(p.trim()) ?? 0).toList();
+        var eParts =
+            e.split(':').map((p) => int.tryParse(p.trim()) ?? 0).toList();
+        if (sParts.isEmpty || eParts.isEmpty) continue;
+        int sSec = sParts[0] * 3600 +
+            (sParts.length > 1 ? sParts[1] * 60 : 0) +
+            (sParts.length > 2 ? sParts[2] : 0);
+        int eSec = eParts[0] * 3600 +
+            (eParts.length > 1 ? eParts[1] * 60 : 0) +
+            (eParts.length > 2 ? eParts[2] : 0);
+        int diff = eSec - sSec;
+        if (diff < 0 && sSec > 0 && eSec > 0) {
+          diff += 86400; // overnight wrap-around across midnight
+        }
+        if (diff > 0) {
+          totalSec += diff;
+        }
+      }
+      return totalSec;
     } catch (_) {
       return 0;
     }
@@ -285,6 +307,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
     try {
       dur = dur.trim();
+      if (dur.contains('_')) {
+        int sum = 0;
+        for (var part in dur.split('_')) {
+          sum += _parseDurationToSeconds(part);
+        }
+        return sum;
+      }
       var parts =
           dur.split(':').map((e) => int.tryParse(e.trim()) ?? 0).toList();
       if (parts.length == 3) {
@@ -292,10 +321,24 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       } else if (parts.length == 2) {
         return parts[0] * 60 + parts[1];
       }
-      return int.tryParse(dur) ?? 0;
+      return 0;
     } catch (_) {
       return 0;
     }
+  }
+
+  num _parseQuantity(dynamic val) {
+    if (val == null) return 0;
+    String s = val.toString().trim();
+    if (s.isEmpty || s == '-' || s == '--') return 0;
+    if (s.contains('_')) {
+      num sum = 0;
+      for (var part in s.split('_')) {
+        sum += (num.tryParse(part.trim()) ?? 0);
+      }
+      return sum;
+    }
+    return num.tryParse(s) ?? 0;
   }
 
   String _formatDuration(int totalSeconds) {
@@ -434,11 +477,15 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         "CentralFertMethod",
         "CentralFertilizerChannelDuration",
         "CentralFertilizerChannelQuantity",
+        "CentralFertilizerChannelDurationCompleted",
+        "CentralFertilizerChannelQuantityCompleted",
         "CentralFertilizerChannel",
         "LocalFertilizerChannel",
         "LocalFertMethod",
         "LocalFertilizerChannelDuration",
         "LocalFertilizerChannelQuantity",
+        "LocalFertilizerChannelDurationCompleted",
+        "LocalFertilizerChannelQuantityCompleted",
         "LocalFertChannelName"
       ]
     };
@@ -765,18 +812,37 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ? qtyCompleteds[i].toString().trim()
                   : '0';
 
-          int durationQtySec = _parseDurationToSeconds(durationQtyStr);
-          int durCompletedSec = _parseDurationToSeconds(durationCompletedStr);
-          if (durCompletedSec == 0 &&
-              i < actualStartTimes.length &&
+          int actualDurFromTimes = 0;
+          if (i < actualStartTimes.length &&
               i < actualStopTimes.length &&
               actualStartTimes[i] != null &&
               actualStopTimes[i] != null) {
-            durCompletedSec = _parseDurationSeconds(
+            actualDurFromTimes = _parseDurationSeconds(
                 actualStartTimes[i].toString(), actualStopTimes[i].toString());
           }
 
-          int qtyCompletedVal = int.tryParse(qtyCompletedStr) ?? 0;
+          int durationQtySec = _parseDurationToSeconds(durationQtyStr);
+          int durCompletedSec = _parseDurationToSeconds(durationCompletedStr);
+
+          // Determine the effective duration:
+          // Priority 1: If actual start and end times are available, use the calculated duration (e.g. 13:21:41 to 13:54:38 -> 32m 57s)
+          // Priority 2: If durationCompleted is reported (> 1 second to avoid 1s dummy placeholder), use it
+          // Priority 3: Fallback to planned/set duration
+          int effectiveDurSec = 0;
+          if (actualDurFromTimes > 0) {
+            effectiveDurSec = actualDurFromTimes;
+          } else if (durCompletedSec > 1) {
+            effectiveDurSec = durCompletedSec;
+          } else if (durCompletedSec > 0 && durationQtySec == 0) {
+            effectiveDurSec = durCompletedSec;
+          } else {
+            effectiveDurSec = durationQtySec;
+          }
+
+          num qtyCompletedVal = _parseQuantity(qtyCompletedStr);
+          if (qtyCompletedVal == 0 && !durationQtyStr.contains(':')) {
+            qtyCompletedVal = _parseQuantity(durationQtyStr);
+          }
 
           var seqDataVal =
               (i < sequenceDatas.length) ? sequenceDatas[i] : null;
@@ -821,10 +887,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             () => SequenceDayData(),
           );
 
-          dayData.durationQtySeconds += durationQtySec;
-          dayData.durationCompletedSeconds += durCompletedSec;
+          dayData.durationQtySeconds += effectiveDurSec;
+          dayData.durationCompletedSeconds +=
+              (actualDurFromTimes > 0 ? actualDurFromTimes : durCompletedSec);
           dayData.quantityCompleted += qtyCompletedVal;
-          dayData.hasRun = true;
+          if (effectiveDurSec > 0 ||
+              qtyCompletedVal > 0 ||
+              durationQtySec > 0 ||
+              durCompletedSec > 0) {
+            dayData.hasRun = true;
+          }
 
           // For raw export
           allRawExportEntries.add(
@@ -838,10 +910,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               headUnit: headUnitStr,
               pump: pumpStr,
               durationQty: durationQtyStr,
-              qtyCompleted: qtyCompletedStr,
+              qtyCompleted: qtyCompletedVal > 0
+                  ? (qtyCompletedVal % 1 == 0
+                      ? qtyCompletedVal.toInt().toString()
+                      : qtyCompletedVal.toString())
+                  : qtyCompletedStr,
               durationCompleted: durationCompletedStr,
-              durationSeconds: durCompletedSec,
-              durationStr: _formatDuration(durCompletedSec),
+              durationSeconds: effectiveDurSec,
+              durationStr: _formatDuration(effectiveDurSec),
               hasRun: true,
             ),
           );
@@ -853,7 +929,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     List<SequenceRowData> rows = rowsMap.values.toList();
     for (var r in rows) {
       int sumSec = 0;
-      int sumQty = 0;
+      num sumQty = 0;
       for (var d in r.dayEntries.values) {
         sumSec += d.durationQtySeconds;
         sumQty += d.quantityCompleted;
@@ -862,14 +938,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       r.totalQuantity = sumQty;
     }
 
-    // 5. Sort rows by Program SNo, then Program Name, then Valve Name, then Sequence Name (Natural Order)
+    // 5. Sort rows by Program SNo, then Program Name, then Sequence Name (Natural Order), then Valve Name
     rows.sort((a, b) {
       if (a.progSNo != b.progSNo) return a.progSNo.compareTo(b.progSNo);
       int pCmp = _compareNatural(a.progName, b.progName);
       if (pCmp != 0) return pCmp;
-      int vCmp = _compareNatural(a.valveName, b.valveName);
-      if (vCmp != 0) return vCmp;
-      return _compareNatural(a.seqName, b.seqName);
+      int sCmp = _compareNatural(a.seqName, b.seqName);
+      if (sCmp != 0) return sCmp;
+      return _compareNatural(a.valveName, b.valveName);
     });
 
     // Sort program dropdown options naturally with 'All Programs' always first
@@ -1058,6 +1134,28 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           centralNames = [irrigation['CentralFertChannelName']];
         }
 
+        List centralDurationsCompleted = [];
+        if (irrigation['CentralFertilizerChannelDurationCompleted'] is List) {
+          centralDurationsCompleted =
+              irrigation['CentralFertilizerChannelDurationCompleted'];
+        } else if (irrigation['CentralFertilizerChannelDurationCompleted'] !=
+            null) {
+          centralDurationsCompleted = [
+            irrigation['CentralFertilizerChannelDurationCompleted']
+          ];
+        }
+
+        List centralQuantitiesCompleted = [];
+        if (irrigation['CentralFertilizerChannelQuantityCompleted'] is List) {
+          centralQuantitiesCompleted =
+              irrigation['CentralFertilizerChannelQuantityCompleted'];
+        } else if (irrigation['CentralFertilizerChannelQuantityCompleted'] !=
+            null) {
+          centralQuantitiesCompleted = [
+            irrigation['CentralFertilizerChannelQuantityCompleted']
+          ];
+        }
+
         List localDurations = [];
         if (irrigation['LocalFertilizerChannelDuration'] is List) {
           localDurations = irrigation['LocalFertilizerChannelDuration'];
@@ -1084,6 +1182,28 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           localNames = irrigation['LocalFertChannelName'];
         } else if (irrigation['LocalFertChannelName'] != null) {
           localNames = [irrigation['LocalFertChannelName']];
+        }
+
+        List localDurationsCompleted = [];
+        if (irrigation['LocalFertilizerChannelDurationCompleted'] is List) {
+          localDurationsCompleted =
+              irrigation['LocalFertilizerChannelDurationCompleted'];
+        } else if (irrigation['LocalFertilizerChannelDurationCompleted'] !=
+            null) {
+          localDurationsCompleted = [
+            irrigation['LocalFertilizerChannelDurationCompleted']
+          ];
+        }
+
+        List localQuantitiesCompleted = [];
+        if (irrigation['LocalFertilizerChannelQuantityCompleted'] is List) {
+          localQuantitiesCompleted =
+              irrigation['LocalFertilizerChannelQuantityCompleted'];
+        } else if (irrigation['LocalFertilizerChannelQuantityCompleted'] !=
+            null) {
+          localQuantitiesCompleted = [
+            irrigation['LocalFertilizerChannelQuantityCompleted']
+          ];
         }
 
         int baseLength = [
@@ -1127,6 +1247,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           dynamic cNameVal = (i < centralNames.length)
               ? centralNames[i]
               : (centralNames.isNotEmpty ? centralNames[0] : null);
+          dynamic cDurCompVal = (i < centralDurationsCompleted.length)
+              ? centralDurationsCompleted[i]
+              : (centralDurationsCompleted.isNotEmpty
+                  ? centralDurationsCompleted[0]
+                  : null);
+          dynamic cQtyCompVal = (i < centralQuantitiesCompleted.length)
+              ? centralQuantitiesCompleted[i]
+              : (centralQuantitiesCompleted.isNotEmpty
+                  ? centralQuantitiesCompleted[0]
+                  : null);
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
@@ -1136,6 +1266,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             durVal: cDurVal,
             qtyVal: cQtyVal,
             nameVal: cNameVal,
+            durCompletedVal: cDurCompVal,
+            qtyCompletedVal: cQtyCompVal,
           );
 
           // Local Fertilizer
@@ -1151,6 +1283,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           dynamic lNameVal = (i < localNames.length)
               ? localNames[i]
               : (localNames.isNotEmpty ? localNames[0] : null);
+          dynamic lDurCompVal = (i < localDurationsCompleted.length)
+              ? localDurationsCompleted[i]
+              : (localDurationsCompleted.isNotEmpty
+                  ? localDurationsCompleted[0]
+                  : null);
+          dynamic lQtyCompVal = (i < localQuantitiesCompleted.length)
+              ? localQuantitiesCompleted[i]
+              : (localQuantitiesCompleted.isNotEmpty
+                  ? localQuantitiesCompleted[0]
+                  : null);
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
@@ -1160,6 +1302,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             durVal: lDurVal,
             qtyVal: lQtyVal,
             nameVal: lNameVal,
+            durCompletedVal: lDurCompVal,
+            qtyCompletedVal: lQtyCompVal,
           );
         }
       }
@@ -1224,98 +1368,46 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     required dynamic durVal,
     required dynamic qtyVal,
     required dynamic nameVal,
+    dynamic durCompletedVal,
+    dynamic qtyCompletedVal,
   }) {
+    List<String> extractParts(dynamic val) {
+      List<String> parts = [];
+      if (val != null) {
+        if (val is List) {
+          for (var e in val) {
+            if (e != null) {
+              String s = e.toString().trim();
+              if (s.contains('_')) {
+                parts.addAll(s.split('_'));
+              } else if (s.isNotEmpty) {
+                parts.add(s);
+              }
+            }
+          }
+        } else {
+          String s = val.toString().trim();
+          if (s.isNotEmpty) {
+            parts = s.split('_');
+          }
+        }
+      }
+      return parts.map((e) => e.trim()).toList();
+    }
+
     // 1. Extract channel sNos from chanVal (CentralFertilizerChannel or LocalFertilizerChannel)
-    List<String> chParts = [];
-    if (chanVal != null) {
-      if (chanVal is List) {
-        for (var e in chanVal) {
-          if (e != null) {
-            String s = e.toString().trim();
-            if (s.contains('_')) {
-              chParts.addAll(s.split('_'));
-            } else if (s.isNotEmpty) {
-              chParts.add(s);
-            }
-          }
-        }
-      } else {
-        String cv = chanVal.toString().trim();
-        if (cv.isNotEmpty) {
-          chParts = cv.split('_');
-        }
-      }
-    }
-    chParts = chParts.map((e) => e.trim()).toList();
+    List<String> chParts = extractParts(chanVal);
 
-    // 2. Extract durations from durVal (CentralFertilizerChannelDuration or LocalFertilizerChannelDuration)
-    List<String> dParts = [];
-    if (durVal != null) {
-      if (durVal is List) {
-        for (var e in durVal) {
-          if (e != null) {
-            String s = e.toString().trim();
-            if (s.contains('_')) {
-              dParts.addAll(s.split('_'));
-            } else if (s.isNotEmpty) {
-              dParts.add(s);
-            }
-          }
-        }
-      } else {
-        String s = durVal.toString().trim();
-        if (s.isNotEmpty) {
-          dParts = s.split('_');
-        }
-      }
-    }
-    dParts = dParts.map((e) => e.trim()).toList();
+    // 2. Extract durations from durVal
+    List<String> dParts = extractParts(durVal);
+    List<String> dCompParts = extractParts(durCompletedVal);
 
-    // 3. Extract quantities from qtyVal (CentralFertilizerChannelQuantity or LocalFertilizerChannelQuantity)
-    List<String> qParts = [];
-    if (qtyVal != null) {
-      if (qtyVal is List) {
-        for (var e in qtyVal) {
-          if (e != null) {
-            String s = e.toString().trim();
-            if (s.contains('_')) {
-              qParts.addAll(s.split('_'));
-            } else if (s.isNotEmpty) {
-              qParts.add(s);
-            }
-          }
-        }
-      } else {
-        String s = qtyVal.toString().trim();
-        if (s.isNotEmpty) {
-          qParts = s.split('_');
-        }
-      }
-    }
-    qParts = qParts.map((e) => e.trim()).toList();
+    // 3. Extract quantities from qtyVal
+    List<String> qParts = extractParts(qtyVal);
+    List<String> qCompParts = extractParts(qtyCompletedVal);
 
     // 4. Extract names if any
-    List<String> nParts = [];
-    if (nameVal != null) {
-      if (nameVal is List) {
-        for (var e in nameVal) {
-          if (e != null) {
-            String s = e.toString().trim();
-            if (s.contains('_')) {
-              nParts.addAll(s.split('_'));
-            } else if (s.isNotEmpty) {
-              nParts.add(s);
-            }
-          }
-        }
-      } else {
-        String s = nameVal.toString().trim();
-        if (s.isNotEmpty) {
-          nParts = s.split('_');
-        }
-      }
-    }
-    nParts = nParts.map((e) => e.trim()).toList();
+    List<String> nParts = extractParts(nameVal);
 
     if (chParts.isEmpty) return;
 
@@ -1331,10 +1423,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
       String d = chIdx < dParts.length ? dParts[chIdx] : '';
       String q = chIdx < qParts.length ? qParts[chIdx] : '';
+      String dComp = chIdx < dCompParts.length ? dCompParts[chIdx] : '';
+      String qComp = chIdx < qCompParts.length ? qCompParts[chIdx] : '';
       String explicitName = chIdx < nParts.length ? nParts[chIdx] : '';
 
-      int durSec = _parseDurationToSeconds(d);
-      num qtyValNum = num.tryParse(q) ?? 0;
+      int durCompSec = _parseDurationToSeconds(dComp);
+      int durPlanSec = _parseDurationToSeconds(d);
+      int durSec = durCompSec > 0 ? durCompSec : durPlanSec;
+
+      num qtyCompNum = _parseQuantity(qComp);
+      num qtyPlanNum = _parseQuantity(q);
+      num qtyValNum = qtyCompNum > 0 ? qtyCompNum : qtyPlanNum;
 
       // Determine display name (matching from configmaker / names)
       String channelName = '';
@@ -1525,17 +1624,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
 
       Map<String, int> dailyTotals = {};
-      Map<String, int> dailyTotalQuantities = {};
+      Map<String, num> dailyTotalQuantities = {};
       int grandTotalSeconds = 0;
-      int grandTotalQuantity = 0;
+      num grandTotalQuantity = 0;
       for (var d in _dateColumns) {
         String dKey = DateFormat('yyyy-MM-dd').format(d);
         int daySum = 0;
-        int dayQty = 0;
+        num dayQty = 0;
         for (var r in activeRows) {
           if (r.dayEntries.containsKey(dKey)) {
             daySum += (r.dayEntries[dKey]!.durationSeconds as num).toInt();
-            dayQty += r.dayEntries[dKey]!.quantity.toInt();
+            dayQty += r.dayEntries[dKey]!.quantity;
           }
         }
         dailyTotals[dKey] = daySum;
@@ -1549,7 +1648,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         c.dayEntries.forEach((k, v) {
           dayEntries[k] = SequenceDayData(
             durationQtySeconds: v.durationSeconds,
-            quantityCompleted: v.quantity.toInt(),
+            quantityCompleted: v.quantity,
             hasRun: v.hasRun,
           );
         });
@@ -1560,7 +1659,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           seqName: c.channelName,
           dayEntries: dayEntries,
           totalDurationSeconds: c.totalDurationSeconds,
-          totalQuantity: c.totalQuantity.toInt(),
+          totalQuantity: c.totalQuantity,
         );
       }).toList();
 
@@ -1599,13 +1698,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     // Calculate daily total durations and quantities
     Map<String, int> dailyTotals = {};
-    Map<String, int> dailyTotalQuantities = {};
+    Map<String, num> dailyTotalQuantities = {};
     int grandTotalSeconds = 0;
-    int grandTotalQuantity = 0;
+    num grandTotalQuantity = 0;
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySum = 0;
-      int dayQty = 0;
+      num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
           daySum += r.dayEntries[dKey]!.durationQtySeconds;
@@ -1726,17 +1825,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
 
       Map<String, int> dailyTotals = {};
-      Map<String, int> dailyTotalQuantities = {};
+      Map<String, num> dailyTotalQuantities = {};
       int grandTotalSeconds = 0;
-      int grandTotalQuantity = 0;
+      num grandTotalQuantity = 0;
       for (var d in _dateColumns) {
         String dKey = DateFormat('yyyy-MM-dd').format(d);
         int daySum = 0;
-        int dayQty = 0;
+        num dayQty = 0;
         for (var r in activeRows) {
           if (r.dayEntries.containsKey(dKey)) {
             daySum += (r.dayEntries[dKey]!.durationSeconds as num).toInt();
-            dayQty += r.dayEntries[dKey]!.quantity.toInt();
+            dayQty += r.dayEntries[dKey]!.quantity;
           }
         }
         dailyTotals[dKey] = daySum;
@@ -1750,7 +1849,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         c.dayEntries.forEach((k, v) {
           dayEntries[k] = SequenceDayData(
             durationQtySeconds: v.durationSeconds,
-            quantityCompleted: v.quantity.toInt(),
+            quantityCompleted: v.quantity,
             hasRun: v.hasRun,
           );
         });
@@ -1761,7 +1860,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           seqName: c.channelName,
           dayEntries: dayEntries,
           totalDurationSeconds: c.totalDurationSeconds,
-          totalQuantity: c.totalQuantity.toInt(),
+          totalQuantity: c.totalQuantity,
         );
       }).toList();
 
@@ -1799,13 +1898,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }
 
     Map<String, int> dailyTotals = {};
-    Map<String, int> dailyTotalQuantities = {};
+    Map<String, num> dailyTotalQuantities = {};
     int grandTotalSeconds = 0;
-    int grandTotalQuantity = 0;
+    num grandTotalQuantity = 0;
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySum = 0;
-      int dayQty = 0;
+      num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
           daySum += r.dayEntries[dKey]!.durationQtySeconds;
@@ -4269,13 +4368,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     // Calculate daily total durations and quantities
     Map<String, int> dailyTotals = {};
-    Map<String, int> dailyTotalQuantities = {};
+    Map<String, num> dailyTotalQuantities = {};
     int grandTotalSeconds = 0;
-    int grandTotalQuantity = 0;
+    num grandTotalQuantity = 0;
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySum = 0;
-      int dayQty = 0;
+      num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
           daySum += r.dayEntries[dKey]!.durationQtySeconds;
@@ -4662,7 +4761,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -4690,9 +4789,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     BuildContext context,
     List<SequenceRowData> filteredRows,
     Map<String, int> dailyTotals,
-    Map<String, int> dailyTotalQuantities,
+    Map<String, num> dailyTotalQuantities,
     int grandTotalSeconds,
-    int grandTotalQuantity,
+    num grandTotalQuantity,
   ) {
     const double colSeqWidth = 155;
     const double colDateWidth = 140;
@@ -4890,9 +4989,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Widget _buildMobileFooterTotalRow(
     Map<String, int> dailyTotals,
-    Map<String, int> dailyTotalQuantities,
+    Map<String, num> dailyTotalQuantities,
     int grandTotalSeconds,
-    int grandTotalQuantity,
+    num grandTotalQuantity,
     double colSeqWidth,
     double colDateWidth,
     double colTotalWidth,
@@ -4931,9 +5030,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
-              int daySumQty = dailyTotalQuantities[dKey] ?? 0;
+              num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
+              String qtyStr = daySumQty > 0
+                  ? (daySumQty % 1 == 0
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
+                  : '-';
 
               return Container(
                 width: colDateWidth,
@@ -4967,7 +5070,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? '$grandTotalQuantity L' : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -5167,7 +5270,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
     int rowTotalSeconds = 0;
-    int rowTotalQuantity = 0;
+    num rowTotalQuantity = 0;
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       if (row.dayEntries.containsKey(dKey)) {
@@ -5176,8 +5279,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
     }
 
+    String qtyTotalStr = rowTotalQuantity > 0
+        ? (rowTotalQuantity % 1 == 0
+            ? "${rowTotalQuantity.toInt()} L"
+            : "$rowTotalQuantity L")
+        : '-';
+
     String formattedText =
-        "${_formatDuration(rowTotalSeconds)} /\n${rowTotalQuantity > 0 ? '$rowTotalQuantity L' : '-'}";
+        "${_formatDuration(rowTotalSeconds)} /\n$qtyTotalStr";
 
     if (isPinned) {
       return Container(
@@ -5262,7 +5371,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (dayData != null && dayData.hasRun) {
       String dur = dayData.durationQtyStr;
       String qty = dayData.quantityCompleted > 0
-          ? "${dayData.quantityCompleted} L"
+          ? (dayData.quantityCompleted % 1 == 0
+              ? "${dayData.quantityCompleted.toInt()} L"
+              : "${dayData.quantityCompleted} L")
           : '-';
       cellText = "$dur /\n$qty";
       isBold = dur != '00:00:00' || qty != '-';
@@ -5321,7 +5432,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Widget _buildDailyFooterTotalRow(
     Map<String, int> dailyTotals,
-    Map<String, int> dailyTotalQuantities,
+    Map<String, num> dailyTotalQuantities,
     double colDateWidth,
   ) {
     return Container(
@@ -5339,9 +5450,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
-              int daySumQty = dailyTotalQuantities[dKey] ?? 0;
+              num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0 ? "$daySumQty L" : '-';
+              String qtyStr = daySumQty > 0
+                  ? (daySumQty % 1 == 0
+                      ? "${daySumQty.toInt()} L"
+                      : "$daySumQty L")
+                  : '-';
 
               final double screenWidth = MediaQuery.of(context).size.width;
               final double fontSize =
@@ -5412,7 +5527,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
     // Totals calculation
     int grandTotalSeconds = 0;
-    int grandTotalQuantity = 0;
+    num grandTotalQuantity = 0;
     for (var r in filteredRows) {
       grandTotalSeconds += r.totalDurationSeconds;
       grandTotalQuantity += r.totalQuantity;
@@ -5531,7 +5646,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Widget _buildGraphSummaryCards({
     required int grandTotalSeconds,
-    required int grandTotalQuantity,
+    required num grandTotalQuantity,
     required int totalSequences,
     required int totalDays,
   }) {
@@ -5557,7 +5672,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       child: _buildSummaryCard(
                         title: "Total Quantity",
                         value: grandTotalQuantity > 0
-                            ? "$grandTotalQuantity L"
+                            ? (grandTotalQuantity % 1 == 0
+                                ? "${grandTotalQuantity.toInt()} L"
+                                : "$grandTotalQuantity L")
                             : "-",
                         icon: Icons.water_drop_outlined,
                         color: const Color(0xFF16A34A),
@@ -5607,8 +5724,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 Expanded(
                   child: _buildSummaryCard(
                     title: "Total Quantity",
-                    value:
-                        grandTotalQuantity > 0 ? "$grandTotalQuantity L" : "-",
+                    value: grandTotalQuantity > 0
+                        ? (grandTotalQuantity % 1 == 0
+                            ? "${grandTotalQuantity.toInt()} L"
+                            : "$grandTotalQuantity L")
+                        : "-",
                     icon: Icons.water_drop_outlined,
                     color: const Color(0xFF16A34A),
                     bgColor: const Color(0xFFF0FDF4),
@@ -5905,7 +6025,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             icon: Icons.water_drop_outlined,
                             label: "Total Quantity",
                             value: row.totalQuantity > 0
-                                ? "${row.totalQuantity} L"
+                                ? (row.totalQuantity % 1 == 0
+                                    ? "${row.totalQuantity.toInt()} L"
+                                    : "${row.totalQuantity} L")
                                 : "-",
                             color: const Color(0xFF166534),
                             bgColor: const Color(0xFFF0FDF4),
@@ -6391,7 +6513,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       String label = "${d.day}/${DateFormat('MMM').format(d).toLowerCase()}";
       int sumSec = 0;
-      int sumQty = 0;
+      num sumQty = 0;
       for (var r in rows) {
         if (r.dayEntries.containsKey(dKey)) {
           sumSec += r.dayEntries[dKey]!.durationQtySeconds;
@@ -6718,7 +6840,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _buildSequenceBreakdownCard(
-      SequenceRowData row, int grandTotalSeconds, int grandTotalQuantity) {
+      SequenceRowData row, int grandTotalSeconds, num grandTotalQuantity) {
     bool isExpanded = _expandedBreakdownKeys.contains(row.key);
 
     Widget toggleBtn = InkWell(
@@ -6783,7 +6905,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
-            row.totalQuantity > 0 ? "${row.totalQuantity} L" : "-",
+            row.totalQuantity > 0
+                ? (row.totalQuantity % 1 == 0
+                    ? "${row.totalQuantity.toInt()} L"
+                    : "${row.totalQuantity} L")
+                : "-",
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -6995,14 +7121,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
                           bool hasRun = dayData != null && dayData.hasRun;
                           int durSec = dayData?.durationQtySeconds ?? 0;
-                          int qty = dayData?.quantityCompleted ?? 0;
+                          num qty = dayData?.quantityCompleted ?? 0;
 
                           String durStr = (hasRun && durSec > 0)
                               ? _formatDuration(durSec)
                               : (hasRun && dayData.durationQtyStr != '00:00:00'
                                   ? dayData.durationQtyStr
                                   : '-');
-                          String qtyStr = (hasRun && qty > 0) ? "$qty L" : '-';
+                          String qtyStr = (hasRun && qty > 0)
+                              ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
+                              : '-';
 
                           Color rowBg = dIdx % 2 == 0
                               ? Colors.white

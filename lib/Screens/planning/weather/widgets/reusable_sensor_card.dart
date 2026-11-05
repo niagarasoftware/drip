@@ -139,6 +139,29 @@ class ReusableSensorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final normalizedTitle = title.toLowerCase();
+    final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
+    final String leafStatusText;
+    final Color leafStatusColor;
+    if (isLeafWetness) {
+      if (value < 10) {
+        leafStatusText = 'Dry';
+        leafStatusColor = Colors.red.shade700;
+      } else if (value > 10 && value < 30) {
+        leafStatusText = 'Slightly Wet';
+        leafStatusColor = Colors.orange.shade700;
+      } else if (value > 30) {
+        leafStatusText = 'Wet';
+        leafStatusColor = Colors.green.shade700;
+      } else {
+        leafStatusText = '';
+        leafStatusColor = Colors.transparent;
+      }
+    } else {
+      leafStatusText = '';
+      leafStatusColor = Colors.transparent;
+    }
+
     final cardContent = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -178,7 +201,27 @@ class ReusableSensorCard extends StatelessWidget {
             const SizedBox(width: 6),
             Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(unit,
               style: const TextStyle(fontSize: 14, color: _muted))),
+            const SizedBox(width: 10),
+            if (isLeafWetness) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.only(bottom: 4),
+                decoration: BoxDecoration(
+                  color: leafStatusColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '  $leafStatusText  ',
+                  style: TextStyle(
+                    color: leafStatusColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ]),
+
         const SizedBox(height: 12),
         if (!isWindDirection) ...[
           SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),
