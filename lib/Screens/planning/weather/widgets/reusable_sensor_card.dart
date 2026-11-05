@@ -146,13 +146,16 @@ class ReusableSensorCard extends StatelessWidget {
     if (isLeafWetness) {
       if (value < 10) {
         leafStatusText = 'Dry';
-        leafStatusColor = Colors.red.shade700 ;
-      } else if (value < 30) {
+        leafStatusColor = Colors.red.shade700;
+      } else if (value > 10 && value < 30) {
         leafStatusText = 'Slightly Wet';
         leafStatusColor = Colors.orange.shade700;
-      } else {
+      } else if (value > 30) {
         leafStatusText = 'Wet';
         leafStatusColor = Colors.green.shade700;
+      } else {
+        leafStatusText = '';
+        leafStatusColor = Colors.transparent;
       }
     } else {
       leafStatusText = '';

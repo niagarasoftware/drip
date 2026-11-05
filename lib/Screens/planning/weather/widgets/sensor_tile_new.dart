@@ -116,20 +116,22 @@ class SensorTileNew extends StatelessWidget {
 
     if (isLeafWetness) {
       if (value < 10) {
-        leafStatusText = 'Wet';
-        leafStatusColor = Colors.green.shade700;
-      } else if (value < 30) {
-        leafStatusText = 'Slightly Wet';
-        leafStatusColor = Colors.orange.shade700;
-      } else {
         leafStatusText = 'Dry';
         leafStatusColor = Colors.red.shade700;
+      } else if (value > 10 && value < 30) {
+        leafStatusText = 'Slightly Wet';
+        leafStatusColor = Colors.orange.shade700;
+      } else if (value > 30) {
+        leafStatusText = 'Wet';
+        leafStatusColor = Colors.green.shade700;
+      } else {
+        leafStatusText = '';
+        leafStatusColor = Colors.transparent;
       }
     } else {
       leafStatusText = '';
       leafStatusColor = Colors.transparent;
     }
-
     final String normalAlertText = statusCode == 255 ? 'Normal' : 'Alert';
     final Color normalAlertColor = _sensorStatusColor(statusCode);
 
