@@ -7563,7 +7563,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             final h = dateMap[dKey]!;
             sec = _parseDurationToSeconds(h.motorRunTime1);
             powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
-            powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+            powerOffSec = _parseDurationToSeconds(h.powerOffTime);
           }
 
           p1DayEntries[dKey] = CumulativeDayData(
@@ -7607,7 +7607,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               final h = dateMap[dKey]!;
               sec = _parseDurationToSeconds(h.motorRunTime2);
               powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
-              powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+              powerOffSec = _parseDurationToSeconds(h.powerOffTime);
             }
 
             p2DayEntries[dKey] = CumulativeDayData(
@@ -7652,7 +7652,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               final h = dateMap[dKey]!;
               sec = _parseDurationToSeconds(h.motorRunTime3);
               powerOnSec = _parseDurationToSeconds(h.totalPowerOnTime);
-              powerOffSec = _parseDurationToSeconds(h.totalPowerOffTime);
+              powerOffSec = _parseDurationToSeconds(h.powerOffTime);
             }
 
             p3DayEntries[dKey] = CumulativeDayData(
