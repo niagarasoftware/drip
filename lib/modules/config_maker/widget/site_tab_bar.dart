@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../view/utils/config_maker_colors.dart';
 
@@ -20,7 +19,7 @@ class SiteTabItem {
 }
 
 /// Google Sheets style bottom navigation tab bar for focusing canvas sections.
-class SiteTabBar extends StatelessWidget {
+class SiteTabBar extends StatefulWidget {
   final String activeTabId;
   final List<SiteTabItem> tabs;
   final ScrollController scrollController;
@@ -31,6 +30,87 @@ class SiteTabBar extends StatelessWidget {
     required this.tabs,
     required this.scrollController,
   });
+
+  @override
+  State<SiteTabBar> createState() => _SiteTabBarState();
+}
+
+class _SiteTabBarState extends State<SiteTabBar> {
+  @override
+  void initState() {
+    super.initState();
+    _scrollToActiveTab();
+  }
+
+  @override
+  void didUpdateWidget(covariant SiteTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeTabId != widget.activeTabId) {
+      _scrollToActiveTab();
+    }
+  }
+
+  void _scrollToActiveTab() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.scrollController.hasClients) return;
+      final index = widget.tabs.indexWhere((t) => t.id == widget.activeTabId);
+      if (index >= 0) {
+        final double target = (index * 125.0 - 80.0).clamp(
+          0.0,
+          widget.scrollController.position.maxScrollExtent,
+        );
+        widget.scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  void _scrollLeft() {
+    if (!widget.scrollController.hasClients) return;
+    final double target = (widget.scrollController.offset - 180).clamp(
+      0.0,
+      widget.scrollController.position.maxScrollExtent,
+    );
+    widget.scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scrollRight() {
+    if (!widget.scrollController.hasClients) return;
+    final double target = (widget.scrollController.offset + 180).clamp(
+      0.0,
+      widget.scrollController.position.maxScrollExtent,
+    );
+    widget.scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _navigatePrevious() {
+    final currentIndex = widget.tabs.indexWhere((t) => t.id == widget.activeTabId);
+    if (currentIndex > 0) {
+      widget.tabs[currentIndex - 1].onTap();
+    } else {
+      _scrollLeft();
+    }
+  }
+
+  void _navigateNext() {
+    final currentIndex = widget.tabs.indexWhere((t) => t.id == widget.activeTabId);
+    if (currentIndex >= 0 && currentIndex < widget.tabs.length - 1) {
+      widget.tabs[currentIndex + 1].onTap();
+    } else {
+      _scrollRight();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +126,7 @@ class SiteTabBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Left Scroll Action Buttons
+          // Left Navigation Action Buttons (< and >)
           Container(
             height: 38,
             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -57,33 +137,27 @@ class SiteTabBar extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    scrollController.animateTo(
-                      math.max(0.0, scrollController.offset - 150),
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_left, size: 20, color: colors.textPrimary),
+                Tooltip(
+                  message: 'Previous tab',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: _navigatePrevious,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.chevron_left, size: 20, color: colors.textPrimary),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 2),
-                InkWell(
-                  borderRadius: BorderRadius.circular(4),
-                  onTap: () {
-                    scrollController.animateTo(
-                      math.min(scrollController.position.maxScrollExtent, scrollController.offset + 150),
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(Icons.chevron_right, size: 20, color: colors.textPrimary),
+                Tooltip(
+                  message: 'Next tab',
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(4),
+                    onTap: _navigateNext,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.chevron_right, size: 20, color: colors.textPrimary),
+                    ),
                   ),
                 ),
               ],
@@ -93,13 +167,13 @@ class SiteTabBar extends StatelessWidget {
           // Scrollable Tabs
           Expanded(
             child: SingleChildScrollView(
-              controller: scrollController,
+              controller: widget.scrollController,
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.only(left: 6, right: 16, top: 4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                children: tabs.map((tab) {
-                  final bool isActive = tab.id == activeTabId;
+                children: widget.tabs.map((tab) {
+                  final bool isActive = tab.id == widget.activeTabId;
 
                   return GestureDetector(
                     onTap: tab.onTap,
@@ -123,12 +197,12 @@ class SiteTabBar extends StatelessWidget {
                         ),
                         boxShadow: isActive
                             ? [
-                          BoxShadow(
-                            color: tab.accentColor.withValues(alpha: 0.35),
-                            blurRadius: 6,
-                            offset: const Offset(0, -1),
-                          ),
-                        ]
+                                BoxShadow(
+                                  color: tab.accentColor.withValues(alpha: 0.35),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, -1),
+                                ),
+                              ]
                             : null,
                       ),
                       child: Row(

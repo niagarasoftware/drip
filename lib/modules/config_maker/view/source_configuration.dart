@@ -245,13 +245,17 @@ class SourceConfigurationState extends State<SourceConfiguration> {
         painter = DetailedOverheadTankPainter(isOn: true);
     }
 
+    final painterBg = colors.isLight ? Colors.white : colors.innerSurface;
+    final painterBorder = colors.isLight ? const Color(0xFFCBD5E1) : colors.innerBorder;
+
     return Container(
       width: double.infinity,
-      height: 80,
+      height: 85,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: colors.innerSurface,
-        borderRadius: BorderRadius.circular(12),
+        color: painterBg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: painterBorder, width: 1.0),
       ),
       child: Center(
         child: CustomPaint(
@@ -410,14 +414,18 @@ class SourceConfigurationState extends State<SourceConfiguration> {
     required Color primaryColor,
     required ConfigMakerColors colors,
     Widget? typeSelector,
+    bool showLevelSensor = false,
   }) {
     final itemName = source.commonDetails.name ?? 'Source';
+    final headerBg = colors.isLight ? const Color(0xFFF1F5F9) : colors.innerSurface;
+    final headerBorder = colors.isLight ? const Color(0xFFCBD5E1) : colors.innerBorder;
 
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: colors.innerSurface,
+        color: headerBg,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: headerBorder, width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -467,6 +475,10 @@ class SourceConfigurationState extends State<SourceConfiguration> {
           ),
           const SizedBox(height: 8),
           _buildSourcePainterBlock(source.sourceType, colors),
+          if (showLevelSensor) ...[
+            const SizedBox(height: 8),
+            _buildParameterTileForSensor(source, 1, primaryColor, compact: false),
+          ],
         ],
       ),
     );
@@ -567,13 +579,31 @@ class SourceConfigurationState extends State<SourceConfiguration> {
       },
     );
 
+    final Widget? inletWidget = (!isBoreOrPond)
+        ? ConfigFlowSection(
+            title: 'Filling Operation',
+            icon: Icons.south_west_rounded,
+            accent: _inletColor,
+            children: [
+              if (!isFertilizerSource) _buildParameterTileForPump(source, 1, _inletColor),
+              _buildParameterTileForTankValve(source, true, _inletColor),
+              if (showSensors) ...[
+                _buildParameterTileForSensor(source, 2, _inletColor),
+                _buildParameterTileForSensor(source, 3, _inletColor),
+              ],
+            ],
+          )
+        : null;
+
     return ConfigCardShell(
+      leadingWidget: inletWidget,
       headerBlock: _buildSourceHeaderBlock(
         source: source,
         progress: progress,
         primaryColor: primaryColor,
         colors: colors,
         typeSelector: typeSelector,
+        showLevelSensor: showSensors,
       ),
       isComplete: progress.complete,
       completeColor: _doneColor,
@@ -589,26 +619,18 @@ class SourceConfigurationState extends State<SourceConfiguration> {
             ],
           ),
 
-        // ── Inlet ──
-        if (!isBoreOrPond)
-          ConfigFlowSection(
-            title: 'Inlet',
-            icon: Icons.south_west_rounded,
-            accent: _inletColor,
-            children: [
-              if (!isFertilizerSource) _buildParameterTileForPump(source, 1, _inletColor),
-              _buildParameterTileForTankValve(source, true, _inletColor),
-            ],
-          ),
-
         // ── Outlet ──
         ConfigFlowSection(
-          title: 'Outlet',
+          title: 'Extraction Operation',
           icon: Icons.north_east_rounded,
           accent: _outletColor,
           children: [
             if (!isFertilizerSource) _buildParameterTileForPump(source, 2, _outletColor),
             _buildParameterTileForTankValve(source, false, _outletColor),
+            if (showSensors) ...[
+              _buildParameterTileForSensor(source, 4, _outletColor),
+              _buildParameterTileForSensor(source, 5, _outletColor),
+            ],
           ],
         ),
 
@@ -622,41 +644,6 @@ class SourceConfigurationState extends State<SourceConfiguration> {
               _buildParameterTileForAgitator(source, _agitatorColor),
             ],
           ),
-      ],
-      // ── Sensors (full-width footer) ──
-      footer: showSensors ? _buildSensorsSection(source, progress, primaryColor) : null,
-    );
-  }
-
-  // ───────────────────────────────────────────────────────────
-  //  SENSORS (collapsible, 3-column grid on wide screens)
-  // ───────────────────────────────────────────────────────────
-  Widget _buildSensorsSection(SourceModel source, _Progress progress, Color primaryColor) {
-    return ConfigSensorsSection(
-      storageKey: PageStorageKey('sensors_${source.commonDetails.sNo}'),
-      title: 'Level and sensors',
-      activeSensorCount: progress.sensorFilled,
-      totalSensors: 6,
-      primaryColor: primaryColor,
-      children: [
-        LayoutBuilder(builder: (context, c) {
-          final cols = c.maxWidth >= 560 ? 3 : 2;
-          // 3 cols -> [level, in-top, in-bottom] / [meter, out-top, out-bottom]
-          final order = cols == 3 ? [1, 2, 3, 6, 4, 5] : [1, 6, 2, 3, 4, 5];
-          const gap = 8.0;
-          final w = (c.maxWidth - gap * (cols - 1)) / cols;
-          return Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [
-              for (final m in order)
-                SizedBox(
-                  width: w,
-                  child: _buildParameterTileForSensor(source, m, primaryColor),
-                ),
-            ],
-          );
-        }),
       ],
     );
   }
@@ -686,7 +673,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
     List<double> checkingParameter = pumpMode == 1 ? source.outletPump : source.inletPump;
 
     return _buildComponentTile(
-      title: '${pumpMode == 1 ? 'Inlet' : 'Outlet'} pump',
+      title: pumpMode == 1 ? 'Select pump to fill' : 'Select pump to extraction',
       imagePath: '${AppConstants.svgObjectPath}objectId_5.svg',
       names: _namesOf(currentParameter),
       isAssigned: currentParameter.isNotEmpty,
@@ -698,7 +685,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
         });
         selectionDialogBox(
           context: context,
-          title: 'Select ${pumpMode == 1 ? 'Inlet' : 'Outlet'} Pump',
+          title: pumpMode == 1 ? 'Select pump to fill' : 'Select pump to extraction',
           singleSelection: false,
           listOfObject: widget.configPvd.listOfGeneratedObject
               .where((object) => (object.objectId == 5 && !checkingParameter.contains(object.sNo)))
@@ -721,7 +708,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
     );
   }
 
-  Widget _buildParameterTileForSensor(SourceModel source, int mode, Color accent) {
+  Widget _buildParameterTileForSensor(SourceModel source, int mode, Color accent, {bool compact = false}) {
     int objectId = mode == 1
         ? AppConstants.levelObjectId
         : mode == 6
@@ -730,10 +717,10 @@ class SourceConfigurationState extends State<SourceConfiguration> {
 
     Map<int, String> currentObjectName = {
       1: 'Level sensor',
-      2: 'Inlet top float',
-      3: 'Inlet bottom float',
-      4: 'Outlet top float',
-      5: 'Outlet bottom float',
+      2: 'select top float to control the filling pumps',
+      3: 'select bottom float to control the filling pumps',
+      4: 'select top float to control the extraction pumps',
+      5: 'select bottom float to control the extraction pumps',
       6: 'Outlet water meter',
     };
 
@@ -754,7 +741,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
       names: activeSno == 0.0 ? const [] : [getObjectName(activeSno, widget.configPvd).name ?? '-'],
       isAssigned: activeSno != 0.0,
       accent: accent,
-      compact: true,
+      compact: compact,
       onTap: () {
         List<double> validateSensorFromOtherSource = [];
         for (var src in widget.configPvd.source) {
@@ -872,7 +859,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
     final List<double> currentList = isInlet ? source.inletTankValve : source.outletTankValve;
 
     return _buildComponentTile(
-      title: isInlet ? 'Inlet tank valve' : 'Outlet tank valve',
+      title: isInlet ? 'Select the tank valve used to fill the source' : 'Select the tank valve used to extract the source',
       imagePath: '${AppConstants.svgObjectPath}objectId_${AppConstants.tankValveObjectId}.svg',
       names: _namesOf(currentList),
       isAssigned: currentList.isNotEmpty,
@@ -884,7 +871,7 @@ class SourceConfigurationState extends State<SourceConfiguration> {
         });
         selectionDialogBox(
           context: context,
-          title: isInlet ? 'Select Inlet Tank Valve' : 'Select Outlet Tank Valve',
+          title: isInlet ? 'Select Tank Valve' : 'Select Tank Valve',
           singleSelection: false,
           listOfObject: widget.configPvd.listOfGeneratedObject.where((object) {
             if (object.objectId != AppConstants.tankValveObjectId) return false;

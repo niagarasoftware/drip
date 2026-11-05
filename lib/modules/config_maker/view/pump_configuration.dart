@@ -222,8 +222,9 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
                 });
               }
             },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
                 for (var source in matchingSources) ...[
                   Builder(
@@ -242,26 +243,36 @@ class _PumpConfigurationState extends State<PumpConfiguration> {
                               pump.controlledBySource = sourceSno;
                             });
                           },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isSelected ? accent.withOpacity(0.08) : colors.innerSurface,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isSelected ? accent : colors.innerBorder,
+                                width: isSelected ? 1.2 : 0.8,
+                              ),
+                            ),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Radio<double>(
-                                  value: sourceSno,
-                                  activeColor: accent,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  visualDensity: VisualDensity.compact,
+                                Transform.scale(
+                                  scale: 0.85,
+                                  child: Radio<double>(
+                                    value: sourceSno,
+                                    activeColor: accent,
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    sourceTitle,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                      color: isSelected ? colors.textPrimary : colors.textSecondary,
-                                    ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  sourceTitle,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    color: isSelected ? colors.textPrimary : colors.textSecondary,
                                   ),
                                 ),
                               ],

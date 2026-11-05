@@ -222,11 +222,19 @@ class ConfigFlowSection extends StatelessWidget {
       rows.add(children[i]);
     }
 
+    final bg = colors.isLight
+        ? accent.withValues(alpha: 0.05)
+        : colors.innerSurface;
+    final border = colors.isLight
+        ? accent.withValues(alpha: 0.22)
+        : colors.innerBorder;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
       decoration: BoxDecoration(
-        color: colors.innerSurface,
+        color: bg,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -569,6 +577,7 @@ class ConfigTypeSelector extends StatelessWidget {
 /// Automatically handles single-column vs multi-column layout on wide screens.
 class ConfigCardShell extends StatelessWidget {
   final Widget headerBlock;
+  final Widget? leadingWidget;
   final bool isComplete;
   final Color completeColor;
   final List<Widget> body;
@@ -579,6 +588,7 @@ class ConfigCardShell extends StatelessWidget {
   const ConfigCardShell({
     super.key,
     required this.headerBlock,
+    this.leadingWidget,
     required this.isComplete,
     this.completeColor = const Color(0xFF059669),
     required this.body,
@@ -658,7 +668,7 @@ class ConfigCardShell extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final double maxW = constraints.maxWidth;
-          final bool isUltraWide = maxW >= 880 && body.isNotEmpty;
+          final bool isUltraWide = maxW >= 880 && (body.isNotEmpty || leadingWidget != null);
           final bool isMediumWide = maxW >= 620;
 
           if (isUltraWide) {
@@ -669,6 +679,12 @@ class ConfigCardShell extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (leadingWidget != null) ...[
+                        Expanded(
+                          child: leadingWidget!,
+                        ),
+                        const SizedBox(width: 10),
+                      ],
                       if (expandHeader) ...[
                         Expanded(
                           child: headerBlock,
@@ -680,13 +696,15 @@ class ConfigCardShell extends StatelessWidget {
                         ),
                       ] else ...[
                         SizedBox(
-                          width: 280,
+                          width: leadingWidget != null ? 260.0 : 280.0,
                           child: headerBlock,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildBodyGrid(body, wide: true),
-                        ),
+                        if (body.isNotEmpty) ...[
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildBodyGrid(body, wide: leadingWidget == null),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -701,6 +719,10 @@ class ConfigCardShell extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (leadingWidget != null) ...[
+                  leadingWidget!,
+                  const SizedBox(height: 10),
+                ],
                 headerBlock,
                 if (body.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -727,6 +749,7 @@ class ConfigSensorsSection extends StatelessWidget {
   final int totalSensors;
   final Color primaryColor;
   final List<Widget> children;
+  final bool initiallyExpanded;
 
   const ConfigSensorsSection({
     super.key,
@@ -736,6 +759,7 @@ class ConfigSensorsSection extends StatelessWidget {
     this.totalSensors = 6,
     required this.primaryColor,
     required this.children,
+    this.initiallyExpanded = true,
   });
 
   @override
@@ -744,10 +768,18 @@ class ConfigSensorsSection extends StatelessWidget {
     final active = activeSensorCount > 0;
     final subTextColor = colors.textMuted;
 
+    final bg = colors.isLight
+        ? const Color(0xFFF1F5F9)
+        : colors.innerSurface;
+    final border = colors.isLight
+        ? const Color(0xFFCBD5E1)
+        : colors.innerBorder;
+
     return Container(
       decoration: BoxDecoration(
-        color: colors.innerSurface,
+        color: bg,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.0),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -756,6 +788,7 @@ class ConfigSensorsSection extends StatelessWidget {
         ),
         child: ExpansionTile(
           key: storageKey,
+          initiallyExpanded: initiallyExpanded,
           dense: true,
           visualDensity: const VisualDensity(vertical: -3),
           tilePadding: const EdgeInsets.symmetric(horizontal: 10),

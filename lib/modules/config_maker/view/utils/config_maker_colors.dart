@@ -14,8 +14,8 @@ class ConfigMakerColors {
   Color get canvasBg => isLight ? const Color(0xFFF8FAFC) : const Color(0xFF12162B);
   Color get cardBg => isLight ? Colors.white : const Color(0xFF13172E);
   Color get cardBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF20274B);
-  Color get innerSurface => isLight ? const Color(0xFFF8FAFC) : const Color(0xFF181C38);
-  Color get innerBorder => isLight ? const Color(0xFFE2E8F0) : const Color(0xFF232A4D);
+  Color get innerSurface => isLight ? const Color(0xFFF1F5F9) : const Color(0xFF181C38);
+  Color get innerBorder => isLight ? const Color(0xFFCBD5E1) : const Color(0xFF232A4D);
   Color get workAreaCardBg => isLight ? const Color(0xFFFAFAFA) : const Color(0xFF0C0F1D);
 
   // ── Header & App Bar ──
