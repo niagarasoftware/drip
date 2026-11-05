@@ -1153,7 +1153,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         : "0";
 
     final String totalPowerOnTime = motorData?.totalPowerOnTime ?? "00:00:00";
-    final String totalPowerOffTime = motorData?.totalPowerOffTime ?? "00:00:00";
+    final String powerOffTime = motorData?.powerOffTime ?? "00:00:00";
 
     final int daysInMonth = DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
     final int maxSeconds = _powerPeriodIndex == 1
@@ -1173,7 +1173,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
     final durationAcrossCard = _buildNewPowerGraphLeft(
       totalPowerOnTime: totalPowerOnTime,
-      totalPowerOffTime: totalPowerOffTime,
+      powerOffTime: powerOffTime,
       motorRunTime: motorRunTime,
       totalPowerRatio: totalPowerRatio,
       motorRatio: motorRatio,
@@ -1286,7 +1286,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   // ---------------------------------------------------------------------------
   Widget _buildNewPowerGraphLeft({
     required String totalPowerOnTime,
-    required String totalPowerOffTime,
+    required String powerOffTime,
     required String motorRunTime,
     required double totalPowerRatio,
     required double motorRatio,
@@ -1350,7 +1350,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           const SizedBox(height: 8),
 
           _buildFullColorBar(
-            label: 'Total power Off Time· ${_formatTime(totalPowerOffTime)} HH:MM',
+            label: 'Power Off Time· ${_formatTime(powerOffTime)} HH:MM',
             bgColor: const Color(0xFFFFECEE),
             textColor: const Color(0xFFDC2626),
           ),
