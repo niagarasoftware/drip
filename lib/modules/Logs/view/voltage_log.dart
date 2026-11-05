@@ -344,7 +344,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                                     dataSource: filteredData,
                                     color: Colors.red,
                                     phase: 'R',
-                                    name: selectedIndex == 0 ? 'Voltage R' : selectedIndex == 1 ? 'Current R' : selectedIndex == 2 ? "Power Factor R" : "Power R",
+                                    name: isSinglePhaseModel ? 'Current' : (selectedIndex == 0 ? 'Voltage R' : selectedIndex == 1 ? 'Current R' : selectedIndex == 2 ? "Power Factor R" : "Power R"),
                                   ),
                                 if (showY)
                                   _buildSplineSeries(
@@ -358,7 +358,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                                     dataSource: filteredData,
                                     color: Colors.blue,
                                     phase: 'B',
-                                    name: selectedIndex == 0 ? 'Voltage B' : selectedIndex == 1 ? 'Current B' : selectedIndex == 2 ? "Power Factor B" : "Power B",
+                                    name: isSinglePhaseModel ? 'Voltage' : (selectedIndex == 0 ? 'Voltage B' : selectedIndex == 1 ? 'Current B' : selectedIndex == 2 ? "Power Factor B" : "Power B"),
                                   ),
                               ],
                             ),
@@ -432,7 +432,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                       Container(
                         color: Colors.redAccent.shade100,
                         padding: const EdgeInsets.all(8.0),
-                        child: const Text('R', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(isSinglePhaseModel ? 'Current' : 'R', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     if (showY)
                       Container(
@@ -444,7 +444,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                       Container(
                         padding: const EdgeInsets.all(8.0),
                         color: Colors.lightBlueAccent.shade100,
-                        child: const Text('B', style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(isSinglePhaseModel ? 'Voltage' : 'B', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                   ],
                 ),

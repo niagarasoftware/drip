@@ -2464,11 +2464,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 format: 'series.name\nHour point.x : point.y$unit',
               ),
               series: <CartesianSeries<Map<String, dynamic>, num>>[
-                if (showR) _voltageSeries(voltageData, '${prefix}R', '$label R', _kRed),
+                if (showR) _voltageSeries(voltageData, '${prefix}R', isSinglePhaseModel ? 'Current' : '$label R', _kRed),
                 if (showY)
                   _voltageSeries(voltageData, '${prefix}Y', '$label Y', const Color(0xFFF9A825)),
                 if (showB)
-                  _voltageSeries(voltageData, '${prefix}B', '$label B', const Color(0xFF1E88E5)),
+                  _voltageSeries(voltageData, '${prefix}B', isSinglePhaseModel ? 'Voltage' : '$label B', const Color(0xFF1E88E5)),
               ],
             ),
           ),
@@ -2530,9 +2530,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           Row(
             children: [
               headerCell('Hours', const Color(0xFFB9D3D5), 5),
-              if (showR) headerCell('R', const Color(0xFFFFB4AB), 4),
+              if (showR) headerCell(isSinglePhaseModel ? 'Current' : 'R', const Color(0xFFFFB4AB), 4),
               if (showY) headerCell('Y', const Color(0xFFFFE69C), 4),
-              if (showB) headerCell('B', const Color(0xFFA9DDF8), 4),
+              if (showB) headerCell(isSinglePhaseModel ? 'Voltage' : 'B', const Color(0xFFA9DDF8), 4),
             ],
           ),
           ConstrainedBox(
