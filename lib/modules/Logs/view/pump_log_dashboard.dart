@@ -2281,15 +2281,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     return SplineSeries<Map<String, dynamic>, num>(
       dataSource: data,
       xValueMapper: (d, i) => PumpControllerProvider.parseReading(d['hour']) ?? i.toDouble(),
-      // null (not 0) for a missing reading -> the line breaks instead of dropping to zero
-      yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]),
+      // Treat missing/hyphen reading as 0 so the graph drops to 0 when there is no power
+      yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]) ?? 0.0,
       name: name,
       color: color,
       width: 2,
       // monotonic spline never overshoots the real readings (no fake dips below 0 A)
       splineType: SplineType.monotonic,
       markerSettings: const MarkerSettings(isVisible: true, height: 4, width: 4),
-      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
+      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.zero),
       // a 15 s refresh must not replay the draw animation every time
       animationDuration: 0,
     );
@@ -2307,13 +2307,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     double? hi;
     for (final row in data) {
       for (final k in keys) {
-        final v = PumpControllerProvider.parseReading(row[k]);
-        if (v == null) continue;
+        final v = PumpControllerProvider.parseReading(row[k]) ?? 0.0;
         lo = lo == null ? v : (v < lo ? v : lo);
         hi = hi == null ? v : (v > hi ? v : hi);
       }
     }
-    if (lo == null || hi == null) {
+    if (lo == null || hi == null || (lo == 0.0 && hi == 0.0)) {
       return isVoltage ? (min: 0.0, max: 500.0) : (min: 0.0, max: 10.0);
     }
     if (isVoltage) {

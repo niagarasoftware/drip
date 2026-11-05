@@ -152,13 +152,12 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
     double? hi;
     for (final row in pumpControllerProvider.voltageData) {
       for (final k in keys) {
-        final x = PumpControllerProvider.parseReading(row[k]);
-        if (x == null) continue;
+        final x = PumpControllerProvider.parseReading(row[k]) ?? 0.0;
         lo = lo == null ? x : (x < lo ? x : lo);
         hi = hi == null ? x : (x > hi ? x : hi);
       }
     }
-    if (lo == null || hi == null) return (min: 0.0, max: selectedIndex == 0 ? 500.0 : 10.0);
+    if (lo == null || hi == null || (lo == 0.0 && hi == 0.0)) return (min: 0.0, max: selectedIndex == 0 ? 500.0 : 10.0);
     if (selectedIndex == 0) {
       final double pad = ((hi - lo) * 0.15) < 10 ? 10 : (hi - lo) * 0.15;
       double min = ((lo - pad) / 10).floorToDouble() * 10;
@@ -388,14 +387,14 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
       xValueMapper: (data, _) => 'Hour ${data['hour']}',
       yValueMapper: (data, _) {
         final key = selectedIndex == 0 ? 'voltage$phase' : selectedIndex == 1 ? 'current$phase' : selectedIndex == 2 ? 'powerFactor$phase' : 'power$phase';
-        // null (not 0) for a missing reading -> gap in the line instead of a false drop to zero
-        return PumpControllerProvider.parseReading(data[key]);
+        // Treat missing/hyphen reading as 0 so the graph drops to 0 when there is no power
+        return PumpControllerProvider.parseReading(data[key]) ?? 0.0;
       },
       name: name,
       markerSettings: const MarkerSettings(isVisible: true),
       color: color,
       splineType: SplineType.monotonic,
-      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
+      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.zero),
       animationDuration: 0,
     );
   }
