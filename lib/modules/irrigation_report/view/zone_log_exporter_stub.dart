@@ -149,9 +149,9 @@ Future<String?> exportZoneLogMatrixToExcel({
   required List<DateTime> dateColumns,
   required List<dynamic> rows,
   required Map<String, int> dailyTotals,
-  Map<String, int>? dailyTotalQuantities,
+  Map<String, num>? dailyTotalQuantities,
   required int grandTotalSeconds,
-  int grandTotalQuantity = 0,
+  num grandTotalQuantity = 0,
   required String fileName,
 }) async {
   try {
@@ -167,7 +167,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
 
-    List<CellValue> header2 = [TextCellValue('Program / Sequence')];
+    List<CellValue> header2 = [TextCellValue('Program / Valve / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
     }
@@ -176,21 +176,28 @@ Future<String?> exportZoneLogMatrixToExcel({
 
     for (var row in rows) {
       List<CellValue> dataRow = [];
-      String displayName =
-          (row.progName.isNotEmpty && row.progName != row.seqName)
-              ? "${row.progName} - ${row.seqName}"
-              : row.seqName;
+      String displayName = row.seqName;
+      String vName = (row.valveName ?? '').toString();
+      if (vName.isNotEmpty) {
+        displayName = (row.progName.isNotEmpty && row.progName != row.seqName)
+            ? "${row.progName} - $vName - ${row.seqName}"
+            : "$vName - ${row.seqName}";
+      } else if (row.progName.isNotEmpty && row.progName != row.seqName) {
+        displayName = "${row.progName} - ${row.seqName}";
+      }
       dataRow.add(TextCellValue(displayName));
 
       int rowTotalSec = 0;
-      int rowTotalQty = 0;
+      num rowTotalQty = 0;
       for (var d in dateColumns) {
         String dKey = DateFormat('yyyy-MM-dd').format(d);
         var dayData = row.dayEntries[dKey];
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? 0);
-          int qtyVal = (dayData.quantityCompleted as int? ?? 0);
-          String qtyStr = qtyVal > 0 ? "$qtyVal L" : '-';
+          num qtyVal = (dayData.quantityCompleted as num? ?? dayData.quantity as num? ?? 0);
+          String qtyStr = qtyVal > 0
+              ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
+              : '-';
           dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
@@ -199,7 +206,9 @@ Future<String?> exportZoneLogMatrixToExcel({
         }
       }
       String totalDur = _formatDurationHelper(rowTotalSec);
-      String totalQty = rowTotalQty > 0 ? "$rowTotalQty L" : '-';
+      String totalQty = rowTotalQty > 0
+          ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
+          : '-';
       dataRow.add(TextCellValue("$totalDur / $totalQty"));
       sheet.appendRow(dataRow);
     }
@@ -208,13 +217,19 @@ Future<String?> exportZoneLogMatrixToExcel({
     for (var d in dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       int daySec = dailyTotals[dKey] ?? 0;
-      int dayQty = dailyTotalQuantities?[dKey] ?? 0;
+      num dayQty = dailyTotalQuantities?[dKey] ?? 0;
       String dayDur = _formatDurationHelper(daySec);
-      String dayQtyStr = dayQty > 0 ? "$dayQty L" : '-';
+      String dayQtyStr = dayQty > 0
+          ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
+          : '-';
       footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
     }
     String gDur = _formatDurationHelper(grandTotalSeconds);
-    String gQty = grandTotalQuantity > 0 ? "$grandTotalQuantity L" : '-';
+    String gQty = grandTotalQuantity > 0
+        ? (grandTotalQuantity % 1 == 0
+            ? "${grandTotalQuantity.toInt()} L"
+            : "$grandTotalQuantity L")
+        : '-';
     footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 
@@ -262,9 +277,9 @@ Future<String?> exportZoneLogMatrixToPdf({
   required List<DateTime> dateColumns,
   required List<dynamic> rows,
   required Map<String, int> dailyTotals,
-  Map<String, int>? dailyTotalQuantities,
+  Map<String, num>? dailyTotalQuantities,
   required int grandTotalSeconds,
-  int grandTotalQuantity = 0,
+  num grandTotalQuantity = 0,
   required String fileName,
 }) async {
   try {

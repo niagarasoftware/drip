@@ -85,6 +85,66 @@ class SensorHourlyLogs extends StatelessWidget {
                     return const SizedBox.shrink();
                   }
 
+                  return SizedBox(
+                    height: 320,
+                    child: SfCartesianChart(
+                      // Touch the line -> shows hour + value for the nearest point
+                      trackballBehavior: TrackballBehavior(
+                        enable: true,
+                        activationMode: ActivationMode.singleTap, // or longPress
+                        tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
+                        lineType: TrackballLineType.vertical,
+                        tooltipSettings: const InteractiveTooltip(
+                          enable: true,
+                          format: 'point.x : point.y',
+                        ),
+                      ),
+
+                      // Pinch to zoom, drag to scroll when there are many points
+                      zoomPanBehavior: ZoomPanBehavior(
+                        enablePinching: true,
+                        enablePanning: true,
+                        zoomMode: ZoomMode.x,
+                      ),
+
+                      primaryXAxis: const CategoryAxis(
+                        interval: 1,                 // show every hour label
+                        labelRotation: 90,           // avoids overlapping text
+                        labelIntersectAction: AxisLabelIntersectAction.rotate90,
+                        majorGridLines: MajorGridLines(width: 0),
+                        // show ~10 points at a time, rest by panning
+                        initialVisibleMaximum: 9,
+                      ),
+
+                      title: ChartTitle(text: 'Sensor Name: ${chartData.first.name}'),
+                      legend: const Legend(isVisible: true),
+                      primaryYAxis: NumericAxis(
+                        title: AxisTitle(
+                          text: MyFunction().getSensorUnit(chartData.first.objectName, context),
+                        ),
+                      ),
+
+                      series: <LineSeries<SensorHourlyData, String>>[
+                        LineSeries<SensorHourlyData, String>(
+                          dataSource: chartData,
+                          xValueMapper: (data, _) => data.hour,
+                          yValueMapper: (data, _) => MyFunction().getChartValue(
+                            context,
+                            data.objectName,
+                            data.value ?? 0.0,
+                          ),
+                          name: chartData.first.objectName,
+
+                          // Show a dot on every point so you can see where data exists
+                          markerSettings: const MarkerSettings(isVisible: true),
+
+                          // Turn OFF always-on labels (they clutter with many points)
+                          dataLabelSettings: const DataLabelSettings(isVisible: false),
+                        ),
+                      ],
+                    ),
+                  );
+
                   return SfCartesianChart(
                     primaryXAxis: const CategoryAxis(),
                     title: ChartTitle(

@@ -14,9 +14,10 @@ class ResetAccumalationScreen extends StatefulWidget {
   const ResetAccumalationScreen(
       {Key? key,
         required this.userId,
+        required this.createUser,
         required this.controllerId,
         required this.deviceID});
-  final userId, controllerId, deviceID;
+  final userId, controllerId, deviceID,createUser;
 
   @override
   State<ResetAccumalationScreen> createState() => _ResetAccumalationScreenState();
@@ -45,6 +46,7 @@ class _ResetAccumalationScreenState extends State<ResetAccumalationScreen>
       });
 
        if (getUserDetails.statusCode == 200) {
+         print("body getUserDetails.body:${getUserDetails.body}");
         setState(() {
           var jsonData = jsonDecode(getUserDetails.body);
           _resetModel = ResetModel.fromJson(jsonData);
@@ -64,10 +66,9 @@ class _ResetAccumalationScreenState extends State<ResetAccumalationScreen>
     try{
       final Repository repository = Repository(HttpService());
       var getUserDetails = await repository.sendManualOperationToServer(
-          {"userId": widget.userId, "controllerId": widget.controllerId, "messageStatus": "Factory Reset", "hardware": hw, "createUser": widget.userId}
+          {"userId": widget.userId, "controllerId": widget.controllerId, "messageStatus": "Factory Reset", "hardware": hw, "createUser": widget.createUser,}
       );
-
-    }
+     }
     catch (e, stackTrace) {
       print(' Error overAll getData => ${e.toString()}');
       print(' trace overAll getData  => ${stackTrace}');

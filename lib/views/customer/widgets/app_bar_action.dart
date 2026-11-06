@@ -2,13 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/modules/Preferences/view/preference_main_screen.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_screen.dart';
 import 'package:provider/provider.dart';
+
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
 import '../../../Screens/planning/FactoryReset.dart';
 import '../../../cropAdvisory/view/crop_list_screen.dart';
-import '../../../cropAdvisory/view/getUserInformationScreen.dart';
 import '../../../flavors.dart';
 import '../../../models/customer/site_model.dart';
 import '../../../modules/PumpController/view/node_settings.dart';
@@ -19,6 +17,7 @@ import '../../../modules/open_ai/view/open_ai_screen.dart';
 import '../../../providers/user_provider.dart';
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
+import '../../../user_manual_stub.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/enums.dart';
 import '../../../utils/helpers/mqtt_status_indicator.dart';
@@ -37,10 +36,8 @@ List<Widget> appBarActions(
   MasterControllerModel master,
   bool isNarrow,
 ) {
-  final loggedInUser =
-      Provider.of<UserProvider>(context, listen: false).loggedInUser;
-  final viewedCustomer =
-      Provider.of<UserProvider>(context, listen: false).viewedCustomer;
+  final loggedInUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
+  final viewedCustomer = Provider.of<UserProvider>(context, listen: false).viewedCustomer;
 
   final isGem = [...AppConstants.gemModelList, ...AppConstants.ecoGemModelList]
       .contains(master.modelId);
@@ -61,12 +58,13 @@ List<Widget> appBarActions(
         isOMS: false,
       ),
       IconButton(
-        onPressed: () {
-        //   Navigator.push(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const AIChatScreen()),
-        // );
-        },
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => AIChatScreen(
+            userId: vm.mySiteList.data[vm.sIndex].customerId,
+            controllerId: master.controllerId,
+          )),
+        ),
         icon: const Icon(Icons.assistant),
       ),
     ];
@@ -93,12 +91,13 @@ List<Widget> appBarActions(
           const SizedBox(width: 10),
           IconButton(
             color: Colors.transparent,
-            onPressed: () {
-            //   Navigator.push(
-            //   context,
-            //    MaterialPageRoute(builder: (context) => const Getuserinformationscreen()),
-            // );
-            },
+            onPressed: () => Navigator.push(
+              context,
+               MaterialPageRoute(builder: (context) =>  CropListScreen(
+                 userId: vm.mySiteList.data[vm.sIndex].customerId,
+                 controllerId: master.controllerId,
+               )),
+            ),
             icon: const CircleAvatar(
               radius: 17,
               backgroundColor: Colors.black12,
@@ -187,8 +186,7 @@ Widget _buildHelpMenu(
     CustomerScreenControllerViewModel vm,
     dynamic loggedInUser,
     dynamic viewedCustomer,
-    MasterControllerModel master)
-{
+    MasterControllerModel master) {
 
   final loggedUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
 
@@ -215,13 +213,15 @@ Widget _buildHelpMenu(
 
                   if (master.userManualLink?.isNotEmpty == true) {
                     final pdfUrl = AppConstants.buildUserManualUrl(master.userManualLink);
+                    print("pdfUrl:$pdfUrl");
+
+
 
                     if (pdfUrl.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualWidget(pdfUrl: pdfUrl),
-                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
                         ),
                       );
                     }
@@ -235,7 +235,7 @@ Widget _buildHelpMenu(
 
                 },
               ),
-              (! loggedUser.configPermission  && ![...AppConstants.pumpWifiDefault]
+              (! loggedUser.configPermission  && ![...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V, ...AppConstants.pumpList]
                   .contains(vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId))  ? ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Controller info'),
@@ -248,11 +248,11 @@ Widget _buildHelpMenu(
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetVerssion(
-                                  userId:
-                                      vm.mySiteList.data[vm.sIndex].customerId,
+                                  userId: vm.mySiteList.data[vm.sIndex].customerId,
                                   controllerId: master.controllerId,
                                   deviceID: master.deviceId,
                               modeID: vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId,
+                              createUser: loggedUser.id,
                                 )),
                       );
                     } else {
@@ -290,7 +290,7 @@ Widget _buildHelpMenu(
                                   userId:
                                       vm.mySiteList.data[vm.sIndex].customerId,
                                   controllerId: master.controllerId,
-                                  deviceID: master.deviceId,
+                                  deviceID: master.deviceId, createUser: loggedUser.id,
                                 )),
                       );
                     } else {
@@ -528,10 +528,13 @@ Widget _buildNonGemActions(BuildContext context, dynamic master,
           ),
         InkWell(
           onTap: () {
-            // Navigator.push(
-            //   context,
-            //   MaterialPageRoute(builder: (context) => const AIChatScreen()),
-            // );
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) =>  AIChatScreen(
+                userId: customerId,
+                controllerId: master.controllerId,
+              )),
+            );
           },
           child: const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
@@ -588,7 +591,7 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                                   userId: userId,
                                   controllerId: controllerID,
                                   deviceID: imeiNumber,
-                              modeID: modeID,
+                              modeID: modeID, createUser: userId,
                                 )),
                       );
                     } else if (type == 2) {
@@ -598,7 +601,8 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                           builder: (context) => ResetAccumalationScreen(
                               userId: userId,
                               controllerId: controllerID,
-                              deviceID: imeiNumber),
+                              deviceID: imeiNumber,
+                            createUser: userId),
                         ),
                       );
                     }

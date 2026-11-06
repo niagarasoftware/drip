@@ -14,13 +14,15 @@ import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
 import '../../../utils/my_function.dart';
 
-class MainValveSensorsPopover extends StatefulWidget {
+// ---------------------------------------------------------------------------
+// Public widgets (same constructors as before, so callers don't change)
+// ---------------------------------------------------------------------------
+
+class MainValveSensorsPopover extends StatelessWidget {
   final MainValveModel valve;
   final int customerId, controllerId;
 
-  /// Optional: 'moisture' | 'soilTemp' | 'inputPressure' | 'lateralPressure'
-  /// Pass this when the user tapped a specific badge, so the popover
-  /// opens already scrolled to that section.
+  /// 'inputPressure' - opens already scrolled to that section.
   final String? initialSection;
 
   const MainValveSensorsPopover({
@@ -32,288 +34,32 @@ class MainValveSensorsPopover extends StatefulWidget {
   });
 
   @override
-  State<MainValveSensorsPopover> createState() => _MainValveSensorsPopoverState();
-}
-
-class _MainValveSensorsPopoverState extends State<MainValveSensorsPopover> {
-  final ScrollController _scrollController = ScrollController();
-
-  // Keys are created once for the lifetime of this State and are never
-  late final GlobalKey _inputPressureKey = GlobalKey(debugLabel: 'inputPressure-$hashCode');
-
-  DateTime selectedDate = DateTime.now();
-  List<SensorHourlyDataModel> sensors = [];
-
-  /// True only until the very FIRST fetch finishes. While true we show a
-  /// full-screen spinner because there is no sensor tree worth mounting
-  /// yet (no data at all). After the first successful load this stays
-  /// false for the rest of the popover's life.
-  bool isInitialLoading = true;
-
-  /// True while a *subsequent* (date-change) fetch is in flight. Used to
-  /// draw a thin overlay spinner ON TOP of the already-mounted sensor
-  /// tree — the tree itself is never removed/rebuilt because of this.
-  bool isRefreshing = false;
-
-  /// Guards against overlapping fetches: only the response whose id
-  /// matches the latest `_requestId` is ever applied to state.
-  int _requestId = 0;
-
-  bool get _hasAnySensor {
-    final valve = widget.valve;
-    return valve.inputPressure.isNotEmpty;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchSensorData(selectedDate, selectedDate, isInitial: true).then((_) {
-      if (widget.initialSection != null && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSection(widget.initialSection!));
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scrollToSection(String section) {
-    GlobalKey? key;
-    switch (section) {
-      case 'inputPressure':
-        key = _inputPressureKey;
-        break;
-    }
-    final ctx = key?.currentContext;
-    if (ctx != null) {
-      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final valve = widget.valve;
-
-    final hasInputPressure = valve.inputPressure.isNotEmpty;
-    final hasAnySensor = _hasAnySensor;
-
-    // Shared header (always shown)
-    Widget buildHeader() {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              valve.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Last Run: ${_formatLastRunning(valve.lastRunningDT)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+    return _SensorPopoverBody(
+      name: valve.name,
+      lastRunningDT: valve.lastRunningDT,
+      customerId: customerId,
+      controllerId: controllerId,
+      initialSection: initialSection,
+      sections: [
+        _SectionConfig(
+          id: 'inputPressure',
+          title: 'Input Pressure',
+          unitParam: 'Pressure Sensor',
+          sensors: valve.inputPressure,
+          gaugeMax: 50,
+          type: _GaugeType.pressure,
         ),
-      );
-    }
-
-    // ---- Case 1: No sensors at all ----
-    // This branch is stable for the popover's whole life (hasAnySensor
-    // doesn't change), so it never gets swapped with the sensor tree.
-    if (!hasAnySensor) {
-      return buildHeader();
-    }
-
-    // ---- Case 2: First-ever load, nothing to show yet ----
-    // This ONLY happens once, before the sensor tree (and its GlobalKeys)
-    // has ever been mounted, so there is nothing to tear down here.
-    if (isInitialLoading) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildHeader(),
-          const SizedBox(height: 200),
-          const Center(child: CircularProgressIndicator()),
-        ],
-      );
-    }
-
-    // ---- Case 3: Sensor tree is mounted for the rest of this popover's
-    // lifetime. Date changes only update `sensors` / `isRefreshing`
-    // (see setState calls below) and never rebuild this branch away.
-    return Stack(
-      children: [
-        Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                buildHeader(),
-                if (hasInputPressure)
-                  _SensorSection(
-                    key: _inputPressureKey,
-                    title: 'Input Pressure',
-                    sensors: valve.inputPressure,
-                    unitParam: 'Pressure Sensor',
-                    sensorData: sensors,
-                    gaugeMax: 50,
-                    gaugeType: _GaugeType.pressure,
-                    selectedDate: selectedDate,
-                    isBusy: isRefreshing,
-                    onDateSelected: _onDateSelected,
-                  ),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        ),
-
-        // Thin overlay spinner shown ON TOP of the already-mounted tree
-        // while a date-change fetch is in flight. The tree underneath is
-        // never removed, so charts/gauges/GlobalKeys/ScrollController are
-        // never disposed and reinflated.
-        if (isRefreshing)
-          Positioned.fill(
-            child: IgnorePointer(
-              ignoring: false,
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.05),
-                child: const Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2.5),
-                  ),
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
-
-  String _formatLastRunning(String? dt) {
-    if (dt == null || dt.trim().isEmpty) return 'N/A';
-
-    // Backend placeholder for "no last run"
-    final trimmed = dt.trim();
-    if (trimmed.startsWith('0000-00-00')) return '--:--';
-
-    try {
-      final parsed = DateTime.parse(trimmed);
-      return DateFormat('dd MMM yyyy, hh:mm a').format(parsed);
-    } catch (_) {
-      return '--:--'; // fall back for any other invalid format
-    }
-  }
-
-  /// Called by the (single, shared) calendar when the user picks a new
-  /// day. Collapses what used to be two separate setState calls into one,
-  /// and — critically — never flips a flag that would cause the sensor
-  /// subtree itself to be unmounted.
-  void _onDateSelected(DateTime day) {
-    if (isRefreshing) return; // ignore taps while a fetch is already running
-    setState(() {
-      selectedDate = day;
-      isRefreshing = true;
-    });
-    _fetchSensorData(selectedDate, selectedDate);
-  }
-
-  Future<void> _fetchSensorData(DateTime fromDate, DateTime toDate, {bool isInitial = false}) async {
-    final int myRequestId = ++_requestId;
-    List<SensorHourlyDataModel> fetched = [];
-
-    try {
-      final from = DateFormat('yyyy-MM-dd').format(fromDate);
-      final to = DateFormat('yyyy-MM-dd').format(toDate);
-
-      final body = {
-        "userId": widget.customerId,
-        "controllerId": widget.controllerId,
-        "fromDate": from,
-        "toDate": to,
-      };
-
-      final response = await Repository(HttpService()).fetchSensorHourlyData(body);
-
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        if (jsonData["code"] == 200) {
-          fetched = (jsonData['data'] as List).map((item) {
-            final dateStr = item['date'];
-            final Map<String, List<SensorHourlyData>> hourlyDataMap = {};
-
-            item.forEach((key, value) {
-              if (key == 'date') return;
-              if (value is String && value.isNotEmpty) {
-                final entries = value.split(';');
-                hourlyDataMap[key] = entries.map((entry) => SensorHourlyData.fromCsv(entry, key, dateStr)).toList();
-              } else {
-                hourlyDataMap[key] = [];
-              }
-            });
-
-            return SensorHourlyDataModel(date: item['date'], data: hourlyDataMap);
-          }).toList();
-        }
-      }
-    } catch (error) {
-      debugPrint('Error fetching sensor hourly data: $error');
-    }
-
-    // Stale response guard: if the user picked another date while this
-    // request was in flight, `_requestId` has moved on — drop this result
-    // instead of applying outdated data over a newer request's data.
-    if (!mounted || myRequestId != _requestId) return;
-
-    setState(() {
-      sensors = fetched;
-      isInitialLoading = false;
-      isRefreshing = false;
-    });
-  }
-
-  bool _isSameDate(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
-
-  /// Single shared calendar widget. Only one instance is ever built (in
-  /// the popover header), instead of one per `_SensorSection`, so there is
-  /// only ever one place that can trigger a date change.
-  Widget buildSharedCalendar() {
-    return TableCalendar(
-      focusedDay: selectedDate,
-      firstDay: DateTime.utc(2020, 1, 1),
-      lastDay: DateTime.utc(2030, 12, 31),
-      calendarFormat: CalendarFormat.week,
-      availableCalendarFormats: const {CalendarFormat.week: 'Week'},
-      selectedDayPredicate: (day) => _isSameDate(day, selectedDate),
-      onDaySelected: isRefreshing ? null : (selectedDay, focusedDay) => _onDateSelected(selectedDay),
-      enabledDayPredicate: (day) => !day.isAfter(DateTime.now()),
-      calendarStyle: CalendarStyle(
-        selectedDecoration: BoxDecoration(color: Theme.of(context).primaryColorLight, shape: BoxShape.circle),
-        todayDecoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
-        selectedTextStyle: const TextStyle(color: Colors.white),
-        todayTextStyle: const TextStyle(color: Colors.black),
-      ),
-    );
-  }
 }
 
-
-class ValveSensorsPopover extends StatefulWidget {
+class ValveSensorsPopover extends StatelessWidget {
   final ValveModel valve;
   final int customerId, controllerId;
 
-  /// Optional: 'moisture' | 'soilTemp' | 'inputPressure' | 'lateralPressure'
-  /// Pass this when the user tapped a specific badge, so the popover
-  /// opens already scrolled to that section.
+  /// 'moisture' | 'soilTemp' | 'inputPressure' | 'lateralPressure'
   final String? initialSection;
 
   const ValveSensorsPopover({
@@ -325,51 +71,131 @@ class ValveSensorsPopover extends StatefulWidget {
   });
 
   @override
-  State<ValveSensorsPopover> createState() => _ValveSensorsPopoverState();
+  Widget build(BuildContext context) {
+    return _SensorPopoverBody(
+      name: valve.name,
+      lastRunningDT: valve.lastRunningDT,
+      customerId: customerId,
+      controllerId: controllerId,
+      initialSection: initialSection,
+      sections: [
+        _SectionConfig(
+          id: 'moisture',
+          title: 'Moisture',
+          unitParam: 'Moisture Sensor',
+          sensors: valve.moistureSensors,
+          gaugeMax: 200,
+          type: _GaugeType.moisture,
+        ),
+        _SectionConfig(
+          id: 'soilTemp',
+          title: 'Soil Temperature',
+          unitParam: 'Temperature',
+          sensors: valve.soilTemperature,
+          gaugeMax: 60,
+          type: _GaugeType.temperature,
+        ),
+        _SectionConfig(
+          id: 'inputPressure',
+          title: 'Input Pressure',
+          unitParam: 'Pressure Sensor',
+          sensors: valve.inputPressure,
+          gaugeMax: 50,
+          type: _GaugeType.pressure,
+        ),
+        _SectionConfig(
+          id: 'lateralPressure',
+          title: 'Lateral Pressure',
+          unitParam: 'Pressure Sensor',
+          sensors: valve.lateralPressure,
+          gaugeMax: 50,
+          type: _GaugeType.pressure,
+        ),
+      ],
+    );
+  }
 }
 
-class _ValveSensorsPopoverState extends State<ValveSensorsPopover> {
+// ---------------------------------------------------------------------------
+// Shared config + body (all fetch / scroll / calendar logic lives here once)
+// ---------------------------------------------------------------------------
+
+enum _GaugeType { moisture, temperature, pressure }
+
+class _SectionConfig {
+  final String id;
+  final String title;
+  final String unitParam;
+  final List<dynamic> sensors;
+  final double gaugeMax;
+  final _GaugeType type;
+
+  const _SectionConfig({
+    required this.id,
+    required this.title,
+    required this.unitParam,
+    required this.sensors,
+    required this.gaugeMax,
+    required this.type,
+  });
+}
+
+class _SensorPopoverBody extends StatefulWidget {
+  final String name;
+  final String? lastRunningDT;
+  final int customerId, controllerId;
+  final String? initialSection;
+  final List<_SectionConfig> sections;
+
+  const _SensorPopoverBody({
+    required this.name,
+    required this.lastRunningDT,
+    required this.customerId,
+    required this.controllerId,
+    required this.initialSection,
+    required this.sections,
+  });
+
+  @override
+  State<_SensorPopoverBody> createState() => _SensorPopoverBodyState();
+}
+
+class _SensorPopoverBodyState extends State<_SensorPopoverBody> {
   final ScrollController _scrollController = ScrollController();
 
-  // Keys are created once for the lifetime of this State and are never
-  // reassigned, so they can never collide with themselves.
-  late final GlobalKey _moistureKey = GlobalKey(debugLabel: 'moisture-$hashCode');
-  late final GlobalKey _soilTempKey = GlobalKey(debugLabel: 'soilTemp-$hashCode');
-  late final GlobalKey _inputPressureKey = GlobalKey(debugLabel: 'inputPressure-$hashCode');
-  late final GlobalKey _lateralPressureKey = GlobalKey(debugLabel: 'lateralPressure-$hashCode');
+  /// One key per section id, created once for the life of this State.
+  late final Map<String, GlobalKey> _sectionKeys = {
+    for (final s in widget.sections)
+      s.id: GlobalKey(debugLabel: '${s.id}-$hashCode'),
+  };
 
   DateTime selectedDate = DateTime.now();
   List<SensorHourlyDataModel> sensors = [];
 
-  /// True only until the very FIRST fetch finishes. While true we show a
-  /// full-screen spinner because there is no sensor tree worth mounting
-  /// yet (no data at all). After the first successful load this stays
-  /// false for the rest of the popover's life.
+  /// True only until the very first fetch finishes (full-screen spinner).
   bool isInitialLoading = true;
 
-  /// True while a *subsequent* (date-change) fetch is in flight. Used to
-  /// draw a thin overlay spinner ON TOP of the already-mounted sensor
-  /// tree — the tree itself is never removed/rebuilt because of this.
+  /// True while a date-change fetch is running (thin overlay spinner).
   bool isRefreshing = false;
 
-  /// Guards against overlapping fetches: only the response whose id
-  /// matches the latest `_requestId` is ever applied to state.
+  /// Set when the last fetch failed, so the user sees an error + retry
+  /// instead of a silently empty chart.
+  String? errorMessage;
+
+  /// Only the response matching the latest id is applied to state.
   int _requestId = 0;
 
-  bool get _hasAnySensor {
-    final valve = widget.valve;
-    return valve.moistureSensors.isNotEmpty ||
-        valve.soilTemperature.isNotEmpty ||
-        valve.inputPressure.isNotEmpty ||
-        valve.lateralPressure.isNotEmpty;
-  }
+  List<_SectionConfig> get _activeSections =>
+      widget.sections.where((s) => s.sensors.isNotEmpty).toList();
 
   @override
   void initState() {
     super.initState();
-    _fetchSensorData(selectedDate, selectedDate, isInitial: true).then((_) {
+    _fetchSensorData(selectedDate).then((_) {
       if (widget.initialSection != null && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSection(widget.initialSection!));
+        WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _scrollToSection(widget.initialSection!),
+        );
       }
     });
   }
@@ -381,82 +207,62 @@ class _ValveSensorsPopoverState extends State<ValveSensorsPopover> {
   }
 
   void _scrollToSection(String section) {
-    GlobalKey? key;
-    switch (section) {
-      case 'moisture':
-        key = _moistureKey;
-        break;
-      case 'soilTemp':
-        key = _soilTempKey;
-        break;
-      case 'inputPressure':
-        key = _inputPressureKey;
-        break;
-      case 'lateralPressure':
-        key = _lateralPressureKey;
-        break;
-    }
-    final ctx = key?.currentContext;
+    final ctx = _sectionKeys[section]?.currentContext;
     if (ctx != null) {
-      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     }
+  }
+
+  // ------------------------------------------------------------------ build
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Last Run: ${_formatLastRunning(widget.lastRunningDT)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final valve = widget.valve;
+    final sections = _activeSections;
 
-    final hasMoisture = valve.moistureSensors.isNotEmpty;
-    final hasSoilTemp = valve.soilTemperature.isNotEmpty;
-    final hasInputPressure = valve.inputPressure.isNotEmpty;
-    final hasLateralPressure = valve.lateralPressure.isNotEmpty;
-    final hasAnySensor = _hasAnySensor;
+    // Case 1: no sensors at all.
+    if (sections.isEmpty) return _buildHeader();
 
-    // Shared header (always shown)
-    Widget buildHeader() {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              valve.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Last Run: ${_formatLastRunning(valve.lastRunningDT)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ---- Case 1: No sensors at all ----
-    // This branch is stable for the popover's whole life (hasAnySensor
-    // doesn't change), so it never gets swapped with the sensor tree.
-    if (!hasAnySensor) {
-      return buildHeader();
-    }
-
-    // ---- Case 2: First-ever load, nothing to show yet ----
-    // This ONLY happens once, before the sensor tree (and its GlobalKeys)
-    // has ever been mounted, so there is nothing to tear down here.
+    // Case 2: first load.
     if (isInitialLoading) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          buildHeader(),
+          _buildHeader(),
           const SizedBox(height: 200),
           const Center(child: CircularProgressIndicator()),
         ],
       );
     }
 
-    // ---- Case 3: Sensor tree is mounted for the rest of this popover's
-    // lifetime. Date changes only update `sensors` / `isRefreshing`
-    // (see setState calls below) and never rebuild this branch away.
+    // Case 3: tree stays mounted; date changes only toggle isRefreshing.
     return Stack(
       children: [
         Scrollbar(
@@ -467,73 +273,25 @@ class _ValveSensorsPopoverState extends State<ValveSensorsPopover> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                buildHeader(),
-                if (hasMoisture)
+                _buildHeader(),
+                _buildSharedCalendar(),
+                if (errorMessage != null) _buildErrorBanner(),
+                for (final s in sections)
                   _SensorSection(
-                    key: _moistureKey,
-                    title: 'Moisture',
-                    sensors: valve.moistureSensors,
-                    unitParam: 'Moisture Sensor',
+                    key: _sectionKeys[s.id],
+                    config: s,
                     sensorData: sensors,
-                    gaugeMax: 200,
-                    gaugeType: _GaugeType.moisture,
-                    selectedDate: selectedDate,
-                    isBusy: isRefreshing,
-                    onDateSelected: _onDateSelected,
-                  ),
-                if (hasSoilTemp)
-                  _SensorSection(
-                    key: _soilTempKey,
-                    title: 'Soil Temperature',
-                    sensors: valve.soilTemperature,
-                    unitParam: 'Temperature',
-                    sensorData: sensors,
-                    gaugeMax: 60,
-                    gaugeType: _GaugeType.temperature,
-                    selectedDate: selectedDate,
-                    isBusy: isRefreshing,
-                    onDateSelected: _onDateSelected,
-                  ),
-                if (hasInputPressure)
-                  _SensorSection(
-                    key: _inputPressureKey,
-                    title: 'Input Pressure',
-                    sensors: valve.inputPressure,
-                    unitParam: 'Pressure Sensor',
-                    sensorData: sensors,
-                    gaugeMax: 50,
-                    gaugeType: _GaugeType.pressure,
-                    selectedDate: selectedDate,
-                    isBusy: isRefreshing,
-                    onDateSelected: _onDateSelected,
-                  ),
-                if (hasLateralPressure)
-                  _SensorSection(
-                    key: _lateralPressureKey,
-                    title: 'Lateral Pressure',
-                    sensors: valve.lateralPressure,
-                    unitParam: 'Pressure Sensor',
-                    sensorData: sensors,
-                    gaugeMax: 50,
-                    gaugeType: _GaugeType.pressure,
-                    selectedDate: selectedDate,
-                    isBusy: isRefreshing,
-                    onDateSelected: _onDateSelected,
+                    dateKey: DateFormat('yyyy-MM-dd').format(selectedDate),
                   ),
                 const SizedBox(height: 8),
               ],
             ),
           ),
         ),
-
-        // Thin overlay spinner shown ON TOP of the already-mounted tree
-        // while a date-change fetch is in flight. The tree underneath is
-        // never removed, so charts/gauges/GlobalKeys/ScrollController are
-        // never disposed and reinflated.
         if (isRefreshing)
           Positioned.fill(
-            child: IgnorePointer(
-              ignoring: false,
+            child: AbsorbPointer(
+              absorbing: true,
               child: Container(
                 color: Colors.black.withValues(alpha: 0.05),
                 child: const Center(
@@ -550,50 +308,108 @@ class _ValveSensorsPopoverState extends State<ValveSensorsPopover> {
     );
   }
 
+  Widget _buildErrorBanner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              errorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          ),
+          TextButton(
+            onPressed: isRefreshing ? null : () => _onDateSelected(selectedDate),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The ONLY calendar. It sits in the header and drives every section.
+  /// TableCalendar adapts to the available width, so it can't overflow.
+  Widget _buildSharedCalendar() {
+    return IgnorePointer(
+      ignoring: isRefreshing,
+      child: Opacity(
+        opacity: isRefreshing ? 0.5 : 1,
+        child: TableCalendar(
+          focusedDay: selectedDate,
+          firstDay: DateTime.utc(2020, 1, 1),
+          lastDay: DateTime.utc(2030, 12, 31),
+          calendarFormat: CalendarFormat.week,
+          availableCalendarFormats: const {CalendarFormat.week: 'Week'},
+          headerStyle: const HeaderStyle(
+            formatButtonVisible: false,
+            titleCentered: true,
+          ),
+          selectedDayPredicate: (day) => _isSameDate(day, selectedDate),
+          onDaySelected: (selectedDay, focusedDay) =>
+              _onDateSelected(selectedDay),
+          enabledDayPredicate: (day) => !day.isAfter(DateTime.now()),
+          calendarStyle: CalendarStyle(
+            selectedDecoration: BoxDecoration(
+              color: Theme.of(context).primaryColorLight,
+              shape: BoxShape.circle,
+            ),
+            todayDecoration: BoxDecoration(
+              color: Colors.grey.shade300,
+              shape: BoxShape.circle,
+            ),
+            selectedTextStyle: const TextStyle(color: Colors.white),
+            todayTextStyle: const TextStyle(color: Colors.black),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------------ logic
+
   String _formatLastRunning(String? dt) {
     if (dt == null || dt.trim().isEmpty) return 'N/A';
-
-    // Backend placeholder for "no last run"
     final trimmed = dt.trim();
     if (trimmed.startsWith('0000-00-00')) return '--:--';
-
     try {
-      final parsed = DateTime.parse(trimmed);
-      return DateFormat('dd MMM yyyy, hh:mm a').format(parsed);
+      return DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(trimmed));
     } catch (_) {
-      return '--:--'; // fall back for any other invalid format
+      return '--:--';
     }
   }
 
-  /// Called by the (single, shared) calendar when the user picks a new
-  /// day. Collapses what used to be two separate setState calls into one,
-  /// and — critically — never flips a flag that would cause the sensor
-  /// subtree itself to be unmounted.
+  bool _isSameDate(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   void _onDateSelected(DateTime day) {
-    if (isRefreshing) return; // ignore taps while a fetch is already running
+    if (isRefreshing) return;
     setState(() {
       selectedDate = day;
       isRefreshing = true;
+      errorMessage = null;
     });
-    _fetchSensorData(selectedDate, selectedDate);
+    _fetchSensorData(day);
   }
 
-  Future<void> _fetchSensorData(DateTime fromDate, DateTime toDate, {bool isInitial = false}) async {
+  Future<void> _fetchSensorData(DateTime date) async {
     final int myRequestId = ++_requestId;
     List<SensorHourlyDataModel> fetched = [];
+    String? error;
 
     try {
-      final from = DateFormat('yyyy-MM-dd').format(fromDate);
-      final to = DateFormat('yyyy-MM-dd').format(toDate);
-
+      final day = DateFormat('yyyy-MM-dd').format(date);
       final body = {
         "userId": widget.customerId,
         "controllerId": widget.controllerId,
-        "fromDate": from,
-        "toDate": to,
+        "fromDate": day,
+        "toDate": day,
       };
 
-      final response = await Repository(HttpService()).fetchSensorHourlyData(body);
+      final response =
+      await Repository(HttpService()).fetchSensorHourlyData(body);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -605,82 +421,59 @@ class _ValveSensorsPopoverState extends State<ValveSensorsPopover> {
             item.forEach((key, value) {
               if (key == 'date') return;
               if (value is String && value.isNotEmpty) {
-                final entries = value.split(';');
-                hourlyDataMap[key] = entries.map((entry) => SensorHourlyData.fromCsv(entry, key, dateStr)).toList();
+                hourlyDataMap[key] = value
+                    .split(';')
+                    .map((e) => SensorHourlyData.fromCsv(e, key, dateStr))
+                    .toList();
               } else {
                 hourlyDataMap[key] = [];
               }
             });
 
-            return SensorHourlyDataModel(date: item['date'], data: hourlyDataMap);
+            return SensorHourlyDataModel(
+              date: item['date'],
+              data: hourlyDataMap,
+            );
           }).toList();
+        } else {
+          error = 'Unable to load data (code ${jsonData["code"]})';
         }
+      } else {
+        error = 'Unable to load data (HTTP ${response.statusCode})';
       }
-    } catch (error) {
-      debugPrint('Error fetching sensor hourly data: $error');
+    } catch (e) {
+      debugPrint('Error fetching sensor hourly data: $e');
+      error = 'Unable to load data. Check your connection.';
     }
 
-    // Stale response guard: if the user picked another date while this
-    // request was in flight, `_requestId` has moved on — drop this result
-    // instead of applying outdated data over a newer request's data.
+    // Drop stale responses.
     if (!mounted || myRequestId != _requestId) return;
 
     setState(() {
       sensors = fetched;
+      errorMessage = error;
       isInitialLoading = false;
       isRefreshing = false;
     });
   }
-
-  bool _isSameDate(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
-
-  /// Single shared calendar widget. Only one instance is ever built (in
-  /// the popover header), instead of one per `_SensorSection`, so there is
-  /// only ever one place that can trigger a date change.
-  Widget buildSharedCalendar() {
-    return TableCalendar(
-      focusedDay: selectedDate,
-      firstDay: DateTime.utc(2020, 1, 1),
-      lastDay: DateTime.utc(2030, 12, 31),
-      calendarFormat: CalendarFormat.week,
-      availableCalendarFormats: const {CalendarFormat.week: 'Week'},
-      selectedDayPredicate: (day) => _isSameDate(day, selectedDate),
-      onDaySelected: isRefreshing ? null : (selectedDay, focusedDay) => _onDateSelected(selectedDay),
-      enabledDayPredicate: (day) => !day.isAfter(DateTime.now()),
-      calendarStyle: CalendarStyle(
-        selectedDecoration: BoxDecoration(color: Theme.of(context).primaryColorLight, shape: BoxShape.circle),
-        todayDecoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
-        selectedTextStyle: const TextStyle(color: Colors.white),
-        todayTextStyle: const TextStyle(color: Colors.black),
-      ),
-    );
-  }
 }
 
-enum _GaugeType { moisture, temperature, pressure }
+// ---------------------------------------------------------------------------
+// One section: gauge + sensor chips + hourly chart
+// ---------------------------------------------------------------------------
 
 class _SensorSection extends StatefulWidget {
-  final String title;
-  final List<dynamic> sensors;
-  final String unitParam;
+  final _SectionConfig config;
   final List<SensorHourlyDataModel> sensorData;
-  final double gaugeMax;
-  final _GaugeType gaugeType;
-  final DateTime selectedDate;
-  final bool isBusy;
-  final ValueChanged<DateTime> onDateSelected;
+
+  /// yyyy-MM-dd; used in the chart key so zoom resets when the day changes.
+  final String dateKey;
 
   const _SensorSection({
     super.key,
-    required this.title,
-    required this.sensors,
-    required this.unitParam,
+    required this.config,
     required this.sensorData,
-    required this.gaugeMax,
-    required this.gaugeType,
-    required this.selectedDate,
-    required this.isBusy,
-    required this.onDateSelected,
+    required this.dateKey,
   });
 
   @override
@@ -690,14 +483,41 @@ class _SensorSection extends StatefulWidget {
 class _SensorSectionState extends State<_SensorSection> {
   late String selectedSNo;
 
+  // Created once. Re-creating them inside build (MQTT rebuilds) would make
+  // the trackball disappear while the user is touching the chart.
+  late final TrackballBehavior _trackball;
+  late final ZoomPanBehavior _zoomPan;
+
+  // Small cache so we don't re-scan all data on every MQTT tick.
+  List<SensorHourlyDataModel>? _cacheSource;
+  String? _cacheSNo;
+  List<SensorHourlyData> _cacheData = const [];
+
   @override
   void initState() {
     super.initState();
-    selectedSNo = widget.sensors.first.sNo.toString();
+    selectedSNo = widget.config.sensors.first.sNo.toString();
+
+    _trackball = TrackballBehavior(
+      enable: true,
+      activationMode: ActivationMode.singleTap,
+      tooltipDisplayMode: TrackballDisplayMode.groupAllPoints,
+      lineType: TrackballLineType.vertical,
+      tooltipSettings: const InteractiveTooltip(
+        enable: true,
+        format: 'point.x : point.y',
+      ),
+    );
+
+    _zoomPan = ZoomPanBehavior(
+      enablePinching: true,
+      enablePanning: true,
+      zoomMode: ZoomMode.x,
+    );
   }
 
   Color _colorFor(double value) {
-    switch (widget.gaugeType) {
+    switch (widget.config.type) {
       case _GaugeType.pressure:
         if (value <= 10) return Colors.red;
         if (value <= 20) return Colors.orange;
@@ -717,37 +537,66 @@ class _SensorSectionState extends State<_SensorSection> {
     }
   }
 
-  bool _isSameDate(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  List<SensorHourlyData> _chartDataFor(String sNo) {
+    if (!identical(_cacheSource, widget.sensorData) || _cacheSNo != sNo) {
+      final result = <SensorHourlyData>[];
+      for (final model in widget.sensorData) {
+        model.data.forEach((_, list) {
+          result.addAll(list.where((s) => s.sensorId == sNo));
+        });
+      }
+      _cacheSource = widget.sensorData;
+      _cacheSNo = sNo;
+      _cacheData = result;
+    }
+    return _cacheData;
+  }
 
   @override
   Widget build(BuildContext context) {
-    dynamic selected = widget.sensors.first;
-    for (final s in widget.sensors) {
+    final cfg = widget.config;
+
+    dynamic selected = cfg.sensors.first;
+    for (final s in cfg.sensors) {
       if (s.sNo.toString() == selectedSNo) {
         selected = s;
         break;
       }
     }
 
-    // Live MQTT update for the currently selected sensor in this section.
+    // Live MQTT value for the selected sensor.
     return Selector<MqttPayloadProvider, String?>(
-      selector: (_, provider) => provider.getSensorUpdatedValve(selected.sNo.toString()),
+      selector: (_, provider) =>
+          provider.getSensorUpdatedValve(selected.sNo.toString()),
       builder: (_, status, __) {
         final statusParts = status?.split(',') ?? [];
-        if (statusParts.length > 1) {
-          selected.value = statusParts[1];
-        }
 
-        final chartData = _getSensorDataById(selected.sNo.toString(), widget.sensorData);
+        // Local value only - we no longer mutate the model inside build.
+        final String liveValue = statusParts.length > 1
+            ? statusParts[1]
+            : selected.value.toString();
 
-        final numericValue = double.tryParse(selected.value.toString()) ?? 0.0;
+        final numericValue = double.tryParse(liveValue) ?? 0.0;
         final gaugeColor = _colorFor(numericValue);
+        final unitText = MyFunction().getUnitByParameter(
+          context,
+          cfg.unitParam,
+          liveValue,
+        ) ??
+            '';
+
+        final chartData = _chartDataFor(selected.sNo.toString());
+
+        // Show the latest ~12 points; pan left for older ones.
+        const visibleCount = 12;
+        final bool manyPoints = chartData.length > visibleCount;
 
         final series = <CartesianSeries<dynamic, String>>[
           LineSeries<SensorHourlyData, String>(
             dataSource: chartData,
             xValueMapper: (data, _) => data.hour,
-            yValueMapper: (data, _) => double.tryParse(data.value.toString()) ?? 0.0,
+            yValueMapper: (data, _) =>
+            double.tryParse(data.value.toString()) ?? 0.0,
             markerSettings: const MarkerSettings(isVisible: true),
             color: Colors.blueAccent,
             name: selected.name,
@@ -763,154 +612,152 @@ class _SensorSectionState extends State<_SensorSection> {
               Padding(
                 padding: const EdgeInsets.only(left: 16, top: 10, bottom: 6),
                 child: Text(
-                  widget.title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black54),
+                  cfg.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black54,
+                  ),
                 ),
               ),
 
-              // Chip selector — only when this valve has more than one
-              // sensor of this type.
-              if (widget.sensors.length > 1)
+              // Chip selector - only when there is more than one sensor.
+              if (cfg.sensors.length > 1)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 4,
-                    children: widget.sensors.map<Widget>((s) {
+                    children: cfg.sensors.map<Widget>((s) {
                       final isSelected = s.sNo.toString() == selectedSNo;
                       return ChoiceChip(
                         label: Text(
                           s.name,
-                          style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black87),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
                         ),
                         selected: isSelected,
                         selectedColor: Theme.of(context).primaryColor,
-                        onSelected: (_) => setState(() => selectedSNo = s.sNo.toString()),
+                        onSelected: (_) =>
+                            setState(() => selectedSNo = s.sNo.toString()),
                       );
                     }).toList(),
                   ),
                 ),
 
+              // Gauge + name/value. No fixed wide widths, so no overflow.
               Padding(
-                padding: const EdgeInsets.only(left: 16, top: 6, bottom: 6),
-                child: Text(
-                  selected.name,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: SfRadialGauge(
+                        key: ValueKey('gauge-${selected.sNo}'),
+                        axes: [
+                          RadialAxis(
+                            minimum: 0,
+                            maximum: cfg.gaugeMax,
+                            axisLineStyle: AxisLineStyle(
+                              thickness: 0.12,
+                              thicknessUnit: GaugeSizeUnit.factor,
+                              color: Colors.grey.shade300,
+                            ),
+                            showTicks: false,
+                            showLabels: false,
+                            pointers: <GaugePointer>[
+                              RangePointer(
+                                value: numericValue.clamp(0.0, cfg.gaugeMax),
+                                color: gaugeColor,
+                                width: 0.12,
+                                sizeUnit: GaugeSizeUnit.factor,
+                              ),
+                              NeedlePointer(
+                                value: numericValue.clamp(0.0, cfg.gaugeMax),
+                                needleEndWidth: 3,
+                                needleColor: Colors.black54,
+                              ),
+                            ],
+                            annotations: [
+                              GaugeAnnotation(
+                                widget: Text(
+                                  unitText,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: gaugeColor,
+                                  ),
+                                ),
+                                angle: 90,
+                                positionFactor: 0.8,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            selected.name.toString(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            unitText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: gaugeColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
-              Row(
-                children: [
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 100,
-                    height: 100,
-                    child: SfRadialGauge(
-                      key: ValueKey('gauge-${selected.sNo}'),
-                      axes: [
-                        RadialAxis(
-                          minimum: 0,
-                          maximum: widget.gaugeMax,
-
-                          // Background track
-                          axisLineStyle: AxisLineStyle(
-                            thickness: 0.12,
-                            thicknessUnit: GaugeSizeUnit.factor,
-                            color: Colors.grey.shade300,
-                          ),
-
-                          showTicks: false,
-                          showLabels: false,
-
-                          pointers: <GaugePointer>[
-                            // Colored arc showing the current value
-                            RangePointer(
-                              value: numericValue.clamp(0.0, widget.gaugeMax),
-                              color: gaugeColor,
-                              width: 0.12,
-                              sizeUnit: GaugeSizeUnit.factor,
-                            ),
-
-                            NeedlePointer(
-                              value: numericValue.clamp(0.0, widget.gaugeMax),
-                              needleEndWidth: 3,
-                              needleColor: Colors.black54,
-                            ),
-                          ],
-
-                          annotations: [
-                            GaugeAnnotation(
-                              widget: Text(
-                                MyFunction().getUnitByParameter(
-                                  context,
-                                  widget.unitParam,
-                                  selected.value.toString(),
-                                ) ??
-                                    '',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: gaugeColor,
-                                ),
-                              ),
-                              angle: 90,
-                              positionFactor: 0.8,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Container(width: 1, height: 110, color: Colors.black12),
-                  ),
-                  // Read-only mini calendar preview for this section, kept
-                  // in sync with the single shared date owned by the
-                  // parent popover. Tapping it delegates to the parent via
-                  // onDateSelected instead of each section owning its own
-                  // TableCalendar/ScrollController-affecting state.
-                  SizedBox(
-                    width: 415,
-                    height: 132,
-                    child: IgnorePointer(
-                      ignoring: widget.isBusy,
-                      child: Opacity(
-                        opacity: widget.isBusy ? 0.5 : 1,
-                        child: TableCalendar(
-                          focusedDay: widget.selectedDate,
-                          firstDay: DateTime.utc(2020, 1, 1),
-                          lastDay: DateTime.utc(2030, 12, 31),
-                          calendarFormat: CalendarFormat.week,
-                          availableCalendarFormats: const {CalendarFormat.week: 'Week'},
-                          selectedDayPredicate: (day) => _isSameDate(day, widget.selectedDate),
-                          onDaySelected: (selectedDay, focusedDay) => widget.onDateSelected(selectedDay),
-                          enabledDayPredicate: (day) => !day.isAfter(DateTime.now()),
-                          calendarStyle: CalendarStyle(
-                            selectedDecoration: BoxDecoration(
-                              color: Theme.of(context).primaryColorLight,
-                              shape: BoxShape.circle,
-                            ),
-                            todayDecoration: BoxDecoration(color: Colors.grey.shade300, shape: BoxShape.circle),
-                            selectedTextStyle: const TextStyle(color: Colors.white),
-                            todayTextStyle: const TextStyle(color: Colors.black),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              // Hourly chart: full width, touch shows hour + value.
               SizedBox(
-                width: 550,
-                height: 175,
-                child: SfCartesianChart(
-                  key: ValueKey('chart-${selected.sNo}'),
-                  primaryXAxis: CategoryAxis(
-                    title: AxisTitle(text: selected.name, textStyle: const TextStyle(fontSize: 12)),
+                width: double.infinity,
+                height: 220,
+                child: chartData.isEmpty
+                    ? const Center(child: Text('No data for this date'))
+                    : SfCartesianChart(
+                  // Date in key -> zoom resets when the day changes,
+                  // but NOT on every MQTT rebuild.
+                  key: ValueKey(
+                    'chart-${selected.sNo}-${widget.dateKey}',
                   ),
-                  tooltipBehavior: TooltipBehavior(enable: true),
+                  trackballBehavior: _trackball,
+                  zoomPanBehavior: _zoomPan,
+                  primaryXAxis: CategoryAxis(
+                    interval: 1,
+                    labelRotation: 90,
+                    majorGridLines: const MajorGridLines(width: 0),
+                    initialVisibleMinimum: manyPoints
+                        ? (chartData.length - visibleCount).toDouble()
+                        : null,
+                    initialVisibleMaximum: manyPoints
+                        ? (chartData.length - 1).toDouble()
+                        : null,
+                  ),
                   series: series,
                 ),
               ),
@@ -920,15 +767,5 @@ class _SensorSectionState extends State<_SensorSection> {
         );
       },
     );
-  }
-
-  List<SensorHourlyData> _getSensorDataById(String sensorId, List<SensorHourlyDataModel> sensorData) {
-    final result = <SensorHourlyData>[];
-    for (final model in sensorData) {
-      model.data.forEach((hour, sensorList) {
-        result.addAll(sensorList.where((sensor) => sensor.sensorId == sensorId));
-      });
-    }
-    return result;
   }
 }

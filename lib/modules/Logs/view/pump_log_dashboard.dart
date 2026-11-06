@@ -1153,7 +1153,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         : "0";
 
     final String totalPowerOnTime = motorData?.totalPowerOnTime ?? "00:00:00";
-    final String totalPowerOffTime = motorData?.totalPowerOffTime ?? "00:00:00";
+    final String powerOffTime = motorData?.powerOffTime ?? "00:00:00";
 
     final int daysInMonth = DateUtils.getDaysInMonth(_selectedDate.year, _selectedDate.month);
     final int maxSeconds = _powerPeriodIndex == 1
@@ -1173,7 +1173,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
     final durationAcrossCard = _buildNewPowerGraphLeft(
       totalPowerOnTime: totalPowerOnTime,
-      totalPowerOffTime: totalPowerOffTime,
+      powerOffTime: powerOffTime,
       motorRunTime: motorRunTime,
       totalPowerRatio: totalPowerRatio,
       motorRatio: motorRatio,
@@ -1286,7 +1286,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   // ---------------------------------------------------------------------------
   Widget _buildNewPowerGraphLeft({
     required String totalPowerOnTime,
-    required String totalPowerOffTime,
+    required String powerOffTime,
     required String motorRunTime,
     required double totalPowerRatio,
     required double motorRatio,
@@ -1350,7 +1350,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           const SizedBox(height: 8),
 
           _buildFullColorBar(
-            label: 'Total power Off Time· ${_formatTime(totalPowerOffTime)} HH:MM',
+            label: 'Power Off Time· ${_formatTime(powerOffTime)} HH:MM',
             bgColor: const Color(0xFFFFECEE),
             textColor: const Color(0xFFDC2626),
           ),
@@ -2281,15 +2281,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     return SplineSeries<Map<String, dynamic>, num>(
       dataSource: data,
       xValueMapper: (d, i) => PumpControllerProvider.parseReading(d['hour']) ?? i.toDouble(),
-      // null (not 0) for a missing reading -> the line breaks instead of dropping to zero
-      yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]),
+      // Treat missing/hyphen reading as 0 so the graph drops to 0 when there is no power
+      yValueMapper: (d, _) => PumpControllerProvider.parseReading(d[key]) ?? 0.0,
       name: name,
       color: color,
       width: 2,
       // monotonic spline never overshoots the real readings (no fake dips below 0 A)
       splineType: SplineType.monotonic,
       markerSettings: const MarkerSettings(isVisible: true, height: 4, width: 4),
-      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.gap),
+      emptyPointSettings: const EmptyPointSettings(mode: EmptyPointMode.zero),
       // a 15 s refresh must not replay the draw animation every time
       animationDuration: 0,
     );
@@ -2307,13 +2307,12 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     double? hi;
     for (final row in data) {
       for (final k in keys) {
-        final v = PumpControllerProvider.parseReading(row[k]);
-        if (v == null) continue;
+        final v = PumpControllerProvider.parseReading(row[k]) ?? 0.0;
         lo = lo == null ? v : (v < lo ? v : lo);
         hi = hi == null ? v : (v > hi ? v : hi);
       }
     }
-    if (lo == null || hi == null) {
+    if (lo == null || hi == null || (lo == 0.0 && hi == 0.0)) {
       return isVoltage ? (min: 0.0, max: 500.0) : (min: 0.0, max: 10.0);
     }
     if (isVoltage) {
@@ -2465,11 +2464,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 format: 'series.name\nHour point.x : point.y$unit',
               ),
               series: <CartesianSeries<Map<String, dynamic>, num>>[
-                if (showR) _voltageSeries(voltageData, '${prefix}R', '$label R', _kRed),
+                if (showR) _voltageSeries(voltageData, '${prefix}R', isSinglePhaseModel ? 'Current' : '$label R', _kRed),
                 if (showY)
                   _voltageSeries(voltageData, '${prefix}Y', '$label Y', const Color(0xFFF9A825)),
                 if (showB)
-                  _voltageSeries(voltageData, '${prefix}B', '$label B', const Color(0xFF1E88E5)),
+                  _voltageSeries(voltageData, '${prefix}B', isSinglePhaseModel ? 'Voltage' : '$label B', const Color(0xFF1E88E5)),
               ],
             ),
           ),
@@ -2531,9 +2530,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           Row(
             children: [
               headerCell('Hours', const Color(0xFFB9D3D5), 5),
-              if (showR) headerCell('R', const Color(0xFFFFB4AB), 4),
+              if (showR) headerCell(isSinglePhaseModel ? 'Current' : 'R', const Color(0xFFFFB4AB), 4),
               if (showY) headerCell('Y', const Color(0xFFFFE69C), 4),
-              if (showB) headerCell('B', const Color(0xFFA9DDF8), 4),
+              if (showB) headerCell(isSinglePhaseModel ? 'Voltage' : 'B', const Color(0xFFA9DDF8), 4),
             ],
           ),
           ConstrainedBox(

@@ -108,6 +108,7 @@ class _GeneralSettingsNarrowState extends State<GeneralSettingsNarrow> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => ResetVerssion(
+                          createUser: widget.userId,
                           userId: widget.customerId,
                           controllerId: widget.controllerId,
                           deviceID: viewModel.deviceId,

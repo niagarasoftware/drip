@@ -1,15 +1,10 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Screens/planning/weather/widgets/periodicCard.dart';
 import 'package:oro_drip_irrigation/Screens/planning/weather/widgets/periodicCardCurrent.dart';
 
-import '../view/weather_screen_new.dart';
 import '../weather_co2_card.dart';
 import '../weather_rainfall_card.dart';
 import '../weather_wind_card.dart';
-
-
 
 Color _sensorStatusColor(int code) {
   if (code == 255) return Colors.green.shade700;
@@ -90,7 +85,7 @@ class SensorTileNew extends StatelessWidget {
     }
 
     if (normalizedTitle.contains('rain fall')) {
-      return  RainfallCard(
+      return RainfallCard(
         icon: icon,
         rainfallValue: value.toString(),
         forecastText: '',
@@ -115,8 +110,33 @@ class SensorTileNew extends StatelessWidget {
       );
     }
 
-    return Container(
-      height: 400,
+    final bool isLeafWetness = normalizedTitle.contains('leaf');
+    final String leafStatusText;
+    final Color leafStatusColor;
+
+    if (isLeafWetness) {
+      if (value < 10) {
+        leafStatusText = 'Dry';
+        leafStatusColor = Colors.red.shade700;
+      } else if (value > 10 && value < 30) {
+        leafStatusText = 'Slightly Wet';
+        leafStatusColor = Colors.orange.shade700;
+      } else if (value > 30) {
+        leafStatusText = 'Wet';
+        leafStatusColor = Colors.green.shade700;
+      } else {
+        leafStatusText = '';
+        leafStatusColor = Colors.transparent;
+      }
+    } else {
+      leafStatusText = '';
+      leafStatusColor = Colors.transparent;
+    }
+    final String normalAlertText = statusCode == 255 ? 'Normal' : 'Alert';
+    final Color normalAlertColor = _sensorStatusColor(statusCode);
+
+    return SizedBox(
+      height: 430,
       width: double.infinity,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -144,28 +164,25 @@ class SensorTileNew extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w100,
-
                   ),
                 ),
               ),
-
-
             ],
           ),
           Row(
             children: [
-              SizedBox(width: 48,),
+              const SizedBox(width: 48),
               Text(
-                statusCode == 255 ? 'Normal' : 'Alert',
+                normalAlertText,
                 style: TextStyle(
-                  color: _sensorStatusColor(statusCode),
+                  color: normalAlertColor,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -190,10 +207,32 @@ class SensorTileNew extends StatelessWidget {
                   ),
                 ),
               ),
+              if (isLeafWetness) ...[
+                 Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: leafStatusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '  $leafStatusText  ',
+                      style: TextStyle(
+                        color: leafStatusColor,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
 
-          const SizedBox(height: 20),
+
+
+          const SizedBox(height: 14),
 
           SensorPeriodCardCurrent(
             title: 'Current Day',
@@ -201,7 +240,7 @@ class SensorTileNew extends StatelessWidget {
             maxValue: maxValue.toString(),
             averageValue: otherValue,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
 
           SensorPeriodCard(
             title: 'Last 7 Days',
@@ -209,7 +248,7 @@ class SensorTileNew extends StatelessWidget {
             maxValue: last7DaysMax.toString(),
             averageValue: last7DaysAverage.toString(),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
 
           SensorPeriodCard(
             title: 'Last Month',
