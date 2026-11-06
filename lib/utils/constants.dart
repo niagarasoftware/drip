@@ -1037,6 +1037,13 @@ class AppConstants {
   static List<int> singlePhasePumpPlusModel = [69, 70, 71];
   static List<int> singlePhaseShineModel = [96, 97, 98, 99];
   static List<int> singlePhaseElitePlusModel = [100, 101];
+  static List<int> shineAndEliteModelList = [
+    ...shine2V,
+    ...shine4V,
+    ...elite10V,
+    ...singlePhaseShineModel,
+    ...singlePhaseElitePlusModel,
+  ];
   static List<int> singlePhaseEcoGemModel = [102, 103, 104, 105];
   static List<int> singlePhaseEcoGemPlusModel = [106, 107, 108, 109];
   static List<int> pumpPlusModelList = [8, 9, 10, ...wlcModelList, ...aquaculturePumpModelList];
