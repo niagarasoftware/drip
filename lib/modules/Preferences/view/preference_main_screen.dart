@@ -1784,8 +1784,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
     if (preferenceProvider.individualPumpSetting != null) {
       for (var individualPump in preferenceProvider.individualPumpSetting!) {
         int minSeconds =
-            (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                    individualPump.pumpType == 2)
+            (AppConstants.shineAndEliteModelList.contains(widget.masterData['modelId']) ||
+                    (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                        individualPump.pumpType == 2))
                 ? 30
                 : 5;
         for (var settingCategory in individualPump.settingList) {
@@ -1825,8 +1826,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
             preferenceProvider.individualPumpSetting![pumpIndex].pumpType;
       }
       int minSeconds =
-          (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                  pumpType == 2)
+          (AppConstants.shineAndEliteModelList.contains(widget.masterData['modelId']) ||
+                  (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                      pumpType == 2))
               ? 30
               : 5;
       if (val is String && val.isNotEmpty) {
@@ -1865,8 +1867,9 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
           }
         }
         int minSeconds =
-            AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
-                    (pumpType == 2)
+            (AppConstants.shineAndEliteModelList.contains(widget.masterData['modelId']) ||
+                    (AppConstants.ecoGemAndPlusModelList.contains(widget.masterData['modelId']) &&
+                        pumpType == 2))
                 ? 30
                 : 5;
         if (finalValue is String) {
