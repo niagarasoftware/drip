@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual_web.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
@@ -18,6 +17,7 @@ import '../../../modules/open_ai/view/open_ai_screen.dart';
 import '../../../providers/user_provider.dart';
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
+import '../../../user_manual_stub.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/enums.dart';
 import '../../../utils/helpers/mqtt_status_indicator.dart';
@@ -215,14 +215,11 @@ Widget _buildHelpMenu(
                     final pdfUrl = AppConstants.buildUserManualUrl(master.userManualLink);
                     print("pdfUrl:$pdfUrl");
 
-
-
                     if (pdfUrl.isNotEmpty) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
-                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
                         ),
                       );
                     }
