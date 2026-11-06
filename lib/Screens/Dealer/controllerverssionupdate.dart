@@ -21,11 +21,12 @@ class ResetVerssion extends StatefulWidget {
   const ResetVerssion(
       {Key? key,
         required this.userId,
+        required this.createUser,
         required this.controllerId,
         required this.deviceID,
         required this.modeID,
       });
-  final userId, controllerId, deviceID,modeID;
+  final userId, controllerId, deviceID,modeID,createUser;
 
   @override
   _ResetVerssionState createState() => _ResetVerssionState();
@@ -688,7 +689,7 @@ class _ResetVerssionState extends State<ResetVerssion> {
       "controllerId": widget.controllerId,
       "hardware": payLoadFinal,
       "messageStatus": msgstatus,
-      "createUser": widget.userId
+      "createUser": widget.createUser
     };
 
 

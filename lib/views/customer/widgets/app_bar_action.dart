@@ -252,8 +252,11 @@ Widget _buildHelpMenu(
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetVerssion(
+                                createUser:
+                                    loggedUser.id,
                                   userId:
                                       vm.mySiteList.data[vm.sIndex].customerId,
+
                                   controllerId: master.controllerId,
                                   deviceID: master.deviceId,
                               modeID: vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId,
@@ -292,8 +295,9 @@ Widget _buildHelpMenu(
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetAccumalationScreen(
-                                  userId:
-                                      vm.mySiteList.data[vm.sIndex].customerId,
+                              createUser:
+                                      loggedUser.id,
+                                  userId: vm.mySiteList.data[vm.sIndex].customerId,
                                   controllerId: master.controllerId,
                                   deviceID: master.deviceId,
                                 )),
@@ -593,10 +597,12 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetVerssion(
+                              createUser:
+                              userId,
                                   userId: userId,
                                   controllerId: controllerID,
                                   deviceID: imeiNumber,
-                              modeID: modeID,
+                                  modeID: modeID,
                                 )),
                       );
                     } else if (type == 2) {
@@ -604,6 +610,8 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                         context,
                         MaterialPageRoute(
                           builder: (context) => ResetAccumalationScreen(
+                              createUser:
+                              userId,
                               userId: userId,
                               controllerId: controllerID,
                               deviceID: imeiNumber),
