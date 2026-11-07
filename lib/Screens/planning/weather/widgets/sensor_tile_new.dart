@@ -208,8 +208,7 @@ class SensorTileNew extends StatelessWidget {
                 ),
               ),
               if (isLeafWetness) ...[
-                const SizedBox(height: 6),
-                Align(
+                 Align(
                   alignment: Alignment.centerLeft,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -221,7 +220,7 @@ class SensorTileNew extends StatelessWidget {
                       '  $leafStatusText  ',
                       style: TextStyle(
                         color: leafStatusColor,
-                        fontSize: 10,
+                        fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

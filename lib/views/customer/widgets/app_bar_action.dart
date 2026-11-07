@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:oro_drip_irrigation/views/customer/widgets/user_manual.dart';
 import 'package:provider/provider.dart';
 
 import '../../../Screens/Dealer/controllerverssionupdate.dart';
@@ -18,6 +17,7 @@ import '../../../modules/open_ai/view/open_ai_screen.dart';
 import '../../../providers/user_provider.dart';
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
+import '../../../user_manual_stub.dart';
 import '../../../utils/constants.dart';
 import '../../../utils/enums.dart';
 import '../../../utils/helpers/mqtt_status_indicator.dart';
@@ -35,8 +35,7 @@ List<Widget> appBarActions(
   CustomerScreenControllerViewModel vm,
   MasterControllerModel master,
   bool isNarrow,
-)
-{
+) {
   final loggedInUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
   final viewedCustomer = Provider.of<UserProvider>(context, listen: false).viewedCustomer;
 
@@ -154,8 +153,7 @@ Widget _buildProgramRunningIcon(CustomerScreenControllerViewModel vm) {
 }
 
 Widget _buildPauseResumeButton(
-    BuildContext context, CustomerScreenControllerViewModel vm)
-{
+    BuildContext context, CustomerScreenControllerViewModel vm) {
   bool allPaused = vm.lineLiveMessage.isNotEmpty &&
       vm.lineLiveMessage.every((line) {
         final parts = line.split(',');
@@ -188,8 +186,7 @@ Widget _buildHelpMenu(
     CustomerScreenControllerViewModel vm,
     dynamic loggedInUser,
     dynamic viewedCustomer,
-    MasterControllerModel master)
-{
+    MasterControllerModel master) {
 
   final loggedUser = Provider.of<UserProvider>(context, listen: false).loggedInUser;
 
@@ -224,8 +221,7 @@ Widget _buildHelpMenu(
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => UserManualWidget(pdfUrl: pdfUrl),
-                          //builder: (_) => UserManualScreen(pdfUrl: pdfUrl),
+                          builder: (_) => UserManualWeb(pdfUrl: pdfUrl),
                         ),
                       );
                     }
@@ -239,7 +235,7 @@ Widget _buildHelpMenu(
 
                 },
               ),
-              (! loggedUser.configPermission  && ![...AppConstants.pumpWifiDefault]
+              (! loggedUser.configPermission  && ![...AppConstants.shine2V, ...AppConstants.shine4V, ...AppConstants.elite10V, ...AppConstants.pumpList]
                   .contains(vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId))  ? ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Controller info'),
@@ -252,14 +248,11 @@ Widget _buildHelpMenu(
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetVerssion(
-                                createUser:
-                                    loggedUser.id,
-                                  userId:
-                                      vm.mySiteList.data[vm.sIndex].customerId,
-
+                                  userId: vm.mySiteList.data[vm.sIndex].customerId,
                                   controllerId: master.controllerId,
                                   deviceID: master.deviceId,
                               modeID: vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId,
+                              createUser: loggedUser.id,
                                 )),
                       );
                     } else {
@@ -280,8 +273,7 @@ Widget _buildHelpMenu(
 
                   }
                 },
-              )
-                  : const SizedBox(),
+              ) : const SizedBox(),
 
               !loggedUser.configPermission ? ListTile(
                 leading: const Icon(Icons.restore),
@@ -295,11 +287,10 @@ Widget _buildHelpMenu(
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetAccumalationScreen(
-                              createUser:
-                                      loggedUser.id,
-                                  userId: vm.mySiteList.data[vm.sIndex].customerId,
+                                  userId:
+                                      vm.mySiteList.data[vm.sIndex].customerId,
                                   controllerId: master.controllerId,
-                                  deviceID: master.deviceId,
+                                  deviceID: master.deviceId, createUser: loggedUser.id,
                                 )),
                       );
                     } else {
@@ -597,12 +588,10 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                         context,
                         MaterialPageRoute(
                             builder: (context) => ResetVerssion(
-                              createUser:
-                              userId,
                                   userId: userId,
                                   controllerId: controllerID,
                                   deviceID: imeiNumber,
-                                  modeID: modeID,
+                              modeID: modeID, createUser: userId,
                                 )),
                       );
                     } else if (type == 2) {
@@ -610,11 +599,10 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                         context,
                         MaterialPageRoute(
                           builder: (context) => ResetAccumalationScreen(
-                              createUser:
-                              userId,
                               userId: userId,
                               controllerId: controllerID,
-                              deviceID: imeiNumber),
+                              deviceID: imeiNumber,
+                            createUser: userId),
                         ),
                       );
                     }

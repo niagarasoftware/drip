@@ -203,8 +203,7 @@ class ReusableSensorCard extends StatelessWidget {
               style: const TextStyle(fontSize: 14, color: _muted))),
             const SizedBox(width: 10),
             if (isLeafWetness) ...[
-              const SizedBox(height: 6),
-              Container(
+               Container(
                 padding: const EdgeInsets.only(bottom: 4),
                 decoration: BoxDecoration(
                   color: leafStatusColor.withOpacity(0.15),
@@ -214,7 +213,7 @@ class ReusableSensorCard extends StatelessWidget {
                   '  $leafStatusText  ',
                   style: TextStyle(
                     color: leafStatusColor,
-                    fontSize: 10,
+                    fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
