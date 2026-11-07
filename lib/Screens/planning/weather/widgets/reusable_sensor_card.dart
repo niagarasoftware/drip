@@ -126,6 +126,7 @@ class ReusableSensorCard extends StatelessWidget {
   final IconData icon;
   final Color accent;
   final bool isWindDirection;
+  final String? wetHours;
   final VoidCallback? onWeekTap, onMonthTap, onCurrentTap;
 
   const ReusableSensorCard({
@@ -134,6 +135,7 @@ class ReusableSensorCard extends StatelessWidget {
     required this.statusCode, required this.todayMin, required this.todayMax,
     required this.todayAverage, required this.weekAverage, required this.monthAverage,
     required this.icon, required this.accent, this.isWindDirection = false,
+    this.wetHours,
     this.onWeekTap, this.onMonthTap, this.onCurrentTap,
   });
 
@@ -143,23 +145,30 @@ class ReusableSensorCard extends StatelessWidget {
     final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
     final String leafStatusText;
     final Color leafStatusColor;
+    final bool showLeafStatus;
+
     if (isLeafWetness) {
       if (value < 10) {
         leafStatusText = 'Dry';
         leafStatusColor = Colors.red.shade700;
+        showLeafStatus = true;
       } else if (value > 10 && value < 30) {
         leafStatusText = 'Slightly Wet';
         leafStatusColor = Colors.orange.shade700;
+        showLeafStatus = true;
       } else if (value > 30) {
         leafStatusText = 'Wet';
         leafStatusColor = Colors.green.shade700;
+        showLeafStatus = true;
       } else {
         leafStatusText = '';
         leafStatusColor = Colors.transparent;
+        showLeafStatus = false;
       }
     } else {
       leafStatusText = '';
       leafStatusColor = Colors.transparent;
+      showLeafStatus = false;
     }
 
     final cardContent = Container(
@@ -201,26 +210,39 @@ class ReusableSensorCard extends StatelessWidget {
             const SizedBox(width: 6),
             Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(unit,
               style: const TextStyle(fontSize: 14, color: _muted))),
+
+        if (isLeafWetness) ...[
+          if (showLeafStatus) ...[
             const SizedBox(width: 10),
-            if (isLeafWetness) ...[
-               Container(
-                padding: const EdgeInsets.only(bottom: 4),
-                decoration: BoxDecoration(
-                  color: leafStatusColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '  $leafStatusText  ',
-                  style: TextStyle(
-                    color: leafStatusColor,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
+             Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: leafStatusColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$leafStatusText',
+                style: TextStyle(
+                  color: leafStatusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
+            ),
+          ],
+          if (wetHours != null && wetHours!.trim().isNotEmpty) ...[
+            const SizedBox(width: 10),
+            Text(
+              'Wet Duration: ${wetHours?.trim().replaceFirst('.', ':')} hrs',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ],
           ]),
-
         const SizedBox(height: 12),
         if (!isWindDirection) ...[
           SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),

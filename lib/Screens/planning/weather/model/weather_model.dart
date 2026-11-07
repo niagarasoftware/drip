@@ -198,6 +198,7 @@ class LiveSensorValue {
   final double min;
   final double max;
   final double avg;
+  final String? wetHours;
 
   LiveSensorValue({
     required this.sNo,
@@ -206,6 +207,7 @@ class LiveSensorValue {
     required this.min,
     required this.max,
     required this.avg,
+    this.wetHours,
   });
 }
 
@@ -265,6 +267,9 @@ Map<int, List<LiveSensorValue>> parse5101Payload(String raw) {
         max: double.tryParse(fields[4].trim()) ?? 0,
         avg: fields.length > 5
             ? double.tryParse(fields[5].trim()) ?? 0 : 0,
+        wetHours: fields.length > 6 && fields[6].trim().isNotEmpty
+            ? fields[6].trim()
+            : null,
       ));
     }
     if (sensors.isNotEmpty) result[serial] = sensors;
