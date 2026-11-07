@@ -166,7 +166,7 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
                     child: Row(
                       spacing: 15,
                       children: [
-                        for(int index = 0; index < (AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId) ? (isPumpWithValveModel ? 5 : 4) : isPumpWithValveModel ? 6 : 3); index++)
+                        for(int index = 0; index < (AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId) ? (isPumpWithValveModel ? 4 : 4) : isPumpWithValveModel ? 6 : 3); index++)
                           CustomOutlineButton(
                               onPressed: () async{
                                 setState(() {
@@ -176,17 +176,17 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
                               },
                               isSelected: _selectedIndex == index,
                               label: [
-                                "Pump log",
-                                if(isPumpWithValveModel)...[
-                                  "Valve log",
-                                ],
-                                "Power graph",
-                                "Voltage log",
                                 if(isPumpWithValveModel)...[
                                   "Standalone",
                                   if(!AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId))
                                     'Program',
                                 ],
+                                "Pump log",
+                                if(isPumpWithValveModel)...[
+                                  'Valve log',
+                                ],
+                                "Power graph",
+                                "Voltage log",
                               ][index]
                           )
                       ],
@@ -206,7 +206,7 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
                         masterData: widget.masterData,
                       ),
                     ),
-                    if(isPumpWithValveModel ? ![1,4,5].contains(_selectedIndex) : true)
+                    if(isPumpWithValveModel ? ![0,1,3].contains(_selectedIndex) : true)
                       Expanded(
                           child: Container(
                             height: constraints.maxHeight - (constraints.maxHeight * 0.1),
@@ -227,23 +227,23 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
                           )
                       ),
                     Expanded(
-                      flex: 2,
+                        flex: 2,
                         child: Consumer<PumpControllerProvider>(
                             builder: (context, provider, child) {
-                            return SizedBox(
-                              height: constraints.maxHeight - (constraints.maxHeight * 0.1),
-                              child: Card(
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15)
-                                ),
-                                color: Colors.white,
-                                surfaceTintColor: Colors.white,
-                                child: provider.isLoading
-                                    ? const Center(child: CircularProgressIndicator(),)
-                                    : _getSelectedScreen(),
-                              )
-                            );
-                          }
+                              return SizedBox(
+                                  height: constraints.maxHeight - (constraints.maxHeight * 0.1),
+                                  child: Card(
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(15)
+                                    ),
+                                    color: Colors.white,
+                                    surfaceTintColor: Colors.white,
+                                    child: provider.isLoading
+                                        ? const Center(child: CircularProgressIndicator(),)
+                                        : _getSelectedScreen(),
+                                  )
+                              );
+                            }
                         )
                     ),
                   ],
@@ -282,8 +282,8 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
             ),
         ],
         PumpLogsHome(
-            userId: widget.customerId,
-            controllerId: widget.masterData.controllerId,
+          userId: widget.customerId,
+          controllerId: widget.masterData.controllerId,
           masterData: widget.masterData,
         ),
         const SettingsMenuNarrow()
@@ -337,31 +337,31 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
 
   Future<void> _getDataFunction() async{
     final provider = context.read<PumpControllerProvider>();
-    switch(_selectedIndex) {
-      case 0:
+    if (!isPumpWithValveModel) {
+      if (_selectedIndex == 0) {
         await provider.getUserPumpLog(widget.customerId, widget.masterData.controllerId, 0, widget.masterData);
-      case 1:
-        if(isPumpWithValveModel) {
-          await provider.getUserPumpLog(widget.customerId, widget.masterData.controllerId, 0, widget.masterData);
-        } else {
-          await provider.getPumpControllerData(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
-        }
-      case 2:
-        if(isPumpWithValveModel) {
-          await provider.getPumpControllerData(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
-        } else {
-          final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
-              ? widget.masterData.nodeList.first.controllerId
-              : 0;
-          await provider.getUserVoltageLog(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId);
-        }
-      case 3:
-        if(isPumpWithValveModel) {
-          final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
-              ? widget.masterData.nodeList.first.controllerId
-              : 0;
-          await provider.getUserVoltageLog(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId);
-        }
+      }
+      return;
+    }
+
+    switch(_selectedIndex) {
+      case 0: // Standalone
+      case 1: // Program
+        await provider.getPumpControllerData(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
+        break;
+      case 2: // Pump log
+      case 3: // Valve log
+        await provider.getUserPumpLog(widget.customerId, widget.masterData.controllerId, 0, widget.masterData);
+        break;
+      case 4: // Power graph
+        await provider.getPumpControllerData(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: 0);
+        break;
+      case 5: // Voltage log
+        final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
+            ? widget.masterData.nodeList.first.controllerId
+            : 0;
+        await provider.getUserVoltageLog(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId);
+        break;
       default:
         break;
     }
@@ -375,61 +375,77 @@ class _PumpControllerHomeState extends State<PumpControllerHome> {
   Widget _getSelectedScreen() {
     Widget selectedWidget = const Center(child: Text('Coming soon'),);
     final bool hasLight = AppConstants.pumpWithLightModelList.contains(widget.masterData.modelId);
+
+    if (!isPumpWithValveModel) {
+      switch (_selectedIndex) {
+        case 0:
+          selectedWidget = PumpLogScreen(
+            userId: widget.customerId,
+            controllerId: widget.masterData.controllerId,
+            masterData: widget.masterData,
+          );
+          break;
+        case 1:
+          selectedWidget = PowerGraphScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
+          break;
+        case 2:
+          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
+          break;
+      }
+      return selectedWidget;
+    }
+
     switch(_selectedIndex) {
-      case 0:
+      case 0: // Standalone
+        selectedWidget = StandAloneSettings(
+          userId: widget.userId,
+          customerId: widget.customerId,
+          masterData: widget.masterData,
+          selectedIndex: 1,
+        );
+        break;
+      case 1: // Program
+        if (!hasLight) {
+          selectedWidget = StandAloneSettings(
+            userId: widget.userId,
+            customerId: widget.customerId,
+            masterData: widget.masterData,
+            selectedIndex: 2,
+          );
+        }
+        break;
+      case 2: // Pump log
         selectedWidget = PumpLogScreen(
           userId: widget.customerId,
           controllerId: widget.masterData.controllerId,
           masterData: widget.masterData,
         );
-      case 1:
-        if(isPumpWithValveModel) {
-          selectedWidget = ValveLogScreen(
-            userId: widget.customerId,
-            controllerId: widget.masterData.controllerId,
-            masterData: widget.masterData,
-          );
-        } else {
-          selectedWidget = PowerGraphScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
-        }
-      case 2:
-        if(isPumpWithValveModel) {
-          selectedWidget = PowerGraphScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
-        } else {
-          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, masterData: widget.masterData);
-        }
-      case 3:
-        if(isPumpWithValveModel) {
-          final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
-              ? widget.masterData.nodeList.first.controllerId
-              : 0;
-          selectedWidget = PumpVoltageLogScreen(userId: widget.customerId, controllerId: widget.masterData.controllerId, nodeControllerId: nodeCtrlId, masterData: widget.masterData);
-        } else {
-          selectedWidget = PreferenceMainScreen(
-            userId: widget.userId,
-            customerId: widget.customerId,
-            masterData: {"deviceId": widget.masterData.deviceId, "modelId": widget.masterData.modelId, "controllerId": widget.masterData.controllerId},
-            selectedIndex: _selectedIndex,
-          );
-        }
-      case 4:
-        if(isPumpWithValveModel) {
-          selectedWidget = StandAloneSettings(
-            userId: widget.userId,
-            customerId: widget.customerId,
-            masterData: widget.masterData,
-            selectedIndex: _selectedIndex,
-          );
-        }
-      case 5:
-        if(isPumpWithValveModel && !hasLight) {
-          selectedWidget = StandAloneSettings(
-            userId: widget.userId,
-            customerId: widget.customerId,
-            masterData: widget.masterData,
-            selectedIndex: _selectedIndex,
-          );
-        }
+        break;
+      case 3: // Valve log
+        selectedWidget = ValveLogScreen(
+          userId: widget.customerId,
+          controllerId: widget.masterData.controllerId,
+          masterData: widget.masterData,
+        );
+        break;
+      case 4: // Power graph
+        selectedWidget = PowerGraphScreen(
+          userId: widget.customerId,
+          controllerId: widget.masterData.controllerId,
+          masterData: widget.masterData,
+        );
+        break;
+      case 5: // Voltage log
+        final int nodeCtrlId = (widget.masterData.nodeList.isNotEmpty && !AppConstants.ecoGemAndPlusModelList.contains(widget.masterData.modelId))
+            ? widget.masterData.nodeList.first.controllerId
+            : 0;
+        selectedWidget = PumpVoltageLogScreen(
+          userId: widget.customerId,
+          controllerId: widget.masterData.controllerId,
+          nodeControllerId: nodeCtrlId,
+          masterData: widget.masterData,
+        );
+        break;
       default:
         break;
     }
