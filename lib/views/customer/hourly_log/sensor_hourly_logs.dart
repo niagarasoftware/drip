@@ -138,46 +138,18 @@ class SensorHourlyLogs extends StatelessWidget {
                           // Show a dot on every point so you can see where data exists
                           markerSettings: const MarkerSettings(isVisible: true),
 
-                          // Turn OFF always-on labels (they clutter with many points)
-                          dataLabelSettings: const DataLabelSettings(isVisible: false),
+                          // ✅ Show the value at every point
+                          dataLabelSettings: const DataLabelSettings(
+                            isVisible: true,
+                            labelAlignment: ChartDataLabelAlignment.top, // keeps labels off the line
+                            textStyle: TextStyle(fontSize: 10, color: Colors.black87),
+                          ),
+
                         ),
                       ],
                     ),
                   );
 
-                  return SfCartesianChart(
-                    primaryXAxis: const CategoryAxis(),
-                    title: ChartTitle(
-                      text:
-                      'Sensor Name: ${chartData.first.name}',
-                    ),
-                    legend: const Legend(isVisible: true),
-                    primaryYAxis: NumericAxis(
-                      title: AxisTitle(
-                        text: MyFunction().getSensorUnit(
-                          chartData.first.objectName,
-                          context,
-                        ),
-                      ),
-                    ),
-                    series: <LineSeries<SensorHourlyData, String>>[
-                      LineSeries<SensorHourlyData, String>(
-                        dataSource: chartData,
-                        xValueMapper: (data, _) => data.hour,
-                        yValueMapper: (data, _) =>
-                            MyFunction().getChartValue(
-                              context,
-                              data.objectName,
-                              data.value ?? 0.0,
-                            ),
-                        dataLabelSettings:
-                        const DataLabelSettings(
-                          isVisible: true,
-                        ),
-                        name: chartData.first.objectName,
-                      ),
-                    ],
-                  );
                 }).toList(),
               ),
             ),
