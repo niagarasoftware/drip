@@ -426,11 +426,13 @@ Uint8List generateZoneLogMatrixPdfBytes({
         if (dLines.length > maxRowLines) maxRowLines = dLines.length;
       }
 
-      String rDur = formatDurWithSecs(rowTotalSec);
+      String rDur = rowTotalSec > 0 ? formatDurWithSecs(rowTotalSec) : '-';
       String rQty = rowTotalQty > 0
           ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
           : '-';
-      String totalCellVal = "$rDur / $rQty";
+      String totalCellVal = (rowTotalSec == 0 && rowTotalQty == 0)
+          ? '- / -'
+          : "$rDur / $rQty";
       List<String> totLines = _wrapTextLines(totalCellVal, 14, maxLines: 2);
       rowCellLines.add(totLines);
       if (totLines.length > maxRowLines) maxRowLines = totLines.length;

@@ -121,11 +121,14 @@ Future<String?> exportZoneLogMatrixToExcel({
           dataRow.add(TextCellValue('- / -'));
         }
       }
-      String totalDur = _formatDurationHelper(rowTotalSec);
+      String totalDur = rowTotalSec > 0 ? _formatDurationHelper(rowTotalSec) : '-';
       String totalQty = rowTotalQty > 0
           ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
           : '-';
-      dataRow.add(TextCellValue("$totalDur / $totalQty"));
+      String totalCell = (rowTotalSec == 0 && rowTotalQty == 0)
+          ? '- / -'
+          : "$totalDur / $totalQty";
+      dataRow.add(TextCellValue(totalCell));
       sheet.appendRow(dataRow);
     }
 
