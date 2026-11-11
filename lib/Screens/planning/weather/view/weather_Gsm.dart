@@ -148,6 +148,7 @@ class _WeatherGsmState extends State<WeatherGsm> {
         widget.controllerId,
         widget.deviceID,
       );
+
       final last7DaysStr = historicalController['last7Days']?.toString() ??
           selectedMaster['last7Days']?.toString() ??
           json['last7Days']?.toString() ?? '';
@@ -232,7 +233,7 @@ class _WeatherGsmState extends State<WeatherGsm> {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                const Text('Weather', style: TextStyle(
+                const Text('Weather gsm', style: TextStyle(
                   fontSize: 21, fontWeight: FontWeight.w700,
                 )),
                 Text('Live: $dateTime', style: const TextStyle(color: Colors.black54)),
@@ -267,6 +268,7 @@ class _WeatherGsmState extends State<WeatherGsm> {
                         weekAverage: sensor.last7DaysAverage,
                         monthAverage: sensor.last30DaysAverage,
                         isWindDirection: sensor.name.toLowerCase().contains('wind direction'),
+                        wetHours: sensor.wetHours,
                         onWeekTap: () => _openReport(sensor),
                         onMonthTap: () => _openReport(sensor),
                         onCurrentTap: () => _openReport(sensor),
@@ -348,6 +350,7 @@ class LiveSensorValue {
   final double min;
   final double max;
   final double average;
+  final String? wetHours;
 
   const LiveSensorValue({
     required this.sNo,
@@ -356,6 +359,7 @@ class LiveSensorValue {
     required this.min,
     required this.max,
     required this.average,
+    this.wetHours,
   });
 }
 
@@ -419,6 +423,7 @@ class SensorDisplayModel {
   final double last30DaysAverage;
 
   final int objectId;
+  final String? wetHours;
 
   const SensorDisplayModel({
     required this.name,
@@ -435,6 +440,7 @@ class SensorDisplayModel {
     required this.last30DaysMax,
     required this.last30DaysAverage,
     required this.objectId,
+    this.wetHours,
   });
 }
 
@@ -539,6 +545,9 @@ Map<int, List<LiveSensorValue>> parseLive7901(String raw) {
           average: fields.length > 5
               ? double.tryParse(fields[5].trim()) ?? 0
               : 0,
+          wetHours: fields.length > 6 && fields[6].trim().isNotEmpty
+              ? fields[6].trim()
+              : null,
         ),
       );
     }
@@ -590,6 +599,7 @@ List<SensorDisplayModel> buildSensorList({
       last30DaysMax: last30.max,
       last30DaysAverage: last30.average,
       objectId: config.objectId,
+      wetHours: live?.wetHours,
     );
   }).toList();
 }

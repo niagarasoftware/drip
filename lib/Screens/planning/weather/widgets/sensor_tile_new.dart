@@ -32,6 +32,7 @@ class SensorTileNew extends StatelessWidget {
   final double minValue;
   final double maxValue;
   final String otherValue;
+  final String? wetHours;
 
   // 7-day values
   final double last7DaysMin;
@@ -53,6 +54,7 @@ class SensorTileNew extends StatelessWidget {
     required this.minValue,
     required this.maxValue,
     required this.otherValue,
+    this.wetHours,
     required this.last7DaysMin,
     required this.last7DaysMax,
     required this.last7DaysAverage,
@@ -110,28 +112,35 @@ class SensorTileNew extends StatelessWidget {
       );
     }
 
-    final bool isLeafWetness = normalizedTitle.contains('leaf');
+    final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
     final String leafStatusText;
     final Color leafStatusColor;
+    final bool showLeafStatus;
 
     if (isLeafWetness) {
       if (value < 10) {
         leafStatusText = 'Dry';
         leafStatusColor = Colors.red.shade700;
+        showLeafStatus = true;
       } else if (value > 10 && value < 30) {
         leafStatusText = 'Slightly Wet';
         leafStatusColor = Colors.orange.shade700;
+        showLeafStatus = true;
       } else if (value > 30) {
         leafStatusText = 'Wet';
         leafStatusColor = Colors.green.shade700;
+        showLeafStatus = true;
       } else {
         leafStatusText = '';
         leafStatusColor = Colors.transparent;
+        showLeafStatus = false;
       }
     } else {
       leafStatusText = '';
       leafStatusColor = Colors.transparent;
+      showLeafStatus = false;
     }
+
     final String normalAlertText = statusCode == 255 ? 'Normal' : 'Alert';
     final Color normalAlertColor = _sensorStatusColor(statusCode);
 
@@ -207,30 +216,43 @@ class SensorTileNew extends StatelessWidget {
                   ),
                 ),
               ),
-              if (isLeafWetness) ...[
-                 Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: leafStatusColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '  $leafStatusText  ',
-                      style: TextStyle(
-                        color: leafStatusColor,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
 
-
+          if (isLeafWetness) ...[
+            if (showLeafStatus) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: leafStatusColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    'Leaf Status:  $leafStatusText',
+                    style: TextStyle(
+                      color: leafStatusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if (wetHours != null && wetHours!.trim().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Wet Duration: $wetHours hrs',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ],
 
           const SizedBox(height: 14),
 

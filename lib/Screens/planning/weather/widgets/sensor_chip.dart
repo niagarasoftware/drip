@@ -54,6 +54,7 @@ class SensorChip extends StatelessWidget {
         minValue: live.min,
         maxValue: live.max,
         otherValue: live.avg.toString(),
+        wetHours: live.wetHours,
 
         // JSON last7Days values
         last7DaysMin: last7Days.min,
