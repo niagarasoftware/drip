@@ -91,7 +91,7 @@ enum PumpReasonCode {
   motorOffUpperTankFull1(2, 'Motor off due to upper tank full'),
   motorOffLowVoltage(3, 'Motor off due to low voltage'),
   motorOffHighVoltage(4, 'Motor off due to high voltage'),
-  motorOffVoltageSPP(5, 'Motor off due to unbalanced voltage'),
+  motorOffVoltageSPP(5, 'Motor off due to Spp/unbalanced voltage'),
   motorOffReversePhase(6, 'Motor off due to reverse phase'),
   motorOffStarterTrip(7, 'Motor off due to starter trip'),
   motorOffDryRun(8, 'Motor off due to dry run'),
