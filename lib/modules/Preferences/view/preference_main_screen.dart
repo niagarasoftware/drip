@@ -2369,8 +2369,8 @@ class _PreferenceMainScreenState extends State<PreferenceMainScreen>
       await Future.delayed(Duration.zero, () async {
         final createUserPreference =
             await repository.createUserPreference(userData);
-        final message = jsonDecode(createUserPreference.body);
-        await showSnackBar(message: message['message']);
+        // final message = jsonDecode(createUserPreference.body);
+        // await showSnackBar(message: 'test message');
       });
     } catch (error, stackTrace) {
       showSnackBar(message: "Failed to update due to: $error");
