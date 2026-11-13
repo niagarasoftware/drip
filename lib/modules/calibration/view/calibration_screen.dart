@@ -240,7 +240,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                                                             "controllerId": widget.userData["controllerId"],
                                                             "data": payload,
                                                             "messageStatus": "${object.name} - calibration",
-                                                            "createUser": widget.userData["customerId"],
+                                                            "createUser": widget.userData["userId"],
                                                             "hardware": payload,
                                                           };
                                                           await repository.sendManualOperationToServer(data);

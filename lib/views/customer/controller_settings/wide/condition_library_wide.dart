@@ -33,6 +33,7 @@ class ConditionLibraryWide extends StatelessWidget {
         builder: (context, vm, _) {
 
           return Scaffold(
+            appBar: AppBar(title: const Text('Condition Library')),
             body: Padding(
               padding: const EdgeInsets.all(8.0),
               child: Skeletonizer(
