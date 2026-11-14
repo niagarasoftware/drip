@@ -166,7 +166,7 @@ class _CalibrationScreenState extends State<CalibrationScreen> {
                                 ),
                               ),
                             ),
-                            if(AppConstants.levelObjectId == object.objectId && selectedTab.first == 1)
+                            if(AppConstants.levelObjectId == object.objectId && selectedTab.first == 1 || AppConstants.pressureSensorObjectId == object.objectId && selectedTab.first == 1)
                               ListTile(
                               contentPadding: const EdgeInsets.symmetric(vertical: 5, horizontal: 5),
                               leading: Icon(Icons.change_circle, color: Theme.of(context).primaryColorLight,),
