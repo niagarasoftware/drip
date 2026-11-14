@@ -266,6 +266,7 @@ Widget _buildHelpMenu(
                           ? 'Agritel@321'
                           : 'Oro@321',
                           vm.mySiteList.data[vm.sIndex].customerId,
+                          loggedUser.id,
                           master.controllerId,
                           master.deviceId,
                           vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId,
@@ -298,6 +299,7 @@ Widget _buildHelpMenu(
                           context,
                           'Oro@321',
                           vm.mySiteList.data[vm.sIndex].customerId,
+                          loggedUser.id,
                           master.controllerId,
                           master.deviceId,
                           vm.mySiteList.data[vm.sIndex].master[vm.mIndex].modelId,
@@ -546,7 +548,7 @@ Widget _buildNonGemActions(BuildContext context, dynamic master,
   );
 }
 
-void showPasswordDialog(BuildContext context, correctPassword, userId,
+void showPasswordDialog(BuildContext context, correctPassword, userId,createuserID,
     controllerID, imeiNumber,modeID, type)
 {
   final TextEditingController passwordController = TextEditingController();
@@ -591,7 +593,7 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                                   userId: userId,
                                   controllerId: controllerID,
                                   deviceID: imeiNumber,
-                              modeID: modeID, createUser: userId,
+                              modeID: modeID, createUser: createuserID,
                                 )),
                       );
                     } else if (type == 2) {
@@ -602,7 +604,7 @@ void showPasswordDialog(BuildContext context, correctPassword, userId,
                               userId: userId,
                               controllerId: controllerID,
                               deviceID: imeiNumber,
-                            createUser: userId),
+                            createUser: createuserID),
                         ),
                       );
                     }
