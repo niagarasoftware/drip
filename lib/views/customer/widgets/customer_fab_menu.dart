@@ -287,6 +287,8 @@ class CustomerFabMenu extends StatelessWidget {
 
             final commMode = Provider.of<CustomerProvider>(context).controllerCommMode;
 
+            print('currentMaster.modelId:${currentMaster.modelId}');
+
             return Padding(
               padding: const EdgeInsets.all(16.0),
               child: Wrap(
@@ -356,7 +358,8 @@ class CustomerFabMenu extends StatelessWidget {
                       ),
                     ]
                     else...[
-                      if([75, ...AppConstants.wlcModelList].contains(currentMaster.modelId))...[
+                      if([75, ...AppConstants.wlcModelList,
+                        ...AppConstants.aquacultureModelList].contains(currentMaster.modelId))...[
                         BleScanTile (vm: vm),
                         const SizedBox(height: 10),
                         Consumer<MqttPayloadProvider>(

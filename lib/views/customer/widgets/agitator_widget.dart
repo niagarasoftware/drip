@@ -95,7 +95,12 @@ class AgitatorWidget extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: fertilizerSite.agitator.map((agitator) {
-        final height = agitator.status == 1 ? 99.0 : 34.0;
+        final isRunning = agitator.status == 1;
+
+        final imageHeight = isRunning ? 40.0 : 34.0;
+        final imageWidth = isRunning
+            ? imageHeight * (100 / 170)
+            : imageHeight * (100 / 56);
 
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -103,8 +108,19 @@ class AgitatorWidget extends StatelessWidget {
           children: [
             SizedBox(
               width: 53,
-              height: height,
-              child: AppConstants.getAsset('agitator', agitator.status, '', 0),
+              height: 40,
+              child: Center(
+                child: SizedBox(
+                  width: imageWidth,
+                  height: imageHeight,
+                  child: AppConstants.getAsset(
+                    'agitator',
+                    agitator.status,
+                    '',
+                    0,
+                  ),
+                ),
+              ),
             ),
             SizedBox(
               width: 53,
@@ -113,7 +129,10 @@ class AgitatorWidget extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 9, color: Colors.black),
+                style: const TextStyle(
+                  fontSize: 9,
+                  color: Colors.black,
+                ),
               ),
             ),
           ],
@@ -122,70 +141,3 @@ class AgitatorWidget extends StatelessWidget {
     );
   }
 }
-
-/*
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../models/customer/site_model.dart';
-import '../../../StateManagement/mqtt_payload_provider.dart';
-import '../../../utils/constants.dart';
-
-class AgitatorWidget extends StatelessWidget {
-  final FertilizerSiteModel fertilizerSite;
-  final bool isMobile;
-  const AgitatorWidget({
-    super.key,
-    required this.fertilizerSite, required this.isMobile,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Selector<MqttPayloadProvider, String?>(
-      selector: (_, provider) => provider.getAgitatorOnOffStatus(fertilizerSite.agitator[0].sNo.toString()),
-      builder: (_, status, __) {
-
-        final statusParts = status?.split(',') ?? [];
-        if(statusParts.isNotEmpty){
-          fertilizerSite.agitator[0].status = int.parse(statusParts[1]);
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-
-            agitatorWidget(fertilizerSite),
-
-            if(kIsWeb && !isMobile)...[
-              SizedBox(height: fertilizerSite.agitator[0].status==1? 25:90),
-              Container(width: 53, height: 1,color: Colors.grey.shade300),
-              const SizedBox(height: 3.5),
-              Container(width: 53, height: 1,color: Colors.grey.shade300),
-            ]
-          ],
-        );
-      },
-    );
-  }
-
-  Widget agitatorWidget(FertilizerSiteModel fertilizerSite) {
-    final agitator = fertilizerSite.agitator[0];
-    final height = agitator.status == 1 ? 99.0 : 34.0;
-
-    Widget content = SizedBox(
-      width: 53,
-      height: height,
-      child: AppConstants.getAsset(
-        'agitator',
-        agitator.status,
-        '',
-        0,
-      ),
-    );
-
-    return content;
-  }
-
-}*/

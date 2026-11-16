@@ -158,7 +158,7 @@ class _AquacultureLineState extends State<AquacultureLine> {
               itemCount: aerators.length,
               gridDelegate:
               const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
+                crossAxisCount: 4,
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
               ),
