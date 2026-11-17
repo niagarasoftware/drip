@@ -4709,9 +4709,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           );
         }
 
-        // Base Column Widths (Program/Sequence, Date column, Total column)
+        // Base Column Widths (Program/Sequence, Date sub-columns: Duration/Quantity & StartTime/EndTime, Total column)
         const double baseSeqWidth = 170;
-        const double baseDateColWidth = 145;
+        const double baseDurQtyColWidth = 115;
+        const double baseTimeColWidth = 145;
+        const double baseDateColWidth = baseDurQtyColWidth + baseTimeColWidth;
         const double baseTotalWidth = 145;
 
         final double naturalTableWidth = baseSeqWidth +
@@ -4724,7 +4726,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 : 1.0;
 
         final double colSeqWidth = baseSeqWidth * scale;
-        final double colDateWidth = baseDateColWidth * scale;
+        final double colDurQtyWidth = baseDurQtyColWidth * scale;
+        final double colTimeWidth = baseTimeColWidth * scale;
+        final double colDateWidth = colDurQtyWidth + colTimeWidth;
         final double colTotalWidth = baseTotalWidth * scale;
         final double dateAreaWidth = colDateWidth * _dateColumns.length;
 
@@ -4908,15 +4912,19 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               ],
                             ),
 
-                            // SUB-HEADER ROW: Single "Duration / Quantity" per date
+                            // SUB-HEADER ROW: "Duration / Quantity" & "Start Time / End Time" per date
                             Row(
                               children: [
                                 for (int dIdx = 0;
                                     dIdx < _dateColumns.length;
-                                    dIdx++)
+                                    dIdx++) ...[
                                   _buildSubHeaderCell(
-                                      "Duration /\nQuantity", colDateWidth,
+                                      "Duration /\nQuantity", colDurQtyWidth,
                                       height: 48),
+                                  _buildSubHeaderCell(
+                                      "Start Time /\nEnd Time", colTimeWidth,
+                                      height: 48),
+                                ],
                               ],
                             ),
 
@@ -4951,7 +4959,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           _buildDateOnlySequenceDataRow(
                                             filteredRows[rIdx],
                                             rIdx,
-                                            colDateWidth,
+                                            colDurQtyWidth,
+                                            colTimeWidth,
                                           ),
                                       ],
                                     ),
@@ -4964,7 +4973,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             _buildDailyFooterTotalRow(
                               dailyTotals,
                               dailyTotalQuantities,
-                              colDateWidth,
+                              colDurQtyWidth,
+                              colTimeWidth,
                             ),
                             const SizedBox(height: 15),
                           ],
@@ -5100,7 +5110,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     num grandTotalQuantity,
   ) {
     const double colSeqWidth = 155;
-    const double colDateWidth = 140;
+    const double colDurQtyWidth = 115;
+    const double colTimeWidth = 145;
+    const double colDateWidth = colDurQtyWidth + colTimeWidth; // 260
     const double colTotalWidth = 140;
     final double totalTableWidth =
         colSeqWidth + (colDateWidth * _dateColumns.length) + colTotalWidth;
@@ -5217,10 +5229,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       _buildSubHeaderCell(
                           "Program /\nValve /\nSequence", colSeqWidth,
                           height: 48),
-                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                      for (int dIdx = 0;
+                          dIdx < _dateColumns.length;
+                          dIdx++) ...[
                         _buildSubHeaderCell(
-                            "Duration /\nQuantity", colDateWidth,
+                            "Duration /\nQuantity", colDurQtyWidth,
                             height: 48),
+                        _buildSubHeaderCell(
+                            "Start Time /\nEnd Time", colTimeWidth,
+                            height: 48),
+                      ],
                       _buildSubHeaderCell(
                           "Total\nDuration /\nQuantity", colTotalWidth,
                           isTotalCol: true, height: 48),
@@ -5233,7 +5251,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       filteredRows[rIdx],
                       rIdx,
                       colSeqWidth,
-                      colDateWidth,
+                      colDurQtyWidth,
+                      colTimeWidth,
                       colTotalWidth,
                     ),
 
@@ -5244,7 +5263,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     grandTotalSeconds,
                     grandTotalQuantity,
                     colSeqWidth,
-                    colDateWidth,
+                    colDurQtyWidth,
+                    colTimeWidth,
                     colTotalWidth,
                   ),
                   const SizedBox(height: 15),
@@ -5261,7 +5281,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     SequenceRowData row,
     int rowIndex,
     double colSeqWidth,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
     double colTotalWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
@@ -5277,12 +5298,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildPinnedLeftSequenceDataRow(row, rowIndex, colSeqWidth),
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDateWidth,
+              colDurQtyWidth,
             ),
+            _buildDateTimeSequenceBlock(
+              row,
+              _dateColumns[dIdx],
+              colTimeWidth,
+            ),
+          ],
           _buildPinnedTotalDataRow(
             row,
             rowIndex,
@@ -5299,7 +5326,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalSeconds,
     num grandTotalQuantity,
     double colSeqWidth,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
     double colTotalWidth,
   ) {
     return Container(
@@ -5332,7 +5360,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               ),
             ),
           ),
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
@@ -5345,7 +5373,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   : '-';
 
               return Container(
-                width: colDateWidth,
+                width: colDurQtyWidth,
                 height: 46,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -5367,6 +5395,27 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               );
             }),
+            Container(
+              width: colTimeWidth,
+              height: 46,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: const BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+              ),
+              child: const Text(
+                "-",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ),
+          ],
           Container(
             width: colTotalWidth,
             height: 46,
@@ -5542,7 +5591,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDateOnlySequenceDataRow(
     SequenceRowData row,
     int rowIndex,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
@@ -5556,12 +5606,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDateWidth,
+              colDurQtyWidth,
             ),
+            _buildDateTimeSequenceBlock(
+              row,
+              _dateColumns[dIdx],
+              colTimeWidth,
+            ),
+          ],
         ],
       ),
     );
@@ -5709,6 +5765,137 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
+  List<String> _extractStartEndPairs(SequenceDayData? dayData) {
+    if (dayData == null) return [];
+    List<String> pairs = [];
+
+    void processStartEnd(String sRaw, String eRaw) {
+      if ((sRaw.isEmpty || sRaw == '-') && (eRaw.isEmpty || eRaw == '-')) {
+        return;
+      }
+      List<String> starts = sRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((s) => s.trim())
+          .toList();
+      List<String> ends = eRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((e) => e.trim())
+          .toList();
+
+      int count = math.max(starts.length, ends.length);
+      for (int k = 0; k < count; k++) {
+        String s =
+            (k < starts.length && starts[k].isNotEmpty) ? starts[k] : '-';
+        String e = (k < ends.length && ends[k].isNotEmpty) ? ends[k] : '-';
+        if (s == '-' && e == '-') continue;
+        String pair = "$s - $e";
+        if (!pairs.contains(pair)) {
+          pairs.add(pair);
+        }
+      }
+    }
+
+    if (dayData.runs.isNotEmpty) {
+      for (var run in dayData.runs) {
+        processStartEnd(run.actualStartTime, run.actualEndTime);
+      }
+    }
+
+    if (pairs.isEmpty) {
+      processStartEnd(dayData.actualStartTime, dayData.actualEndTime);
+    }
+
+    return pairs;
+  }
+
+  Widget _buildDateTimeSequenceBlock(
+    SequenceRowData row,
+    DateTime date,
+    double colTimeWidth,
+  ) {
+    String dKey = DateFormat('yyyy-MM-dd').format(date);
+    SequenceDayData? dayData = row.dayEntries[dKey];
+    List<String> pairs = _extractStartEndPairs(dayData);
+
+    if (pairs.isEmpty) {
+      return Container(
+        width: colTimeWidth,
+        height: 64,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+        ),
+        child: const Text(
+          "-",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: colTimeWidth,
+      height: 64,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      ),
+      child: pairs.length <= 2
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (int i = 0; i < pairs.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 2),
+                  Text(
+                    pairs[i],
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ],
+              ],
+            )
+          : SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (String p in pairs)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1.0),
+                      child: Text(
+                        p,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+    );
+  }
+
   Widget _buildDataTableCell(
     String text,
     double width, {
@@ -5752,7 +5939,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDailyFooterTotalRow(
     Map<String, int> dailyTotals,
     Map<String, num> dailyTotalQuantities,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
   ) {
     return Container(
       height: 46,
@@ -5765,7 +5953,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
@@ -5782,7 +5970,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   screenWidth < 650 ? 12.0 : (screenWidth < 1100 ? 12.5 : 13.0);
 
               return Container(
-                width: colDateWidth,
+                width: colDurQtyWidth,
                 height: 46,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -5804,6 +5992,27 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               );
             }),
+            Container(
+              width: colTimeWidth,
+              height: 46,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: const BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+              ),
+              child: const Text(
+                "-",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -6297,7 +6506,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     Expanded(
                       flex: 3,
                       child: Text(
-                        "Quantity",
+                        "Qty",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11,

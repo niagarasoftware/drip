@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:html' as html;
 import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
@@ -79,6 +80,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
       header1.add(TextCellValue(dateStr));
+      header1.add(TextCellValue(''));
     }
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
@@ -86,6 +88,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     List<CellValue> header2 = [TextCellValue('Program / Valve / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
+      header2.add(TextCellValue('Start Time / End Time'));
     }
     header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
@@ -115,10 +118,36 @@ Future<String?> exportZoneLogMatrixToExcel({
               ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
               : '-';
           dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
+
+          List<String> pairs = [];
+          void processTimes(String sRaw, String eRaw) {
+            if ((sRaw.isEmpty || sRaw == '-') && (eRaw.isEmpty || eRaw == '-')) return;
+            List<String> sList = sRaw.replaceAll(', ', '_').replaceAll(',', '_').split('_').map((x) => x.trim()).toList();
+            List<String> eList = eRaw.replaceAll(', ', '_').replaceAll(',', '_').split('_').map((x) => x.trim()).toList();
+            int cnt = math.max(sList.length, eList.length);
+            for (int k = 0; k < cnt; k++) {
+              String sItem = (k < sList.length && sList[k].isNotEmpty) ? sList[k] : '-';
+              String eItem = (k < eList.length && eList[k].isNotEmpty) ? eList[k] : '-';
+              if (sItem != '-' || eItem != '-') {
+                String p = "$sItem - $eItem";
+                if (!pairs.contains(p)) pairs.add(p);
+              }
+            }
+          }
+          if (dayData.runs != null && dayData.runs.isNotEmpty) {
+            for (var r in dayData.runs) {
+              processTimes(r.actualStartTime?.toString() ?? '', r.actualEndTime?.toString() ?? '');
+            }
+          }
+          if (pairs.isEmpty && (dayData.actualStartTime != null || dayData.actualEndTime != null)) {
+            processTimes(dayData.actualStartTime?.toString() ?? '', dayData.actualEndTime?.toString() ?? '');
+          }
+          dataRow.add(TextCellValue(pairs.isNotEmpty ? pairs.join('\n') : '-'));
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
         } else {
           dataRow.add(TextCellValue('- / -'));
+          dataRow.add(TextCellValue('-'));
         }
       }
       String totalDur = rowTotalSec > 0 ? _formatDurationHelper(rowTotalSec) : '-';
@@ -142,6 +171,7 @@ Future<String?> exportZoneLogMatrixToExcel({
           ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
           : '-';
       footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
+      footerRow.add(TextCellValue('-'));
     }
     String gDur = _formatDurationHelper(grandTotalSeconds);
     String gQty = grandTotalQuantity > 0

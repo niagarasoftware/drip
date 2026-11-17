@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
@@ -251,8 +252,62 @@ Uint8List generateZoneLogMatrixPdfBytes({
     return "${h}h ${m}m";
   }
 
-  const int recordsPerPage = 18;
-  const int datesPerPage = 6;
+  List<String> extractStartEndPairs(dynamic dayData) {
+    if (dayData == null) return [];
+    List<String> pairs = [];
+
+    void processStartEnd(String sRaw, String eRaw) {
+      if ((sRaw.isEmpty || sRaw == '-') && (eRaw.isEmpty || eRaw == '-')) {
+        return;
+      }
+      List<String> starts = sRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((s) => s.trim())
+          .toList();
+      List<String> ends = eRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((e) => e.trim())
+          .toList();
+
+      int count = math.max(starts.length, ends.length);
+      for (int k = 0; k < count; k++) {
+        String s = (k < starts.length && starts[k].isNotEmpty) ? starts[k] : '-';
+        String e = (k < ends.length && ends[k].isNotEmpty) ? ends[k] : '-';
+        if (s == '-' && e == '-') continue;
+        String pair = "$s - $e";
+        if (!pairs.contains(pair)) {
+          pairs.add(pair);
+        }
+      }
+    }
+
+    try {
+      if (dayData.runs != null && dayData.runs.isNotEmpty) {
+        for (var run in dayData.runs) {
+          String s = run.actualStartTime?.toString() ?? '';
+          String e = run.actualEndTime?.toString() ?? '';
+          processStartEnd(s, e);
+        }
+      }
+    } catch (_) {}
+
+    if (pairs.isEmpty) {
+      try {
+        String s = dayData.actualStartTime?.toString() ?? '';
+        String e = dayData.actualEndTime?.toString() ?? '';
+        processStartEnd(s, e);
+      } catch (_) {}
+    }
+
+    return pairs;
+  }
+
+  const int recordsPerPage = 14;
+  const int datesPerPage = 5;
 
   int totalDates = dateColumns.length;
   int dateChunks = (totalDates / datesPerPage).ceil();
@@ -342,43 +397,65 @@ Uint8List generateZoneLogMatrixPdfBytes({
     streamBuf.write("0.4 0.4 0.4 rg\n");
     streamBuf.write("BT /F2 9 Tf 40 540 Td (${sanitizePdfText("Generated on: $nowStr  |  Page ${p + 1} of $numPages")}) Tj ET\n");
 
-    List<String> headers = ['Program / Valve / Sequence'];
-    for (var d in chunkDates) {
-      headers.add(DateFormat('MM/dd (E)').format(d));
-    }
-    headers.add('Total');
-
-    int numCols = headers.length;
+    int numDates = chunkDates.length;
     double startX = 40.0;
     double tableWidth = 762.0;
 
-    double col0Width = 175.0;
-    double otherColWidth = (numCols > 1) ? (tableWidth - col0Width) / (numCols - 1) : tableWidth;
+    double col0Width = (numDates <= 2)
+        ? 180.0
+        : (numDates <= 3
+            ? 150.0
+            : (numDates <= 4 ? 135.0 : 120.0));
+    double colTotalWidth = (numDates <= 2) ? 70.0 : (numDates <= 4 ? 58.0 : 52.0);
+    double availableDateWidth = tableWidth - col0Width - colTotalWidth;
+    double dateBlockWidth = numDates > 0 ? (availableDateWidth / numDates) : availableDateWidth;
 
-    double getColX(int c) {
-      if (c == 0) return startX;
-      return startX + col0Width + ((c - 1) * otherColWidth);
-    }
+    double colDurQtyWidth = numDates <= 4 ? (dateBlockWidth * 0.38).clamp(45.0, 60.0) : 45.0;
+    double colTimeWidth = dateBlockWidth - colDurQtyWidth;
 
-    // Header Background
-    streamBuf.write("0.90 0.95 0.95 rg 40 508 762 20 re f\n");
-    streamBuf.write("0.70 0.80 0.80 RG 0.8 w 40 508 762 20 re S\n");
-
+    // Header 1 (Top Date Header) & Header 2 (Subheader)
+    // Col 0: Unified header block across both header rows (height 34, Y 498 to 532)
+    streamBuf.write("0.90 0.95 0.95 rg $startX 498 $col0Width 34 re f\n");
+    streamBuf.write("0.70 0.80 0.80 RG 0.8 w $startX 498 $col0Width 34 re S\n");
     streamBuf.write("0.1 0.1 0.1 rg\n");
-    for (int c = 0; c < numCols; c++) {
-      double cx = getColX(c) + 4;
-      String hText = headers[c];
-      int maxChars = (c == 0) ? 22 : 14;
-      List<String> hLines = _wrapTextLines(hText, maxChars, maxLines: 2);
-      if (hLines.length == 1) {
-        streamBuf.write("BT /F1 8 Tf $cx 514 Td (${sanitizePdfText(hLines[0])}) Tj ET\n");
-      } else {
-        streamBuf.write("BT /F1 7.5 Tf $cx 518 Td (${sanitizePdfText(hLines[0])}) Tj ET\n");
-        streamBuf.write("BT /F1 7.5 Tf $cx 510 Td (${sanitizePdfText(hLines[1])}) Tj ET\n");
-      }
+    streamBuf.write("BT /F1 7.5 Tf ${startX + 4} 512 Td (${sanitizePdfText('Program / Valve / Sequence')}) Tj ET\n");
+
+    // Total Col: Unified header block across both header rows (height 34, Y 498 to 532)
+    double totalX = startX + col0Width + (numDates * dateBlockWidth);
+    streamBuf.write("0.90 0.95 0.95 rg $totalX 498 $colTotalWidth 34 re f\n");
+    streamBuf.write("0.70 0.80 0.80 RG 0.8 w $totalX 498 $colTotalWidth 34 re S\n");
+    streamBuf.write("0.1 0.1 0.1 rg\n");
+    streamBuf.write("BT /F1 7.5 Tf ${totalX + 4} 512 Td (Total) Tj ET\n");
+
+    // Date Columns Header 1 (Top: Y 514 to 532, height 18)
+    for (int d = 0; d < numDates; d++) {
+      double dateBlockX = startX + col0Width + (d * dateBlockWidth);
+      String dateText = DateFormat('MM/dd (E)').format(chunkDates[d]);
+      streamBuf.write("0.90 0.95 0.95 rg $dateBlockX 514 $dateBlockWidth 18 re f\n");
+      streamBuf.write("0.70 0.80 0.80 RG 0.8 w $dateBlockX 514 $dateBlockWidth 18 re S\n");
+      streamBuf.write("0.1 0.1 0.1 rg\n");
+      streamBuf.write("BT /F1 7.5 Tf ${dateBlockX + 4} 520 Td (${sanitizePdfText(dateText)}) Tj ET\n");
     }
 
-    double currentY = 488.0;
+    // Date Columns Header 2 (Subheader: Y 498 to 514, height 16)
+    for (int d = 0; d < numDates; d++) {
+      double dateBlockX = startX + col0Width + (d * dateBlockWidth);
+      double durX = dateBlockX + 3;
+      double timeX = dateBlockX + colDurQtyWidth + 3;
+      double durSepX = dateBlockX + colDurQtyWidth;
+
+      streamBuf.write("0.94 0.97 0.97 rg $dateBlockX 498 $dateBlockWidth 16 re f\n");
+      streamBuf.write("0.75 0.82 0.82 RG 0.5 w $dateBlockX 498 $dateBlockWidth 16 re S\n");
+
+      // Sub-separator line between Dur/Qty and Start/End Time
+      streamBuf.write("0.80 0.86 0.86 RG 0.4 w $durSepX 498 m $durSepX 514 l S\n");
+
+      streamBuf.write("0.25 0.35 0.35 rg\n");
+      streamBuf.write("BT /F1 6.2 Tf $durX 504 Td (Dur / Qty) Tj ET\n");
+      streamBuf.write("BT /F1 5.8 Tf $timeX 504 Td (Start / End Time) Tj ET\n");
+    }
+
+    double currentY = 498.0;
 
     for (int r = 0; r < chunkRows.length; r++) {
       final row = chunkRows[r];
@@ -396,18 +473,19 @@ Uint8List generateZoneLogMatrixPdfBytes({
         name = "${row.progName} - ${row.seqName}";
       }
 
-      List<String> cell0Lines = _wrapTextLines(name, 22, maxLines: 2);
+      int maxCharsCol0 = (numDates <= 3) ? 22 : 18;
+      List<String> cell0Lines = _wrapTextLines(name, maxCharsCol0, maxLines: 3);
 
-      List<List<String>> rowCellLines = [cell0Lines];
-      int maxRowLines = cell0Lines.length;
+      List<List<String>> rowDurLines = [];
+      List<List<String>> rowTimeLines = [];
 
       int rowTotalSec = 0;
       num rowTotalQty = 0;
 
-      for (int d = 0; d < chunkDates.length; d++) {
+      for (int d = 0; d < numDates; d++) {
         String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
         var dayData = row.dayEntries[dKey];
-        String cellVal = '- / -';
+        List<String> durQtyLines = ["- /", "-"];
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? dayData.durationSeconds as int? ?? 0);
           num qtyVal = (dayData.quantityCompleted as num? ?? dayData.quantity as num? ?? 0);
@@ -417,54 +495,113 @@ Uint8List generateZoneLogMatrixPdfBytes({
           String qtyStr = qtyVal > 0
               ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
               : '-';
-          cellVal = "$durStr / $qtyStr";
+          durQtyLines = ["$durStr /", qtyStr];
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
         }
-        List<String> dLines = _wrapTextLines(cellVal, 14, maxLines: 2);
-        rowCellLines.add(dLines);
-        if (dLines.length > maxRowLines) maxRowLines = dLines.length;
+        rowDurLines.add(durQtyLines);
+
+        List<String> pairs = extractStartEndPairs(dayData);
+        List<String> timeLines = pairs.isNotEmpty ? pairs : ["-"];
+        rowTimeLines.add(timeLines);
       }
 
       String rDur = rowTotalSec > 0 ? formatDurWithSecs(rowTotalSec) : '-';
       String rQty = rowTotalQty > 0
           ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
           : '-';
-      String totalCellVal = (rowTotalSec == 0 && rowTotalQty == 0)
-          ? '- / -'
-          : "$rDur / $rQty";
-      List<String> totLines = _wrapTextLines(totalCellVal, 14, maxLines: 2);
-      rowCellLines.add(totLines);
+      List<String> totLines = ["$rDur /", rQty];
+
+      int maxRowLines = cell0Lines.length;
+      for (int d = 0; d < numDates; d++) {
+        if (rowDurLines[d].length > maxRowLines) maxRowLines = rowDurLines[d].length;
+        if (rowTimeLines[d].length > maxRowLines) maxRowLines = rowTimeLines[d].length;
+      }
       if (totLines.length > maxRowLines) maxRowLines = totLines.length;
 
-      double rowHeight = 12.0 + (maxRowLines * 9.5);
-      double drawTop = currentY - rowHeight + 14;
+      double lineHeight = 8.5;
+      double rowHeight = 6.0 + (maxRowLines * lineHeight);
+      double rowTop = currentY;
+      double rowBottom = currentY - rowHeight;
 
       if (r % 2 == 1) {
-        streamBuf.write("0.97 0.98 0.98 rg $startX $drawTop $tableWidth $rowHeight re f\n");
+        streamBuf.write("0.97 0.98 0.98 rg $startX $rowBottom $tableWidth $rowHeight re f\n");
       }
-      streamBuf.write("0.88 0.90 0.90 RG 0.5 w $startX $drawTop $tableWidth $rowHeight re S\n");
+      streamBuf.write("0.88 0.90 0.90 RG 0.5 w $startX $rowBottom $tableWidth $rowHeight re S\n");
 
-      streamBuf.write("0.2 0.2 0.2 rg\n");
-      for (int c = 0; c < numCols; c++) {
-        double cx = getColX(c) + 4;
-        List<String> lines = rowCellLines[c];
-        String fontName = (c == numCols - 1) ? "/F1" : "/F2";
-        for (int lIdx = 0; lIdx < lines.length; lIdx++) {
-          double lineY = currentY + 5 - (lIdx * 9.5);
-          streamBuf.write("BT $fontName 7.5 Tf $cx $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
+      // Vertical separator after col 0
+      double sepX0 = startX + col0Width;
+      streamBuf.write("0.88 0.90 0.90 RG 0.5 w $sepX0 $rowBottom m $sepX0 $rowTop l S\n");
+
+      for (int d = 0; d < numDates; d++) {
+        double dDurSep = startX + col0Width + (d * dateBlockWidth) + colDurQtyWidth;
+        double dTimeSep = startX + col0Width + ((d + 1) * dateBlockWidth);
+        streamBuf.write("0.92 0.94 0.94 RG 0.4 w $dDurSep $rowBottom m $dDurSep $rowTop l S\n");
+        streamBuf.write("0.88 0.90 0.90 RG 0.5 w $dTimeSep $rowBottom m $dTimeSep $rowTop l S\n");
+      }
+
+      // Draw Col 0 Text
+      streamBuf.write("0.15 0.15 0.15 rg\n");
+      for (int lIdx = 0; lIdx < cell0Lines.length; lIdx++) {
+        double lineY = rowTop - 8.0 - (lIdx * lineHeight);
+        streamBuf.write("BT /F2 6.5 Tf ${startX + 4} $lineY Td (${sanitizePdfText(cell0Lines[lIdx])}) Tj ET\n");
+      }
+
+      // Draw Date Cells
+      for (int d = 0; d < numDates; d++) {
+        double durX = startX + col0Width + (d * dateBlockWidth) + 3;
+        double timeX = startX + col0Width + (d * dateBlockWidth) + colDurQtyWidth + 3;
+
+        List<String> dLines = rowDurLines[d];
+        List<String> tLines = rowTimeLines[d];
+
+        streamBuf.write("0.2 0.2 0.2 rg\n");
+        for (int lIdx = 0; lIdx < dLines.length; lIdx++) {
+          double lineY = rowTop - 8.0 - (lIdx * lineHeight);
+          streamBuf.write("BT /F2 5.8 Tf $durX $lineY Td (${sanitizePdfText(dLines[lIdx])}) Tj ET\n");
+        }
+
+        bool hasValidTime = tLines.isNotEmpty && tLines[0] != '-';
+        if (hasValidTime) {
+          streamBuf.write("0.06 0.46 0.43 rg\n"); // #0F766E
+        } else {
+          streamBuf.write("0.55 0.60 0.65 rg\n");
+        }
+        for (int lIdx = 0; lIdx < tLines.length; lIdx++) {
+          double lineY = rowTop - 8.0 - (lIdx * lineHeight);
+          String fontName = hasValidTime ? "/F1" : "/F2";
+          streamBuf.write("BT $fontName 5.5 Tf $timeX $lineY Td (${sanitizePdfText(tLines[lIdx])}) Tj ET\n");
         }
       }
 
-      currentY -= rowHeight;
+      // Draw Total Column Text
+      double totX = startX + col0Width + (numDates * dateBlockWidth) + 3;
+      streamBuf.write("0.08 0.50 0.24 rg\n"); // #15803D
+      for (int lIdx = 0; lIdx < totLines.length; lIdx++) {
+        double lineY = rowTop - 8.0 - (lIdx * lineHeight);
+        streamBuf.write("BT /F1 6.5 Tf $totX $lineY Td (${sanitizePdfText(totLines[lIdx])}) Tj ET\n");
+      }
+
+      currentY = rowBottom;
     }
 
     // BOTTOM TOTAL SUMMARY ROW
     if (rowPageIdx == totalRowPages) {
-      List<List<String>> footerCellLines = [_wrapTextLines('Total', 22, maxLines: 1)];
-      int maxFooterLines = 1;
+      double footerHeight = 22.0;
+      double footTop = currentY;
+      double footBottom = currentY - footerHeight;
 
-      for (int d = 0; d < chunkDates.length; d++) {
+      streamBuf.write("0.85 0.92 0.94 rg $startX $footBottom $tableWidth $footerHeight re f\n");
+      streamBuf.write("0.60 0.75 0.80 RG 0.8 w $startX $footBottom $tableWidth $footerHeight re S\n");
+
+      // Col 0: Total
+      streamBuf.write("0.0 0.25 0.35 rg\n");
+      streamBuf.write("BT /F1 8.0 Tf ${startX + 4} ${footTop - 13.5} Td (Total) Tj ET\n");
+
+      double sepX0 = startX + col0Width;
+      streamBuf.write("0.60 0.75 0.80 RG 0.6 w $sepX0 $footBottom m $sepX0 $footTop l S\n");
+
+      for (int d = 0; d < numDates; d++) {
         String dKey = DateFormat('yyyy-MM-dd').format(chunkDates[d]);
         int daySec = dailyTotals[dKey] ?? 0;
         num dayQty = dailyTotalQuantities?[dKey] ?? 0;
@@ -472,10 +609,21 @@ Uint8List generateZoneLogMatrixPdfBytes({
         String dayQtyStr = dayQty > 0
             ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
             : '-';
-        String dayCellVal = "$dayDur / $dayQtyStr";
-        List<String> dLines = _wrapTextLines(dayCellVal, 14, maxLines: 2);
-        footerCellLines.add(dLines);
-        if (dLines.length > maxFooterLines) maxFooterLines = dLines.length;
+
+        double durX = startX + col0Width + (d * dateBlockWidth) + 3;
+        double timeX = startX + col0Width + (d * dateBlockWidth) + colDurQtyWidth + 3;
+        double dDurSep = startX + col0Width + (d * dateBlockWidth) + colDurQtyWidth;
+        double dTimeSep = startX + col0Width + ((d + 1) * dateBlockWidth);
+
+        streamBuf.write("0.60 0.75 0.80 RG 0.4 w $dDurSep $footBottom m $dDurSep $footTop l S\n");
+        streamBuf.write("0.60 0.75 0.80 RG 0.6 w $dTimeSep $footBottom m $dTimeSep $footTop l S\n");
+
+        streamBuf.write("0.0 0.25 0.35 rg\n");
+        streamBuf.write("BT /F1 6.2 Tf $durX ${footTop - 8.0} Td (${sanitizePdfText("$dayDur /")}) Tj ET\n");
+        streamBuf.write("BT /F1 6.2 Tf $durX ${footTop - 16.5} Td (${sanitizePdfText(dayQtyStr)}) Tj ET\n");
+
+        streamBuf.write("0.4 0.5 0.5 rg\n");
+        streamBuf.write("BT /F1 6.5 Tf $timeX ${footTop - 13.5} Td (-) Tj ET\n");
       }
 
       String gDur = formatDurWithSecs(grandTotalSeconds);
@@ -484,28 +632,12 @@ Uint8List generateZoneLogMatrixPdfBytes({
               ? "${grandTotalQuantity.toInt()} L"
               : "$grandTotalQuantity L")
           : '-';
-      String gCellVal = "$gDur / $gQty";
-      List<String> gLines = _wrapTextLines(gCellVal, 14, maxLines: 2);
-      footerCellLines.add(gLines);
-      if (gLines.length > maxFooterLines) maxFooterLines = gLines.length;
+      double totX = startX + col0Width + (numDates * dateBlockWidth) + 3;
+      streamBuf.write("0.08 0.50 0.24 rg\n");
+      streamBuf.write("BT /F1 6.5 Tf $totX ${footTop - 8.0} Td (${sanitizePdfText("$gDur /")}) Tj ET\n");
+      streamBuf.write("BT /F1 6.5 Tf $totX ${footTop - 16.5} Td (${sanitizePdfText(gQty)}) Tj ET\n");
 
-      double footerHeight = 14.0 + (maxFooterLines * 9.5);
-      double drawTop = currentY - footerHeight + 14;
-
-      streamBuf.write("0.85 0.92 0.94 rg $startX $drawTop $tableWidth $footerHeight re f\n");
-      streamBuf.write("0.60 0.75 0.80 RG 0.8 w $startX $drawTop $tableWidth $footerHeight re S\n");
-
-      streamBuf.write("0.0 0.25 0.35 rg\n");
-      for (int c = 0; c < numCols; c++) {
-        double cx = getColX(c) + 4;
-        List<String> lines = footerCellLines[c];
-        for (int lIdx = 0; lIdx < lines.length; lIdx++) {
-          double lineY = currentY + 5 - (lIdx * 9.5);
-          streamBuf.write("BT /F1 7.5 Tf $cx $lineY Td (${sanitizePdfText(lines[lIdx])}) Tj ET\n");
-        }
-      }
-
-      currentY -= footerHeight;
+      currentY = footBottom;
     }
 
     final bytes = utf8.encode(streamBuf.toString());
