@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -286,7 +286,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   // ignore: prefer_final_fields
   String _graphChartType = 'Column'; // 'Column', 'Spline', 'Area'
   final Set<String> _expandedBreakdownKeys = {};
-  final Set<String> _expandedDateRows = {};
   int _selectedLogTypeTab = 0; // 0 = Zone Log, 1 = Cumulative Log
   List<CumulativeRowData> _cumulativeRows = [];
 
@@ -1004,12 +1003,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           dayData.hasRun = (dayData.durationCompletedSeconds > 0 ||
               dayData.quantityCompleted > 0);
 
-          String actualStart = (i < actualStartTimes.length && actualStartTimes[i] != null)
-              ? actualStartTimes[i].toString().trim()
-              : '';
-          String actualEnd = (i < actualStopTimes.length && actualStopTimes[i] != null)
-              ? actualStopTimes[i].toString().trim()
-              : '';
+          String actualStart =
+              (i < actualStartTimes.length && actualStartTimes[i] != null)
+                  ? actualStartTimes[i].toString().trim()
+                  : '';
+          String actualEnd =
+              (i < actualStopTimes.length && actualStopTimes[i] != null)
+                  ? actualStopTimes[i].toString().trim()
+                  : '';
 
           int planDurSec = _parseDurationToSeconds(durationQtyStr);
           num planQtyNum = _parseQuantity(durationQtyStr);
@@ -1032,8 +1033,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
           if (planDurSec > 0) {
             dayData.plannedDurationSeconds += planDurSec;
-            dayData.plannedDurationQty =
-                SequenceDayData._formatSecondsToHMS(dayData.plannedDurationSeconds);
+            dayData.plannedDurationQty = SequenceDayData._formatSecondsToHMS(
+                dayData.plannedDurationSeconds);
           } else if (planQtyNum > 0) {
             dayData.plannedQuantityNum += planQtyNum;
             dayData.plannedDurationQty = (dayData.plannedQuantityNum % 1 == 0
@@ -1051,9 +1052,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           }
 
           if (actualStart.isNotEmpty && actualStart != '-') {
-            if (dayData.actualStartTime == '-' || dayData.actualStartTime.isEmpty) {
+            if (dayData.actualStartTime == '-' ||
+                dayData.actualStartTime.isEmpty) {
               dayData.actualStartTime = actualStart;
-            } else if (!dayData.actualStartTime.split(', ').contains(actualStart)) {
+            } else if (!dayData.actualStartTime
+                .split(', ')
+                .contains(actualStart)) {
               dayData.actualStartTime += ", $actualStart";
             }
           }
@@ -1333,7 +1337,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Future<void> _fetchConfigNames() async {
     try {
-      int customerId = widget.userData['customerId'] ?? widget.userData['userId'] ?? 1002;
+      int customerId =
+          widget.userData['customerId'] ?? widget.userData['userId'] ?? 1002;
       int controllerId = widget.userData['controllerId'] ?? 3382;
       var body = {
         "userId": customerId,
@@ -1358,7 +1363,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               for (var ch in rawChannels) {
                 if (ch is Map) {
                   var sNo = ch['sNo'] ?? ch['commonDetails']?['sNo'];
-                  String name = (ch['name'] ?? ch['commonDetails']?['name'] ?? '').toString();
+                  String name =
+                      (ch['name'] ?? ch['commonDetails']?['name'] ?? '')
+                          .toString();
                   if (sNo != null) {
                     bool exists = _fertilizerChannelsFromConfig.any((c) =>
                         c['sNo']?.toString() == sNo.toString() ||
@@ -1405,7 +1412,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     if (ch is Map) {
                       var sNo = ch['sNo'];
                       if (sNo != null) {
-                        String name = (ch['name'] ?? _channelNameMap[sNo.toString()] ?? '').toString();
+                        String name = (ch['name'] ??
+                                _channelNameMap[sNo.toString()] ??
+                                '')
+                            .toString();
                         bool exists = _fertilizerChannelsFromConfig.any((c) =>
                             c['sNo']?.toString() == sNo.toString() ||
                             double.tryParse(c['sNo']?.toString() ?? '') ==
@@ -1464,14 +1474,17 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               if (c != null) {
                 for (var s in c.toString().split('_')) {
                   String st = s.trim();
-                  if (st.isNotEmpty && st != '-' && double.tryParse(st) != null) {
+                  if (st.isNotEmpty &&
+                      st != '-' &&
+                      double.tryParse(st) != null) {
                     seenCentralSNos.add(st);
                   }
                 }
               }
             }
           } else if (irr['CentralFertilizerChannel'] != null) {
-            for (var s in irr['CentralFertilizerChannel'].toString().split('_')) {
+            for (var s
+                in irr['CentralFertilizerChannel'].toString().split('_')) {
               String st = s.trim();
               if (st.isNotEmpty && st != '-' && double.tryParse(st) != null) {
                 seenCentralSNos.add(st);
@@ -1484,7 +1497,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               if (c != null) {
                 for (var s in c.toString().split('_')) {
                   String st = s.trim();
-                  if (st.isNotEmpty && st != '-' && double.tryParse(st) != null) {
+                  if (st.isNotEmpty &&
+                      st != '-' &&
+                      double.tryParse(st) != null) {
                     seenLocalSNos.add(st);
                   }
                 }
@@ -1698,14 +1713,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           }
           String itemDateKey = DateFormat('yyyy-MM-dd').format(itemParsedDate);
 
-          String actualStart = (i < actualStartTimes.length &&
-                  actualStartTimes[i] != null)
-              ? actualStartTimes[i].toString().trim()
-              : '-';
-          String actualEnd = (i < actualStopTimes.length &&
-                  actualStopTimes[i] != null)
-              ? actualStopTimes[i].toString().trim()
-              : '-';
+          String actualStart =
+              (i < actualStartTimes.length && actualStartTimes[i] != null)
+                  ? actualStartTimes[i].toString().trim()
+                  : '-';
+          String actualEnd =
+              (i < actualStopTimes.length && actualStopTimes[i] != null)
+                  ? actualStopTimes[i].toString().trim()
+                  : '-';
 
           // Central Fertilizer — chanVal drives channel sNos, Duration/Quantity arrays drive planned & completed
           dynamic cChanVal =
@@ -1920,10 +1935,14 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
       String formattedRunPlanDur = planDurSec > 0
           ? SequenceDayData._formatSecondsToHMS(planDurSec)
-          : (dPlan.isNotEmpty && dPlan != '-' && dPlan != '00:00:00' ? dPlan : '-');
+          : (dPlan.isNotEmpty && dPlan != '-' && dPlan != '00:00:00'
+              ? dPlan
+              : '-');
       String formattedRunPlanQty = planQtyNum > 0
           ? (planQtyNum % 1 == 0 ? "${planQtyNum.toInt()} L" : "$planQtyNum L")
-          : (qPlan.isNotEmpty && qPlan != '-' && qPlan != '0' ? "$qPlan L" : '-');
+          : (qPlan.isNotEmpty && qPlan != '-' && qPlan != '0'
+              ? "$qPlan L"
+              : '-');
 
       if (durSec > 0 || qtyValNum > 0 || planDurSec > 0 || planQtyNum > 0) {
         dayData.hasRun = true;
@@ -1950,7 +1969,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         dayData.plannedDurationSeconds += planDurSec;
         dayData.plannedDuration =
             SequenceDayData._formatSecondsToHMS(dayData.plannedDurationSeconds);
-      } else if (dPlan.isNotEmpty && dPlan != '-' && dPlan != 'null' && dPlan != '00:00:00') {
+      } else if (dPlan.isNotEmpty &&
+          dPlan != '-' &&
+          dPlan != 'null' &&
+          dPlan != '00:00:00') {
         if (dayData.plannedDuration == '-' || dayData.plannedDuration.isEmpty) {
           dayData.plannedDuration = dPlan;
         } else if (!dayData.plannedDuration.split(', ').contains(dPlan)) {
@@ -1963,7 +1985,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         dayData.plannedQuantity = (dayData.plannedQuantityNum % 1 == 0
             ? "${dayData.plannedQuantityNum.toInt()} L"
             : "${dayData.plannedQuantityNum} L");
-      } else if (qPlan.isNotEmpty && qPlan != '-' && qPlan != 'null' && qPlan != '0') {
+      } else if (qPlan.isNotEmpty &&
+          qPlan != '-' &&
+          qPlan != 'null' &&
+          qPlan != '0') {
         String formattedQ = (double.tryParse(qPlan) != null)
             ? ((double.parse(qPlan) % 1 == 0)
                 ? "${double.parse(qPlan).toInt()} L"
@@ -5645,9 +5670,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               ? 12.0
               : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
           fontWeight: hasRunAnyDay ? FontWeight.bold : FontWeight.w500,
-          color: hasRunAnyDay
-              ? const Color(0xFF15803D)
-              : const Color(0xFF94A3B8),
+          color:
+              hasRunAnyDay ? const Color(0xFF15803D) : const Color(0xFF94A3B8),
         ),
       ),
     );
@@ -6210,37 +6234,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     SequenceRowData row, {
     void Function(VoidCallback)? onStateChange,
   }) {
-    void toggleDate(String dateKey) {
-      if (onStateChange != null) {
-        onStateChange(() {
-          if (_expandedDateRows.contains(dateKey)) {
-            _expandedDateRows.remove(dateKey);
-          } else {
-            _expandedDateRows.add(dateKey);
-          }
-        });
-      } else {
-        setState(() {
-          if (_expandedDateRows.contains(dateKey)) {
-            _expandedDateRows.remove(dateKey);
-          } else {
-            _expandedDateRows.add(dateKey);
-          }
-        });
-      }
-    }
-
-    int totalPlannedDurationSec = 0;
-    num totalPlannedQtyNum = 0;
-    for (var d in row.dayEntries.values) {
-      totalPlannedDurationSec += d.plannedDurationSeconds;
-      totalPlannedQtyNum += d.plannedQuantityNum;
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        const double minTableWidth = 620.0;
+        const double minTableWidth = 460.0;
         Widget tableContent = Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(6),
@@ -6273,7 +6271,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
                     Expanded(
-                      flex: 2,
+                      flex: 3,
                       child: Text(
                         "Start Time",
                         textAlign: TextAlign.center,
@@ -6285,7 +6283,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       ),
                     ),
                     Expanded(
-                      flex: 2,
+                      flex: 3,
                       child: Text(
                         "End Time",
                         textAlign: TextAlign.center,
@@ -6299,36 +6297,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     Expanded(
                       flex: 3,
                       child: Text(
-                        "Set Dur / Qty",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Duration",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
                         "Quantity",
-                        textAlign: TextAlign.right,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
+                          color: Color(0xFF0F766E),
                         ),
                       ),
                     ),
@@ -6343,8 +6317,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   SequenceDayData? dayData = row.dayEntries[dKey];
 
                   bool hasRun = dayData != null && dayData.hasRun;
-                  int durSec = dayData?.durationCompletedSeconds ?? 0;
-                  num qty = dayData?.quantityCompleted ?? 0;
 
                   String startStr = (hasRun &&
                           dayData.actualStartTime.isNotEmpty &&
@@ -6361,376 +6333,82 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                           dayData.plannedDurationQty != '-')
                       ? dayData.plannedDurationQty
                       : '-';
-                  String durStr = (hasRun && durSec > 0)
-                      ? (dayData.durationQtyStr != '00:00:00'
-                          ? dayData.durationQtyStr
-                          : _formatDuration(durSec))
-                      : '-';
-                  String qtyStr = (hasRun && qty > 0)
-                      ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
-                      : '-';
 
-                  Color rowBg = dIdx % 2 == 0
-                      ? Colors.white
-                      : const Color(0xFFF8FAFC);
+                  Color rowBg =
+                      dIdx % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
-                  String expKey = "${row.key}_$dKey";
-                  bool isDateOpen = _expandedDateRows.contains(expKey);
-                  bool canExpand = dayData != null && dayData.runs.length > 1;
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      InkWell(
-                        onTap: canExpand ? () => toggleDate(expKey) : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          color: rowBg,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (canExpand)
-                                      Icon(
-                                        isDateOpen
-                                            ? Icons.keyboard_arrow_down_rounded
-                                            : Icons.keyboard_arrow_right_rounded,
-                                        size: 16,
-                                        color: const Color(0xFF0F766E),
-                                      ),
-                                    Flexible(
-                                      child: Text(
-                                        DateFormat('dd/MM/yyyy').format(d),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: hasRun
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                          color: hasRun
-                                              ? const Color(0xFF1E293B)
-                                              : const Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                    ),
-                                    if (canExpand) ...[
-                                      const SizedBox(width: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFCCFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          "${dayData.runs.length}",
-                                          style: const TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0F766E),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  startStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: startStr != '-'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: startStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  endStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: endStr != '-'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: endStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  setDurQtyStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: setDurQtyStr != '-'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: setDurQtyStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  durStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: durStr != '-'
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: durStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  qtyStr,
-                                  textAlign: TextAlign.right,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: qtyStr != '-'
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: qtyStr != '-'
-                                        ? const Color(0xFF166534)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                            ],
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    color: rowBg,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(d),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  hasRun ? FontWeight.w600 : FontWeight.normal,
+                              color: hasRun
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
-                      ),
-                      // Expanded Child Runs ("date open")
-                      if (isDateOpen &&
-                          dayData != null &&
-                          dayData.runs.length > 1)
-                        Container(
-                          color: const Color(0xFFF1F5F9).withValues(alpha: 0.6),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          child: Column(
-                            children: [
-                              for (int rIdx = 0;
-                                  rIdx < dayData.runs.length;
-                                  rIdx++)
-                                Builder(builder: (context) {
-                                  var run = dayData.runs[rIdx];
-                                  return Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: const Color(0xFFE2E8F0),
-                                          width: rIdx ==
-                                                  dayData.runs.length - 1
-                                              ? 0
-                                              : 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          flex: 3,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                                left: 14),
-                                            child: Text(
-                                              "Run ${rIdx + 1}",
-                                              style: const TextStyle(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF475569),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            run.actualStartTime,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              color: Color(0xFF334155),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 2,
-                                          child: Text(
-                                            run.actualEndTime,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              color: Color(0xFF334155),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.plannedDurationQty,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF0F766E),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.durationCompletedStr,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF0F766E),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.quantityCompletedStr,
-                                            textAlign: TextAlign.right,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF166534),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                            ],
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            startStr.replaceAll('_', ', '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: startStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: startStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
-                    ],
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            endStr.replaceAll('_', ', '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: endStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: endStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            setDurQtyStr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: setDurQtyStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: setDurQtyStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }),
-              // Total Footer Row
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF0FDF4),
-                  borderRadius:
-                      BorderRadius.vertical(bottom: Radius.circular(5)),
-                  border: Border(
-                    top: BorderSide(color: Color(0xFFBBF7D0), width: 1.5),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Total",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                    const Expanded(
-                      flex: 2,
-                      child: Text(
-                        "-",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                    const Expanded(
-                      flex: 2,
-                      child: Text(
-                        "-",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        totalPlannedDurationSec > 0
-                            ? _formatDuration(totalPlannedDurationSec)
-                            : (totalPlannedQtyNum > 0
-                                ? "${totalPlannedQtyNum.toInt()} L"
-                                : "-"),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        _formatDuration(row.totalDurationSeconds),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        row.totalQuantity > 0
-                            ? (row.totalQuantity % 1 == 0
-                                ? "${row.totalQuantity.toInt()} L"
-                                : "${row.totalQuantity} L")
-                            : "-",
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         );
@@ -6753,37 +6431,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     CumulativeRowData row, {
     void Function(VoidCallback)? onStateChange,
   }) {
-    void toggleDate(String dateKey) {
-      if (onStateChange != null) {
-        onStateChange(() {
-          if (_expandedDateRows.contains(dateKey)) {
-            _expandedDateRows.remove(dateKey);
-          } else {
-            _expandedDateRows.add(dateKey);
-          }
-        });
-      } else {
-        setState(() {
-          if (_expandedDateRows.contains(dateKey)) {
-            _expandedDateRows.remove(dateKey);
-          } else {
-            _expandedDateRows.add(dateKey);
-          }
-        });
-      }
-    }
-
-    int totalPlannedDurationSec = 0;
-    num totalPlannedQtyNum = 0;
-    for (var d in row.dayEntries.values) {
-      totalPlannedDurationSec += d.plannedDurationSeconds;
-      totalPlannedQtyNum += d.plannedQuantityNum;
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
-        const double minTableWidth = 580.0;
+        const double minTableWidth = 380.0;
         Widget tableContent = Container(
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(6),
@@ -6818,7 +6470,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     Expanded(
                       flex: 3,
                       child: Text(
-                        "Set Duration",
+                        "Duration",
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 11,
@@ -6830,32 +6482,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     Expanded(
                       flex: 3,
                       child: Text(
-                        "Completed Duration",
+                        "Quantity",
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Set Quantity",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Completed Quantity",
-                        textAlign: TextAlign.right,
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -6874,358 +6502,77 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   CumulativeDayData? dayData = row.dayEntries[dKey];
 
                   bool hasRun = dayData != null && dayData.hasRun;
-                  int durSec = dayData?.durationSeconds ?? 0;
-                  num qty = dayData?.quantity ?? 0;
 
                   String setDurStr = (dayData != null &&
                           dayData.plannedDuration.isNotEmpty &&
                           dayData.plannedDuration != '-')
                       ? dayData.plannedDuration
                       : '-';
-                  String compDurStr = (hasRun && durSec > 0)
-                      ? (dayData.durationStr != '00:00:00'
-                          ? dayData.durationStr
-                          : _formatDuration(durSec))
-                      : '-';
                   String setQtyStr = (dayData != null &&
                           dayData.plannedQuantity.isNotEmpty &&
                           dayData.plannedQuantity != '-')
                       ? dayData.plannedQuantity
                       : '-';
-                  String compQtyStr = (hasRun && qty > 0)
-                      ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
-                      : '-';
 
-                  Color rowBg = dIdx % 2 == 0
-                      ? Colors.white
-                      : const Color(0xFFF8FAFC);
+                  Color rowBg =
+                      dIdx % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
-                  String expKey = "${row.key}_$dKey";
-                  bool isDateOpen = _expandedDateRows.contains(expKey);
-                  bool canExpand = dayData != null && dayData.runs.length > 1;
-
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      InkWell(
-                        onTap: canExpand ? () => toggleDate(expKey) : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          color: rowBg,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (canExpand)
-                                      Icon(
-                                        isDateOpen
-                                            ? Icons.keyboard_arrow_down_rounded
-                                            : Icons.keyboard_arrow_right_rounded,
-                                        size: 16,
-                                        color: const Color(0xFF0F766E),
-                                      ),
-                                    Flexible(
-                                      child: Text(
-                                        DateFormat('dd/MM/yyyy').format(d),
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: hasRun
-                                              ? FontWeight.w600
-                                              : FontWeight.normal,
-                                          color: hasRun
-                                              ? const Color(0xFF1E293B)
-                                              : const Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                    ),
-                                    if (canExpand) ...[
-                                      const SizedBox(width: 4),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 4, vertical: 1),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFCCFBF1),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          "${dayData.runs.length}",
-                                          style: const TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0F766E),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  setDurStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: setDurStr != '-'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: setDurStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  compDurStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: compDurStr != '-'
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: compDurStr != '-'
-                                        ? const Color(0xFF0F766E)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  setQtyStr,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: setQtyStr != '-'
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: setQtyStr != '-'
-                                        ? const Color(0xFF166534)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                flex: 3,
-                                child: Text(
-                                  compQtyStr,
-                                  textAlign: TextAlign.right,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: compQtyStr != '-'
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: compQtyStr != '-'
-                                        ? const Color(0xFF166534)
-                                        : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ),
-                            ],
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    color: rowBg,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(d),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  hasRun ? FontWeight.w600 : FontWeight.normal,
+                              color: hasRun
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
-                      ),
-                      // Expanded Child Runs ("date open")
-                      if (isDateOpen &&
-                          dayData != null &&
-                          dayData.runs.length > 1)
-                        Container(
-                          color: const Color(0xFFF1F5F9).withValues(alpha: 0.6),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          child: Column(
-                            children: [
-                              for (int rIdx = 0;
-                                  rIdx < dayData.runs.length;
-                                  rIdx++)
-                                Builder(builder: (context) {
-                                  var run = dayData.runs[rIdx];
-                                  String runTimeStr = run.actualStartTime != '-'
-                                      ? "Run ${rIdx + 1} (${run.actualStartTime})"
-                                      : "Run ${rIdx + 1}";
-                                  return Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: const Color(0xFFE2E8F0),
-                                          width: rIdx ==
-                                                  dayData.runs.length - 1
-                                              ? 0
-                                              : 0.5,
-                                        ),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          flex: 3,
-                                          child: Padding(
-                                            padding: const EdgeInsets.only(
-                                                left: 14),
-                                            child: Text(
-                                              runTimeStr,
-                                              style: const TextStyle(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF475569),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.plannedDuration,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF0F766E),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.durationStr,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF0F766E),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.plannedQuantity,
-                                            textAlign: TextAlign.center,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF166534),
-                                            ),
-                                          ),
-                                        ),
-                                        Expanded(
-                                          flex: 3,
-                                          child: Text(
-                                            run.qtyStr,
-                                            textAlign: TextAlign.right,
-                                            style: const TextStyle(
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF166534),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }),
-                            ],
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            setDurStr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: setDurStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: setDurStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
                           ),
                         ),
-                    ],
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            setQtyStr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: setQtyStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: setQtyStr != '-'
+                                  ? const Color(0xFF166534)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }),
-              // Total Footer Row
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF0FDF4),
-                  borderRadius:
-                      BorderRadius.vertical(bottom: Radius.circular(5)),
-                  border: Border(
-                    top: BorderSide(color: Color(0xFFBBF7D0), width: 1.5),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Total",
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        totalPlannedDurationSec > 0
-                            ? _formatDuration(totalPlannedDurationSec)
-                            : "-",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        _formatDuration(row.totalDurationSeconds),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        totalPlannedQtyNum > 0
-                            ? (totalPlannedQtyNum % 1 == 0
-                                ? "${totalPlannedQtyNum.toInt()} L"
-                                : "$totalPlannedQtyNum L")
-                            : "-",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        row.totalQuantity > 0
-                            ? (row.totalQuantity % 1 == 0
-                                ? "${row.totalQuantity.toInt()} L"
-                                : "${row.totalQuantity} L")
-                            : "-",
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF166534),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         );
@@ -7356,7 +6703,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   _buildSummaryBadge(
                                     icon: Icons.timer_outlined,
                                     label: "Total Duration",
-                                    value: _formatDuration(row.totalDurationSeconds),
+                                    value: _formatDuration(
+                                        row.totalDurationSeconds),
                                     color: const Color(0xFF00897B),
                                     bgColor: const Color(0xFFE0F2F1),
                                   ),
@@ -7565,7 +6913,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                   _buildSummaryBadge(
                                     icon: Icons.timer_outlined,
                                     label: "Total Duration",
-                                    value: _formatDuration(row.totalDurationSeconds),
+                                    value: _formatDuration(
+                                        row.totalDurationSeconds),
                                     color: const Color(0xFF00897B),
                                     bgColor: const Color(0xFFE0F2F1),
                                   ),
