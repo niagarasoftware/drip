@@ -105,37 +105,72 @@ Excel buildPumpLogExcel(PumpLogExportData exportData) {
   // SHEET 2: Voltage Log
   // ---------------------------------------------------------------------------
   final sheet2 = excel['Voltage Log'];
-  sheet2.appendRow([
-    TextCellValue('Hour'),
-    TextCellValue('Voltage R (V)'),
-    TextCellValue('Voltage Y (V)'),
-    TextCellValue('Voltage B (V)'),
-    TextCellValue('Current R (A)'),
-    TextCellValue('Current Y (A)'),
-    TextCellValue('Current B (A)'),
-  ]);
+  final Map<String, List<Map<String, dynamic>>> grouped = {};
+  for (final r in exportData.voltageData) {
+    final String d = r['date']?.toString() ?? r['logDate']?.toString() ?? '';
+    grouped.putIfAbsent(d, () => []).add(r);
+  }
 
-  if (exportData.voltageData.isEmpty) {
-    sheet2.appendRow([
-      TextCellValue('-'),
-      TextCellValue('-'),
-      TextCellValue('-'),
-      TextCellValue('-'),
-      TextCellValue('-'),
-      TextCellValue('-'),
-      TextCellValue('-'),
-    ]);
-  } else {
-    for (final row in exportData.voltageData) {
+  if (grouped.length > 1) {
+    final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    for (final dStr in sortedDates) {
+      if (dStr.isNotEmpty) {
+        sheet2.appendRow([TextCellValue('Date: $dStr')]);
+      }
       sheet2.appendRow([
-        TextCellValue('${row['hour'] ?? '-'}'),
-        TextCellValue('${row['voltageR'] ?? '-'}'),
-        TextCellValue('${row['voltageY'] ?? '-'}'),
-        TextCellValue('${row['voltageB'] ?? '-'}'),
-        TextCellValue('${row['currentR'] ?? '-'}'),
-        TextCellValue('${row['currentY'] ?? '-'}'),
-        TextCellValue('${row['currentB'] ?? '-'}'),
+        TextCellValue('Hour'),
+        TextCellValue('Voltage R (V)'),
+        TextCellValue('Voltage Y (V)'),
+        TextCellValue('Voltage B (V)'),
+        TextCellValue('Current R (A)'),
+        TextCellValue('Current Y (A)'),
+        TextCellValue('Current B (A)'),
       ]);
+      for (final row in grouped[dStr]!) {
+        sheet2.appendRow([
+          TextCellValue('${row['hour'] ?? '-'}'),
+          TextCellValue('${row['voltageR'] ?? '-'}'),
+          TextCellValue('${row['voltageY'] ?? '-'}'),
+          TextCellValue('${row['voltageB'] ?? '-'}'),
+          TextCellValue('${row['currentR'] ?? '-'}'),
+          TextCellValue('${row['currentY'] ?? '-'}'),
+          TextCellValue('${row['currentB'] ?? '-'}'),
+        ]);
+      }
+      sheet2.appendRow([]); // empty line separator between dates
+    }
+  } else {
+    sheet2.appendRow([
+      TextCellValue('Hour'),
+      TextCellValue('Voltage R (V)'),
+      TextCellValue('Voltage Y (V)'),
+      TextCellValue('Voltage B (V)'),
+      TextCellValue('Current R (A)'),
+      TextCellValue('Current Y (A)'),
+      TextCellValue('Current B (A)'),
+    ]);
+    if (exportData.voltageData.isEmpty) {
+      sheet2.appendRow([
+        TextCellValue('-'),
+        TextCellValue('-'),
+        TextCellValue('-'),
+        TextCellValue('-'),
+        TextCellValue('-'),
+        TextCellValue('-'),
+        TextCellValue('-'),
+      ]);
+    } else {
+      for (final row in exportData.voltageData) {
+        sheet2.appendRow([
+          TextCellValue('${row['hour'] ?? '-'}'),
+          TextCellValue('${row['voltageR'] ?? '-'}'),
+          TextCellValue('${row['voltageY'] ?? '-'}'),
+          TextCellValue('${row['voltageB'] ?? '-'}'),
+          TextCellValue('${row['currentR'] ?? '-'}'),
+          TextCellValue('${row['currentY'] ?? '-'}'),
+          TextCellValue('${row['currentB'] ?? '-'}'),
+        ]);
+      }
     }
   }
 

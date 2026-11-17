@@ -47,15 +47,36 @@ String generatePumpLogCsvString(PumpLogExportData exportData) {
 
   // Section 3: Voltage Log
   sb.writeln('VOLTAGE LOG');
-  sb.writeln('Hour,Voltage R (V),Voltage Y (V),Voltage B (V),Current R (A),Current Y (A),Current B (A)');
+  final Map<String, List<Map<String, dynamic>>> grouped = {};
+  for (final r in exportData.voltageData) {
+    final String d = r['date']?.toString() ?? r['logDate']?.toString() ?? '';
+    grouped.putIfAbsent(d, () => []).add(r);
+  }
 
-  if (exportData.voltageData.isEmpty) {
-    sb.writeln('-,-,-,-,-,-,-');
+  if (grouped.length > 1) {
+    final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+    for (final dStr in sortedDates) {
+      if (dStr.isNotEmpty) {
+        sb.writeln('Date: $dStr');
+      }
+      sb.writeln('Hour,Voltage R (V),Voltage Y (V),Voltage B (V),Current R (A),Current Y (A),Current B (A)');
+      for (final row in grouped[dStr]!) {
+        sb.writeln(
+          '${escapeCsv("${row['hour'] ?? '-'}")},${escapeCsv("${row['voltageR'] ?? '-'}")},${escapeCsv("${row['voltageY'] ?? '-'}")},${escapeCsv("${row['voltageB'] ?? '-'}")},${escapeCsv("${row['currentR'] ?? '-'}")},${escapeCsv("${row['currentY'] ?? '-'}")},${escapeCsv("${row['currentB'] ?? '-'}")}',
+        );
+      }
+      sb.writeln();
+    }
   } else {
-    for (final row in exportData.voltageData) {
-      sb.writeln(
-        '${escapeCsv("${row['hour'] ?? '-'}")},${escapeCsv("${row['voltageR'] ?? '-'}")},${escapeCsv("${row['voltageY'] ?? '-'}")},${escapeCsv("${row['voltageB'] ?? '-'}")},${escapeCsv("${row['currentR'] ?? '-'}")},${escapeCsv("${row['currentY'] ?? '-'}")},${escapeCsv("${row['currentB'] ?? '-'}")}',
-      );
+    sb.writeln('Hour,Voltage R (V),Voltage Y (V),Voltage B (V),Current R (A),Current Y (A),Current B (A)');
+    if (exportData.voltageData.isEmpty) {
+      sb.writeln('-,-,-,-,-,-,-');
+    } else {
+      for (final row in exportData.voltageData) {
+        sb.writeln(
+          '${escapeCsv("${row['hour'] ?? '-'}")},${escapeCsv("${row['voltageR'] ?? '-'}")},${escapeCsv("${row['voltageY'] ?? '-'}")},${escapeCsv("${row['voltageB'] ?? '-'}")},${escapeCsv("${row['currentR'] ?? '-'}")},${escapeCsv("${row['currentY'] ?? '-'}")},${escapeCsv("${row['currentB'] ?? '-'}")}',
+        );
+      }
     }
   }
 
