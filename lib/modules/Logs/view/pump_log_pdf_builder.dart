@@ -98,7 +98,7 @@ pw.Widget _compactKpi(String label, String value, String unit, {PdfColor accent 
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       mainAxisSize: pw.MainAxisSize.min,
       children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 7.5, color: _muted), maxLines: 1),
+        pw.Text(label, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _ink), maxLines: 1),
         pw.SizedBox(height: 3),
         pw.Text(value, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: accent), maxLines: 1),
         if (unit.isNotEmpty) pw.Text(unit, style: const pw.TextStyle(fontSize: 7, color: _muted), maxLines: 1),
@@ -233,46 +233,28 @@ Future<Uint8List> generatePumpLogPdfBytes(PumpLogExportData data, String name) a
     pw.SizedBox(height: 10),
   ]);
 
-  final runSecs = <int, int>{
-    for (final e in segments.entries) e.key: _secs(_motorStats(motor, e.key).run),
-  };
-
   // Section: Overview
-  slides.addAll([
-    _slideTitle('Overview', subtitle: '${data.dateStr}  |  ${data.periodStr}'),
-    _kpiRow([
-      _compactKpi('Total power ON', _hms(_secs(motor?.totalPowerOnTime ?? '00:00:00')), 'HH:MM:SS', accent: _green),
-      _compactKpi('Total power OFF', _hms(_secs(motor?.totalPowerOffTime ?? '00:00:00')), 'HH:MM:SS', accent: _red),
-      _compactKpi('Cumulative flow', motor?.overAllCumulativeFlow ?? '0', 'Litres'),
-      _compactKpi('Pressure', motor?.pressure ?? '0.0', 'bar'),
-      _compactKpi('Flow rate', motor?.flowRate ?? '0.0', 'Lps'),
-      _compactKpi('Level', motor?.level ?? '0.0', 'feet'),
-    ]),
-    pw.SizedBox(height: 12),
-    pw.Text('Motor run time comparison',
-        style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: _ink)),
-    pw.SizedBox(height: 6),
-    _kpiRow([
-      for (final e in segments.entries)
-        _compactKpi(
-          e.value,
-          _hms(runSecs[e.key] ?? 0),
-          'HH:MM:SS',
-          accent: _green,
-        ),
-    ]),
-  ]);
+  slides.add(_slideTitle('Overview', subtitle: '${data.dateStr}  |  ${data.periodStr}'));
 
-  // Sections per motor: performance + pump log
+  // General power & sensor KPIs
+  slides.add(_kpiRow([
+    _compactKpi('Total power ON', _hms(_secs(motor?.totalPowerOnTime ?? '00:00:00')), 'HH:MM:SS', accent: _green),
+    _compactKpi('Total power OFF', _hms(_secs(motor?.totalPowerOffTime ?? '00:00:00')), 'HH:MM:SS', accent: _red),
+    _compactKpi('Cumulative flow', motor?.overAllCumulativeFlow ?? '0', 'Litres'),
+    _compactKpi('Pressure', motor?.pressure ?? '0.0', 'bar'),
+    _compactKpi('Flow rate', motor?.flowRate ?? '0.0', 'Lps'),
+    _compactKpi('Level', motor?.level ?? '0.0', 'feet'),
+  ]));
+  slides.add(pw.SizedBox(height: 8));
+
+  // Motor KPIs and pump log sections per motor
   for (final e in segments.entries) {
     final st = _motorStats(motor, e.key);
     final events = _eventsFor(data, e.key);
 
     slides.addAll([
-      pw.SizedBox(height: 12),
-      _slideTitle('${e.value} - Performance', subtitle: '${data.dateStr}  |  ${data.periodStr}'),
       _kpiRow([
-        _compactKpi('Run time', st.run, 'HH:MM:SS', accent: _green),
+        _compactKpi('${e.value} Run time', st.run, 'HH:MM:SS', accent: _green),
         _compactKpi('Idle time', st.idle, 'HH:MM:SS'),
         _compactKpi('Dry run trip', st.dry, 'HH:MM:SS', accent: _red),
         _compactKpi('Cyclic trip', st.cyclic, 'HH:MM:SS', accent: _amber),
