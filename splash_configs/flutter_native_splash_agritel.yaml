@@ -1,0 +1,16 @@
+flutter_native_splash:
+  color: "#D1EDC5"
+  android: true
+  ios: true
+
+  image: assets/splash/agritel.png
+
+  android_12:
+    image: assets/splash/agritel.png
+    color: "#D1EDC5"
+
+  branding: assets/splash/transparent.png
+  branding_mode: center
+
+  ios_content_mode: scaleAspectFit
+  android_gravity: center

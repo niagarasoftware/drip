@@ -1,0 +1,193 @@
+name: oro_drip_irrigation
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  provider: ^6.0.5
+  linked_scroll_controller: ^0.2.0
+  responsive_grid_list: ^1.4.0
+  flutter_svg: ^2.0.16
+  intl: ^0.19.0
+  syncfusion_flutter_charts: ^27.1.51
+  sleek_circular_slider: ^2.0.1
+  flutter_material_design_icons: ^3.1.0+7447
+  mqtt_client: ^10.5.1
+  uuid: ^4.5.1
+  data_table_2: ^2.5.18
+  table_calendar: ^3.1.2
+  loading_indicator: ^3.1.1
+  google_fonts: ^8.0.2
+  flutter_portal: ^1.1.4
+  chat_bubbles: ^1.5.0
+  timezone: ^0.10.0
+  flutter_staggered_grid_view: ^0.7.0
+  percent_indicator: ^4.2.4
+  popover: ^0.3.1
+  flutter_date_range_picker: ^0.1.1
+  syncfusion_flutter_datepicker: ^27.1.51
+  excel: ^4.0.6
+  syncfusion_flutter_gauges: ^27.2.5
+  rxdart: ^0.28.0
+  persistent_bottom_nav_bar: ^6.2.1
+  animated_notch_bottom_bar: ^1.0.3
+  gif: ^2.3.0
+  geolocator: ^13.0.4
+  geocoding: ^4.0.0
+  permission_handler: ^12.0.0+1
+  responsive_grid: ^2.4.4
+  font_awesome_flutter: ^11.0.0
+  tuple: ^2.0.2
+  label_marker: ^1.0.1
+  widget_to_marker: ^1.0.6
+  google_maps_flutter: ^2.12.1
+  maps_toolkit: ^3.1.0
+  shared_preferences: ^2.5.3
+  connectivity_plus: ^6.1.4
+  webview_flutter: ^4.11.0
+  intl_phone_field: ^3.2.0
+  flutter_blue_plus: ^2.2.1
+  flutter_dotenv: ^5.2.1
+  path_provider: ^2.1.5
+  url_launcher: ^6.3.1
+  flutter_launcher_icons: ^0.14.3
+
+  vibration: ^3.1.3
+  lottie: ^3.3.0
+  flutter_local_notifications: ^19.2.1
+  timeago: ^3.7.1
+  syncfusion_flutter_xlsio: ^27.2.5
+  scoped_model: ^2.0.0
+  flutter_bluetooth_serial_plus: ^0.5.1
+  crypto: ^3.0.6
+  #  image_picker: ^1.2.2
+  animated_text_kit: ^4.2.3
+  flutter_native_splash: ^2.4.0
+  drop_down_search_field: ^1.1.3
+  badges: ^3.1.2
+  in_app_update: ^4.2.3
+  upgrader: ^11.5.0
+  firebase_core: ^4.1.0
+  firebase_messaging: ^16.0.1
+  firebase_auth: ^6.0.2
+  otp_pin_field: ^1.4.1
+  firebase_app_check: ^0.4.1
+  new_version_plus: ^0.1.0
+  skeletonizer: ^2.1.1
+  reorderable_grid_view: ^2.2.8
+  flutter_image_compress: ^2.4.0
+  image_picker: ^1.2.2
+  http_parser: ^4.1.2
+  google_mlkit_image_labeling: ^0.14.2
+  dartssh2: ^3.3.0
+  better_download_saver: ^0.0.1
+  fl_chart: ^1.2.0
+  easy_pdf_viewer: ^1.0.8
+  pdf: ^3.12.0
+  pdfrx: ^2.4.5
+  web: ^1.0.0
+  file_saver: ^0.4.0
+#  audioplayers: ^6.5.0
+#  record: ^6.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_flavorizr: ^2.2.3
+
+
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/json/
+    - assets/Images/
+    - assets/Images/Svg/
+    - assets/Images/Fertilization/
+    - assets/Images/Filtration/
+    - assets/Images/Svg/Oro/
+    - assets/Images/Svg/SmartComm/
+    - assets/Images/Png/
+    - assets/Images/Png/Oro/
+    - assets/Images/Png/SmartComm/
+    - assets/Images/Png/Agritel/
+    - assets/png/
+    - assets/png/mobile/
+    - assets/svg_images/
+    - assets/SVGPicture/
+    - assets/Images/Source/
+    - assets/mob_dashboard/
+    - assets/gif/
+    - assets/lottie/
+    - assets/gif/dp_irr_pump_g.gif
+    - assets/oro_store.png
+    - assets/playstore.png
+    - assets/ic_launcher.png
+    - assets/smartcomm_playstore.png
+    - assets/smartcomm_launcher.png
+    - assets/.env
+    - assets/splash/oro_production.png
+    - assets/splash/smart_comm.png
+    - assets/splash/transparent.png
+    - assets/Images/CropAdvisory/
+    - assets/ssh/smartComm/id_rsa
+
+#flutter_launcher_icons:
+#  android: true
+#  ios: true
+#  image_path: "assets/playstore.png"
+#  adaptive_icon_background: "#FFFFFF"
+#  adaptive_icon_foreground: "assets/oro_store.png"
+
+flutter_launcher_icons:
+  agritel:
+    android: true
+    ios: true
+    image_path: assets/agritel_app_icon.png
+    adaptive_icon_background: "#FFFFFF"
+    adaptive_icon_foreground: assets/agritel_app_icon.png
+    remove_alpha_ios: true
+
+flavorizr:
+  app:
+    android:
+      flavorDimensions: "flavor-type"
+    ios:
+      targets:
+        Runner:
+          bundleId: "com.niagaraautomations"
+  flavors:
+    oroDevelopment:
+      app:
+        name: "ORO"
+      android:
+        applicationId: "com.niagaraautomations.oroDevelopment"
+    oroProduction:
+      app:
+        name: "ORO"
+      android:
+        applicationId: "com.niagaraautomations.oroDripirrigation"
+    smartComm:
+      app:
+        name: "SMART COMM"
+      android:
+        applicationId: "com.niagaraautomations.SmartComm"
+    agritel:
+      app:
+        name: "Agritel"
+      android:
+        applicationId: "com.niagaraautomations.Agritel"
+
+
+dependency_overrides:
+  mqtt_client: 10.5.1
+  web: 1.0.0

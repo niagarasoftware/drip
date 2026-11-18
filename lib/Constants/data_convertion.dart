@@ -1,0 +1,133 @@
+
+class DataConvert{
+  //TODO: string time into integer seconds
+  int parseTimeString(String timeString) {
+    List<String> parts = timeString.split(':');
+    int totalSeconds = ((int.parse(parts[0]) * 3600) + (int.parse(parts[1]) * 60) + (int.parse(parts[2])));
+    return totalSeconds;
+  }
+
+  //TODO: string time into integer milli seconds
+  int parseTimeStringForMilliSeconds(String timeString) {
+    List<String> parts = timeString.split(':');
+    int totalMilliseconds = ((int.parse(parts[0]) * 3600000) + // hours to milliseconds
+        (int.parse(parts[1]) * 60000) + // minutes to milliseconds
+        (int.parse(parts[2]) * 1000) + // seconds to milliseconds
+        (parts.length == 4 ? int.parse(parts[3]) : 0)); // milliseconds
+    return totalMilliseconds;
+  }
+
+  //TODO: integer seconds into string time
+  String formatTime(int seconds) {
+    int hours = seconds ~/ 3600;
+    int minutes = (seconds % 3600) ~/ 60;
+    int remainingSeconds = seconds % 60;
+    String hoursStr = hours.toString().padLeft(2, '0');
+    String minutesStr = minutes.toString().padLeft(2, '0');
+    String secondsStr = remainingSeconds.toString().padLeft(2, '0');
+    return '$hoursStr:$minutesStr:$secondsStr';
+  }
+
+  //TODO: integer milli seconds into string time
+  String formatTimeForMilliSeconds(int milliseconds) {
+    int seconds = milliseconds ~/ 1000;
+    int hours = seconds ~/ 3600;
+    int minutes = (seconds % 3600) ~/ 60;
+    int remainingSeconds = seconds % 60;
+    int remainingMilliseconds = milliseconds % 1000;
+    String hoursStr = hours.toString().padLeft(2, '0');
+    String minutesStr = minutes.toString().padLeft(2, '0');
+    String secondsStr = remainingSeconds.toString().padLeft(2, '0');
+    String millisecondsStr = remainingMilliseconds.toString().padLeft(3, '0');
+    return '$hoursStr:$minutesStr:$secondsStr:$millisecondsStr';
+  }
+
+  //TODO: string hrs into string time:min:sec
+  String convertHoursToTime(double hours) {
+    int wholeHours = hours.floor();
+    double fractionalPart = hours - wholeHours;
+    int minutes = (fractionalPart * 60).floor();
+    double fractionalMinutes = (fractionalPart * 60) - minutes;
+    int seconds = (fractionalMinutes * 60).floor();
+    return '$wholeHours:$minutes:$seconds';
+  }
+
+  //TODO: string time(00:00:00) into string liters
+  String convertTimeToLiters(String time, int rate) {
+    List<String> parts = time.split(':');
+    int hours = int.parse(parts[0]);
+    int minutes = int.parse(parts[1]);
+    int seconds = int.parse(parts[2]);
+    double totalTimeInHours = hours + (minutes / 60);
+    double totalLiters = totalTimeInHours * rate;
+
+    return totalLiters.toInt().toString();
+  }
+
+  //TODO: string liters to time(00:00:00)
+  String convertLitersToTime(double liters, int rate) {
+    double totalTimeInHours = liters / rate;
+    int hours = totalTimeInHours.floor();
+    int minutes = ((totalTimeInHours - hours) * 60).floor();
+    int seconds = (((totalTimeInHours - hours) * 60 - minutes) * 60).round();
+    String formattedTime =
+        '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
+
+    return formattedTime;
+  }
+
+  /// Parses raw Pump CT string (e.g. "1:16.40,3:15.70_2:15.80")
+  /// Splits by '_' to separate pump segments (Pump 1, Pump 2, ...).
+  /// For each pump, splits by ',' to extract phase entries (1=Red, 2=Yellow, 3=Blue).
+  /// Missing/unspecified phases for a pump remain null so only active phases are shown.
+  List<List<String?>>? parseAllPumpCtData(String? raw) {
+    if (raw == null) return null;
+    String data = raw.trim();
+    if (data.isEmpty || data == '-' || data == 'null' || data == 'N/A') return null;
+
+    List<String> pumpSegments = data.split('_');
+    List<List<String?>> result = [];
+
+    for (String segment in pumpSegments) {
+      String seg = segment.trim();
+      if (seg.isEmpty || seg == '-' || seg == 'null') continue;
+
+      String? rVal, yVal, bVal;
+      List<String> phaseEntries = seg.split(',');
+
+      for (String entry in phaseEntries) {
+        String p = entry.trim();
+        if (p.contains(':')) {
+          List<String> kv = p.split(':');
+          if (kv.length >= 2) {
+            String key = kv[0].trim();
+            String val = kv[1].trim();
+            if (key == '1') {
+              rVal = val;
+            } else if (key == '2') {
+              yVal = val;
+            } else if (key == '3') {
+              bVal = val;
+            }
+          }
+        }
+      }
+
+      if (rVal != null || yVal != null || bVal != null) {
+        result.add([rVal, yVal, bVal]);
+      }
+    }
+
+    return result.isEmpty ? null : result;
+  }
+
+  /// Returns [Red, Yellow, Blue] phase values for the first pump in [raw].
+  List<String?>? parsePumpCtData(String? raw) {
+    final all = parseAllPumpCtData(raw);
+    if (all == null || all.isEmpty) return null;
+    return all.first;
+  }
+
+}

@@ -1,0 +1,277 @@
+name: 🛠 Android CI / Build & Release AAB
+#on:
+#  workflow_dispatch:
+on:
+  push:
+    branches: [ release ]
+    tags: [ 'v*.*.*' ]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build_and_release:
+    runs-on: ubuntu-latest
+    environment: ORO IntelliIrrigate Deployment
+    steps:
+      - name: 📂 Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: 🔍 Check secrets
+        run: |
+          echo "Keystore secret: ${{ secrets.KEYSTORE_BASE64 != '' && 'present' || 'missing' }}"
+          echo "Google Play JSON: ${{ secrets.GOOGLE_PLAY_JSON != '' && 'present' || 'missing' }}"
+          echo "Key alias: ${{ secrets.KEY_ALIAS }}"
+      - name: 🚀 Cache pub deps
+        uses: actions/cache@v3
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: ${{ runner.os }}-pub-
+      #      - name: ☕️ Setup Java (Temurin 17)
+      #        uses: actions/setup-java@v3
+      #        with:
+      #          distribution: temurin
+      #          java-version: '17'
+      - name: 🦋 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.35.7'
+      - name: 📥 Get dependencies
+        run: flutter pub get
+      - name: 🔑 Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n' | base64 -d > android/app/release-key.jks
+      - name: 🔍 Verify keystore
+        run: |
+          file android/app/release-key.jks
+          keytool -list -v -keystore android/app/release-key.jks -storepass ${{ secrets.KEYSTORE_PASSWORD }}
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_17_X64 }}
+      - name: 🔐 Create key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" > android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=release-key.jks" >> android/key.properties
+          echo "storeType=JKS" >> android/key.properties
+      - name: 🔢 Update version code and name
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # Extract version name from tag (e.g., v1.2.3 -> 1.2.3)
+          VERSION_NAME=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          # Dynamically calculate version code from commit count
+          VERSION_CODE=$(git rev-list --count HEAD)
+          # Update build.gradle
+          sed -i "s/versionCode .*/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i "s/versionName .*/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+      - name: 🏗️ Build AAB
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: flutter build appbundle --release --flavor oroProduction -t lib/main_oroProduction.dart
+      - name: 📦 Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
+            cp build/app/outputs/bundle/oroProductionRelease/app-oroProduction-release.aab artifacts/
+          fi
+      - name: 🏷️ Create or update Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: ncipollo/release-action@v1.16.0
+        with:
+          tag: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          artifacts: artifacts/*.aab
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: 📤 Upload to Play Store (Internal)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_JSON }}
+          packageName: com.niagaraautomations.oroDripirrigation
+          releaseFiles: artifacts/app-oroProduction-release.aab
+          track: internal
+          inAppUpdatePriority: 5
+          status: completed
+          changesNotSentForReview: false
+    #  build_and_deploy_web:
+    #    runs-on: ubuntu-latest
+    #    environment: ORO WEB
+    #    steps:
+    #      - name: 📂 Checkout code
+    #        uses: actions/checkout@v3
+    #
+    #      - name: 🦋 Setup Flutter
+    #        uses: subosito/flutter-action@v2
+    #        with:
+    #          channel: stable
+    #          flutter-version: '3.27.3'
+    #
+    #      - name: 📥 Get dependencies
+    #        run: flutter pub get
+    #
+    #      - name: Replace index.html
+    #        run: cp web/oro/index.html web/index.html
+    #
+    #      - name: 🏗️ Build Web
+    #        run: flutter build web --release --target=lib/main_oroProduction.dart --web-renderer canvaskit
+    #
+    #      - name: 🚀 Copy files to EC2 via SCP
+    #        uses: appleboy/scp-action@v0.1.7
+    #        with:
+    #          host: ${{ secrets.EC2_HOST }}
+    #          username: ${{ secrets.EC2_USER }}
+    #          key: ${{ secrets.EC2_SSH_KEY }}
+    #          port: ${{ secrets.EC2_PORT || 22 }}
+    #          source: "build/web/*"
+    #          target: "/home/ec2-user/ORO/ORO_NEW/flutter_web"
+#  build_and_release_ios:
+#    runs-on: macos-latest
+#    environment: ORO iOS Deployment
+#    steps:
+#      - name: 📂 Checkout code
+#        uses: actions/checkout@v3
+#        with:
+#          fetch-depth: 0
+#
+#      - name: 🦋 Setup Flutter
+#        uses: subosito/flutter-action@v2
+#        with:
+#          channel: stable
+#          flutter-version: '3.27.3'
+#
+#      - name: 📥 Get dependencies
+#        run: flutter pub get
+#
+#      - name: 🍏 Setup Xcode
+#        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+#
+#      - name: 🔐 Setup Code Signing (robust decode + validation + PEM→P12)
+#        env:
+#          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+#          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+#          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+#        run: |
+#          set -euo pipefail
+#          echo "Starting code signing setup..."
+#
+#          # Helper: portable base64 decode after stripping CRLF
+#          decode_base64_to_file() {
+#            local input="$1"
+#            local out="$2"
+#            # Remove CR/LF that often get introduced when copying secrets
+#            local cleaned
+#            cleaned=$(printf "%s" "$input" | tr -d '\r\n')
+#            # Try common base64 decoders in order
+#            if printf "%s" "$cleaned" | base64 --decode > "$out" 2>/dev/null; then
+#              return 0
+#            fi
+#            if printf "%s" "$cleaned" | base64 -D > "$out" 2>/dev/null; then
+#              return 0
+#            fi
+#            if printf "%s" "$cleaned" | base64 -d > "$out" 2>/dev/null; then
+#              return 0
+#            fi
+#            return 1
+#          }
+#
+#          echo "Decoding certificate secret to certificate.raw..."
+#          if ! decode_base64_to_file "$APPLE_CERTIFICATE" certificate.raw; then
+#            echo "Failed to decode APPLE_CERTIFICATE; ensure the secret is raw base64 of a .p12 or PEM file." >&2
+#            exit 1
+#          fi
+#
+#          # Detect whether we already have a PKCS#12 file or PEM text
+#          echo "Inspecting decoded certificate..."
+#          file certificate.raw || true
+#          head -n 5 certificate.raw | sed -n '1,5p' || true
+#
+#          # If certificate.raw looks like PEM (contains BEGIN), convert to .pem and try to export to p12
+#          if grep -q "-----BEGIN" certificate.raw 2>/dev/null || grep -q "BEGIN CERTIFICATE" certificate.raw 2>/dev/null; then
+#            echo "Detected PEM content in decoded certificate. Attempting to extract cert and private key and export a .p12..."
+#            # Extract certificate(s)
+#            awk 'BEGIN{in=0} /-----BEGIN CERTIFICATE-----/{in=1} in{print} /-----END CERTIFICATE-----/{print; in=0}' certificate.raw > certs.pem || true
+#            # Extract private key (RSA or EC or PRIVATE KEY)
+#            awk 'BEGIN{in=0} /-----BEGIN .*PRIVATE KEY-----/{in=1} printit=1} printit{print} /-----END .*PRIVATE KEY-----/{print; printit=0; in=0}' certificate.raw > key.pem || true
+#
+#            # If key.pem is empty, try alternate extraction
+#            if [ ! -s key.pem ]; then
+#              echo "No private key block found in PEM. The secret must include the private key when providing PEM. Aborting." >&2
+#              echo "You may have uploaded only the certificate (public) without the private key. For codesigning you need the private key as well or a .p12 that bundles them." >&2
+#              exit 1
+#            fi
+#
+#            # Create PKCS#12
+#            if openssl pkcs12 -export -out certificate.p12 -inkey key.pem -in certs.pem -passout pass:"$APPLE_CERTIFICATE_PASSWORD"; then
+#              echo "Successfully converted PEM to certificate.p12"
+#            else
+#              echo "openssl failed to export PKCS#12 from PEM. Aborting." >&2
+#              exit 1
+#            fi
+#          else
+#            # Assume certificate.raw is the binary p12; move to certificate.p12
+#            mv certificate.raw certificate.p12
+#          fi
+#
+#          echo "Validating certificate.p12 with openssl..."
+#          if openssl pkcs12 -info -in certificate.p12 -nokeys -passin pass:"$APPLE_CERTIFICATE_PASSWORD" > /dev/null 2>&1; then
+#            echo "certificate.p12 appears valid."
+#          else
+#            echo "openssl reports certificate.p12 is invalid or the password is incorrect." >&2
+#            echo "Diagnostics:" >&2
+#            echo " - file output:" >&2
+#            file certificate.p12 >&2 || true
+#            echo " - hexdump (first 128 bytes):" >&2
+#            hexdump -C certificate.p12 | head -n 16 >&2 || true
+#            echo "If you intended to provide a .p12, ensure the secret contains the binary .p12 base64-encoded (no extra text), and that APPLE_CERTIFICATE_PASSWORD is correct." >&2
+#            exit 1
+#          fi
+#
+#          # Create and configure a dedicated temporary keychain for the job
+#          KEYCHAIN_PASSWORD="github_actions"
+#          KEYCHAIN_NAME="build.keychain-db"
+#          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
+#
+#          echo "Creating keychain: $KEYCHAIN_PATH"
+#          # Create keychain (filename should end with -db in modern macOS)
+#          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+#          # Make the new keychain the default so codesign/xcodebuild will use it
+#          security list-keychains -s "$KEYCHAIN_PATH" $(security list-keychains | sed -e 's/^[[:space:]]*//g' | tr -d '"')
+#          security default-keychain -s "$KEYCHAIN_PATH"
+#          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+#          security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
+#
+#          echo "Importing certificate.p12 into keychain..."
+#          # Import and allow codesign & security to access the private key
+#          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+#
+#          echo "Adjusting key partition list to allow codesign/xcode to access the key..."
+#          # set-key-partition-list may fail on some macOS versions; warn but continue
+#          if ! security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"; then
+#            echo "Warning: set-key-partition-list failed (may be non-fatal on this macOS version). If xcode/build fails with 'codesign' permissions, revisit this." >&2
+#          fi
+#
+#          echo "Installing provisioning profile..."
+#          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+#          if ! decode_base64_to_file "$APPLE_PROVISIONING_PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision; then
+#            echo "Failed to decode APPLE_PROVISIONING_PROFILE; ensure the secret is base64 of the .mobileprovision file." >&2
+#            exit 1
+#          fi
+#
+#          echo "Code signing setup complete."
+#          echo "List installed provisioning profiles:"
+#          ls -l ~/Library/MobileDevice/Provisioning\ Profiles || true
+#
+#      - name: 🏗️ Build IPA
+#        run: flutter build ipa --release --flavor oroProduction -t lib/main_oroProduction.dart
+#
+#      - name: 🚀 Upload to App Store Connect
+#        uses: apple-actions/upload-testflight-build@v1
+#        with:
+#          app-path: build/ios/ipa/*.ipa
+#          issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+#          api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+#          api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}

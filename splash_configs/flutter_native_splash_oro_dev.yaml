@@ -1,0 +1,13 @@
+flutter_native_splash:
+  color: "#036673"
+  android: true
+  ios: true
+
+  image: assets/splash/oro_production.png
+
+  android_12:
+    image: assets/splash/transparent.png
+    color: "#036673"
+
+  ios_content_mode: scaleAspectFit
+  android_gravity: center

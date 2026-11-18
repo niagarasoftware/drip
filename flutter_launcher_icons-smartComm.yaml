@@ -1,0 +1,11 @@
+#flutter_launcher_icons:
+#    android: true
+#    ios: true
+#    image_path: "assets/ic_launcher.png"
+#    adaptive_icon_background: "#FFFFFF"
+#    adaptive_icon_foreground: "assets/smartcomm_playstore.png"
+
+flutter_launcher_icons:
+    android: true
+    ios: true
+    image_path: "assets/playstore.png"
