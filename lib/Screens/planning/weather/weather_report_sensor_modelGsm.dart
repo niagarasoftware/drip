@@ -8,6 +8,7 @@ class SensorHourReportGsm {
   final String maxValue;
   final String averageValue;
   final String? timeStamp;
+  final String? wetHours;
 
   SensorHourReportGsm({
     required this.hour,
@@ -19,20 +20,21 @@ class SensorHourReportGsm {
     required this.maxValue,
     required this.averageValue,
     this.timeStamp,
+    this.wetHours,
   });
 
   @override
-  String toString() {
-    return '$hour → value:$value min:$minValue max:$maxValue avg:$averageValue error:$errorCode timeStamp:$timeStamp';
-  }
+  String toString() =>
+      '$hour -> value:$value min:$minValue max:$maxValue '
+          'avg:$averageValue error:$errorCode wetHours:$wetHours timeStamp:$timeStamp';
 }
+
 SensorHourReportGsm? parseSensorHourData({
   required String raw,
   required String hour,
   required String deviceSrNo,
   required String targetSensor,
 }) {
-
   SensorHourReportGsm zeroReport() => SensorHourReportGsm(
     hour: hour,
     deviceSrNo: deviceSrNo,
@@ -42,67 +44,47 @@ SensorHourReportGsm? parseSensorHourData({
     minValue: 'NA',
     maxValue: 'NA',
     averageValue: 'NA',
-    timeStamp: null,
   );
-  if (raw == null || raw.trim().isEmpty) return zeroReport();
 
-  String? timeStamp;
-  if (raw.contains('@')) {
-    final parts = raw.split('@');
-    raw = parts[0].trim();
-    timeStamp = parts.length > 1 && parts[1].trim().isNotEmpty ? parts[1].trim() : null;
+  if (raw.trim().isEmpty) return zeroReport();
+  String? timestamp;
+  final at = raw.indexOf('@');
+  if (at >= 0) {
+    timestamp = raw.substring(at + 1).trim();
+    raw = raw.substring(0, at);
   }
-
-  // 1️⃣ Split devices
-  final deviceBlocks = raw.split(';');
-  print("deviceBlocks:$deviceBlocks");
-
-  for (final deviceBlock in deviceBlocks) {
-    if (deviceBlock == null || !deviceBlock.contains(':')) continue;
-
-    final deviceParts = deviceBlock.split(':');
-    if (deviceParts.length < 2) continue;
-    print("deviceParts:$deviceParts");
-
-
-    final sensorsRaw = deviceParts[1];
-    if (sensorsRaw == null) continue;
-    print("sensorsRaw:$sensorsRaw");
-    // 3️⃣ Split sensors
-    final sensorBlocks = sensorsRaw.split('_');
-    print("sensorBlocks:$sensorBlocks");
-    for (final sensorBlock in sensorBlocks) {
-      if (sensorBlock == null) continue;
-      final parts = sensorBlock.split(',');
-
-      if (parts.length < 5) continue;
-
-      final sensorSrNo = parts[0]?.trim() ?? "";
-
-      // 4️⃣ Match sensor
-      if (sensorSrNo != targetSensor) continue;
-
-      String v(int i) => (i < parts.length && parts[i] != null && parts[i].trim().isNotEmpty) ? parts[i].trim() : '0';
-      final averageValue =
-      parts.length > 5 && parts[5].trim().isNotEmpty
-          ? parts[5].trim()
-          : 'NA';
-
-      // 5️⃣ Create report
+  final wantedSensor = double.tryParse(targetSensor);
+  for (final deviceBlock in raw.split(';')) {
+    final colon = deviceBlock.indexOf(':');
+    if (colon < 0) continue;
+    final deviceId = deviceBlock.substring(0, colon).split(',').first.trim();
+    if (deviceId != deviceSrNo.trim()) continue;
+    for (final sensorBlock in deviceBlock.substring(colon + 1).split('_')) {
+      final fields = sensorBlock.split(',');
+      if (fields.length < 5) continue;
+      final sensorId = fields[0].trim();
+      final parsedId = double.tryParse(sensorId);
+      final matches = wantedSensor != null && parsedId != null
+          ? (wantedSensor * 1000).round() == (parsedId * 1000).round()
+          : sensorId == targetSensor.trim();
+      if (!matches) continue;
+      String field(int i) => i < fields.length && fields[i].trim().isNotEmpty
+          ? fields[i].trim() : 'NA';
+      final isLeaf = parsedId != null && (parsedId * 1000).round() == 37001;
       return SensorHourReportGsm(
         hour: hour,
-        deviceSrNo: deviceSrNo,
-        sensorSrNo: sensorSrNo,
-        value: v(1),
-        errorCode: v(2),
-        minValue: v(3),
-        maxValue: v(4),
-        averageValue: averageValue,
-        timeStamp: timeStamp,
+        deviceSrNo: deviceId,
+        sensorSrNo: sensorId,
+        value: field(1),
+        errorCode: field(2),
+        minValue: field(3),
+        maxValue: field(4),
+        averageValue: field(5),
+        wetHours: isLeaf && fields.length > 6 ? field(6) : null,
+        timeStamp: timestamp,
       );
     }
   }
-
   return zeroReport();
 }
 
@@ -111,65 +93,20 @@ List<SensorHourReportGsm> getSingleSensorReport({
   required String targetDevice,
   required String targetSensor,
 }) {
-  final List<SensorHourReportGsm> report = [];
-
-  if (apiResponse['data'] == null || apiResponse['data'].isEmpty) {
-    return report;
+  final result = <SensorHourReportGsm>[];
+  final days = apiResponse['data'];
+  if (days is! List) return result;
+  for (final day in days) {
+    if (day is! Map) continue;
+    for (var i = 0; i < 24; i++) {
+      final hour = '${i.toString().padLeft(2, '0')}:00';
+      result.add(parseSensorHourData(
+        raw: day[hour]?.toString() ?? '',
+        hour: hour,
+        deviceSrNo: targetDevice,
+        targetSensor: targetSensor,
+      )!);
+    }
   }
-
-  final Map<String, dynamic> dayData = apiResponse['data'][0];
-
-  dayData.forEach((key, value) {
-    // skip date & empty hours
-    if (key == 'date' || !key.contains(':')) return;
-    if (value == null || value.toString().trim().isEmpty) return;
-
-    final String hour = key;
-    final String rawHourVal = value.toString();
-
-    String? hourTimeStamp;
-    String cleanHourVal = rawHourVal;
-    if (rawHourVal.contains('@')) {
-      final parts = rawHourVal.split('@');
-      cleanHourVal = parts[0].trim();
-      hourTimeStamp = parts.length > 1 && parts[1].trim().isNotEmpty ? parts[1].trim() : null;
-    }
-
-    // 1️⃣ ; → device blocks
-    final deviceBlocks = cleanHourVal.split(';');
-
-    for (final block in deviceBlocks) {
-      print("block:$block");
-      if (!block.contains(':')) continue;
-
-      // 2️⃣ match device
-      final deviceSplit = block.split(':');
-      print("deviceSplit:$deviceSplit");
-
-      if (deviceSplit.length != 2) continue;
-
-      final deviceId = deviceSplit[0].trim();
-      if (deviceId != targetDevice) continue;
-
-      // 3️⃣ _ → sensor blocks
-      final sensors = deviceSplit[1].split('_');
-      print("sensors:$sensors");
-
-      for (final sensorRaw in sensors) {
-        // 4️⃣ , → values (inside parseSensorRecord)
-        final parsed = parseSensorHourData(
-          raw: "$sensorRaw${hourTimeStamp != null ? '@$hourTimeStamp' : ''}",
-          hour: hour,
-          deviceSrNo: deviceId,
-          targetSensor: targetSensor,
-        );
-
-        if (parsed != null) {
-          report.add(parsed);
-        }
-      }
-    }
-  });
-
-  return report;
+  return result;
 }
