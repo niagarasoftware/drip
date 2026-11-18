@@ -174,6 +174,12 @@
 @import webview_flutter_wkwebview;
 #endif
 
+#if __has_include(<wifi_iot/WifiIotPlugin.h>)
+#import <wifi_iot/WifiIotPlugin.h>
+#else
+@import wifi_iot;
+#endif
+
 @implementation GeneratedPluginRegistrant
 
 + (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
@@ -205,6 +211,7 @@
   [URLLauncherPlugin registerWithRegistrar:[registry registrarForPlugin:@"URLLauncherPlugin"]];
   [VibrationPlugin registerWithRegistrar:[registry registrarForPlugin:@"VibrationPlugin"]];
   [WebViewFlutterPlugin registerWithRegistrar:[registry registrarForPlugin:@"WebViewFlutterPlugin"]];
+  [WifiIotPlugin registerWithRegistrar:[registry registrarForPlugin:@"WifiIotPlugin"]];
 }
 
 @end

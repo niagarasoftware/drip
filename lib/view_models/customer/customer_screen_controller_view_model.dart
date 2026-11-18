@@ -11,6 +11,7 @@ import '../../StateManagement/mqtt_payload_provider.dart';
 import '../../repository/repository.dart';
 import '../../services/bluetooth/bluetooth_ble_service.dart';
 import '../../services/bluetooth/bluetooth_classic_service.dart';
+import '../../services/bluetooth/hotspot_websocket_service.dart';
 import '../../services/communication_service.dart';
 import '../../services/mqtt_service.dart';
 import '../../utils/constants.dart';
@@ -23,6 +24,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
 
   final BluetoothClassicService bluetoothClassicService = BluetoothClassicService();
   final BluetoothBleService bluetoothBleService = BluetoothBleService();
+  final HotspotWebSocketService hotspotService = HotspotWebSocketService();
 
   late MqttPayloadProvider mqttProvider;
   StreamSubscription<MqttConnectionState>? mqttSubscription;
@@ -72,6 +74,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     NetworkUtils.connectionStream.listen((connected) {
       if (_disposed) return;
       if (connected) {
+        if (hotspotService.isConnected) return; // hotspot mode: MQTT is not usable
         if (mqttService.isConnected) return;
         if (mqttInitialized) {
           restartMqttSession();
@@ -110,6 +113,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     if (!kIsWeb) {
       bluetoothClassicService.initializeClassicService(state: mqttProvider);
       bluetoothBleService.initializeBleService(state: mqttProvider);
+      hotspotService.initializeHotspotService(state: mqttProvider);
     }
 
     mqttSubscription?.cancel();
@@ -478,7 +482,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
   // ---------------------- REFRESH & COMMANDS ------------------------
 
   Future<void> onRefreshClicked() async {
-    if (!mqttService.isConnected) {
+    if (!mqttService.isConnected && !hotspotService.isConnected) {
       debugPrint("MQTT not connected — attempting to connect and abort refresh to avoid publish while connecting.");
       _initializeMqttConnection();
       return;
@@ -510,7 +514,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
   }
 
   Future<void> onFertilizerLiveSync() async {
-    if (!mqttService.isConnected) {
+    if (!mqttService.isConnected && !hotspotService.isConnected) {
       debugPrint("MQTT not connected — attempting to connect and abort refresh to avoid publish while connecting.");
       _initializeMqttConnection();
       return;
@@ -621,6 +625,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     mqttProvider.removeListener(_onPayloadReceived);
     mqttSubscription?.cancel();
     mqttService.disConnect();
+    if (!kIsWeb) hotspotService.disconnect();
     super.dispose();
   }
 }
