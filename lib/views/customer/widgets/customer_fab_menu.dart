@@ -19,6 +19,7 @@ import '../../../modules/bluetooth_low_energy/view/node_connection_page.dart';
 import '../../../services/bluetooth/bluetooth_ble_service.dart';
 import '../../../services/communication_service.dart';
 import '../../../utils/constants.dart';
+import '../../../utils/enums.dart';
 import '../../../view_models/customer/customer_screen_controller_view_model.dart';
 import '../input_output_connection_details.dart';
 import '../node_list/node_list.dart';
@@ -26,6 +27,7 @@ import '../send_and_received/sent_and_received.dart';
 import '../stand_alone/stand_alone_narrow.dart';
 import 'ble_scan_tile.dart';
 import 'bluetooth_scan_tile.dart';
+import 'hotspot_connect_tile.dart';
 
 class CustomerFabMenu extends StatelessWidget {
   final dynamic currentMaster;
@@ -100,7 +102,49 @@ class CustomerFabMenu extends StatelessWidget {
 
         if(!kIsWeb)...[
           if(Platform.isAndroid)...[
-            FloatingActionButton(
+            ValueListenableBuilder<BlueConnectionState>(
+              valueListenable: vm.hotspotService.connectionState,
+              builder: (context, _, __) {
+                final linked = vm.bluetoothClassicService.isConnected ||
+                    vm.bluetoothBleService.isConnected ||
+                    vm.hotspotService.isConnected;
+
+                return FloatingActionButton(
+                  heroTag: null,
+                  backgroundColor: (commMode == 2 && !linked) ? Colors.redAccent : null,
+                  onPressed: () => _showBottomSheet(context, currentMaster, vm,
+                      vm.mySiteList.data[vm.sIndex].customerId, loggedInUser.id),
+                  tooltip: 'Connectivity',
+                  child: commMode == 1
+                      ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        vm.wifiStrength == 0 ? Icons.wifi_off :
+                        vm.wifiStrength <= 20 ? Icons.network_wifi_1_bar_outlined :
+                        vm.wifiStrength <= 40 ? Icons.network_wifi_2_bar_outlined :
+                        vm.wifiStrength <= 80 ? Icons.network_wifi_3_bar_outlined :
+                        Icons.wifi,
+                        color: Colors.black,
+                      ),
+                      Text(
+                        '${vm.wifiStrength} %',
+                        style: const TextStyle(fontSize: 11.0, color: Colors.black54),
+                      ),
+                    ],
+                  )
+                      : Icon(
+                    vm.hotspotService.isConnected
+                        ? Icons.wifi_tethering
+                        : (commMode == 2 && linked)
+                        ? Icons.bluetooth
+                        : Icons.bluetooth_disabled,
+                    color: Colors.black,
+                  ),
+                );
+              },
+            ),
+            /*FloatingActionButton(
               heroTag: null,
               backgroundColor: (commMode == 2 &&
                   !(vm.bluetoothClassicService.isConnected ||
@@ -136,7 +180,7 @@ class CustomerFabMenu extends StatelessWidget {
                     : Icons.bluetooth_disabled,
                 color: Colors.black,
               ),
-            ),
+            ),*/
           ],
         ],
 
@@ -273,6 +317,7 @@ class CustomerFabMenu extends StatelessWidget {
     // time the sheet has closed.
     final mqttProvider = context.read<MqttPayloadProvider>();
     final customerProvider = context.read<CustomerProvider>();
+    var useHotspot = false;
 
     showModalBottomSheet(
       context: context,
@@ -322,7 +367,35 @@ class CustomerFabMenu extends StatelessWidget {
                   ),
                   if (commMode == 2) ...[
                     const Divider(),
-                    if(currentMaster.modelId==3)...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Connect via controller hotspot'),
+                      subtitle: const Text(
+                        'Wi-Fi / WebSocket instead of Bluetooth',
+                        style: TextStyle(fontSize: 12, color: Colors.black45),
+                      ),
+                      value: useHotspot,
+                      onChanged: (v) async {
+                        if (v) {
+                          // free the Bluetooth radio before switching
+                          await vm.bluetoothClassicService.hardStop();
+                          await vm.bluetoothBleService.disconnectAll();
+                          mqttProvider.updateClassicPairedDevices([]);
+                          mqttProvider.updateBlePairedDevices([]);
+                        } else {
+                          await vm.hotspotService.disconnect();
+                        }
+                        setModalState(() => useHotspot = v);
+                      },
+                    ),
+
+                    if (useHotspot)...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: HotspotConnectTile(vm: vm),
+                      )
+                    ]
+                    else  if(currentMaster.modelId==3)...[
                       ListTile(
                         title: const Text('Scan & Connect the controller via Bluetooth',
                             style: TextStyle(fontWeight: FontWeight.bold)),
@@ -584,7 +657,7 @@ class CustomerFabMenu extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 3),
                       ) : Switch(
                         value: wifiStatus == '1' || wifiStatus == '2',
-                        activeColor: Colors.blue,
+                        activeThumbColor: Colors.blue,
                         onChanged: (bool value) async {
                           provider.updateWifiStatus('0', true);
                           final communicationService = context.read<CommunicationService>();
@@ -795,6 +868,7 @@ class CustomerFabMenu extends StatelessWidget {
     // 2. Stop scans, connects and connections.
     await classicService.hardStop();
     await bleService.disconnectAll();
+    await vm.hotspotService.disconnect();
 
     // 3. Clear the device lists so the next sheet starts clean.
     mqttProvider.updateClassicPairedDevices([]);

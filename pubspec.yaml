@@ -94,6 +94,8 @@ dependencies:
   pdfrx: ^2.4.5
   web: ^1.0.0
   file_saver: ^0.4.0
+  web_socket_channel: ^3.0.3
+  wifi_iot: ^0.3.19+3
 #  audioplayers: ^6.5.0
 #  record: ^6.0.0
 
