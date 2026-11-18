@@ -81,7 +81,7 @@
         <!-- Google Maps: paste your restricted key here (do not commit it publicly) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY" />
+            android:value="AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw" />
 
         <!-- Azure Notification Hub -->
         <meta-data
