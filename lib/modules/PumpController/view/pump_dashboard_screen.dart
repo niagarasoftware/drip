@@ -581,7 +581,28 @@ class _PumpDashboardScreenState extends State<PumpDashboardScreen> with TickerPr
         && [30, 11].contains(pumpItem.reasonCode);
 
     const excludedReasons = [0, 30, 31, 32, 40, 100];
-    final allowedResetModelIds = [48, 49, 52, 53, 54, 55];
+    final allowedResetModelIds = [
+      // Existing supported models
+      48, 49, 52, 53, 54, 55,
+
+      // Single Phase Pump
+      66, 67, 68,
+
+      // Single Phase Pump Plus
+      69, 70, 71,
+
+      // Single Phase Shine
+      96, 97, 98, 99,
+
+      // Single Phase Elite Plus
+      100, 101,
+
+      // Single Phase Nova
+      102, 103, 104, 105,
+
+      // Single Phase Nova Plus
+      106, 107, 108, 109,
+    ];
     final showResetButton = !excludedReasons.contains(pumpItem.reasonCode) &&
         allowedResetModelIds.contains(widget.masterData.modelId);
 
