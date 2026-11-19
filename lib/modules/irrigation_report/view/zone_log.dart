@@ -61,6 +61,14 @@ class ZoneLogEntry {
   String get endReason => '-';
 }
 
+String _formatQuantity(num val, {bool withUnit = true}) {
+  if (val <= 0) return '-';
+  num rounded = num.parse(val.toStringAsFixed(2));
+  String numStr =
+      (rounded % 1 == 0) ? "${rounded.toInt()}" : rounded.toStringAsFixed(2);
+  return withUnit ? "$numStr L" : numStr;
+}
+
 class SequenceRunEntry {
   final String actualStartTime;
   final String actualEndTime;
@@ -80,11 +88,7 @@ class SequenceRunEntry {
       ? SequenceDayData._formatSecondsToHMS(durationCompletedSeconds)
       : '-';
 
-  String get quantityCompletedStr => quantityCompleted > 0
-      ? (quantityCompleted % 1 == 0
-          ? "${quantityCompleted.toInt()} L"
-          : "$quantityCompleted L")
-      : '-';
+  String get quantityCompletedStr => _formatQuantity(quantityCompleted);
 }
 
 class SequenceDayData {
@@ -115,9 +119,7 @@ class SequenceDayData {
       ? _formatSecondsToHMS(durationQtySeconds)
       : '00:00:00';
   String get qtyCompletedStr => quantityCompleted > 0
-      ? (quantityCompleted % 1 == 0
-          ? quantityCompleted.toInt().toString()
-          : quantityCompleted.toString())
+      ? _formatQuantity(quantityCompleted, withUnit: false)
       : '0';
 
   static String _formatSecondsToHMS(int totalSeconds) {
@@ -179,9 +181,7 @@ class CumulativeRunEntry {
       ? SequenceDayData._formatSecondsToHMS(durationSeconds)
       : '-';
 
-  String get qtyStr => quantity > 0
-      ? (quantity % 1 == 0 ? "${quantity.toInt()} L" : "$quantity L")
-      : '-';
+  String get qtyStr => _formatQuantity(quantity);
 }
 
 class CumulativeDayData {
@@ -211,9 +211,7 @@ class CumulativeDayData {
   String get durationStr => durationSeconds > 0
       ? SequenceDayData._formatSecondsToHMS(durationSeconds)
       : '00:00:00';
-  String get qtyStr => quantity > 0
-      ? (quantity % 1 == 0 ? "${quantity.toInt()} L" : "$quantity L")
-      : '-';
+  String get qtyStr => _formatQuantity(quantity);
 }
 
 class CumulativeRowData {
@@ -820,7 +818,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         List sequenceDatas = irrigation['SequenceData'] ?? [];
         List headUnits = irrigation['HeadUnit'] ?? [];
         List pumps = irrigation['Pump'] ?? [];
-        List durationQtys = irrigation['IrrigationDuration_Quantity'] ?? [];
+        List durationQtys = irrigation['IrrigationQuantityCompleted'] ?? [];
         List durationCompleteds =
             irrigation['IrrigationDurationCompleted'] ?? [];
         List qtyCompleteds = irrigation['IrrigationQuantityCompleted'] ?? [];
@@ -1037,9 +1035,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 dayData.plannedDurationSeconds);
           } else if (planQtyNum > 0) {
             dayData.plannedQuantityNum += planQtyNum;
-            dayData.plannedDurationQty = (dayData.plannedQuantityNum % 1 == 0
-                ? "${dayData.plannedQuantityNum.toInt()} L"
-                : "${dayData.plannedQuantityNum} L");
+            dayData.plannedDurationQty =
+                _formatQuantity(dayData.plannedQuantityNum);
           } else if (durationQtyStr.isNotEmpty && durationQtyStr != '-') {
             if (dayData.plannedDurationQty == '-' ||
                 dayData.plannedDurationQty.isEmpty) {
@@ -1082,9 +1079,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               pump: pumpStr,
               durationQty: durationQtyStr,
               qtyCompleted: completedQtyVal > 0
-                  ? (completedQtyVal % 1 == 0
-                      ? completedQtyVal.toInt().toString()
-                      : completedQtyVal.toString())
+                  ? _formatQuantity(completedQtyVal, withUnit: false)
                   : qtyCompletedStr,
               durationCompleted: durationCompletedStr,
               durationSeconds: completedDurSec,
@@ -1982,17 +1977,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
       if (planQtyNum > 0) {
         dayData.plannedQuantityNum += planQtyNum;
-        dayData.plannedQuantity = (dayData.plannedQuantityNum % 1 == 0
-            ? "${dayData.plannedQuantityNum.toInt()} L"
-            : "${dayData.plannedQuantityNum} L");
+        dayData.plannedQuantity = _formatQuantity(dayData.plannedQuantityNum);
       } else if (qPlan.isNotEmpty &&
           qPlan != '-' &&
           qPlan != 'null' &&
           qPlan != '0') {
         String formattedQ = (double.tryParse(qPlan) != null)
-            ? ((double.parse(qPlan) % 1 == 0)
-                ? "${double.parse(qPlan).toInt()} L"
-                : "${double.parse(qPlan)} L")
+            ? _formatQuantity(double.parse(qPlan))
             : "$qPlan L";
         if (dayData.plannedQuantity == '-' || dayData.plannedQuantity.isEmpty) {
           dayData.plannedQuantity = formattedQ;
@@ -3668,7 +3659,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -3928,11 +3919,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               return Container(
                 width: colDateWidth,
@@ -3966,7 +3953,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -4111,11 +4098,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
     bool hasData = row.totalDurationSeconds > 0 || row.totalQuantity > 0;
-    String qtyStr = row.totalQuantity > 0
-        ? (row.totalQuantity % 1 == 0
-            ? "${row.totalQuantity.toInt()} L"
-            : "${row.totalQuantity} L")
-        : '-';
+    String qtyStr =
+        row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : '-';
     String formattedText = hasData
         ? "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr"
         : "- /\n-";
@@ -4186,11 +4170,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               final double screenWidth = MediaQuery.of(context).size.width;
               final double fontSize =
@@ -4472,11 +4452,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
     );
 
-    String qtyStr = row.totalQuantity > 0
-        ? (row.totalQuantity % 1 == 0
-            ? "${row.totalQuantity.toInt()} L"
-            : "${row.totalQuantity} L")
-        : "-";
+    String qtyStr =
+        row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : "-";
 
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -5077,7 +5054,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -5366,11 +5343,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               return Container(
                 width: colDurQtyWidth,
@@ -5425,7 +5398,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -5641,11 +5614,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
     }
 
-    String qtyTotalStr = rowTotalQuantity > 0
-        ? (rowTotalQuantity % 1 == 0
-            ? "${rowTotalQuantity.toInt()} L"
-            : "$rowTotalQuantity L")
-        : '-';
+    String qtyTotalStr =
+        rowTotalQuantity > 0 ? _formatQuantity(rowTotalQuantity) : '-';
 
     String formattedText;
     bool hasRunAnyDay = rowTotalSeconds > 0 || rowTotalQuantity > 0;
@@ -5746,9 +5716,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (dayData != null && dayData.hasRun) {
       String dur = dayData.durationQtyStr;
       String qty = dayData.quantityCompleted > 0
-          ? (dayData.quantityCompleted % 1 == 0
-              ? "${dayData.quantityCompleted.toInt()} L"
-              : "${dayData.quantityCompleted} L")
+          ? _formatQuantity(dayData.quantityCompleted)
           : '-';
       cellText = "$dur /\n$qty";
       isBold = dur != '00:00:00' || qty != '-';
@@ -5959,11 +5927,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               final double screenWidth = MediaQuery.of(context).size.width;
               final double fontSize =
@@ -6200,9 +6164,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       child: _buildSummaryCard(
                         title: "Total Quantity",
                         value: grandTotalQuantity > 0
-                            ? (grandTotalQuantity % 1 == 0
-                                ? "${grandTotalQuantity.toInt()} L"
-                                : "$grandTotalQuantity L")
+                            ? _formatQuantity(grandTotalQuantity)
                             : "-",
                         icon: Icons.water_drop_outlined,
                         color: const Color(0xFF16A34A),
@@ -6253,9 +6215,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   child: _buildSummaryCard(
                     title: "Total Quantity",
                     value: grandTotalQuantity > 0
-                        ? (grandTotalQuantity % 1 == 0
-                            ? "${grandTotalQuantity.toInt()} L"
-                            : "$grandTotalQuantity L")
+                        ? _formatQuantity(grandTotalQuantity)
                         : "-",
                     icon: Icons.water_drop_outlined,
                     color: const Color(0xFF16A34A),
@@ -6503,18 +6463,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                     ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        "Qty",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F766E),
-                        ),
-                      ),
-                    ),
+                    // Expanded(
+                    //   flex: 3,
+                    //   child: Text(
+                    //     "Duration / Qty",
+                    //     textAlign: TextAlign.center,
+                    //     style: TextStyle(
+                    //       fontSize: 11,
+                    //       fontWeight: FontWeight.bold,
+                    //       color: Color(0xFF0F766E),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -6598,22 +6558,22 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             ),
                           ),
                         ),
-                        Expanded(
-                          flex: 3,
-                          child: Text(
-                            setDurQtyStr,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: setDurQtyStr != '-'
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: setDurQtyStr != '-'
-                                  ? const Color(0xFF0F766E)
-                                  : const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ),
+                        // Expanded(
+                        //   flex: 3,
+                        //   child: Text(
+                        //     setDurQtyStr,
+                        //     textAlign: TextAlign.center,
+                        //     style: TextStyle(
+                        //       fontSize: 11,
+                        //       fontWeight: setDurQtyStr != '-'
+                        //           ? FontWeight.w600
+                        //           : FontWeight.normal,
+                        //       color: setDurQtyStr != '-'
+                        //           ? const Color(0xFF0F766E)
+                        //           : const Color(0xFF94A3B8),
+                        //     ),
+                        //   ),
+                        // ),
                       ],
                     ),
                   );
@@ -6921,9 +6881,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     icon: Icons.water_drop_outlined,
                                     label: "Total Quantity",
                                     value: row.totalQuantity > 0
-                                        ? (row.totalQuantity % 1 == 0
-                                            ? "${row.totalQuantity.toInt()} L"
-                                            : "${row.totalQuantity} L")
+                                        ? _formatQuantity(row.totalQuantity)
                                         : "-",
                                     color: const Color(0xFF166534),
                                     bgColor: const Color(0xFFF0FDF4),
@@ -7131,9 +7089,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                     icon: Icons.water_drop_outlined,
                                     label: "Total Quantity",
                                     value: row.totalQuantity > 0
-                                        ? (row.totalQuantity % 1 == 0
-                                            ? "${row.totalQuantity.toInt()} L"
-                                            : "${row.totalQuantity} L")
+                                        ? _formatQuantity(row.totalQuantity)
                                         : "-",
                                     color: const Color(0xFF166534),
                                     bgColor: const Color(0xFFF0FDF4),
@@ -7669,7 +7625,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                             Text(
                                               isDuration
                                                   ? "Duration: ${p.durationFormatted}"
-                                                  : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
+                                                  : "Quantity: ${p.quantity > 0 ? _formatQuantity(p.quantity) : '-'}",
                                               style: TextStyle(
                                                 color: isDuration
                                                     ? const Color(0xFF2DD4BF)
@@ -7828,11 +7784,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
-            row.totalQuantity > 0
-                ? (row.totalQuantity % 1 == 0
-                    ? "${row.totalQuantity.toInt()} L"
-                    : "${row.totalQuantity} L")
-                : "-",
+            row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : "-",
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
