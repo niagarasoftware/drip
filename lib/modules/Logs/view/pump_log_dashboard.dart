@@ -509,8 +509,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     bool success = false;
     if (format == 'pdf') {
       success = await generatePumpLogPDF(exportData, fileName);
-    } else if (format == 'csv') {
-      success = await generatePumpLogCSV(exportData, fileName);
     } else {
       success = await generatePumpLogExcel(exportData, fileName);
     }
