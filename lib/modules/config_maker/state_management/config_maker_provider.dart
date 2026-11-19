@@ -528,7 +528,8 @@ class ConfigMakerProvider extends ChangeNotifier{
               objName = object.objectName;
             }
             int increment = start+1;
-            String stringDecimalNo = '${object.objectId}.${increment < 100 ? '0' : ''}${increment < 10 ? '0' : ''}${start+1}';
+            String stringDecimalNo = '${object.objectId}.${increment.toString().padLeft(3, '0')}';
+            print(double.parse(stringDecimalNo));
             DeviceObjectModel deviceObjectModel = DeviceObjectModel(
               objectId: object.objectId,
               objectName: object.objectName,

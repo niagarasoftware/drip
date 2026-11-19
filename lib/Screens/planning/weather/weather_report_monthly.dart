@@ -14,7 +14,6 @@ if (dart.library.html) 'package:oro_drip_irrigation/Screens/planning/weather/wid
 
 import '../../../repository/repository.dart';
 import '../../../services/http_service.dart';
-import 'helper/totalwethour.dart';
 
 enum ReportType {
   today,
@@ -107,6 +106,24 @@ class _SensorHourlyReportPageState
   }
 
   String _wetDuration(String? raw) => formatWetHours(raw);
+
+  // Daily readings are cumulative. Add only increases; after a reset,
+  // start accumulating from the new reading rather than summing snapshots.
+  int? _periodWetTotalMinutes(List<SensorDailyReport> reports) {
+    final sorted = List<SensorDailyReport>.from(reports)
+      ..sort((a, b) => a.date.compareTo(b.date));
+    int? previous;
+    int total = 0;
+    for (final day in sorted) {
+      final current = _wetMinutes(day.wetHours);
+      if (current == null) continue;
+      total += previous == null || current < previous
+          ? current
+          : current - previous;
+      previous = current;
+    }
+    return previous == null ? null : total;
+  }
 
   // Convert cumulative wet duration into per-hour increments.
   // The first available reading is used as the baseline; a counter reset
@@ -1986,8 +2003,9 @@ class _SensorHourlyReportPageState
         : <String, int>{};
     final latestWetReport = hourlyReport.where((item) => _wetMinutes(item.wetHours) != null).toList()
       ..sort((a, b) => a.hour.compareTo(b.hour));
-    final String todayWetDuration = latestWetReport.isEmpty
-        ? 'NA' : _wetDuration(latestWetReport.last.wetHours);
+    final String todayWetDuration = wetByHour.isEmpty
+        ? 'NA'
+        : _formatWetMinutes(wetByHour.values.fold<int>(0, (a, b) => a + b));
 
     return Column(
       children: [
@@ -2006,7 +2024,7 @@ class _SensorHourlyReportPageState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Leaf Wetness Duration',
+                      'Leaf Wetness Duration Total',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF004D40),
@@ -2050,7 +2068,7 @@ class _SensorHourlyReportPageState
                     size: ColumnSize.L,
                   ),
                   DataColumn2(
-                    label: _TableHeader('Leaf Wetness'),
+                    label: _TableHeader('Wet Duration (HH:mm)'),
                   ),
                 ]
                     : const [
@@ -2160,11 +2178,8 @@ class _SensorHourlyReportPageState
 
     final latestWetDays = dailyReport.where((item) => _wetMinutes(item.wetHours) != null).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
-
-
-    final periodWetDuration = calculateTotalWetDuration(
-      dailyReport.map((day) => day.wetHours ?? 'NA').toList(),
-    );
+    final String periodWetDuration =
+    _formatWetMinutes(_periodWetTotalMinutes(dailyReport));
 
     return Column(
       children: [
@@ -2183,7 +2198,7 @@ class _SensorHourlyReportPageState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Total Leaf Wetness Duration',
+                      'Leaf Wetness Duration Total',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF004D40),
@@ -2227,7 +2242,7 @@ class _SensorHourlyReportPageState
                     size: ColumnSize.L,
                   ),
                   DataColumn2(
-                    label: _TableHeader('Leaf Wetness'),
+                    label: _TableHeader('Wet Duration (HH:mm)'),
                   ),
                 ]
                     : const [
@@ -2464,3 +2479,4 @@ class _TableHeader
     );
   }
 }
+
