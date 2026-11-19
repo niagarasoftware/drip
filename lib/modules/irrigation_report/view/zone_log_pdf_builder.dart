@@ -252,6 +252,15 @@ Uint8List generateZoneLogMatrixPdfBytes({
     return "${h}h ${m}m";
   }
 
+  String formatQtyVal(num val) {
+    if (val <= 0) return '-';
+    num rounded = num.parse(val.toStringAsFixed(2));
+    String numStr = (rounded % 1 == 0)
+        ? "${rounded.toInt()}"
+        : rounded.toStringAsFixed(2);
+    return "$numStr L";
+  }
+
   List<String> extractStartEndPairs(dynamic dayData) {
     if (dayData == null) return [];
     List<String> pairs = [];
@@ -492,9 +501,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
           String durStr = (dayData.durationQtyStr != null && dayData.durationQtyStr.toString().isNotEmpty)
               ? dayData.durationQtyStr.toString()
               : formatDurWithSecs(sec);
-          String qtyStr = qtyVal > 0
-              ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
-              : '-';
+          String qtyStr = qtyVal > 0 ? formatQtyVal(qtyVal) : '-';
           durQtyLines = ["$durStr /", qtyStr];
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
@@ -507,9 +514,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
       }
 
       String rDur = rowTotalSec > 0 ? formatDurWithSecs(rowTotalSec) : '-';
-      String rQty = rowTotalQty > 0
-          ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
-          : '-';
+      String rQty = rowTotalQty > 0 ? formatQtyVal(rowTotalQty) : '-';
       List<String> totLines = ["$rDur /", rQty];
 
       int maxRowLines = cell0Lines.length;
@@ -606,9 +611,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
         int daySec = dailyTotals[dKey] ?? 0;
         num dayQty = dailyTotalQuantities?[dKey] ?? 0;
         String dayDur = formatDurWithSecs(daySec);
-        String dayQtyStr = dayQty > 0
-            ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
-            : '-';
+        String dayQtyStr = dayQty > 0 ? formatQtyVal(dayQty) : '-';
 
         double durX = startX + col0Width + (d * dateBlockWidth) + 3;
         double timeX = startX + col0Width + (d * dateBlockWidth) + colDurQtyWidth + 3;
@@ -627,11 +630,7 @@ Uint8List generateZoneLogMatrixPdfBytes({
       }
 
       String gDur = formatDurWithSecs(grandTotalSeconds);
-      String gQty = grandTotalQuantity > 0
-          ? (grandTotalQuantity % 1 == 0
-              ? "${grandTotalQuantity.toInt()} L"
-              : "$grandTotalQuantity L")
-          : '-';
+      String gQty = grandTotalQuantity > 0 ? formatQtyVal(grandTotalQuantity) : '-';
       double totX = startX + col0Width + (numDates * dateBlockWidth) + 3;
       streamBuf.write("0.08 0.50 0.24 rg\n");
       streamBuf.write("BT /F1 6.5 Tf $totX ${footTop - 8.0} Td (${sanitizePdfText("$gDur /")}) Tj ET\n");

@@ -195,9 +195,7 @@ Future<String?> exportZoneLogMatrixToExcel({
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? 0);
           num qtyVal = (dayData.quantityCompleted as num? ?? dayData.quantity as num? ?? 0);
-          String qtyStr = qtyVal > 0
-              ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
-              : '-';
+          String qtyStr = qtyVal > 0 ? _formatQuantityHelper(qtyVal) : '-';
           dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
@@ -206,9 +204,7 @@ Future<String?> exportZoneLogMatrixToExcel({
         }
       }
       String totalDur = _formatDurationHelper(rowTotalSec);
-      String totalQty = rowTotalQty > 0
-          ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
-          : '-';
+      String totalQty = rowTotalQty > 0 ? _formatQuantityHelper(rowTotalQty) : '-';
       dataRow.add(TextCellValue("$totalDur / $totalQty"));
       sheet.appendRow(dataRow);
     }
@@ -219,17 +215,11 @@ Future<String?> exportZoneLogMatrixToExcel({
       int daySec = dailyTotals[dKey] ?? 0;
       num dayQty = dailyTotalQuantities?[dKey] ?? 0;
       String dayDur = _formatDurationHelper(daySec);
-      String dayQtyStr = dayQty > 0
-          ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
-          : '-';
+      String dayQtyStr = dayQty > 0 ? _formatQuantityHelper(dayQty) : '-';
       footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
     }
     String gDur = _formatDurationHelper(grandTotalSeconds);
-    String gQty = grandTotalQuantity > 0
-        ? (grandTotalQuantity % 1 == 0
-            ? "${grandTotalQuantity.toInt()} L"
-            : "$grandTotalQuantity L")
-        : '-';
+    String gQty = grandTotalQuantity > 0 ? _formatQuantityHelper(grandTotalQuantity) : '-';
     footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 
@@ -331,6 +321,15 @@ String _formatDurationHelper(int totalSeconds) {
     return "${hours}h ${minutes}m ${seconds}s";
   }
   return "${hours}h ${minutes}m";
+}
+
+String _formatQuantityHelper(num val) {
+  if (val <= 0) return '-';
+  num rounded = num.parse(val.toStringAsFixed(2));
+  String numStr = (rounded % 1 == 0)
+      ? "${rounded.toInt()}"
+      : rounded.toStringAsFixed(2);
+  return "$numStr L";
 }
 
 String _formatSecondsToHMS(int totalSecs) {
