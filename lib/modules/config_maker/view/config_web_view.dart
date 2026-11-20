@@ -215,7 +215,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         "308": normalCriticalPayload,
         "309": pumpPayload,
         "310": filterPayload,
-         if (isGem&!isAQua) "311": commonAlarmPayload,
+         // if (isGem&!isAQua) "311": commonAlarmPayload,
       }
     };
     return hardwarePayload;
