@@ -32,8 +32,8 @@ class PumpWidget extends StatelessWidget {
   final ValueNotifier<int> popoverUpdateNotifier = ValueNotifier<int>(0);
 
   static const excludedReasons = [
-    '3', '4', '5', '6', '21', '22', '23', '24',
-    '25', '26', '27', '28', '29', '30', '31'
+    '3', '4', '5', '6', /*'21', */'22', '23', '24',
+    '25', '26', '27', '28', /*'29',*/ '30', '31'
   ];
 
   @override
