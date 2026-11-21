@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
 import 'package:oro_drip_irrigation/Constants/constants.dart';
+import 'package:oro_drip_irrigation/Widgets/custom_buttons.dart';
 import 'package:oro_drip_irrigation/models/customer/site_model.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
@@ -67,6 +69,9 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
   late DateTime _selectedDate;
   late DateTime _weekStartDate;
+
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
   int _selectedPumpIndex = 0;
   int _activeNodeControllerId = 0;
@@ -320,13 +325,18 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     DateTime fromDate = _selectedDate;
     DateTime toDate = _selectedDate;
     if (_powerPeriodIndex == 1) {
-      // Weekly: 7 days going backward from _selectedDate (e.g. Nov 11 to Nov 17)
+      // Weekly: 7 days going backward from _selectedDate
       fromDate = _selectedDate.subtract(const Duration(days: 6));
       toDate = _selectedDate;
     } else if (_powerPeriodIndex == 2) {
-      // Monthly: 30 days going backward from _selectedDate
-      fromDate = _selectedDate.subtract(const Duration(days: 29));
-      toDate = _selectedDate;
+      // Monthly / Range: custom range if selected, or 30 days backward from _selectedDate
+      if (_customStartDate != null && _customEndDate != null) {
+        fromDate = _customStartDate!;
+        toDate = _customEndDate!;
+      } else {
+        fromDate = _selectedDate.subtract(const Duration(days: 29));
+        toDate = _selectedDate;
+      }
     }
 
     try {
@@ -336,12 +346,17 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
           selectedIndex: _powerPeriodIndex,
+          customFromDate: _powerPeriodIndex == 2 ? fromDate : null,
+          customToDate: _powerPeriodIndex == 2 ? toDate : null,
         ),
         provider.getUserPumpLog(
           userId,
           controllerId,
           _activeNodeControllerId,
           widget.masterData,
+          false,
+          fromDate,
+          toDate,
         ),
         provider.getUserVoltageLog(
           userId: userId,
@@ -381,6 +396,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   void _onDateSelected(DateTime date) {
     setState(() {
       _selectedDate = date;
+      _customStartDate = null;
+      _customEndDate = null;
       _alignWeekStartDate(date);
     });
     _fetchAllData();
@@ -431,17 +448,72 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     }
   }
 
-  void _pickMonth() async {
-    final now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectDateRange(BuildContext context) async {
+    final DateTime fromDate = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+    final DateTime toDate = _customEndDate ?? _selectedDate;
+
+    DateTime tempStart = fromDate;
+    DateTime tempEnd = toDate;
+
+    await showDialog(
       context: context,
-      initialDate: _isFuture(_selectedDate) ? now : _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: now,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Date Picker',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter stateSetter) {
+              return SizedBox(
+                width: 250,
+                height: 280,
+                child: SfDateRangePicker(
+                  selectionMode: DateRangePickerSelectionMode.range,
+                  initialSelectedRange: PickerDateRange(fromDate, toDate),
+                  maxDate: DateTime.now(),
+                  onSelectionChanged: (DateRangePickerSelectionChangedArgs args) {
+                    if (args.value is PickerDateRange) {
+                      final PickerDateRange range = args.value as PickerDateRange;
+                      if (range.startDate != null) {
+                        tempStart = range.startDate!;
+                        tempEnd = range.endDate ?? range.startDate!;
+                      }
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            CustomMaterialButton(
+              title: 'Cancel',
+              outlined: true,
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            CustomMaterialButton(
+              title: 'OK',
+              onPressed: () {
+                setState(() {
+                  _customStartDate = tempStart;
+                  _customEndDate = tempEnd;
+                  _selectedDate = tempEnd;
+                  _powerPeriodIndex = 2; // Range mode
+                });
+                Navigator.pop(context);
+                _fetchAllData();
+              },
+            ),
+          ],
+        );
+      },
     );
-    if (picked != null) {
-      _onDateSelected(picked);
-    }
+  }
+
+  void _pickMonth() {
+    _selectDateRange(context);
   }
 
   Future<void> _exportReport(String format) async {
@@ -454,9 +526,10 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       final endStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
       dateStr = '$startStr to $endStr';
     } else if (_powerPeriodIndex == 2) {
-      final startMonth = _selectedDate.subtract(const Duration(days: 29));
-      final startStr = DateFormat('yyyy-MM-dd').format(startMonth);
-      final endStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      final start = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+      final end = _customEndDate ?? _selectedDate;
+      final startStr = DateFormat('yyyy-MM-dd').format(start);
+      final endStr = DateFormat('yyyy-MM-dd').format(end);
       dateStr = '$startStr to $endStr';
     } else {
       dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
@@ -472,11 +545,34 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     List<EventLog> motor2Events = [];
     List<EventLog> motor3Events = [];
 
-    if (provider.pumpLogData.isNotEmpty) {
-      final logData = provider.pumpLogData[0];
-      motor1Events = logData.motor1;
-      motor2Events = logData.motor2;
-      motor3Events = logData.motor3;
+    for (final logData in provider.pumpLogData) {
+      motor1Events.addAll(logData.motor1);
+      motor2Events.addAll(logData.motor2);
+      motor3Events.addAll(logData.motor3);
+    }
+
+    List<MotorDataHourly> exportMotorDataList = provider.motorDataList;
+    if (_powerPeriodIndex != 0) {
+      DateTime fromDate = _selectedDate;
+      DateTime toDate = _selectedDate;
+      if (_powerPeriodIndex == 1) {
+        fromDate = _selectedDate.subtract(const Duration(days: 6));
+        toDate = _selectedDate;
+      } else if (_powerPeriodIndex == 2) {
+        fromDate = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+        toDate = _customEndDate ?? _selectedDate;
+      }
+
+      final dailyLogs = await provider.fetchDailyMotorLogs(
+        userId: effectiveUserId,
+        controllerId: effectiveControllerId,
+        nodeControllerId: _activeNodeControllerId,
+        fromDate: fromDate,
+        toDate: toDate,
+      );
+      if (dailyLogs.isNotEmpty) {
+        exportMotorDataList = dailyLogs;
+      }
     }
 
     final exportData = PumpLogExportData(
@@ -490,12 +586,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       motor3Events: motor3Events,
       voltageData: provider.voltageData,
       motorData: _effectiveMotorData(provider),
+      motorDataList: exportMotorDataList,
     );
 
     final String sanitizedDeviceName = currentDeviceName.replaceAll(RegExp(r'[^\w\s\-]'), '_');
     final String fileName = 'Pump_Log_${sanitizedDeviceName}_$dateStr';
 
     final label = format == 'pdf' ? 'PDF' : (format == 'csv' ? 'CSV' : 'Excel');
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -899,16 +998,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
-                value: 'csv',
-                child: Row(
-                  children: [
-                    Icon(Icons.description_outlined, color: _kTeal, size: 18),
-                    SizedBox(width: 8),
-                    Text('CSV (.csv)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
+
               const PopupMenuItem(
                 value: 'pdf',
                 child: Row(
@@ -916,7 +1006,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                     Icon(Icons.picture_as_pdf_outlined, color: _kRed, size: 18),
                     SizedBox(width: 8),
                     Text('PDF (.pdf)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
+                    ],
                 ),
               ),
             ],

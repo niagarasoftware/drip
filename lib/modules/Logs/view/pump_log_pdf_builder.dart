@@ -51,6 +51,45 @@ int? _minutes(String t) {
   return h * 60 + m;
 }
 
+String _powerOffTime(MotorDataHourly? m) {
+  if (m == null) return '00:00:00';
+  if (m.powerOffTime.isNotEmpty && m.powerOffTime != '0:0:00' && m.powerOffTime != '00:00:00' && m.powerOffTime != '-') {
+    return _hms(_secs(m.powerOffTime));
+  }
+  return _hms(_secs(m.totalPowerOffTime));
+}
+
+({String label, String value}) _pdfFlowRate(MotorDataHourly? m, String periodStr) {
+  if (m == null) return (label: 'Flow rate', value: '0.0');
+  final live = double.tryParse(m.flowRate) ?? 0.0;
+
+  if (periodStr == 'Daily' && live > 0) {
+    return (label: 'Flow rate', value: live.toStringAsFixed(2));
+  }
+
+  double totalLitres = double.tryParse(m.totalFlowToday1.replaceAll(',', '')) ??
+      double.tryParse(m.totalFlowToday2.replaceAll(',', '')) ??
+      double.tryParse(m.totalFlowToday3.replaceAll(',', '')) ?? 0.0;
+
+  if (totalLitres == 0) {
+    totalLitres = double.tryParse(m.overAllCumulativeFlow.replaceAll(',', '')) ?? 0.0;
+  }
+
+  int runSecs = _secs(m.motorRunTime1);
+  if (runSecs == 0) runSecs = _secs(m.motorRunTime2);
+  if (runSecs == 0) runSecs = _secs(m.motorRunTime3);
+
+  if (runSecs > 0 && totalLitres > 0) {
+    final avg = totalLitres / runSecs;
+    return (label: 'Avg flow rate', value: avg.toStringAsFixed(2));
+  }
+
+  return (
+    label: live > 0 ? 'Flow rate' : 'Avg flow rate',
+    value: live > 0 ? live.toStringAsFixed(2) : (m.flowRate.isEmpty ? '0.0' : m.flowRate)
+  );
+}
+
 // -----------------------------------------------------------------------------
 // Reusable widgets
 // -----------------------------------------------------------------------------
@@ -236,60 +275,60 @@ Future<Uint8List> generatePumpLogPdfBytes(PumpLogExportData data, String name) a
   // Section: Overview
   slides.add(_slideTitle('Overview', subtitle: '${data.dateStr}  |  ${data.periodStr}'));
 
-  // General power & sensor KPIs
-  slides.add(_kpiRow([
-    _compactKpi('Total power ON', _hms(_secs(motor?.totalPowerOnTime ?? '00:00:00')), 'HH:MM:SS', accent: _green),
-    _compactKpi('Total power OFF', _hms(_secs(motor?.totalPowerOffTime ?? '00:00:00')), 'HH:MM:SS', accent: _red),
-    _compactKpi('Cumulative flow', motor?.overAllCumulativeFlow ?? '0', 'Litres'),
-    _compactKpi('Pressure', motor?.pressure ?? '0.0', 'bar'),
-    _compactKpi('Flow rate', motor?.flowRate ?? '0.0', 'Lps'),
-    _compactKpi('Level', motor?.level ?? '0.0', 'feet'),
-  ]));
-  slides.add(pw.SizedBox(height: 8));
+  final flowRateInfo = _pdfFlowRate(motor, data.periodStr);
+  final String powerOffVal = _powerOffTime(motor);
 
   // Motor KPIs and pump log sections per motor
   for (final e in segments.entries) {
     final st = _motorStats(motor, e.key);
     final events = _eventsFor(data, e.key);
 
-    slides.addAll([
-      _kpiRow([
-        _compactKpi('${e.value} Run time', st.run, 'HH:MM:SS', accent: _green),
-        _compactKpi('Idle time', st.idle, 'HH:MM:SS'),
-        _compactKpi('Dry run trip', st.dry, 'HH:MM:SS', accent: _red),
-        _compactKpi('Cyclic trip', st.cyclic, 'HH:MM:SS', accent: _amber),
-        _compactKpi('Other trip', st.other, 'HH:MM:SS', accent: _red),
-        _compactKpi('Total flow', st.flow, 'Litres', accent: _blue),
-      ]),
-      pw.SizedBox(height: 12),
-      pw.Text('Time distribution',
-          style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: _ink)),
-      pw.SizedBox(height: 5),
-    ]);
-
-    final parts = <MapEntry<String, MapEntry<int, PdfColor>>>[
-      MapEntry('Run ${st.run}', MapEntry(_secs(st.run), _green)),
-      MapEntry('Idle ${st.idle}', MapEntry(_secs(st.idle), PdfColors.grey500)),
-      MapEntry('Dry run ${st.dry}', MapEntry(_secs(st.dry), _red)),
-      MapEntry('Cyclic ${st.cyclic}', MapEntry(_secs(st.cyclic), _amber)),
-      MapEntry('Other ${st.other}', MapEntry(_secs(st.other), _blue)),
-    ];
-    final total = parts.fold<int>(0, (s, p) => s + p.value.key);
-    if (total == 0) {
-      slides.add(pw.Text('No run-time data recorded for this period.',
-          style: const pw.TextStyle(fontSize: 9.5, color: _muted)));
-    } else {
-      slides.add(pw.Row(children: [
-        for (final p in parts)
-          if (p.value.key > 0)
-            pw.Expanded(
-              flex: math.max(1, (p.value.key * 1000 / total).round()),
-              child: pw.Container(height: 18, color: p.value.value),
+    slides.add(
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Left: 4 Rows x 3 Columns KPI Cards (12 metrics)
+          pw.Expanded(
+            flex: 6,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                _kpiRow([
+                  _compactKpi('Total power ON', _hms(_secs(motor?.totalPowerOnTime ?? '00:00:00')), 'HH:MM:SS', accent: _green),
+                  _compactKpi('Total power OFF', powerOffVal, 'HH:MM:SS', accent: _red),
+                  _compactKpi('Cumulative flow', motor?.overAllCumulativeFlow ?? '0', 'Litres'),
+                ]),
+                pw.SizedBox(height: 5),
+                _kpiRow([
+                  _compactKpi('Pressure', motor?.pressure ?? '0.0', 'bar'),
+                  _compactKpi(flowRateInfo.label, flowRateInfo.value, 'Lps'),
+                  _compactKpi('Level', motor?.level ?? '0.0', 'feet'),
+                ]),
+                pw.SizedBox(height: 5),
+                _kpiRow([
+                  _compactKpi('${e.value} Run time', st.run, 'HH:MM:SS', accent: _green),
+                  _compactKpi('Idle time', st.idle, 'HH:MM:SS'),
+                  _compactKpi('Dry run trip', st.dry, 'HH:MM:SS', accent: _red),
+                ]),
+                pw.SizedBox(height: 5),
+                _kpiRow([
+                  _compactKpi('Cyclic trip', st.cyclic, 'HH:MM:SS', accent: _amber),
+                  _compactKpi('Other trip', st.other, 'HH:MM:SS', accent: _red),
+                  _compactKpi('Total flow', st.flow, 'Litres', accent: _blue),
+                ]),
+              ],
             ),
-      ]));
-      slides.add(pw.SizedBox(height: 5));
-      slides.add(pw.Wrap(children: [for (final p in parts) _legendDot(p.key, p.value.value)]));
-    }
+          ),
+          pw.SizedBox(width: 12),
+
+          // Right: Big Pie Chart (Time distribution)
+          pw.Expanded(
+            flex: 4,
+            child: _buildBigPieChart(st),
+          ),
+        ],
+      ),
+    );
 
     // Pump log section
     slides.addAll([
@@ -501,3 +540,173 @@ pw.Widget _buildVoltagePdfTable(String dateStr, List<Map<String, dynamic>> rows)
     ],
   );
 }
+
+pw.Widget _buildBigPieChart(_MotorStats st) {
+  final items = [
+    (label: 'Run time', value: st.run, secs: _secs(st.run), color: _green),
+    (label: 'Idle time', value: st.idle, secs: _secs(st.idle), color: PdfColors.grey500),
+    (label: 'Dry run trip', value: st.dry, secs: _secs(st.dry), color: _red),
+    (label: 'Cyclic trip', value: st.cyclic, secs: _secs(st.cyclic), color: _amber),
+    (label: 'Other trip', value: st.other, secs: _secs(st.other), color: _blue),
+  ];
+
+  final total = items.fold<int>(0, (s, i) => s + i.secs);
+  if (total == 0) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        border: pw.Border.all(color: _border, width: 0.8),
+        borderRadius: pw.BorderRadius.circular(6),
+      ),
+      alignment: pw.Alignment.center,
+      child: pw.Text('No run-time data recorded for this period.',
+          style: const pw.TextStyle(fontSize: 9.5, color: _muted)),
+    );
+  }
+
+  return pw.Container(
+    padding: const pw.EdgeInsets.all(10),
+    decoration: pw.BoxDecoration(
+      color: PdfColors.white,
+      border: pw.Border.all(color: _border, width: 0.8),
+      borderRadius: pw.BorderRadius.circular(6),
+    ),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Row(
+          children: [
+            pw.Container(width: 3, height: 12, color: _teal),
+            pw.SizedBox(width: 6),
+            pw.Text(
+              'TIME DISTRIBUTION',
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+                color: _ink,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            // Left: Donut Chart with Center Text
+            pw.Stack(
+              alignment: pw.Alignment.center,
+              children: [
+                pw.SizedBox(
+                  width: 135,
+                  height: 135,
+                  child: pw.Chart(
+                    grid: pw.PieGrid(),
+                    datasets: [
+                      for (final item in items)
+                        if (item.secs > 0)
+                          pw.PieDataSet(
+                            legend: '',
+                            value: item.secs,
+                            color: item.color,
+                          ),
+                    ],
+                  ),
+                ),
+                pw.Container(
+                  width: 58,
+                  height: 58,
+                  decoration: const pw.BoxDecoration(
+                    color: PdfColors.white,
+                    shape: pw.BoxShape.circle,
+                  ),
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      pw.Text('Total time', style: const pw.TextStyle(fontSize: 6, color: _muted)),
+                      pw.SizedBox(height: 1),
+                      pw.Text(
+                        _hms(total),
+                        style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: _ink),
+                      ),
+                      pw.SizedBox(height: 1),
+                      pw.Text('hh:mm:ss', style: const pw.TextStyle(fontSize: 5.5, color: _muted)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            pw.SizedBox(width: 12),
+
+            // Right: Legend Cards with Color Indicator & Accent Line
+            pw.Expanded(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  for (final item in items)
+                    if (item.secs > 0)
+                      pw.Container(
+                        margin: const pw.EdgeInsets.only(bottom: 4),
+                        padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                        decoration: pw.BoxDecoration(
+                          color: PdfColors.grey50,
+                          border: pw.Border.all(color: _border, width: 0.6),
+                          borderRadius: pw.BorderRadius.circular(4),
+                        ),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Row(
+                              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                              children: [
+                                pw.Row(
+                                  children: [
+                                    pw.Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: pw.BoxDecoration(
+                                        color: item.color,
+                                        borderRadius: pw.BorderRadius.circular(1.5),
+                                      ),
+                                    ),
+                                    pw.SizedBox(width: 4),
+                                    pw.Text(
+                                      item.label,
+                                      style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _ink),
+                                    ),
+                                  ],
+                                ),
+                                pw.Text(
+                                  '${(item.secs * 100 / total).toStringAsFixed(1)}%',
+                                  style: const pw.TextStyle(fontSize: 7, color: _muted),
+                                ),
+                              ],
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              item.value,
+                              style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _ink),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Container(
+                              height: 1.5,
+                              width: 32,
+                              decoration: pw.BoxDecoration(
+                                color: item.color,
+                                borderRadius: pw.BorderRadius.circular(1),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+

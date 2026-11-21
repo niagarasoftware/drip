@@ -123,17 +123,25 @@ class PumpControllerProvider extends ChangeNotifier {
   /// [silent] = true is used by the auto-refresh: no loading flag, no artificial delay,
   /// the existing list stays on screen until the new one is ready, and the user's
   /// selected motor tab is preserved.
-  Future<void> getUserPumpLog(userId, controllerId, nodeControllerId,
-      [MasterControllerModel? masterData, bool silent = false]) async {
+  Future<void> getUserPumpLog(
+    userId,
+    controllerId,
+    nodeControllerId, [
+    MasterControllerModel? masterData,
+    bool silent = false,
+    DateTime? fromDate,
+    DateTime? toDate,
+  ]) async {
     final int ticket = ++_pumpLogTicket;
-    final DateTime requestedDate = selectedDate;
+    final DateTime start = fromDate ?? selectedDate;
+    final DateTime end = toDate ?? selectedDate;
 
     final Map<String, dynamic> data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": _apiDate.format(requestedDate),
-      "toDate": _apiDate.format(requestedDate),
+      "fromDate": _apiDate.format(start),
+      "toDate": _apiDate.format(end),
     };
 
     try {
@@ -213,7 +221,7 @@ class PumpControllerProvider extends ChangeNotifier {
       if (res.statusCode == 200 && response['data'] is List) lastPumpLogSync = DateTime.now();
 
       // Only auto-scroll when there is something new (otherwise polling would yank the list).
-      if (grew && (!silent || _isSameDay(requestedDate, DateTime.now()))) {
+      if (grew && (!silent || _isSameDay(start, DateTime.now()))) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (scrollController.hasClients) {
             scrollController.animateTo(
@@ -248,25 +256,31 @@ class PumpControllerProvider extends ChangeNotifier {
     required int controllerId,
     required int nodeControllerId,
     bool silent = false,
+    DateTime? customFromDate,
+    DateTime? customToDate,
   }) async {
     final int ticket = ++_hourlyTicket;
 
-    if (selectedIndex == 1) {
+    if (customFromDate != null && customToDate != null) {
+      final daysCount = customToDate.difference(customFromDate).inDays + 1;
+      final totalDays = daysCount > 0 ? daysCount : 1;
+      dates = List.generate(totalDays, (index) => customToDate.subtract(Duration(days: index)));
+    } else if (selectedIndex == 1) {
       dates = List.generate(7, (index) => selectedDate.subtract(Duration(days: index)));
     } else if (selectedIndex == 2) {
       dates = List.generate(30, (index) => selectedDate.subtract(Duration(days: index)));
     } else if (selectedIndex == 0) {
-      dates.last = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+      dates = [DateTime(selectedDate.year, selectedDate.month, selectedDate.day)];
     } else {
-      dates.last = DateTime.parse(dates.last.toString().split(' ')[0]);
+      dates = [DateTime(selectedDate.year, selectedDate.month, selectedDate.day)];
     }
 
     final data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": _apiDate.format(selectedIndex == 0 ? selectedDate : dates.last),
-      "toDate": _apiDate.format(selectedIndex == 0 ? selectedDate : dates.first),
+      "fromDate": _apiDate.format(dates.last),
+      "toDate": _apiDate.format(dates.first),
       "needSum": selectedIndex != 0
     };
 
@@ -336,6 +350,58 @@ class PumpControllerProvider extends ChangeNotifier {
         notifyListeners();
       }
     }
+  }
+
+  Future<List<MotorDataHourly>> fetchDailyMotorLogs({
+    required int userId,
+    required int controllerId,
+    required int nodeControllerId,
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
+    final data = {
+      "userId": userId,
+      "controllerId": controllerId,
+      "nodeControllerId": nodeControllerId,
+      "fromDate": _apiDate.format(fromDate),
+      "toDate": _apiDate.format(toDate),
+      "needSum": false
+    };
+
+    try {
+      final res = await repository.getUserPumpHourlyLog(
+          data, nodeControllerId != 0 && nodeControllerId != controllerId);
+      if (res.statusCode == 200) {
+        final response = jsonDecode(res.body);
+        final rawData = response['data'];
+        List rawList = [];
+        if (rawData is List) {
+          rawList = rawData;
+        } else if (rawData is Map) {
+          if (rawData['log'] is List) {
+            rawList = rawData['log'];
+          } else if (rawData['data'] is List) {
+            rawList = rawData['data'];
+          } else {
+            rawList = [rawData];
+          }
+        }
+
+        final List<MotorDataHourly> list = rawList
+            .map((item) => MotorDataHourly.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList();
+
+        final Map<String, MotorDataHourly> dailyMap = {};
+        for (final item in list) {
+          final String d = item.date.isNotEmpty ? item.date : _apiDate.format(fromDate);
+          dailyMap[d] = item;
+        }
+        return dailyMap.values.toList();
+      }
+    } catch (e) {
+      log("fetchDailyMotorLogs error: $e");
+    }
+    return [];
   }
 
   // ---------------------------------------------------------------------------

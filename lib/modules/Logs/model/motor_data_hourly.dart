@@ -118,8 +118,16 @@ class MotorDataHourly {
         ? (json['numberOfPumps'] > 3 ? 3 : json['numberOfPumps'])
         : (int.tryParse(json['numberOfPumps']?.toString() ?? '1') ?? 1);
 
+    final String parsedDate = json['date']?.toString() ??
+        json['logDate']?.toString() ??
+        json['log_date']?.toString() ??
+        json['Date']?.toString() ??
+        json['createdDate']?.toString() ??
+        json['fromDate']?.toString() ??
+        "";
+
     return MotorDataHourly(
-      date: json['date']?.toString() ?? "",
+      date: parsedDate,
       numberOfPumps: numPumps > 3 ? 3 : (numPumps < 1 ? 1 : numPumps),
       twoPhasePowerOnTime: json['twoPhasePowerOnTime']?.toString() ?? "00:00:00",
       twoPhaseLastPowerOnTime: json['twoPhaseLastPowerOnTime']?.toString() ?? "00:00:00",

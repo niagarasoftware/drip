@@ -37,6 +37,7 @@ class PumpLogExportData {
   final List<EventLog> motor3Events;
   final List<Map<String, dynamic>> voltageData;
   final MotorDataHourly? motorData;
+  final List<MotorDataHourly> motorDataList;
 
   PumpLogExportData({
     required this.deviceName,
@@ -49,6 +50,7 @@ class PumpLogExportData {
     required this.motor3Events,
     required this.voltageData,
     this.motorData,
+    this.motorDataList = const [],
   });
 }
 
