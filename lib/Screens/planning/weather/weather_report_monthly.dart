@@ -32,6 +32,7 @@ class SensorDailyReport {
   final double maxValue;
   final double averageValue;
   final int validHours;
+  final String? wetHours;
 
   const SensorDailyReport({
     required this.date,
@@ -40,6 +41,7 @@ class SensorDailyReport {
     required this.maxValue,
     required this.averageValue,
     required this.validHours,
+    this.wetHours,
   });
 }
 
@@ -81,7 +83,72 @@ class _SensorHourlyReportPageState
   List<SensorHourReportGsm> hourlyReport = [];
   List<SensorDailyReport> dailyReport = [];
 
-  bool get _isLeafWetness => widget.sensorName.toLowerCase().contains('leaf wetness');
+  bool get _isLeafWetness =>
+      ((double.tryParse(widget.sensorSrNo) ?? -1) * 1000).round() == 37001;
+
+  // Device encodes wet duration as HH.MM (hours and minutes),
+  // not a decimal number: 06.49 -> 06:49, 27.40 -> 27:40.
+  int? _wetMinutes(String? raw) {
+    if (raw == null || raw.trim().isEmpty || raw.trim().toUpperCase() == 'NA') {
+      return null;
+    }
+    final parts = raw.trim().split(RegExp(r'[.:]'));
+    if (parts.length != 2) return null;
+    final hours = int.tryParse(parts[0]);
+    final minutes = int.tryParse(parts[1]);
+    if (hours == null || hours < 0 || minutes == null ||
+        minutes < 0 || minutes >= 60) return null;
+    return hours * 60 + minutes;
+  }
+
+  String formatWetHours(String? raw) {
+    return _formatWetMinutes(_wetMinutes(raw));
+  }
+
+  String _wetDuration(String? raw) => formatWetHours(raw);
+
+  // Daily readings are cumulative. Add only increases; after a reset,
+  // start accumulating from the new reading rather than summing snapshots.
+  int? _periodWetTotalMinutes(List<SensorDailyReport> reports) {
+    final sorted = List<SensorDailyReport>.from(reports)
+      ..sort((a, b) => a.date.compareTo(b.date));
+    int? previous;
+    int total = 0;
+    for (final day in sorted) {
+      final current = _wetMinutes(day.wetHours);
+      if (current == null) continue;
+      total += previous == null || current < previous
+          ? current
+          : current - previous;
+      previous = current;
+    }
+    return previous == null ? null : total;
+  }
+
+  // Convert cumulative wet duration into per-hour increments.
+  // The first available reading is used as the baseline; a counter reset
+  // starts a new accumulation. Missing readings are not treated as zero.
+  Map<String, int> _hourlyWetMinutes(List<SensorHourReportGsm> reports) {
+    final sorted = List<SensorHourReportGsm>.from(reports)
+      ..sort((a, b) => a.hour.compareTo(b.hour));
+    final increments = <String, int>{};
+    int? previous;
+    for (final item in sorted) {
+      final current = _wetMinutes(item.wetHours);
+      if (current == null) continue;
+      increments[item.hour] = previous == null || current < previous
+          ? current
+          : current - previous;
+      previous = current;
+    }
+    return increments;
+  }
+
+  String _formatWetMinutes(int? minutes) {
+    if (minutes == null) return 'NA';
+    return '${(minutes ~/ 60).toString().padLeft(2, '0')}:'
+        '${(minutes % 60).toString().padLeft(2, '0')}';
+  }
 
   @override
   void initState() {
@@ -448,6 +515,8 @@ class _SensorHourlyReportPageState
       _getHours(datum);
 
       final List<double> validValues = [];
+      String? lastWetHours;
+      int lastWetHour = -1;
 
       for (final entry in hours.entries) {
         final String hour = entry.key;
@@ -493,6 +562,13 @@ class _SensorHourlyReportPageState
         }
 
         validValues.add(value);
+        if (_isLeafWetness && _wetMinutes(parsed.wetHours) != null) {
+          final hourIndex = int.tryParse(hour.split(':').first) ?? -1;
+          if (hourIndex > lastWetHour) {
+            lastWetHour = hourIndex;
+            lastWetHours = parsed.wetHours;
+          }
+        }
       }
 
       // No valid hour.
@@ -505,6 +581,7 @@ class _SensorHourlyReportPageState
             maxValue: 0,
             averageValue: 0,
             validHours: 0,
+            wetHours: null,
           ),
         );
 
@@ -514,13 +591,7 @@ class _SensorHourlyReportPageState
       double total = 0;
 
       for (final value in validValues) {
-        if (_isLeafWetness) {
-          if (value >= 10) {
-            total += 1.0;
-          }
-        } else {
-          total += value;
-        }
+        total += value;
       }
 
       final int validHours =
@@ -549,6 +620,7 @@ class _SensorHourlyReportPageState
           maxValue: maxValue,
           averageValue: averageValue,
           validHours: validHours,
+          wetHours: lastWetHours,
         ),
       );
     }
@@ -753,7 +825,7 @@ class _SensorHourlyReportPageState
   void _writeDailyExcelSheet(Sheet sheet, WeatherReportModel model) {
     sheet.appendRow([
       TextCellValue('Date'),
-      TextCellValue('Average (${widget.unit})'),
+      TextCellValue(_isLeafWetness ? 'Wet Duration (HH:MM)' : 'Average (${widget.unit})'),
       TextCellValue('Min (${widget.unit})'),
       TextCellValue('Max (${widget.unit})'),
     ]);
@@ -761,9 +833,9 @@ class _SensorHourlyReportPageState
       final valid = day.validHours > 0;
       sheet.appendRow([
         TextCellValue(day.date),
-        valid ? DoubleCellValue(day.averageValue) : TextCellValue('NA'),
-        valid ? DoubleCellValue(day.minValue) : TextCellValue('NA'),
-        valid ? DoubleCellValue(day.maxValue) : TextCellValue('NA'),
+        _isLeafWetness ? TextCellValue(_wetDuration(day.wetHours)) : (valid ? DoubleCellValue(day.averageValue) : TextCellValue('NA')),
+        _isLeafWetness ? TextCellValue('NA') : (valid ? DoubleCellValue(day.minValue) : TextCellValue('NA')),
+        _isLeafWetness ? TextCellValue('NA') : (valid ? DoubleCellValue(day.maxValue) : TextCellValue('NA')),
       ]);
     }
   }
@@ -807,6 +879,9 @@ class _SensorHourlyReportPageState
         }
       }
       hourly.sort((a, b) => a.hour.compareTo(b.hour));
+      final exportWetByHour = _isLeafWetness
+          ? _hourlyWetMinutes(hourly)
+          : <String, int>{};
       for (final item in hourly) {
         final status = item.errorCode == '255'
             ? 'Normal'
@@ -815,7 +890,7 @@ class _SensorHourlyReportPageState
             : 'ERR-${item.errorCode}';
         todaySheet.appendRow([
           TextCellValue(item.hour),
-          _excelCell(item.value),
+          _isLeafWetness ? TextCellValue(_formatWetMinutes(exportWetByHour[item.hour])) : _excelCell(item.value),
           _excelCell(item.minValue),
           _excelCell(item.maxValue),
           _excelCell(item.averageValue),
@@ -1075,6 +1150,9 @@ class _SensorHourlyReportPageState
   }
 
   Widget _buildTodayLineGraph() {
+    final wetByHour = _isLeafWetness
+        ? _hourlyWetMinutes(hourlyReport)
+        : <String, int>{};
     final List<SensorHourReportGsm> valid =
     hourlyReport.where(
           (item) {
@@ -1083,10 +1161,9 @@ class _SensorHourlyReportPageState
           return false;
         }
 
-        return double.tryParse(
-          item.value,
-        ) !=
-            null;
+        return _isLeafWetness
+            ? wetByHour.containsKey(item.hour)
+            : double.tryParse(item.value) != null;
       },
     ).toList();
 
@@ -1115,10 +1192,9 @@ class _SensorHourlyReportPageState
           ) ??
               0;
 
-      final double? value =
-      double.tryParse(
-        item.value,
-      );
+      final double? value = _isLeafWetness
+          ? (wetByHour[item.hour]?.toDouble() ?? double.nan) / 60.0
+          : double.tryParse(item.value);
 
       if (value == null) {
         continue;
@@ -1215,7 +1291,7 @@ class _SensorHourlyReportPageState
             AxisTitles(
               axisNameWidget:
               Text(
-                _isLeafWetness ? 'Hrs' : widget.unit,
+                _isLeafWetness ? 'HH:MM' : widget.unit,
               ),
 
               sideTitles:
@@ -1343,8 +1419,8 @@ class _SensorHourlyReportPageState
                     final String tooltipText =
                     (ts != null &&
                         ts.isNotEmpty)
-                        ? '$ts\n${spot.y.toStringAsFixed(2)} ${_isLeafWetness ? 'Hrs' : widget.unit}'
-                        : '$hour:00:00\n${spot.y.toStringAsFixed(2)} ${_isLeafWetness ? 'Hrs' : widget.unit}';
+                        ? '$ts\n${_isLeafWetness ? _formatWetMinutes(wetByHour[matchedReport.hour]) : spot.y.toStringAsFixed(2)} ${_isLeafWetness ? 'HH:MM' : widget.unit}'
+                        : '$hour:00:00\n${_isLeafWetness ? _formatWetMinutes(wetByHour[matchedReport.hour]) : spot.y.toStringAsFixed(2)} ${_isLeafWetness ? 'HH:MM' : widget.unit}';
 
                     return LineTooltipItem(
                       tooltipText,
@@ -1443,14 +1519,17 @@ class _SensorHourlyReportPageState
       final SensorDailyReport item =
       sorted[i];
 
-      if (item.validHours == 0) {
+      if (item.validHours == 0 ||
+          (_isLeafWetness && _wetMinutes(item.wetHours) == null)) {
         continue;
       }
 
       spots.add(
         FlSpot(
           i.toDouble(),
-          _isLeafWetness ? item.totalValue : item.averageValue,
+          _isLeafWetness
+              ? ((_wetMinutes(item.wetHours) ?? 0) / 60.0)
+              : item.averageValue,
         ),
       );
     }
@@ -1535,7 +1614,7 @@ class _SensorHourlyReportPageState
             AxisTitles(
               axisNameWidget:
               Text(
-                _isLeafWetness ? 'Hrs' : widget.unit,
+                _isLeafWetness ? 'HH:MM' : widget.unit,
               ),
 
               sideTitles:
@@ -1671,7 +1750,7 @@ class _SensorHourlyReportPageState
 
                     return LineTooltipItem(
                       _isLeafWetness
-                          ? '${_formatDate(item.date)}\nTotal: ${item.totalValue.toStringAsFixed(2)} Hrs'
+                          ? '${_formatDate(item.date)}\nWet Duration: ${_wetDuration(item.wetHours)}'
                           : '${_formatDate(item.date)}\nAvg: ${item.averageValue.toStringAsFixed(2)} ${widget.unit}',
                       const TextStyle(
                         color:
@@ -1825,7 +1904,7 @@ class _SensorHourlyReportPageState
                       ),
                     ),
                     child: Text(
-                      _isLeafWetness ? 'Hrs' : widget.unit,
+                      _isLeafWetness ? 'HH:MM' : widget.unit,
                       style:
                       const TextStyle(
                         color:
@@ -1919,13 +1998,14 @@ class _SensorHourlyReportPageState
       );
     }
 
-    final double totalTodayHours = hourlyReport.fold(0.0, (sum, item) {
-      final val = double.tryParse(item.value) ?? 0;
-      if (_isLeafWetness) {
-        return sum + (val >= 10 ? 1.0 : 0.0);
-      }
-      return sum + val;
-    });
+    final wetByHour = _isLeafWetness
+        ? _hourlyWetMinutes(hourlyReport)
+        : <String, int>{};
+    final latestWetReport = hourlyReport.where((item) => _wetMinutes(item.wetHours) != null).toList()
+      ..sort((a, b) => a.hour.compareTo(b.hour));
+    final String todayWetDuration = wetByHour.isEmpty
+        ? 'NA'
+        : _formatWetMinutes(wetByHour.values.fold<int>(0, (a, b) => a + b));
 
     return Column(
       children: [
@@ -1944,7 +2024,7 @@ class _SensorHourlyReportPageState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Total Leaf Wetness Hours',
+                      'Leaf Wetness Duration Total',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF004D40),
@@ -1952,7 +2032,7 @@ class _SensorHourlyReportPageState
                       ),
                     ),
                     Text(
-                      '${totalTodayHours.toStringAsFixed(0)} Hrs',
+                      todayWetDuration,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.teal.shade700,
@@ -1988,7 +2068,7 @@ class _SensorHourlyReportPageState
                     size: ColumnSize.L,
                   ),
                   DataColumn2(
-                    label: _TableHeader('Leaf Wetness'),
+                    label: _TableHeader('Wet Duration (HH:mm)'),
                   ),
                 ]
                     : const [
@@ -2026,7 +2106,7 @@ class _SensorHourlyReportPageState
                             ),
                           ),
                           DataCell(
-                            _buildLeafStatusBadge(item.value),
+                            Text(_formatWetMinutes(wetByHour[item.hour])),
                           ),
                         ],
                       );
@@ -2096,10 +2176,10 @@ class _SensorHourlyReportPageState
       );
     }
 
-    final double totalPeriodHours = dailyReport.fold(
-      0.0,
-          (sum, item) => sum + item.totalValue,
-    );
+    final latestWetDays = dailyReport.where((item) => _wetMinutes(item.wetHours) != null).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+    final String periodWetDuration =
+    _formatWetMinutes(_periodWetTotalMinutes(dailyReport));
 
     return Column(
       children: [
@@ -2118,7 +2198,7 @@ class _SensorHourlyReportPageState
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
-                      'Total Leaf Wetness Hours',
+                      'Leaf Wetness Duration Total',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF004D40),
@@ -2126,7 +2206,7 @@ class _SensorHourlyReportPageState
                       ),
                     ),
                     Text(
-                      ' Hrs',
+                      periodWetDuration,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Colors.teal.shade700,
@@ -2162,7 +2242,7 @@ class _SensorHourlyReportPageState
                     size: ColumnSize.L,
                   ),
                   DataColumn2(
-                    label: _TableHeader('Leaf Wetness'),
+                    label: _TableHeader('Wet Duration (HH:mm)'),
                   ),
                 ]
                     : const [
@@ -2199,7 +2279,7 @@ class _SensorHourlyReportPageState
                             Text(
                               item.validHours == 0
                                   ? 'NA'
-                                  : ' Hrs',
+                                  : _wetDuration(item.wetHours),
                             ),
                           ),
                         ],
@@ -2399,3 +2479,4 @@ class _TableHeader
     );
   }
 }
+

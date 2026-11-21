@@ -181,6 +181,7 @@ class _IrrigationProgramState extends State<IrrigationProgram> with SingleTicker
       }
     } catch (e) {
       if (mounted) {
+        print('error ->$e');
         _hideLoadingDialog();
         setState(() {
           _errorMessage = "Failed to load irrigation program data.";

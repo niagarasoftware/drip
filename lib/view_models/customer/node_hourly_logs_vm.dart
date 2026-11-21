@@ -119,10 +119,10 @@ class NodeHourlyLogsVm extends ChangeNotifier {
           if (serialNumber == null) continue;
 
           final double batteryVoltage =
-              double.tryParse(parts[1].trim()) ?? 0.0;
+              double.tryParse(parts[2].trim()) ?? 0.0;
 
           final double solarVoltage =
-              double.tryParse(parts[2].trim()) ?? 0.0;
+              double.tryParse(parts[1].trim()) ?? 0.0;
 
           final int matchedIndex = nodeList.indexWhere(
                 (node) => node.serialNumber == serialNumber,

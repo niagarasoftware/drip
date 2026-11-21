@@ -92,9 +92,17 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           statusList = statusCodeList.map((code) => _getStatusInfo(code)).toSet().toList();
           programs = defaultData['program'].where((program) => programSnoList.contains(program['sNo'].toString())).toSet().toList();
 
-          headUnits = configObjects.where((obj) => headUnitSnoList.contains(obj['sNo'].toString())).map((obj) => {'sNo': obj['sNo'], 'name': obj['name']}).toSet().toList();
-          if(selectedHeadUnits.isEmpty) {
-            selectedHeadUnits.add(headUnits[0]);
+          headUnits = configObjects
+              .where((obj) => headUnitSnoList.contains(obj['sNo'].toString()))
+              .map((obj) => {
+            'sNo': obj['sNo'],
+            'name': obj['name'],
+          })
+              .toSet()
+              .toList();
+
+          if (selectedHeadUnits.isEmpty && headUnits.isNotEmpty) {
+            selectedHeadUnits.add(headUnits.first);
           }
         }
 

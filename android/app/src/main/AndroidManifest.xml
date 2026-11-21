@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
     <!-- Android 11 and below: BLE scan / Classic discovery need location -->
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
@@ -77,7 +81,7 @@
         <!-- Google Maps: paste your restricted key here (do not commit it publicly) -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY" />
+            android:value="AIzaSyCVcK18rhs06E0rP7QAyOY8J_35CbZpBlw" />
 
         <!-- Azure Notification Hub -->
         <meta-data

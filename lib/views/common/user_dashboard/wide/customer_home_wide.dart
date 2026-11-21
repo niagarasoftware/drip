@@ -105,7 +105,7 @@ class CustomerHomeWide extends StatelessWidget {
                     viewModel.mySiteList.data[viewModel.sIndex].groupId) : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ...irrigationLine.map((line) => Padding(
+                    /*...irrigationLine.map((line) => Padding(
                           padding: const EdgeInsets.only(left: 8, right: 8, top: 8, bottom: 5),
                           child: Container(
                             decoration: BoxDecoration(
@@ -186,7 +186,36 @@ class CustomerHomeWide extends StatelessWidget {
                               ],
                             ),
                           ),
-                        )),
+                        )),*/
+
+                    if (isAquaculture)
+                      _buildIrrigationLinesGrid(
+                        context,
+                        irrigationLine,
+                        isNova: isNova,
+                        hasLinePP: hasLinePP,
+                        isAquaculture: true,
+                        customerId: customerId,
+                        controllerId: controllerId,
+                        modelId: modelId,
+                        deviceId: deviceId,
+                      )
+                    else
+                      ...irrigationLine.map((line) => Padding(
+                        padding: const EdgeInsets.only(
+                            left: 8, right: 8, top: 8, bottom: 5),
+                        child: _buildIrrigationLineCard(
+                          context,
+                          line,
+                          isNova: isNova,
+                          hasLinePP: hasLinePP,
+                          isAquaculture: false,
+                          customerId: customerId,
+                          controllerId: controllerId,
+                          modelId: modelId,
+                          deviceId: deviceId,
+                        ),
+                      )),
 
                     CurrentProgram(
                       scheduledPrograms: scheduledProgram,
@@ -229,6 +258,159 @@ class CustomerHomeWide extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+
+  Widget _buildIrrigationLinesGrid(
+      BuildContext context,
+      List<IrrigationLineModel> lines, {
+        required bool isNova,
+        required bool hasLinePP,
+        required bool isAquaculture,
+        required int customerId,
+        required int controllerId,
+        required int modelId,
+        required String deviceId,
+      }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double outerPadding = 8;
+        const double gap = 8;
+        const double minCardWidth = 640; // room for 5 aerators + padding
+        const int maxPerRow = 2;         // line 1 left, line 2 right
+
+        final available = constraints.maxWidth - outerPadding * 2;
+
+        // Wide screen -> 2 lines side by side. Narrow -> 1 per row (top/bottom).
+        final perRow =
+        (available / minCardWidth).floor().clamp(1, maxPerRow).toInt();
+
+        final cardWidth =
+        ((available - gap * (perRow - 1)) / perRow).floorToDouble();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(outerPadding, 8, outerPadding, 5),
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            crossAxisAlignment: WrapCrossAlignment.start,
+            children: lines
+                .map(
+                  (line) => SizedBox(
+                width: cardWidth,
+                child: _buildIrrigationLineCard(
+                  context,
+                  line,
+                  isNova: isNova,
+                  hasLinePP: hasLinePP,
+                  isAquaculture: isAquaculture,
+                  customerId: customerId,
+                  controllerId: controllerId,
+                  modelId: modelId,
+                  deviceId: deviceId,
+                ),
+              ),
+            )
+                .toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildIrrigationLineCard(
+      BuildContext context,
+      IrrigationLineModel line, {
+        required bool isNova,
+        required bool hasLinePP,
+        required bool isAquaculture,
+        required int customerId,
+        required int controllerId,
+        required int modelId,
+        required String deviceId,
+      }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade400, width: 0.5),
+        borderRadius: const BorderRadius.all(Radius.circular(5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity, // was MediaQuery width: too wide for half-width cards
+            height: 40,
+            child: Card(
+              color: Colors.white,
+              elevation: 0.6,
+              margin: EdgeInsets.zero,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(5),
+                  topRight: Radius.circular(5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      line.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (!isNova && hasLinePP) ...[
+                    SizedBox(
+                      height: 27,
+                      child: MyMaterialButton(
+                        buttonId: 'line_${line.sNo}_4900',
+                        label: line.linePauseFlag == 0
+                            ? 'Pause the line'
+                            : 'Resume the line',
+                        payloadKey: "4900",
+                        payloadValue:
+                        "${line.sNo},${line.linePauseFlag == 0 ? 1 : 0}",
+                        color: line.linePauseFlag == 0
+                            ? Colors.orangeAccent
+                            : Colors.green,
+                        textColor: Colors.white,
+                        serverMsg: line.linePauseFlag == 0
+                            ? 'Paused the ${line.name}'
+                            : 'Resumed the ${line.name}',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          isAquaculture
+              ? AquacultureLine(
+            irrLine: line,
+            customerId: customerId,
+            controllerId: controllerId,
+            modelId: modelId,
+            deviceId: deviceId,
+          )
+              : buildIrrigationLine(
+            context,
+            line,
+            customerId,
+            controllerId,
+            modelId,
+            deviceId,
+          ),
+        ],
+      ),
     );
   }
 

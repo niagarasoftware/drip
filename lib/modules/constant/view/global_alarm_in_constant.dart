@@ -301,6 +301,7 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
     bool isGem = AppConstants.gemModelList.contains(modelId);
     bool isNova = AppConstants.ecoGemAndPlusModelList.contains(modelId);
     bool isOms = AppConstants.omsGemList.contains(modelId);
+    bool isAQua = AppConstants.aquacultureModelList.contains(modelId);
 
     var normalCriticalPayload = isNova
         ? widget.constPvd.getNormalCriticalAlarmForEcoGem()
@@ -321,7 +322,7 @@ class _GlobalAlarmInConstantState extends State<GlobalAlarmInConstant> {
         "308": normalCriticalPayload,
         "309": pumpPayload,
         "310": filterPayload,
-        if (isGem) "311": commonAlarmPayload,
+        // if (isGem&!isAQua) "311": commonAlarmPayload,
       }
     };
     return hardwarePayload;

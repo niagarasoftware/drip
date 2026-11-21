@@ -201,6 +201,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
     print("filterPayload : $filterPayload");
     print("constPvd.userData['modelId'] : ${constPvd.userData['modelId']}");
     bool isGem = AppConstants.gemModelList.contains(modelId);
+    bool isAQua = AppConstants.aquacultureModelList.contains(modelId);
     bool isOms = AppConstants.omsGemList.contains(modelId);
     var hardwarePayload = {
       "300": {
@@ -214,7 +215,7 @@ class _ConfigWebViewState extends State<ConfigWebView> {
         "308": normalCriticalPayload,
         "309": pumpPayload,
         "310": filterPayload,
-        if (isGem) "311": commonAlarmPayload,
+         // if (isGem&!isAQua) "311": commonAlarmPayload,
       }
     };
     return hardwarePayload;
