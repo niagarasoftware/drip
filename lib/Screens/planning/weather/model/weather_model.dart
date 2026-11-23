@@ -1,3 +1,39 @@
+import 'package:flutter/material.dart';
+
+String getLeafWetnessStatus(dynamic value) {
+  if (value == null) return 'Dry';
+  final parsedValue = int.tryParse(value.toString().trim());
+  switch (parsedValue) {
+    case 0:
+    case 1:
+      return 'Dry';
+    case 2:
+      return 'Slightly Dry';
+    case 3:
+      return 'Slightly Wet';
+    case 4:
+      return 'Wet';
+    default:
+      return 'Dry';
+  }
+}
+
+Color getLeafWetnessStatusColor(dynamic value) {
+  final status = getLeafWetnessStatus(value);
+  switch (status) {
+    case 'Dry':
+      return Colors.red.shade700;
+    case 'Slightly Dry':
+      return Colors.orange.shade700;
+    case 'Slightly Wet':
+      return Colors.lightGreen.shade700;
+    case 'Wet':
+      return Colors.green.shade700;
+    default:
+      return Colors.grey.shade600;
+  }
+}
+
 class WeatherModelNew {
   final WeatherLive weatherLive;
   final List<WeatherDeviceList> deviceList;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:oro_drip_irrigation/Screens/planning/weather/widgets/periodicCard.dart';
 import 'package:oro_drip_irrigation/Screens/planning/weather/widgets/periodicCardCurrent.dart';
+import 'package:oro_drip_irrigation/Screens/planning/weather/model/weather_model.dart';
 
 import '../weather_co2_card.dart';
 import '../weather_rainfall_card.dart';
@@ -113,33 +114,8 @@ class SensorTileNew extends StatelessWidget {
     }
 
     final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
-    final String leafStatusText;
-    final Color leafStatusColor;
-    final bool showLeafStatus;
-
-    if (isLeafWetness) {
-      if (value < 10) {
-        leafStatusText = 'Dry';
-        leafStatusColor = Colors.red.shade700;
-        showLeafStatus = true;
-      } else if (value > 10 && value < 30) {
-        leafStatusText = 'Slightly Wet';
-        leafStatusColor = Colors.orange.shade700;
-        showLeafStatus = true;
-      } else if (value > 30) {
-        leafStatusText = 'Wet';
-        leafStatusColor = Colors.green.shade700;
-        showLeafStatus = true;
-      } else {
-        leafStatusText = '';
-        leafStatusColor = Colors.transparent;
-        showLeafStatus = false;
-      }
-    } else {
-      leafStatusText = '';
-      leafStatusColor = Colors.transparent;
-      showLeafStatus = false;
-    }
+    final String leafStatusText = isLeafWetness ? getLeafWetnessStatus(value) : '';
+    final Color leafStatusColor = isLeafWetness ? getLeafWetnessStatusColor(value) : Colors.transparent;
 
     final String normalAlertText = statusCode == 255 ? 'Normal' : 'Alert';
     final Color normalAlertColor = _sensorStatusColor(statusCode);
@@ -193,54 +169,43 @@ class SensorTileNew extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value.toStringAsFixed(2),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  unit,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey.shade600,
+          if (!isLeafWetness)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value.toStringAsFixed(2),
+                  style: const TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    height: 1,
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          if (isLeafWetness) ...[
-            if (showLeafStatus) ...[
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: leafStatusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                const SizedBox(width: 5),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
                   child: Text(
-                    'Leaf Status:  $leafStatusText',
+                    unit,
                     style: TextStyle(
-                      color: leafStatusColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ),
+              ],
+            ),
+
+          if (isLeafWetness) ...[
+            Text(
+              leafStatusText,
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: leafStatusColor,
+                height: 1,
               ),
-            ],
+            ),
             if (wetHours != null && wetHours!.trim().isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
@@ -258,25 +223,25 @@ class SensorTileNew extends StatelessWidget {
 
           SensorPeriodCardCurrent(
             title: 'Current Day',
-            minValue: minValue.toString(),
-            maxValue: maxValue.toString(),
-            averageValue: otherValue,
+            minValue: isLeafWetness ? getLeafWetnessStatus(minValue) : minValue.toString(),
+            maxValue: isLeafWetness ? getLeafWetnessStatus(maxValue) : maxValue.toString(),
+            averageValue: isLeafWetness ? getLeafWetnessStatus(double.tryParse(otherValue) ?? otherValue) : otherValue,
           ),
           const SizedBox(height: 8),
 
           SensorPeriodCard(
             title: 'Last 7 Days',
-            minValue: last7DaysMin.toString(),
-            maxValue: last7DaysMax.toString(),
-            averageValue: last7DaysAverage.toString(),
+            minValue: isLeafWetness ? getLeafWetnessStatus(last7DaysMin) : last7DaysMin.toString(),
+            maxValue: isLeafWetness ? getLeafWetnessStatus(last7DaysMax) : last7DaysMax.toString(),
+            averageValue: isLeafWetness ? getLeafWetnessStatus(last7DaysAverage) : last7DaysAverage.toString(),
           ),
           const SizedBox(height: 8),
 
           SensorPeriodCard(
             title: 'Last Month',
-            minValue: last30DaysMin.toString(),
-            maxValue: last30DaysMax.toString(),
-            averageValue: last30DaysAverage.toString(),
+            minValue: isLeafWetness ? getLeafWetnessStatus(last30DaysMin) : last30DaysMin.toString(),
+            maxValue: isLeafWetness ? getLeafWetnessStatus(last30DaysMax) : last30DaysMax.toString(),
+            averageValue: isLeafWetness ? getLeafWetnessStatus(last30DaysAverage) : last30DaysAverage.toString(),
           ),
         ],
       ),

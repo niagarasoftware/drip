@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:oro_drip_irrigation/Screens/planning/weather/model/weather_model.dart';
 
 const _ink = Color(0xFF142238);
 const _muted = Color(0xFF64748B);
@@ -30,7 +31,7 @@ class SensorStatusBadge extends StatelessWidget {
 class SensorDailyStats extends StatelessWidget {
   final double min, max, average;
   final VoidCallback? onTap;
-  const SensorDailyStats({super.key, required this.min, required this.max, required this.average, required this.onTap});
+  const SensorDailyStats({super.key, required this.min, required this.max, required this.average,required this.onTap,});
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(11),
@@ -52,7 +53,7 @@ class SensorDailyStats extends StatelessWidget {
       Text(label, style: const TextStyle(fontSize: 11, color: _muted)),
       const SizedBox(height: 3),
       Text(number.toStringAsFixed(2), maxLines: 1, overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
     ],
   ));
 }
@@ -74,7 +75,7 @@ class SensorPeriodRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         child: Row(children: [
           Icon(monthly ? Icons.calendar_month_outlined : Icons.calendar_today_outlined,
-              size: 16, color: const Color(0xFF2374C6)),
+            size: 16, color: const Color(0xFF2374C6)),
           const SizedBox(width: 8),
           Expanded(child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _ink))),
           Text('Avg ${average.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: _ink, fontWeight: FontWeight.w600)),
@@ -103,7 +104,7 @@ class WindCompass extends StatelessWidget {
         ),
       ),
       Positioned(bottom: 48, child: Text('${normalized.toStringAsFixed(0)}°',
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink))),
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink))),
     ]));
   }
 }
@@ -143,33 +144,9 @@ class ReusableSensorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedTitle = title.toLowerCase();
     final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
-    final String leafStatusText;
-    final Color leafStatusColor;
-    final bool showLeafStatus;
-
-    if (isLeafWetness) {
-      if (value < 10) {
-        leafStatusText = 'Dry';
-        leafStatusColor = Colors.red.shade700;
-        showLeafStatus = true;
-      } else if (value > 10 && value < 30) {
-        leafStatusText = 'Slightly Wet';
-        leafStatusColor = Colors.orange.shade700;
-        showLeafStatus = true;
-      } else if (value > 30) {
-        leafStatusText = 'Wet';
-        leafStatusColor = Colors.green.shade700;
-        showLeafStatus = true;
-      } else {
-        leafStatusText = '';
-        leafStatusColor = Colors.transparent;
-        showLeafStatus = false;
-      }
-    } else {
-      leafStatusText = '';
-      leafStatusColor = Colors.transparent;
-      showLeafStatus = false;
-    }
+    final String leafStatusText = isLeafWetness ? getLeafWetnessStatus(value) : '';
+    final Color leafStatusColor = isLeafWetness ? getLeafWetnessStatusColor(value) : Colors.transparent;
+    final bool showLeafStatus = isLeafWetness;
 
     final cardContent = Container(
       padding: const EdgeInsets.all(14),
@@ -188,7 +165,7 @@ class ReusableSensorCard extends StatelessWidget {
           ),
           const SizedBox(width: 9),
           Expanded(child: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink))),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink))),
           const SizedBox(width: 5),
           SensorStatusBadge(code: statusCode),
         ]),
@@ -202,17 +179,54 @@ class ReusableSensorCard extends StatelessWidget {
               Text(windDirectionName(value), style: const TextStyle(fontSize: 13, color: _muted)),
             ])),
           ])
-        else if (!isLeafWetness)
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        else
+    if (!isLeafWetness) ...[Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Flexible(child: Text(value.toStringAsFixed(2), maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w800, color: _ink))),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w800, color: _ink))),
             const SizedBox(width: 6),
             Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(unit,
-                style: const TextStyle(fontSize: 14, color: _muted))),
-          ]),
+              style: const TextStyle(fontSize: 14, color: _muted))),
+          ]),],
+        if (isLeafWetness) ...[
+          if (showLeafStatus) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: leafStatusColor.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Leaf Status:  $leafStatusText',
+                style: TextStyle(
+                  color: leafStatusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+          if (wetHours != null && wetHours!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Wet Duration: $wetHours hrs',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _muted,
+              ),
+            ),
+          ],
+        ],
         const SizedBox(height: 12),
-        if (isWindDirection)
+        if (!isWindDirection) ...[
+          SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),
+          const SizedBox(height: 8),
+          SensorPeriodRow(title: 'Last 7 Days', average: weekAverage, onTap: onWeekTap),
+          const SizedBox(height: 7),
+          SensorPeriodRow(title: 'Last Month', average: monthAverage, monthly: true, onTap: onMonthTap),
+        ] else ...[
           SizedBox(
             height: 105,
             child: Container(
@@ -223,70 +237,10 @@ class ReusableSensorCard extends StatelessWidget {
                 const Text('Current Direction', style: TextStyle(fontSize: 12, color: _muted)),
                 const SizedBox(height: 4),
                 Text('${value.toStringAsFixed(0)}°  ${windDirectionName(value)}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: _ink)),
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: _ink)),
               ]),
             ),
-          )
-        else if (!isLeafWetness) ...[
-          SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),
-          const SizedBox(height: 8),
-          SensorPeriodRow(title: 'Last 7 Days', average: weekAverage, onTap: onWeekTap),
-          const SizedBox(height: 7),
-          SensorPeriodRow(title: 'Last Month', average: monthAverage, monthly: true, onTap: onMonthTap),
-        ] else ...[
-          // Leaf Wetness stats panel containing status & wet duration in a clean Column
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: _panel,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: InkWell(
-              onTap: onCurrentTap,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Leaf Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _ink)),
-                      if (showLeafStatus)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: leafStatusColor.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            leafStatusText,
-                            style: TextStyle(color: leafStatusColor, fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time_rounded, size: 14, color: _muted),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Wet Duration: ${wetHours?.trim().replaceFirst('.', ':') ?? '--'} hrs',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
           ),
-          const SizedBox(height: 28),
-          SensorPeriodRow(title: 'Last 7 Days', average: weekAverage, onTap: onWeekTap),
-          const SizedBox(height: 28),
-          SensorPeriodRow(title: 'Last Month', average: monthAverage, monthly: true, onTap: onMonthTap),
         ],
       ]),
     );
