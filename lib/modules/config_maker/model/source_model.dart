@@ -11,6 +11,7 @@ class SourceModel {
   double topFloatForOutletPump;
   double bottomFloatForOutletPump;
   double nutrient;
+  double tankCapacity;
   List<double> inletPump;
   List<double> outletPump;
   List<double> aerator;
@@ -30,6 +31,7 @@ class SourceModel {
     this.topFloatForOutletPump = 0.0,
     this.bottomFloatForOutletPump = 0.0,
     this.nutrient = 0.0,
+    this.tankCapacity = 0.0,
     required this.inletPump,
     required this.outletPump,
     required this.aerator,
@@ -69,6 +71,7 @@ class SourceModel {
         topFloatForOutletPump: intOrDoubleValidate(data['topFloatForOutletPump'] ?? 0.0),
         bottomFloatForOutletPump: intOrDoubleValidate(data['bottomFloatForOutletPump'] ?? 0.0),
         nutrient: intOrDoubleValidate(data['nutrient'] ?? 0.0),
+        tankCapacity: intOrDoubleValidate(data['tankCapacity'] ?? 0.0),
         inletPump: (data['inletPump'] as List<dynamic>).map((sNo) => sNo as double).toList(),
         outletPump: (data['outletPump'] as List<dynamic>).map((sNo) => sNo as double).toList(),
         aerator: data['aerator'] != null ?  (data['aerator'] as List<dynamic>).map((sNo) => sNo as double).toList() : [],
@@ -91,6 +94,7 @@ class SourceModel {
       'topFloatForOutletPump' : topFloatForOutletPump,
       'bottomFloatForOutletPump' : bottomFloatForOutletPump,
       'nutrient' : nutrient,
+      'tankCapacity' : tankCapacity,
       'inletPump' : inletPump,
       'outletPump' : outletPump,
       'aerator' : aerator,

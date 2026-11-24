@@ -145,11 +145,13 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                       onChanged: (value){
                                         setState(() {
                                           source.sourceType = getTankStringToCode(value!);
-                                          if([4, 5, 6, 7].contains(source.sourceType)){
+                                          if([4, 5].contains(source.sourceType)){
                                             source.inletPump.clear();
                                             source.level = 0.0;
                                             source.topFloatForInletPump = 0.0;
                                             source.bottomFloatForInletPump = 0.0;
+                                          } else if([6, 7].contains(source.sourceType)){
+                                            source.inletPump.clear();
                                           }
                                         });
                                       }
@@ -198,6 +200,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                 spacing: 30,
                                 runSpacing: 20,
                                 children: [
+                                  getTankCapacityInput(source),
                                   for(var pumpMode in [1,2])
                                     ...[
                                       if(pumpMode == 1 && ![4,5,6,7].contains(source.sourceType))
@@ -309,6 +312,8 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                                       getLevelAndFloatSelection(source, mode),
                                   if([6,7].contains(source.sourceType))
                                     ...[
+                                      for(var mode in [1,2,3,4,5,6])
+                                        getLevelAndFloatSelection(source, mode),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
@@ -496,6 +501,68 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
           ),
         );
       }),
+    );
+  }
+
+  Widget getTankCapacityInput(SourceModel source){
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.storage, color: Theme.of(context).primaryColor, size: 20),
+          const SizedBox(width: 8,),
+          const Text('Tank Capacity : ', style: AppProperties.listTileBlackBoldStyle,),
+          Container(
+            width: 90,
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.teal.shade300, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 2,
+                  offset: const Offset(0, 1),
+                )
+              ],
+            ),
+            child: Center(
+              child: TextFormField(
+                initialValue: source.tankCapacity == 0.0
+                    ? ''
+                    : (source.tankCapacity % 1 == 0
+                        ? source.tankCapacity.toInt().toString()
+                        : source.tankCapacity.toString()),
+                keyboardType: TextInputType.number,
+                style: const TextStyle(
+                  color: Colors.teal,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: const InputDecoration(
+                  hintText: '0',
+                  hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+                onChanged: (value) {
+                  source.tankCapacity = double.tryParse(value) ?? 0.0;
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 6,),
+          const Text('Ltrs', style: TextStyle(color: Colors.teal, fontSize: 11, fontWeight: FontWeight.bold)),
+        ],
+      ),
     );
   }
 

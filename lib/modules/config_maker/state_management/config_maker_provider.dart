@@ -555,7 +555,7 @@ class ConfigMakerProvider extends ChangeNotifier{
               );
             }else if(deviceObjectModel.objectId == AppConstants.sourceObjectId){
               source.add(
-                  SourceModel(commonDetails: deviceObjectModel, inletPump: [], outletPump: [], aerator: [], valves: [], outletValves: [], agitator: [], inletTankValve: [], outletTankValve: [])
+                  SourceModel(commonDetails: deviceObjectModel, inletPump: [], outletPump: [], aerator: [], valves: [], outletValves: [], agitator: [], inletTankValve: [], outletTankValve: [], tankCapacity: 0.0)
               );
             }else if(deviceObjectModel.objectId == AppConstants.pumpObjectId){
               pump.add(
@@ -1322,12 +1322,14 @@ class ConfigMakerProvider extends ChangeNotifier{
     for(var i = 0;i < fertilization.length;i++){
       var fertilizerSite = fertilization[i];
       for(var injector = 0;injector < fertilizerSite.channel.length;injector++){
+        var currentInjector = fertilizerSite.channel[injector];
+        var matchedChannel = channelConfig.firstWhereOrNull((c) => c.commonDetails.sNo == currentInjector.sNo);
         fertilizerInjectorPayload.add({
-          "S_No": fertilizerSite.channel[injector].sNo,
+          "S_No": currentInjector.sNo,
           "FertilizerSite": fertilizerSite.commonDetails.sNo,
           "InjectorNumber": injector + 1,
-          "FertilizationMeter": '',
-          "LevelSensor": '',
+          "FertilizationMeter": matchedChannel != null ? serialNoOrEmpty(matchedChannel.dosingMeter) : '',
+          "LevelSensor": serialNoOrEmpty(currentInjector.level),
         }.entries.map((e) => e.value).join(","));
       }
 

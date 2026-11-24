@@ -583,7 +583,7 @@ class _FertigationTableViewState extends State<FertigationTableView> {
 
     for (final card in cards) {
       for (final channel in card.centralChannels) {
-        if (channel.planned != '—' || channel.actual != '—') {
+        if (channel.planned != '—' || channel.actual != '—' || _hasSensorQty(channel.actualQty) || _hasSensorQty(channel.sensorQty)) {
           final int? number = int.tryParse(
             channel.name.replaceAll(RegExp(r'[^0-9]'), ''),
           );
@@ -595,7 +595,7 @@ class _FertigationTableViewState extends State<FertigationTableView> {
       }
 
       for (final channel in card.localChannels) {
-        if (channel.planned != '—' || channel.actual != '—') {
+        if (channel.planned != '—' || channel.actual != '—' || _hasSensorQty(channel.actualQty) || _hasSensorQty(channel.sensorQty)) {
           final int? number = int.tryParse(
             channel.name.replaceAll(RegExp(r'[^0-9]'), ''),
           );
@@ -809,6 +809,8 @@ class _FertigationTableViewState extends State<FertigationTableView> {
             name: 'C-CH$number',
             planned: '—',
             actual: '—',
+            actualQty: '—',
+            sensorQty: '—',
             isCentral: true,
           ),
         );
@@ -818,12 +820,24 @@ class _FertigationTableViewState extends State<FertigationTableView> {
           c.name.replaceAll(RegExp(r'[^0-9]'), '') ==
               number.toString() &&
               ((c.planned != '—' && c.planned != '0') ||
-                  (c.actual != '—' && c.actual != '0')),
+                  (c.actual != '—' && c.actual != '0') ||
+                  _hasSensorQty(c.actualQty) ||
+                  _hasSensorQty(c.sensorQty)),
         );
 
-        final String value = hasData
-            ? 'P:${found.planned}\nA:${found.actual}'
-            : '—';
+        String value = '—';
+        if (hasData) {
+          final List<String> parts = [
+            'P:${found.planned}',
+            'A:${found.actual}',
+          ];
+          if (_hasSensorQty(found.sensorQty)) {
+            parts.add('SQ:${found.sensorQty}');
+          } else if (_hasSensorQty(found.actualQty)) {
+            parts.add('Q:${found.actualQty}');
+          }
+          value = parts.join('\n');
+        }
 
         cells.add(
           _textCell(
@@ -844,6 +858,8 @@ class _FertigationTableViewState extends State<FertigationTableView> {
             name: 'L-CH$number',
             planned: '—',
             actual: '—',
+            actualQty: '—',
+            sensorQty: '—',
             isCentral: false,
           ),
         );
@@ -853,12 +869,24 @@ class _FertigationTableViewState extends State<FertigationTableView> {
           c.name.replaceAll(RegExp(r'[^0-9]'), '') ==
               number.toString() &&
               ((c.planned != '—' && c.planned != '0') ||
-                  (c.actual != '—' && c.actual != '0')),
+                  (c.actual != '—' && c.actual != '0') ||
+                  _hasSensorQty(c.actualQty) ||
+                  _hasSensorQty(c.sensorQty)),
         );
 
-        final String value = hasData
-            ? 'P:${found.planned}\nA:${found.actual}'
-            : '—';
+        String value = '—';
+        if (hasData) {
+          final List<String> parts = [
+            'P:${found.planned}',
+            'A:${found.actual}',
+          ];
+          if (_hasSensorQty(found.sensorQty)) {
+            parts.add('SQ:${found.sensorQty}');
+          } else if (_hasSensorQty(found.actualQty)) {
+            parts.add('Q:${found.actualQty}');
+          }
+          value = parts.join('\n');
+        }
 
         cells.add(
           _textCell(
@@ -871,8 +899,16 @@ class _FertigationTableViewState extends State<FertigationTableView> {
 
       // START / STOP TIME
       cells.addAll([
-        _textCell(card.startTime),
-        _textCell(card.stopTime),
+        _textCell(
+          _formatTimesOrReasons(card.startTime),
+          fontSize: 10,
+          height: 1.2,
+        ),
+        _textCell(
+          _formatTimesOrReasons(card.stopTime),
+          fontSize: 10,
+          height: 1.2,
+        ),
       ]);
 
       return DataRow2(cells: cells);
@@ -930,6 +966,27 @@ class _FertigationTableViewState extends State<FertigationTableView> {
         ),
       ),
     );
+  }
+
+  static bool _hasSensorQty(String sensorQty) {
+    final clean = sensorQty.trim().toLowerCase();
+    if (clean.isEmpty || clean == '—' || clean == '-' || clean == 'null') {
+      return false;
+    }
+    final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+    final val = double.tryParse(numOnly);
+    return val != null && val > 0;
+  }
+
+  static String _formatTimesOrReasons(String raw) {
+    if (raw.isEmpty || raw == '—' || raw == '-') return '—';
+    final parts = raw
+        .split('_')
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty && p != '-')
+        .toList();
+    if (parts.isEmpty) return '—';
+    return parts.join(',\n');
   }
 
   // =========================================================

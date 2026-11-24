@@ -4,12 +4,16 @@ class FertigationChannelModel {
   final String name; // e.g. "C-CH1", "L-CH1"
   final String planned; // e.g. "00:30:00" or "50 Lts"
   final String actual; // e.g. "00:30:00" or "50 Lts"
+  final String actualQty; // e.g. "40" (from QuantityCompleted)
+  final String sensorQty; // e.g. "100.0" (from Flow Sensor)
   final bool isCentral;
 
   const FertigationChannelModel({
     required this.name,
     required this.planned,
     required this.actual,
+    this.actualQty = '—',
+    this.sensorQty = '—',
     required this.isCentral,
   });
 }

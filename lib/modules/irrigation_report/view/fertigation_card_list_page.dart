@@ -280,6 +280,11 @@ class _FertigationCardListPageState
           "LocalFertilizerChannelQuantity",
           "LocalFertilizerChannelDurationCompleted",
           "LocalFertilizerChannelQuantityCompleted",
+          "CentralFertChannelSensorQtyCompleted",
+          "LocalFertChannelSensorQtyCompleted",
+          "CentralFertilizerChannelSensorQtyCompleted",
+          "LocalFertilizerChannelSensorQtyCompleted",
+
         ],
       };
 
