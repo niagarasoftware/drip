@@ -102,6 +102,21 @@ class ChannelWidget extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (channel.dosingMeter.isNotEmpty)
+                    Positioned(
+                      top: 78,
+                      left: 18,
+                      child: SizedBox(
+                        width: 60,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final dm in channel.dosingMeter)
+                              _DosingMeterValue(meter: dm),
+                          ],
+                        ),
+                      ),
+                    ),
                   channel.status == 1 && channel.completedDrQ !='00:00:00' ?
                   Positioned(
                     top: 97,
@@ -151,6 +166,49 @@ class ChannelWidget extends StatelessWidget {
               ]
             ]
           ],
+        );
+      },
+    );
+  }
+}
+
+class _DosingMeterValue extends StatelessWidget {
+  final DosingMeterModel meter;
+  const _DosingMeterValue({required this.meter});
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<MqttPayloadProvider, String?>(
+      selector: (_, provider) => provider.getSensorUpdatedValve(meter.sNo.toString()),
+      builder: (_, data, __) {
+        final parts = data?.split(',') ?? [];
+        if (parts.length > 1) {
+          meter.value = parts[1];
+        }
+
+        return Tooltip(
+          message: meter.name,
+          child: Container(
+            height: 14,
+            width: 60,
+            margin: const EdgeInsets.only(bottom: 1),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: Colors.grey.shade200, width: .5),
+            ),
+            child: Center(
+              child: Text(
+                '${meter.value} - lpm',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
         );
       },
     );

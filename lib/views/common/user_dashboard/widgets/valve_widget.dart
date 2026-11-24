@@ -133,8 +133,7 @@ class ValveWidget extends StatelessWidget {
                     .map((sensor) => {
                   'name': sensor.name,
                   'value': sensor.value,
-                })
-                    .toList();
+                }).toList();
 
                 return buildSensorChip(
                   icon: Icons.water_drop,
