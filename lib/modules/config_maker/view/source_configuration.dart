@@ -547,7 +547,7 @@ class _SourceConfigurationState extends State<SourceConfiguration> {
                   fontWeight: FontWeight.bold,
                 ),
                 decoration: const InputDecoration(
-                  hintText: '0',
+                  hintText: '1000',
                   hintStyle: TextStyle(color: Colors.grey, fontSize: 12),
                   border: InputBorder.none,
                   isDense: true,
