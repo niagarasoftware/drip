@@ -1362,12 +1362,12 @@ class ConfigMakerProvider extends ChangeNotifier{
       );
       tankValvePayload.add({
         "S_No": tankValve.sNo,
-        "SumpTankLevel": sumpSource == null ? '' : sumpSource.level,
-        "TopTankLevel": tankSource == null ? '' : tankSource.level,
-        "TopTankFloatHigh": tankSource == null ? '' : tankSource.topFloatForInletPump,
-        "TopTankFloatLow": tankSource == null ? '' : tankSource.bottomFloatForInletPump,
-        "SumpTankFloatHigh": sumpSource == null ? '' : sumpSource.topFloatForOutletPump,
-        "SumpTankFloatLow": sumpSource == null ? '' : sumpSource.bottomFloatForOutletPump,
+        "SumpTankLevel": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.level),
+        "TopTankLevel": tankSource == null ? '' : serialNoOrEmpty(tankSource.level),
+        "TopTankFloatHigh": tankSource == null ? '' : serialNoOrEmpty(tankSource.topFloatForInletPump),
+        "TopTankFloatLow": tankSource == null ? '' : serialNoOrEmpty(tankSource.bottomFloatForInletPump),
+        "SumpTankFloatHigh": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.topFloatForOutletPump),
+        "SumpTankFloatLow": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.bottomFloatForOutletPump),
       }.entries.map((e) => e.value).join(","));
     }
     return tankValvePayload.join(";");
