@@ -571,6 +571,28 @@ class FertigationCardMapper {
         quantity > 0;
   }
 
+  static bool _isValidValue(String value) {
+    final clean = value.trim().toLowerCase();
+
+    if (clean.isEmpty ||
+        clean == 'null' ||
+        clean == '—' ||
+        clean == '-') {
+      return false;
+    }
+
+    if (clean.contains(':')) {
+      return _isPositiveValue(clean);
+    }
+
+    final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+    final quantity = double.tryParse(numOnly);
+
+    return quantity != null &&
+        quantity.isFinite &&
+        quantity >= 0;
+  }
+
   // --------------------------------------------------
   // BUILD EXECUTED FERTILIZER CHANNELS
   // --------------------------------------------------
@@ -640,14 +662,28 @@ class FertigationCardMapper {
 
     final List<FertigationChannelModel> result = [];
 
-    for (int ch = 0; ch < 8; ch++) {
+    int maxChannels = 8;
+    for (final list in [
+      durationActual,
+      quantityActual,
+      sensorQtyActual,
+      names,
+      durationPlanned,
+      quantityPlanned,
+    ]) {
+      if (list.length > maxChannels) {
+        maxChannels = list.length;
+      }
+    }
+
+    for (int ch = 0; ch < maxChannels; ch++) {
       final duration = _partAt(durationActual, ch);
       final quantity = _partAt(quantityActual, ch);
       final sensorQtyPart = _partAt(sensorQtyActual, ch);
 
       final hasDuration = _isPositiveValue(duration);
       final hasQuantity = _isPositiveValue(quantity);
-      final hasSensorQtyPart = _isPositiveValue(sensorQtyPart);
+      final hasSensorQtyPart = _isValidValue(sensorQtyPart);
 
       // Hide channels that did not execute.
       if (!hasDuration && !hasQuantity && !hasSensorQtyPart) {
@@ -662,7 +698,7 @@ class FertigationCardMapper {
           ? duration
           : quantity;
 
-      final actualQty = (hasDuration && hasQuantity) ? quantity : '—';
+      final actualQty = hasQuantity ? quantity : '—';
       final sensorQty = hasSensorQtyPart ? sensorQtyPart : '—';
 
       final rawName = _partAt(names, ch);

@@ -831,10 +831,11 @@ class _FertigationTableViewState extends State<FertigationTableView> {
             'P:${found.planned}',
             'A:${found.actual}',
           ];
+          if (_hasSensorQty(found.actualQty) && found.actual != found.actualQty) {
+            parts.add('Q:${found.actualQty}');
+          }
           if (_hasSensorQty(found.sensorQty)) {
             parts.add('SQ:${found.sensorQty}');
-          } else if (_hasSensorQty(found.actualQty)) {
-            parts.add('Q:${found.actualQty}');
           }
           value = parts.join('\n');
         }
@@ -880,10 +881,11 @@ class _FertigationTableViewState extends State<FertigationTableView> {
             'P:${found.planned}',
             'A:${found.actual}',
           ];
+          if (_hasSensorQty(found.actualQty) && found.actual != found.actualQty) {
+            parts.add('Q:${found.actualQty}');
+          }
           if (_hasSensorQty(found.sensorQty)) {
             parts.add('SQ:${found.sensorQty}');
-          } else if (_hasSensorQty(found.actualQty)) {
-            parts.add('Q:${found.actualQty}');
           }
           value = parts.join('\n');
         }
@@ -975,7 +977,7 @@ class _FertigationTableViewState extends State<FertigationTableView> {
     }
     final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
     final val = double.tryParse(numOnly);
-    return val != null && val > 0;
+    return val != null && val >= 0;
   }
 
   static String _formatTimesOrReasons(String raw) {

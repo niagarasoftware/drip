@@ -571,7 +571,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         "LocalFertilizerChannelQuantity",
         "LocalFertilizerChannelDurationCompleted",
         "LocalFertilizerChannelQuantityCompleted",
-        "LocalFertChannelName"
+        "LocalFertChannelName",
+        "CentralFertChannelSensorQtyCompleted",
+        "LocalFertChannelSensorQtyCompleted",
+        "CentralFertilizerChannelSensorQtyCompleted",
+        "LocalFertilizerChannelSensorQtyCompleted"
       ]
     };
 

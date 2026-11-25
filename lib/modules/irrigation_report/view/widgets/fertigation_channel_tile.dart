@@ -13,7 +13,7 @@ class FertigationChannelTile extends StatelessWidget {
     }
     final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
     final d = double.tryParse(numOnly);
-    return d != null && d > 0;
+    return d != null && d >= 0;
   }
 
   @override
@@ -66,6 +66,18 @@ class FertigationChannelTile extends StatelessWidget {
                   color: Color(0xFF203B3D),
                 ),
               ),
+              if (hasActualQty && channel.actual != channel.actualQty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    'Qty: ${channel.actualQty}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF637D7A),
+                    ),
+                  ),
+                ),
               if (hasSensorQty)
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
@@ -75,18 +87,6 @@ class FertigationChannelTile extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF006573),
-                    ),
-                  ),
-                )
-              else if (hasActualQty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    'Qty: ${channel.actualQty}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF637D7A),
                     ),
                   ),
                 ),
