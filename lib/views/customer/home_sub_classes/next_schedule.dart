@@ -6,13 +6,16 @@ import '../../../models/customer/site_model.dart';
 import '../../../StateManagement/mqtt_payload_provider.dart';
 
 class NextSchedule extends StatelessWidget {
-  const NextSchedule({super.key, required this.scheduledPrograms});
+  //  const NextSchedule({super.key, required this.scheduledPrograms}); changed for issue faced on config maker payload updating for different site
+  const NextSchedule({super.key, required this.scheduledPrograms, this.deviceId});
   final List<ProgramList> scheduledPrograms;
+  // newly added
+  final String? deviceId;
 
   @override
   Widget build(BuildContext context) {
-
-    var nextSchedule =  context.watch<MqttPayloadProvider>().nextSchedule;
+  //    var nextSchedule =  context.watch<MqttPayloadProvider>().nextSchedule; changed for issue faced on config maker payload updating for different site
+    var nextSchedule =  context.watch<MqttPayloadProvider>().getNextScheduleForDevice(deviceId);
 
     return nextSchedule.isNotEmpty && nextSchedule[0].isNotEmpty ?
     Padding(

@@ -63,8 +63,13 @@ class _FertilizerLivePanelState extends State<FertilizerLivePanel> {
         if (_isDisposed) {
           return const SizedBox.shrink();
         }
+//line 67 to line 85 logic changed for the issue on config maker payload updating for different site
+        final deviceLiveState = mqtt.getDeviceLiveState(widget.deviceId);
+        final siteMap = deviceLiveState.fertilizerSiteMap.isNotEmpty
+            ? deviceLiveState.fertilizerSiteMap
+            : mqtt.fertilizerSiteMap;
 
-        if (mqtt.fertilizerSiteMap.isEmpty) {
+        if (siteMap.isEmpty) {
           return const Scaffold(
             body: Center(
               child: Text("Waiting for live data..."),
@@ -72,8 +77,8 @@ class _FertilizerLivePanelState extends State<FertilizerLivePanel> {
           );
         }
 
-        if (mqtt.fertilizerSiteMap.isEmpty ||
-            mqtt.fertilizerSiteMap.values.first.valve.isEmpty) {
+        if (siteMap.isEmpty ||
+            siteMap.values.first.valve.isEmpty) {
           return const Scaffold(
             body: Center(child: Text("No Live Data Available"),),
           );

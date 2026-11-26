@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/http_service.dart';
 
@@ -286,10 +287,19 @@ class Repository{
   Future<http.Response> getUserProgramDetails(body) async {
     return await apiService.postRequest('/user/program/details/get', body);
   }
-
+  // logic changed for the site issue that cause payload update to different site
   Future<http.Response> getUserConfigMaker(body) async {
+    try {
+      final response = await apiService.postRequest('/user/configMaker/get', body);
+      if (response.statusCode == 200) {
+        final bodyJson = jsonDecode(response.body);
+        if (bodyJson is Map && bodyJson['code'] == 200 && bodyJson['data'] != null) {
+          return response;
+        }
+      }
+    } catch (_) {}
     return await apiService.postRequest('/user/configMaker/getAsDefault', body);
-  }
+  }  // still here
 
   Future<http.Response> getdealerDefinition(body) async {
     return await apiService.postRequest('/user/dealerDefinition/get', body);

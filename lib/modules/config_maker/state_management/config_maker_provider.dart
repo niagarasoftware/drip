@@ -137,8 +137,11 @@ class ConfigMakerProvider extends ChangeNotifier{
     serialNumber = 0;
     notifyListeners();
   }
-
+// from line 142 to 144 newly added for the issue faced on config maker payload updating for different sites.
   void reInitialize(){
+    masterData = {};
+    configMakerDataFromHttp = {};
+    defaultDataFromHttp = {};
     listOfSampleObjectModel.clear();
     listOfObjectModelConnection.clear();
     listOfDeviceModel.clear();
@@ -296,8 +299,8 @@ class ConfigMakerProvider extends ChangeNotifier{
       if (kDebugMode) {
         print('jsonData : $jsonData');
       }
-      Map<String, dynamic> defaultData = jsonData['data']['default'];
-      Map<String, dynamic> configMakerData = jsonData['data']['configMaker'];
+      Map<String, dynamic> defaultData = jsonData['data'] != null ? (jsonData['data']['default'] ?? {}) : {};
+      Map<String, dynamic> configMakerData = jsonData['data'] != null ? (jsonData['data']['configMaker'] ?? {}) : {};
       configMakerDataFromHttp = configMakerData;
       defaultDataFromHttp = defaultData;
       masterData = masterDataFromSiteConfigure;

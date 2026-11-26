@@ -32,7 +32,8 @@ class CurrentProgram extends StatelessWidget {
       child: Consumer<CurrentProgramViewModel>(
         builder: (context, vm, _) {
 
-          final currentSchedule = context.watch<MqttPayloadProvider>().currentSchedule;
+          // final currentSchedule = context.watch<MqttPayloadProvider>().currentSchedule;  this is changed for then issue faced on the config maker payload updating for different site
+          final currentSchedule = context.watch<MqttPayloadProvider>().getCurrentScheduleForDevice(deviceId);
 
           if(currentSchedule.isNotEmpty){
             WidgetsBinding.instance.addPostFrameCallback((_) {

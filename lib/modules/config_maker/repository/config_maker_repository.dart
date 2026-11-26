@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:oro_drip_irrigation/services/http_service.dart';
 
@@ -6,7 +7,16 @@ class ConfigMakerRepository{
 
   Future<http.Response> getUserConfigMaker(body) async {
     print('config maker :: $body');
-    return await httpService.postRequest('/user/configMaker/get', body);
+    try {
+      final response = await httpService.postRequest('/user/configMaker/get', body);
+      if (response.statusCode == 200) {
+        final bodyJson = jsonDecode(response.body);
+        if (bodyJson is Map && bodyJson['code'] == 200 && bodyJson['data'] != null) {
+          return response;
+        }
+      }
+    } catch (_) {}
+    return await httpService.postRequest('/user/configMaker/getAsDefault', body);
   }
 
   Future<http.Response> productReplace(body) async {

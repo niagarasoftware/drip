@@ -314,25 +314,57 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
       String type, bool preserveSelection) {
     final newSiteList = SiteModel.fromJson(jsonData, type);
 
-    if (preserveSelection && mySiteList.data.isNotEmpty) {
-      mySiteList.data[sIndex].master[mIndex] =
-      newSiteList.data[sIndex].master[mIndex];
-    } else {
-      mySiteList = newSiteList;
-      updateSite(sIndex, mIndex, lIndex);
+    // logic changed for the site issue that cause payload update to different site
+    int? activeControllerId;
+    if (mySiteList.data.isNotEmpty &&
+        sIndex < mySiteList.data.length &&
+        mIndex < mySiteList.data[sIndex].master.length) {
+      activeControllerId = mySiteList.data[sIndex].master[mIndex].controllerId;
     }
 
-    final master = mySiteList.data[sIndex].master[mIndex];
-    mqttProvider.saveUnits(Unit.toJsonList(master.units));
+    mySiteList = newSiteList;
 
-    final live = master.live;
-    mqttProvider.updateReceivedPayload(
-      live != null ? jsonEncode(live) : _defaultPayload(),
-      true,
-    );
+    if (activeControllerId != null) {
+      bool found = false;
+      for (int s = 0; s < mySiteList.data.length; s++) {
+        final masters = mySiteList.data[s].master;
+        for (int m = 0; m < masters.length; m++) {
+          if (masters[m].controllerId == activeControllerId) {
+            sIndex = s;
+            mIndex = m;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (!found) {
+        sIndex = 0;
+        mIndex = 0;
+      }
+    } else {
+      sIndex = 0;
+      mIndex = 0;
+    }
 
-    wifiStrength = live?.cM['WifiStrength'] ?? 0;
-  }
+    if (mySiteList.data.isNotEmpty &&
+        sIndex < mySiteList.data.length &&
+        mIndex < mySiteList.data[sIndex].master.length) {
+      updateSite(sIndex, mIndex, lIndex);
+
+      final master = mySiteList.data[sIndex].master[mIndex];
+      mqttProvider.saveUnits(Unit.toJsonList(master.units));
+
+      final live = master.live;
+      mqttProvider.updateReceivedPayload(
+        live != null ? jsonEncode(live) : _defaultPayload(),
+        true,
+      );
+
+      wifiStrength = live?.cM['WifiStrength'] ?? 0;
+    }
+  }  // still here
+
 
   String _defaultPayload() => '''
   {

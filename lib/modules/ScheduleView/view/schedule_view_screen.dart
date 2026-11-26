@@ -82,7 +82,9 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
     selectedPrograms.clear();
     if(mounted) {
       setState(() {
-        configObjects = List.from(response['data']['configObject']);
+        configObjects = response['data'] != null && response['data']['configObject'] != null
+            ? List.from(response['data']['configObject'])
+            : [];
 
         if(MqttService().schedulePayload != null && MqttService().schedulePayload!.isNotEmpty && !MqttService().schedulePayload![0].containsKey('message')) {
           final headUnitSnoList = MqttService().schedulePayload!.map((e) => e['HeadUnit'].toString()).toList().toSet();
