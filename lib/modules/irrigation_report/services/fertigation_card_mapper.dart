@@ -91,9 +91,12 @@ class FertigationCardMapper {
             irrigation['IrrigationQuantity_Quantity'],
       );
 
-      final waterActualList = _asList(
-        irrigation['IrrigationDurationCompleted'] ??
-            irrigation['IrrigationQuantityCompleted'],
+      final durationCompletedList = _asList(
+        irrigation['IrrigationDurationCompleted'],
+      );
+
+      final quantityCompletedList = _asList(
+        irrigation['IrrigationQuantityCompleted'],
       );
 
       final prePostMethods =
@@ -266,10 +269,19 @@ class FertigationCardMapper {
           i,
         );
 
-        final waterActual = _valueAt(
-          waterActualList,
-          i,
-        );
+        final rawWaterMethod = _rawValueAt(waterMethods, i);
+        final waterMethodCode = rawWaterMethod != null
+            ? int.tryParse(rawWaterMethod.toString().trim())
+            : null;
+
+        final String waterActual;
+        if (waterMethodCode == 1) {
+          waterActual = _valueAt(durationCompletedList, i);
+        } else if (waterMethodCode == 2) {
+          waterActual = _valueAt(quantityCompletedList, i);
+        } else {
+          waterActual = '—';
+        }
 
         final preMethod = _getMethod(
           _rawValueAt(prePostMethods, i),
