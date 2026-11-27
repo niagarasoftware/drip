@@ -63,6 +63,7 @@ class _ValveLogScreenState extends State<ValveLogScreen> {
 
       if (res.statusCode == 200) {
         final response = jsonDecode(res.body);
+        print(response);
         if (response['data'] != null) {
           final rawData = response['data'];
           List rawList = [];

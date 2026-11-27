@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:html' as html;
 import 'package:excel/excel.dart';
 import 'package:flutter/foundation.dart';
@@ -79,6 +80,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     for (var d in dateColumns) {
       String dateStr = DateFormat('dd/MM/yyyy (E)').format(d);
       header1.add(TextCellValue(dateStr));
+      header1.add(TextCellValue(''));
     }
     header1.add(TextCellValue('Total'));
     sheet.appendRow(header1);
@@ -86,6 +88,7 @@ Future<String?> exportZoneLogMatrixToExcel({
     List<CellValue> header2 = [TextCellValue('Program / Valve / Sequence')];
     for (var _ in dateColumns) {
       header2.add(TextCellValue('Duration / Quantity'));
+      header2.add(TextCellValue('Start Time / End Time'));
     }
     header2.add(TextCellValue('Total Duration / Quantity'));
     sheet.appendRow(header2);
@@ -111,21 +114,46 @@ Future<String?> exportZoneLogMatrixToExcel({
         if (dayData != null && dayData.hasRun) {
           int sec = (dayData.durationQtySeconds as int? ?? 0);
           num qtyVal = (dayData.quantityCompleted as num? ?? dayData.quantity as num? ?? 0);
-          String qtyStr = qtyVal > 0
-              ? (qtyVal % 1 == 0 ? "${qtyVal.toInt()} L" : "$qtyVal L")
-              : '-';
+          String qtyStr = qtyVal > 0 ? _formatQuantityHelper(qtyVal) : '-';
           dataRow.add(TextCellValue("${dayData.durationQtyStr} / $qtyStr"));
+
+          List<String> pairs = [];
+          void processTimes(String sRaw, String eRaw) {
+            if ((sRaw.isEmpty || sRaw == '-') && (eRaw.isEmpty || eRaw == '-')) return;
+            List<String> sList = sRaw.replaceAll(', ', '_').replaceAll(',', '_').split('_').map((x) => x.trim()).toList();
+            List<String> eList = eRaw.replaceAll(', ', '_').replaceAll(',', '_').split('_').map((x) => x.trim()).toList();
+            int cnt = math.max(sList.length, eList.length);
+            for (int k = 0; k < cnt; k++) {
+              String sItem = (k < sList.length && sList[k].isNotEmpty) ? sList[k] : '-';
+              String eItem = (k < eList.length && eList[k].isNotEmpty) ? eList[k] : '-';
+              if (sItem != '-' || eItem != '-') {
+                String p = "$sItem - $eItem";
+                if (!pairs.contains(p)) pairs.add(p);
+              }
+            }
+          }
+          if (dayData.runs != null && dayData.runs.isNotEmpty) {
+            for (var r in dayData.runs) {
+              processTimes(r.actualStartTime?.toString() ?? '', r.actualEndTime?.toString() ?? '');
+            }
+          }
+          if (pairs.isEmpty && (dayData.actualStartTime != null || dayData.actualEndTime != null)) {
+            processTimes(dayData.actualStartTime?.toString() ?? '', dayData.actualEndTime?.toString() ?? '');
+          }
+          dataRow.add(TextCellValue(pairs.isNotEmpty ? pairs.join('\n') : '-'));
           rowTotalSec += sec;
           rowTotalQty += qtyVal;
         } else {
           dataRow.add(TextCellValue('- / -'));
+          dataRow.add(TextCellValue('-'));
         }
       }
-      String totalDur = _formatDurationHelper(rowTotalSec);
-      String totalQty = rowTotalQty > 0
-          ? (rowTotalQty % 1 == 0 ? "${rowTotalQty.toInt()} L" : "$rowTotalQty L")
-          : '-';
-      dataRow.add(TextCellValue("$totalDur / $totalQty"));
+      String totalDur = rowTotalSec > 0 ? _formatDurationHelper(rowTotalSec) : '-';
+      String totalQty = rowTotalQty > 0 ? _formatQuantityHelper(rowTotalQty) : '-';
+      String totalCell = (rowTotalSec == 0 && rowTotalQty == 0)
+          ? '- / -'
+          : "$totalDur / $totalQty";
+      dataRow.add(TextCellValue(totalCell));
       sheet.appendRow(dataRow);
     }
 
@@ -135,17 +163,12 @@ Future<String?> exportZoneLogMatrixToExcel({
       int daySec = dailyTotals[dKey] ?? 0;
       num dayQty = dailyTotalQuantities?[dKey] ?? 0;
       String dayDur = _formatDurationHelper(daySec);
-      String dayQtyStr = dayQty > 0
-          ? (dayQty % 1 == 0 ? "${dayQty.toInt()} L" : "$dayQty L")
-          : '-';
+      String dayQtyStr = dayQty > 0 ? _formatQuantityHelper(dayQty) : '-';
       footerRow.add(TextCellValue("$dayDur / $dayQtyStr"));
+      footerRow.add(TextCellValue('-'));
     }
     String gDur = _formatDurationHelper(grandTotalSeconds);
-    String gQty = grandTotalQuantity > 0
-        ? (grandTotalQuantity % 1 == 0
-            ? "${grandTotalQuantity.toInt()} L"
-            : "$grandTotalQuantity L")
-        : '-';
+    String gQty = grandTotalQuantity > 0 ? _formatQuantityHelper(grandTotalQuantity) : '-';
     footerRow.add(TextCellValue("$gDur / $gQty"));
     sheet.appendRow(footerRow);
 
@@ -210,6 +233,15 @@ String _formatDurationHelper(int totalSeconds) {
     return "${hours}h ${minutes}m ${seconds}s";
   }
   return "${hours}h ${minutes}m";
+}
+
+String _formatQuantityHelper(num val) {
+  if (val <= 0) return '-';
+  num rounded = num.parse(val.toStringAsFixed(2));
+  String numStr = (rounded % 1 == 0)
+      ? "${rounded.toInt()}"
+      : rounded.toStringAsFixed(2);
+  return "$numStr L";
 }
 
 String _formatSecondsToHMS(int totalSecs) {

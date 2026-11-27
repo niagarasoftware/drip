@@ -82,7 +82,9 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
     selectedPrograms.clear();
     if(mounted) {
       setState(() {
-        configObjects = List.from(response['data']['configObject']);
+        configObjects = response['data'] != null && response['data']['configObject'] != null
+            ? List.from(response['data']['configObject'])
+            : [];
 
         if(MqttService().schedulePayload != null && MqttService().schedulePayload!.isNotEmpty && !MqttService().schedulePayload![0].containsKey('message')) {
           final headUnitSnoList = MqttService().schedulePayload!.map((e) => e['HeadUnit'].toString()).toList().toSet();
@@ -92,9 +94,17 @@ class _ScheduleViewScreenState extends State<ScheduleViewScreen> {
           statusList = statusCodeList.map((code) => _getStatusInfo(code)).toSet().toList();
           programs = defaultData['program'].where((program) => programSnoList.contains(program['sNo'].toString())).toSet().toList();
 
-          headUnits = configObjects.where((obj) => headUnitSnoList.contains(obj['sNo'].toString())).map((obj) => {'sNo': obj['sNo'], 'name': obj['name']}).toSet().toList();
-          if(selectedHeadUnits.isEmpty) {
-            selectedHeadUnits.add(headUnits[0]);
+          headUnits = configObjects
+              .where((obj) => headUnitSnoList.contains(obj['sNo'].toString()))
+              .map((obj) => {
+            'sNo': obj['sNo'],
+            'name': obj['name'],
+          })
+              .toSet()
+              .toList();
+
+          if (selectedHeadUnits.isEmpty && headUnits.isNotEmpty) {
+            selectedHeadUnits.add(headUnits.first);
           }
         }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:oro_drip_irrigation/Screens/planning/weather/model/weather_model.dart';
 
 const _ink = Color(0xFF142238);
 const _muted = Color(0xFF64748B);
@@ -143,33 +144,9 @@ class ReusableSensorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalizedTitle = title.toLowerCase();
     final bool isLeafWetness = normalizedTitle.contains('leaf wetness');
-    final String leafStatusText;
-    final Color leafStatusColor;
-    final bool showLeafStatus;
-
-    if (isLeafWetness) {
-      if (value < 10) {
-        leafStatusText = 'Dry';
-        leafStatusColor = Colors.red.shade700;
-        showLeafStatus = true;
-      } else if (value > 10 && value < 30) {
-        leafStatusText = 'Slightly Wet';
-        leafStatusColor = Colors.orange.shade700;
-        showLeafStatus = true;
-      } else if (value > 30) {
-        leafStatusText = 'Wet';
-        leafStatusColor = Colors.green.shade700;
-        showLeafStatus = true;
-      } else {
-        leafStatusText = '';
-        leafStatusColor = Colors.transparent;
-        showLeafStatus = false;
-      }
-    } else {
-      leafStatusText = '';
-      leafStatusColor = Colors.transparent;
-      showLeafStatus = false;
-    }
+    final String leafStatusText = isLeafWetness ? getLeafWetnessStatus(value) : '';
+    final Color leafStatusColor = isLeafWetness ? getLeafWetnessStatusColor(value) : Colors.transparent;
+    final bool showLeafStatus = isLeafWetness;
 
     final cardContent = Container(
       padding: const EdgeInsets.all(14),
@@ -203,25 +180,25 @@ class ReusableSensorCard extends StatelessWidget {
             ])),
           ])
         else
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+    if (!isLeafWetness) ...[Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Flexible(child: Text(value.toStringAsFixed(2), maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 29, fontWeight: FontWeight.w800, color: _ink))),
             const SizedBox(width: 6),
             Padding(padding: const EdgeInsets.only(bottom: 4), child: Text(unit,
               style: const TextStyle(fontSize: 14, color: _muted))),
-
+          ]),],
         if (isLeafWetness) ...[
           if (showLeafStatus) ...[
-            const SizedBox(width: 10),
-             Container(
+            const SizedBox(height: 6),
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
                 color: leafStatusColor.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                '$leafStatusText',
+                'Leaf Status:  $leafStatusText',
                 style: TextStyle(
                   color: leafStatusColor,
                   fontSize: 10,
@@ -231,18 +208,17 @@ class ReusableSensorCard extends StatelessWidget {
             ),
           ],
           if (wetHours != null && wetHours!.trim().isNotEmpty) ...[
-            const SizedBox(width: 10),
+            const SizedBox(height: 4),
             Text(
-              'Wet Duration: ${wetHours?.trim().replaceFirst('.', ':')} hrs',
+              'Wet Duration: $wetHours hrs',
               style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: Colors.black,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: _muted,
               ),
             ),
           ],
         ],
-          ]),
         const SizedBox(height: 12),
         if (!isWindDirection) ...[
           SensorDailyStats(min: todayMin, max: todayMax, average: todayAverage, onTap: onCurrentTap),

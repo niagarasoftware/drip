@@ -209,16 +209,10 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
     bool showY = true;
     bool showB = true;
 
-    if (isSinglePhaseModel) {
-      if (selectedIndex == 0) {
-        showR = false;
-        showY = false;
-        showB = true;
-      } else if (selectedIndex == 1) {
-        showR = true;
-        showY = false;
-        showB = false;
-      }
+    if (isSinglePhaseModel && (selectedIndex == 0 || selectedIndex == 1)) {
+      showR = false;
+      showY = false;
+      showB = true;
     }
 
     final String phasePrefix = selectedIndex == 0 ? 'voltage' : selectedIndex == 1 ? 'current' : selectedIndex == 2 ? 'powerFactor' : 'power';
@@ -358,7 +352,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                                     dataSource: filteredData,
                                     color: Colors.blue,
                                     phase: 'B',
-                                    name: isSinglePhaseModel ? 'Voltage' : (selectedIndex == 0 ? 'Voltage B' : selectedIndex == 1 ? 'Current B' : selectedIndex == 2 ? "Power Factor B" : "Power B"),
+                                    name: isSinglePhaseModel ? (selectedIndex == 0 ? 'Voltage' : 'Current') : (selectedIndex == 0 ? 'Voltage B' : selectedIndex == 1 ? 'Current B' : selectedIndex == 2 ? "Power Factor B" : "Power B"),
                                   ),
                               ],
                             ),
@@ -444,7 +438,7 @@ class _PumpVoltageLogScreenState extends State<PumpVoltageLogScreen> {
                       Container(
                         padding: const EdgeInsets.all(8.0),
                         color: Colors.lightBlueAccent.shade100,
-                        child: Text(isSinglePhaseModel ? 'Voltage' : 'B', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(isSinglePhaseModel ? (selectedIndex == 0 ? 'Voltage' : 'Current') : 'B', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                   ],
                 ),

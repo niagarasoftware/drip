@@ -110,6 +110,9 @@ class MqttPayloadProvider with ChangeNotifier {
   List<String> lineLiveMessage = [];
   List<String> alarmDL = [];
 
+  final Map<String, DeviceLiveState> _deviceLiveStateMap = {};
+  Map<String, DeviceLiveState> get deviceLiveStateMap => _deviceLiveStateMap;
+
    String? _programPreview;
    String? _sequencePreview;
    List<String> _novaVoltage =[];
@@ -809,6 +812,7 @@ class MqttPayloadProvider with ChangeNotifier {
             updateAlarm([]);
           }
 
+          _saveCurrentDeviceState(activeDeviceId);
         }
         else if(data.containsKey('3600') && data['3600'] != null && data['3600'].isNotEmpty){
           schedulePayload = _receivedPayload;
@@ -1211,4 +1215,127 @@ class MqttPayloadProvider with ChangeNotifier {
   String get receivedDashboardPayload => dashBoardPayload;
   String get receivedSchedulePayload => schedulePayload;
   MQTTConnectionState get getAppConnectionState => _appConnectionState;
+
+  // logic added for the site issue that cause payload update to different site
+
+
+   void _saveCurrentDeviceState(String devId) {
+    if (devId.isEmpty) return;
+    _deviceLiveStateMap[devId] = DeviceLiveState(
+      deviceId: devId,
+      liveDateAndTime: liveDateAndTime,
+      wifiStrength: wifiStrength,
+      powerSupply: powerSupply,
+      nodeLiveMessage: List.from(nodeLiveMessage),
+      outputOnOffPayload: List.from(outputOnOffPayload),
+      currentSchedule: List.from(currentSchedule),
+      nextSchedule: List.from(nextSchedule),
+      scheduledProgramPayload: List.from(scheduledProgramPayload),
+      conditionPayload: List.from(conditionPayload),
+      lineLiveMessage: List.from(lineLiveMessage),
+      alarmDL: List.from(alarmDL),
+      fertilizerSiteMap: Map.from(_fertilizerSiteMap),
+      fertilizerChannelMap: Map.from(_fertilizerChannelMap),
+    );
+  }
+
+  List<String> getCurrentScheduleForDevice(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty || !_deviceLiveStateMap.containsKey(deviceId)) {
+      return currentSchedule;
+    }
+    return _deviceLiveStateMap[deviceId]?.currentSchedule ?? currentSchedule;
+  }
+
+  List<String> getNextScheduleForDevice(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty || !_deviceLiveStateMap.containsKey(deviceId)) {
+      return nextSchedule;
+    }
+    return _deviceLiveStateMap[deviceId]?.nextSchedule ?? nextSchedule;
+  }
+
+  List<String> getLineLiveMessageForDevice(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty || !_deviceLiveStateMap.containsKey(deviceId)) {
+      return lineLiveMessage;
+    }
+    return _deviceLiveStateMap[deviceId]?.lineLiveMessage ?? lineLiveMessage;
+  }
+
+  List<String> getScheduledProgramPayloadForDevice(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty || !_deviceLiveStateMap.containsKey(deviceId)) {
+      return scheduledProgramPayload;
+    }
+    return _deviceLiveStateMap[deviceId]?.scheduledProgramPayload ?? scheduledProgramPayload;
+  }
+
+  List<String> getConditionPayloadForDevice(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty || !_deviceLiveStateMap.containsKey(deviceId)) {
+      return conditionPayload;
+    }
+    return _deviceLiveStateMap[deviceId]?.conditionPayload ?? conditionPayload;
+  }
+
+  DeviceLiveState getDeviceLiveState(String? deviceId) {
+    if (deviceId != null && deviceId.isNotEmpty && _deviceLiveStateMap.containsKey(deviceId)) {
+      return _deviceLiveStateMap[deviceId]!;
+    }
+    return DeviceLiveState(
+      deviceId: activeDeviceId,
+      liveDateAndTime: liveDateAndTime,
+      wifiStrength: wifiStrength,
+      powerSupply: powerSupply,
+      nodeLiveMessage: nodeLiveMessage,
+      outputOnOffPayload: outputOnOffPayload,
+      currentSchedule: currentSchedule,
+      nextSchedule: nextSchedule,
+      scheduledProgramPayload: scheduledProgramPayload,
+      conditionPayload: conditionPayload,
+      lineLiveMessage: lineLiveMessage,
+      alarmDL: alarmDL,
+      fertilizerSiteMap: _fertilizerSiteMap,
+      fertilizerChannelMap: _fertilizerChannelMap,
+    );
+  }
+}
+
+class DeviceLiveState {
+  final String deviceId;
+  String liveDateAndTime;
+  int wifiStrength;
+  int powerSupply;
+  List<String> nodeLiveMessage;
+  List<String> outputOnOffPayload;
+  List<String> currentSchedule;
+  List<String> nextSchedule;
+  List<String> scheduledProgramPayload;
+  List<String> conditionPayload;
+  List<String> lineLiveMessage;
+  List<String> alarmDL;
+  Map<String, FertilizerSiteLiveModel> fertilizerSiteMap;
+  Map<String, FertilizerChannelLiveModel> fertilizerChannelMap;
+
+  DeviceLiveState({
+    required this.deviceId,
+    this.liveDateAndTime = '',
+    this.wifiStrength = 0,
+    this.powerSupply = 0,
+    List<String>? nodeLiveMessage,
+    List<String>? outputOnOffPayload,
+    List<String>? currentSchedule,
+    List<String>? nextSchedule,
+    List<String>? scheduledProgramPayload,
+    List<String>? conditionPayload,
+    List<String>? lineLiveMessage,
+    List<String>? alarmDL,
+    Map<String, FertilizerSiteLiveModel>? fertilizerSiteMap,
+    Map<String, FertilizerChannelLiveModel>? fertilizerChannelMap,
+  })  : nodeLiveMessage = nodeLiveMessage ?? [],
+        outputOnOffPayload = outputOnOffPayload ?? [],
+        currentSchedule = currentSchedule ?? [],
+        nextSchedule = nextSchedule ?? [],
+        scheduledProgramPayload = scheduledProgramPayload ?? [],
+        conditionPayload = conditionPayload ?? [],
+        lineLiveMessage = lineLiveMessage ?? [],
+        alarmDL = alarmDL ?? [],
+        fertilizerSiteMap = fertilizerSiteMap ?? {},
+        fertilizerChannelMap = fertilizerChannelMap ?? {};
 }

@@ -485,9 +485,17 @@ class FertigationCardMapper {
       ) {
     const fields = [
       'CentralFertilizerChannelDurationCompleted',
+      'CentralFertChannelDurationCompleted',
       'CentralFertilizerChannelQuantityCompleted',
+      'CentralFertChannelQuantityCompleted',
+      'CentralFertilizerChannelSensorQtyCompleted',
+      'CentralFertChannelSensorQtyCompleted',
       'LocalFertilizerChannelDurationCompleted',
+      'LocalFertChannelDurationCompleted',
       'LocalFertilizerChannelQuantityCompleted',
+      'LocalFertChannelQuantityCompleted',
+      'LocalFertilizerChannelSensorQtyCompleted',
+      'LocalFertChannelSensorQtyCompleted',
     ];
 
     for (final fieldName in fields) {
@@ -555,11 +563,34 @@ class FertigationCardMapper {
           seconds > 0;
     }
 
-    final quantity = double.tryParse(clean);
+    final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+    final quantity = double.tryParse(numOnly);
 
     return quantity != null &&
         quantity.isFinite &&
         quantity > 0;
+  }
+
+  static bool _isValidValue(String value) {
+    final clean = value.trim().toLowerCase();
+
+    if (clean.isEmpty ||
+        clean == 'null' ||
+        clean == '—' ||
+        clean == '-') {
+      return false;
+    }
+
+    if (clean.contains(':')) {
+      return _isPositiveValue(clean);
+    }
+
+    final numOnly = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+    final quantity = double.tryParse(numOnly);
+
+    return quantity != null &&
+        quantity.isFinite &&
+        quantity >= 0;
   }
 
   // --------------------------------------------------
@@ -571,49 +602,91 @@ class FertigationCardMapper {
     required int recordIndex,
     required bool isCentral,
   }) {
-    final prefix = isCentral
-        ? 'CentralFertilizerChannel'
-        : 'LocalFertilizerChannel';
+    final prefix = isCentral ? 'Central' : 'Local';
 
-    final durationPlanned = _channelParts(
-      irrigation['${prefix}Duration'],
+    final durationPlanned = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertilizerChannelDuration',
+        '${prefix}FertChannelDuration',
+      ],
       recordIndex,
     );
 
-    final quantityPlanned = _channelParts(
-      irrigation['${prefix}Quantity'],
+    final quantityPlanned = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertilizerChannelQuantity',
+        '${prefix}FertChannelQuantity',
+      ],
       recordIndex,
     );
 
-    final durationActual = _channelParts(
-      irrigation['${prefix}DurationCompleted'],
+    final durationActual = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertilizerChannelDurationCompleted',
+        '${prefix}FertChannelDurationCompleted',
+      ],
       recordIndex,
     );
 
-    final quantityActual = _channelParts(
-      irrigation['${prefix}QuantityCompleted'],
+    final quantityActual = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertilizerChannelQuantityCompleted',
+        '${prefix}FertChannelQuantityCompleted',
+      ],
       recordIndex,
     );
 
-    final names = _channelParts(
-      isCentral
-          ? irrigation['CentralFertChannelName']
-          : irrigation['LocalFertChannelName'] ??
-          irrigation['LocalFertilizerChannelName'],
+    final sensorQtyActual = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertilizerChannelSensorQtyCompleted',
+        '${prefix}FertChannelSensorQtyCompleted',
+        '${prefix}FertilizerChannelSensorQuantityCompleted',
+        '${prefix}FertChannelSensorQuantityCompleted',
+      ],
+      recordIndex,
+    );
+
+    final names = _getChannelPartsFallback(
+      irrigation,
+      [
+        '${prefix}FertChannelName',
+        '${prefix}FertilizerChannelName',
+      ],
       recordIndex,
     );
 
     final List<FertigationChannelModel> result = [];
 
-    for (int ch = 0; ch < 8; ch++) {
+    int maxChannels = 8;
+    for (final list in [
+      durationActual,
+      quantityActual,
+      sensorQtyActual,
+      names,
+      durationPlanned,
+      quantityPlanned,
+    ]) {
+      if (list.length > maxChannels) {
+        maxChannels = list.length;
+      }
+    }
+
+    for (int ch = 0; ch < maxChannels; ch++) {
       final duration = _partAt(durationActual, ch);
       final quantity = _partAt(quantityActual, ch);
+      final sensorQtyPart = _partAt(sensorQtyActual, ch);
 
       final hasDuration = _isPositiveValue(duration);
       final hasQuantity = _isPositiveValue(quantity);
+      final hasSensorQtyPart = _isValidValue(sensorQtyPart);
 
       // Hide channels that did not execute.
-      if (!hasDuration && !hasQuantity) {
+      if (!hasDuration && !hasQuantity && !hasSensorQtyPart) {
         continue;
       }
 
@@ -624,6 +697,9 @@ class FertigationCardMapper {
       final actual = hasDuration
           ? duration
           : quantity;
+
+      final actualQty = hasQuantity ? quantity : '—';
+      final sensorQty = hasSensorQtyPart ? sensorQtyPart : '—';
 
       final rawName = _partAt(names, ch);
 
@@ -637,12 +713,29 @@ class FertigationCardMapper {
           name: name,
           planned: planned.isEmpty ? '—' : planned,
           actual: actual.isEmpty ? '—' : actual,
+          actualQty: actualQty,
+          sensorQty: sensorQty,
           isCentral: isCentral,
         ),
       );
     }
 
     return result;
+  }
+
+  static List<String> _getChannelPartsFallback(
+      Map<String, dynamic> irrigation,
+      List<String> fieldKeys,
+      int recordIndex,
+      ) {
+    for (final key in fieldKeys) {
+      final parts = _channelParts(irrigation[key], recordIndex);
+      if (parts.isNotEmpty &&
+          parts.any((p) => p.isNotEmpty && p.toLowerCase() != 'null')) {
+        return parts;
+      }
+    }
+    return [];
   }
 
   static List<String> _channelParts(

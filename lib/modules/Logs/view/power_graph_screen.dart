@@ -458,9 +458,9 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
           title1: 'Other trip time',
           title2: 'Total flow today',
           value1: [
-            pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime1,
-            pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime2,
-            pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime3][motorIndex],
+            pumpControllerProvider.motorDataList[dayIndex].otherTripTime1,
+            pumpControllerProvider.motorDataList[dayIndex].otherTripTime2,
+            pumpControllerProvider.motorDataList[dayIndex].otherTripTime3][motorIndex],
           value2: "${[
             pumpControllerProvider.motorDataList[dayIndex].totalFlowToday1,
             pumpControllerProvider.motorDataList[dayIndex].totalFlowToday2,
@@ -567,7 +567,7 @@ class _PowerGraphScreenState extends State<PowerGraphScreen> {
                   title2: 'Total flow today',
                   index: dayIndex,
                   numberOfPumps: numberOfPumps,
-                  value1: [Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime1), Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime2), Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].dryRunTripTime3)],
+                  value1: [Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].otherTripTime1), Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].otherTripTime2), Constants.changeFormat(pumpControllerProvider.motorDataList[dayIndex].otherTripTime3)],
                   value2: [pumpControllerProvider.motorDataList[dayIndex].totalFlowToday1, pumpControllerProvider.motorDataList[dayIndex].totalFlowToday2, pumpControllerProvider.motorDataList[dayIndex].totalFlowToday3],
                   unit1: "HH:MM",
                   unit2: "Litres"

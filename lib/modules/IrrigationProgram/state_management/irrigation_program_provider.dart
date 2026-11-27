@@ -118,129 +118,134 @@ class IrrigationProgramMainProvider extends ChangeNotifier {
         var sequenceJson = jsonDecode(responseJson);
         final configMakerJson = jsonDecode(getUserConfigMaker.body);
         print('configMakerJson---->:$configMakerJson');
-        configObjects = configMakerJson['data']['configObject'];
+        if (configMakerJson['code'] == 200 && configMakerJson['data'] != null) {
+          configObjects = configMakerJson['data']['configObject'] ?? [];
 
-        for(var seq in sequenceJson['data']['sequence']){
-          for(var v = (seq['valve'].length - 1); v >= 0; v--){
-            bool isValveAvailable = configObjects.any((obj) => obj['sNo'] == seq['valve'][v]['sNo']);
-            if(isValveAvailable == false){
-              seq['valve'].removeAt(v);
+          for(var seq in (sequenceJson['data']?['sequence'] ?? [])){
+            for(var v = (seq['valve'].length - 1); v >= 0; v--){
+              bool isValveAvailable = configObjects.any((obj) => obj['sNo'] == seq['valve'][v]['sNo']);
+              if(isValveAvailable == false){
+                seq['valve'].removeAt(v);
+              }
             }
-          }
-          for(var v = (seq['mainValve'].length - 1); v >= 0; v--){
-            bool isMainValveAvailable = configObjects.any((obj) => obj['sNo'] == seq['mainValve'][v]['sNo']);
-            if(isMainValveAvailable == false){
-              seq['mainValve'].removeAt(v);
-            }
-          }
-        }
-        for(var line in configMakerJson['data']['irrigationLine']){
-          irrigationLineFromConfigMaker.add(
-            {
-              'sNo' : line['sNo'],
-              'irrigationPump' : line['irrigationPump'],
-            }
-          );
-        }
-        // irrigationLineFromConfigMaker = List.from(configMakerJson['data']['irrigationLine']);
-
-        final processedData = Constants.payloadConversion(configMakerJson['data']);
-        apiData = processedData;
-        _sampleIrrigationLine = (processedData['irrigationLine'] as List).map((e) => ProgramIrrigationLine.fromJson(e as Map<String, dynamic>)).toList();
-        _filterSite = (processedData['filterSite'] as List).map((element) => ProgramFilterSite.fromJson(element as Map<String, dynamic>)).toList();
-        _fertilizerSite = (processedData['fertilizerSite'] as List).map((element) => ProgramFertilizerSite.fromJson(element as Map<String, dynamic>)).toList();
-        _waterSource = (processedData['waterSource'] as List).map((element) => ProgramWaterSource.fromJson(element as Map<String, dynamic>)).toList();
-        _pump = (processedData['pump'] as List).map((element) => ProgramPump.fromJson(element as Map<String, dynamic>)).toList();
-        _moistureSensor = (processedData['moistureSensor'] as List).map((element) => ProgramMoistureSensor.fromJson(element as Map<String, dynamic>)).toList();
-
-        final configMakerData = configMakerJson['data']?['configMaker'] ?? configMakerJson['data'] ?? {};
-        _rawWaterSource = configMakerData['waterSource'] ?? [];
-        _rawFertilizerChannel = configMakerData['fertilizerChannel'] ?? [];
-
-        final List<dynamic> rawFertilizerChannels =
-            _rawFertilizerChannel;
-
-        final Set<String> tankSNos = {};
-
-// 1. Get tank/source SNo from fertilizerChannel
-        for (final channel in rawFertilizerChannels) {
-          final sources = channel['source'];
-
-          if (sources is List) {
-            for (final source in sources) {
-              if (source != null) {
-                tankSNos.add(source.toString());
+            for(var v = (seq['mainValve'].length - 1); v >= 0; v--){
+              bool isMainValveAvailable = configObjects.any((obj) => obj['sNo'] == seq['mainValve'][v]['sNo']);
+              if(isMainValveAvailable == false){
+                seq['mainValve'].removeAt(v);
               }
             }
           }
-        }
+          for(var line in (configMakerJson['data']['irrigationLine'] ?? [])){
+            irrigationLineFromConfigMaker.add(
+              {
+                'sNo' : line['sNo'],
+                'irrigationPump' : line['irrigationPump'],
+              }
+            );
+          }
+          // irrigationLineFromConfigMaker = List.from(configMakerJson['data']['irrigationLine']);
 
-        print('tankSNos => $tankSNos');
+          final processedData = Constants.payloadConversion(configMakerJson['data']);
+          apiData = processedData;
+          _sampleIrrigationLine = (processedData['irrigationLine'] as List).map((e) => ProgramIrrigationLine.fromJson(e as Map<String, dynamic>)).toList();
+          _filterSite = (processedData['filterSite'] as List).map((element) => ProgramFilterSite.fromJson(element as Map<String, dynamic>)).toList();
+          _fertilizerSite = (processedData['fertilizerSite'] as List).map((element) => ProgramFertilizerSite.fromJson(element as Map<String, dynamic>)).toList();
+          _waterSource = (processedData['waterSource'] as List).map((element) => ProgramWaterSource.fromJson(element as Map<String, dynamic>)).toList();
+          _pump = (processedData['pump'] as List).map((element) => ProgramPump.fromJson(element as Map<String, dynamic>)).toList();
+          _moistureSensor = (processedData['moistureSensor'] as List).map((element) => ProgramMoistureSensor.fromJson(element as Map<String, dynamic>)).toList();
+
+          final configMakerData = configMakerJson['data']?['configMaker'] ?? configMakerJson['data'] ?? {};
+          _rawWaterSource = configMakerData['waterSource'] ?? [];
+          _rawFertilizerChannel = configMakerData['fertilizerChannel'] ?? [];
+
+          final List<dynamic> rawFertilizerChannels =
+              _rawFertilizerChannel;
+
+          final Set<String> tankSNos = {};
+
+// 1. Get tank/source SNo from fertilizerChannel
+          for (final channel in rawFertilizerChannels) {
+            final sources = channel['source'];
+
+            if (sources is List) {
+              for (final source in sources) {
+                if (source != null) {
+                  tankSNos.add(source.toString());
+                }
+              }
+            }
+          }
+
+          print('tankSNos => $tankSNos');
 
 // 2. Find corresponding Source objects from configObject
-        final tankObjects = configObjects.where((obj) {
-          final sno = obj['sNo']?.toString();
+          final tankObjects = configObjects.where((obj) {
+            final sno = obj['sNo']?.toString();
 
-          return sno != null &&
-              tankSNos.contains(sno) &&
-              obj['objectName'] == 'Source';
-        }).toList();
+            return sno != null &&
+                tankSNos.contains(sno) &&
+                obj['objectName'] == 'Source';
+          }).toList();
 
-        print('tankObjects => $tankObjects');
+          print('tankObjects => $tankObjects');
 
 // 3. Convert Source objects into FertilizerSourceTank
-        _tank = tankObjects
-            .map(
-              (source) => FertilizerSourceTank.fromJson(
-            Map<String, dynamic>.from(source),
-          ),
-        )
-            .toList();
+          _tank = tankObjects
+              .map(
+                (source) => FertilizerSourceTank.fromJson(
+              Map<String, dynamic>.from(source),
+            ),
+          )
+              .toList();
 
-        print(
-          'Tank list => ${_tank?.map((e) => e.tank.name).toList()}',
-        );
-        // print("_sampleIrrigationLine :: ${_sampleIrrigationLine!.map((e) => e.irrigationLine.toJson())}");
-        if(_fertilizerSite != null) {
-          _agitators = fertilizerSite!.map((e) {
-            return e.agitator != null ? List<DeviceObjectModel>.from(e.agitator!) : [];
-          })
-            .expand((list) => list)
-            .whereType<DeviceObjectModel>()
-            .toList();
-        }
-
-        _aerators = _sampleIrrigationLine!.map((e) => e.aerator != null ? List<DeviceObjectModel>.from(e.aerator!) : [])
-            .expand((list) => list)
-            .whereType<DeviceObjectModel>()
-            .toList();
-
-        _mainValves = _sampleIrrigationLine!.map((e) => e.mainValve != null ? List<DeviceObjectModel>.from(e.mainValve!) : [])
-            .expand((list) => list)
-            .whereType<DeviceObjectModel>()
-            .toList();
-
-        await Future.delayed(Duration.zero,() {
-          _irrigationLine = SequenceModel.fromJson(sequenceJson);
-          for (var element in _irrigationLine!.sequence) {
-            // print("element in sequence :: $element");
-           /* element['valve'].removeWhere((e) => configObjects.any((config) => config['sNo'] != e['sNo']));
-            element['mainValve'].removeWhere((e) => configObjects.any((config) => config['sNo'] != e['sNo']));*/
+          print(
+            'Tank list => ${_tank?.map((e) => e.tank.name).toList()}',
+          );
+          // print("_sampleIrrigationLine :: ${_sampleIrrigationLine!.map((e) => e.irrigationLine.toJson())}");
+          if(_fertilizerSite != null) {
+            _agitators = fertilizerSite!.map((e) {
+              return e.agitator != null ? List<DeviceObjectModel>.from(e.agitator!) : [];
+            })
+              .expand((list) => list)
+              .whereType<DeviceObjectModel>()
+              .toList();
           }
-          updateGroup(valveGroup: _irrigationLine!.defaultData.group);
-        }).then((value) {
-          if(irrigationLine!.sequence.isEmpty) {
-            addNewSequence(serialNumber: serialNumber, zoneSno: 1);
+
+          _aerators = _sampleIrrigationLine!.map((e) => e.aerator != null ? List<DeviceObjectModel>.from(e.aerator!) : [])
+              .expand((list) => list)
+              .whereType<DeviceObjectModel>()
+              .toList();
+
+          _mainValves = _sampleIrrigationLine!.map((e) => e.mainValve != null ? List<DeviceObjectModel>.from(e.mainValve!) : [])
+              .expand((list) => list)
+              .whereType<DeviceObjectModel>()
+              .toList();
+
+          await Future.delayed(Duration.zero,() {
+            _irrigationLine = SequenceModel.fromJson(sequenceJson);
+            for (var element in _irrigationLine!.sequence) {
+              // print("element in sequence :: $element");
+             /* element['valve'].removeWhere((e) => configObjects.any((config) => config['sNo'] != e['sNo']));
+              element['mainValve'].removeWhere((e) => configObjects.any((config) => config['sNo'] != e['sNo']));*/
+            }
+            updateGroup(valveGroup: _irrigationLine!.defaultData.group);
+          }).then((value) {
+            if(irrigationLine!.sequence.isEmpty) {
+              addNewSequence(serialNumber: serialNumber, zoneSno: 1);
+            } else {
+              updateSequenceSerialNumber(serialNumber, modelId: modelId);
+            }
+          });
+          if(AppConstants.ecoGemAndPlusModelList.contains(modelId)) {
+            for(int i = 0; i < _irrigationLine!.sequence.length; i++) {
+              _irrigationLine!.sequence[i]['sNo'] = '${i+1}';
+            }
           } else {
             updateSequenceSerialNumber(serialNumber, modelId: modelId);
           }
-        });
-        if(AppConstants.ecoGemAndPlusModelList.contains(modelId)) {
-          for(int i = 0; i < _irrigationLine!.sequence.length; i++) {
-            _irrigationLine!.sequence[i]['sNo'] = '${i+1}';
-          }
         } else {
-          updateSequenceSerialNumber(serialNumber, modelId: modelId);
+          log("ConfigMaker API returned code ${configMakerJson['code']}: ${configMakerJson['message']}");
+          throw Exception(configMakerJson['message'] ?? "User device configuration not found");
         }
       } else {
         log("HTTP Request failed or received an unexpected response.");

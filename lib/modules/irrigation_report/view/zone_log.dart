@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -61,26 +61,65 @@ class ZoneLogEntry {
   String get endReason => '-';
 }
 
+String _formatQuantity(num val, {bool withUnit = true}) {
+  if (val <= 0) return '-';
+  num rounded = num.parse(val.toStringAsFixed(2));
+  String numStr =
+      (rounded % 1 == 0) ? "${rounded.toInt()}" : rounded.toStringAsFixed(2);
+  return withUnit ? "$numStr L" : numStr;
+}
+
+class SequenceRunEntry {
+  final String actualStartTime;
+  final String actualEndTime;
+  final String plannedDurationQty;
+  final int durationCompletedSeconds;
+  final num quantityCompleted;
+
+  SequenceRunEntry({
+    this.actualStartTime = '-',
+    this.actualEndTime = '-',
+    this.plannedDurationQty = '-',
+    this.durationCompletedSeconds = 0,
+    this.quantityCompleted = 0,
+  });
+
+  String get durationCompletedStr => durationCompletedSeconds > 0
+      ? SequenceDayData._formatSecondsToHMS(durationCompletedSeconds)
+      : '-';
+
+  String get quantityCompletedStr => _formatQuantity(quantityCompleted);
+}
+
 class SequenceDayData {
   int durationQtySeconds;
   int durationCompletedSeconds;
   num quantityCompleted;
   bool hasRun;
+  String actualStartTime;
+  String actualEndTime;
+  String plannedDurationQty;
+  int plannedDurationSeconds;
+  num plannedQuantityNum;
+  final List<SequenceRunEntry> runs = [];
 
   SequenceDayData({
     this.durationQtySeconds = 0,
     this.durationCompletedSeconds = 0,
     this.quantityCompleted = 0,
     this.hasRun = false,
+    this.actualStartTime = '-',
+    this.actualEndTime = '-',
+    this.plannedDurationQty = '-',
+    this.plannedDurationSeconds = 0,
+    this.plannedQuantityNum = 0,
   });
 
   String get durationQtyStr => durationQtySeconds > 0
       ? _formatSecondsToHMS(durationQtySeconds)
       : '00:00:00';
   String get qtyCompletedStr => quantityCompleted > 0
-      ? (quantityCompleted % 1 == 0
-          ? quantityCompleted.toInt().toString()
-          : quantityCompleted.toString())
+      ? _formatQuantity(quantityCompleted, withUnit: false)
       : '0';
 
   static String _formatSecondsToHMS(int totalSeconds) {
@@ -117,12 +156,45 @@ class SequenceRowData {
   });
 }
 
+class CumulativeRunEntry {
+  final String actualStartTime;
+  final String actualEndTime;
+  final String plannedDuration;
+  final String plannedQuantity;
+  final int plannedDurationSeconds;
+  final num plannedQuantityNum;
+  final int durationSeconds;
+  final num quantity;
+
+  CumulativeRunEntry({
+    this.actualStartTime = '-',
+    this.actualEndTime = '-',
+    this.plannedDuration = '-',
+    this.plannedQuantity = '-',
+    this.plannedDurationSeconds = 0,
+    this.plannedQuantityNum = 0,
+    this.durationSeconds = 0,
+    this.quantity = 0,
+  });
+
+  String get durationStr => durationSeconds > 0
+      ? SequenceDayData._formatSecondsToHMS(durationSeconds)
+      : '-';
+
+  String get qtyStr => _formatQuantity(quantity);
+}
+
 class CumulativeDayData {
   int durationSeconds;
   num quantity;
   bool hasRun;
   int powerOnSeconds;
   int powerOffSeconds;
+  String plannedDuration;
+  String plannedQuantity;
+  int plannedDurationSeconds;
+  num plannedQuantityNum;
+  final List<CumulativeRunEntry> runs = [];
 
   CumulativeDayData({
     this.durationSeconds = 0,
@@ -130,14 +202,16 @@ class CumulativeDayData {
     this.hasRun = false,
     this.powerOnSeconds = 0,
     this.powerOffSeconds = 0,
+    this.plannedDuration = '-',
+    this.plannedQuantity = '-',
+    this.plannedDurationSeconds = 0,
+    this.plannedQuantityNum = 0,
   });
 
   String get durationStr => durationSeconds > 0
       ? SequenceDayData._formatSecondsToHMS(durationSeconds)
       : '00:00:00';
-  String get qtyStr => quantity > 0
-      ? (quantity % 1 == 0 ? "${quantity.toInt()} L" : "$quantity L")
-      : '-';
+  String get qtyStr => _formatQuantity(quantity);
 }
 
 class CumulativeRowData {
@@ -381,6 +455,19 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       }
       return allResolved.join(', ');
     }
+    if (rawSeqData is Map) {
+      if (rawSeqData['name'] != null &&
+          rawSeqData['name'].toString().trim().isNotEmpty) {
+        return rawSeqData['name'].toString().trim();
+      }
+      if (rawSeqData['valveName'] != null &&
+          rawSeqData['valveName'].toString().trim().isNotEmpty) {
+        return rawSeqData['valveName'].toString().trim();
+      }
+      if (rawSeqData['sNo'] != null) {
+        return _resolveValveNames(rawSeqData['sNo']);
+      }
+    }
     String raw = rawSeqData.toString().trim();
     if (raw.isEmpty || raw == '-' || raw == '[]') return '';
     List<String> resolved = [];
@@ -474,19 +561,21 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         "IrrigationQuantityCompleted",
         "SequenceData",
         "CentralFertChannelName",
-        "CentralFertMethod",
         "CentralFertilizerChannelDuration",
         "CentralFertilizerChannelQuantity",
         "CentralFertilizerChannelDurationCompleted",
         "CentralFertilizerChannelQuantityCompleted",
         "CentralFertilizerChannel",
         "LocalFertilizerChannel",
-        "LocalFertMethod",
         "LocalFertilizerChannelDuration",
         "LocalFertilizerChannelQuantity",
         "LocalFertilizerChannelDurationCompleted",
         "LocalFertilizerChannelQuantityCompleted",
-        "LocalFertChannelName"
+        "LocalFertChannelName",
+        "CentralFertChannelSensorQtyCompleted",
+        "LocalFertChannelSensorQtyCompleted",
+        "CentralFertilizerChannelSensorQtyCompleted",
+        "LocalFertilizerChannelSensorQtyCompleted"
       ]
     };
 
@@ -629,13 +718,54 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     for (var seq in defaultSequenceList) {
       String name = seq['name'] ?? seq['seqName'] ?? '';
       String loc = seq['locationName'] ?? '';
-      int pSNo = 1;
-      if (loc.startsWith("Program")) {
-        pSNo = int.tryParse(loc.replaceAll("Program", "").trim()) ?? 1;
-      } else if (seq['sNo'] != null) {
+      int pSNo = 0;
+
+      // 1. Prioritize canonical sNo (e.g. "4.1" -> Program 4)
+      if (seq['sNo'] != null) {
         var sParts = seq['sNo'].toString().split('.');
-        if (sParts.isNotEmpty) pSNo = int.tryParse(sParts[0]) ?? 1;
+        if (sParts.isNotEmpty) {
+          int? parsed = int.tryParse(sParts[0]);
+          if (parsed != null && parsed > 0) {
+            pSNo = parsed;
+          }
+        }
       }
+
+      // 2. Try programSNo or program
+      if (pSNo <= 0 && seq['programSNo'] != null) {
+        int? parsed = int.tryParse(seq['programSNo'].toString());
+        if (parsed != null && parsed > 0) {
+          pSNo = parsed;
+        }
+      }
+      if (pSNo <= 0 && seq['program'] is int && (seq['program'] as int) > 0) {
+        pSNo = seq['program'];
+      }
+
+      // 3. Try locationName (e.g. "Program 4" -> 4, ignoring 0)
+      if (pSNo <= 0 && loc.startsWith("Program")) {
+        int? parsed = int.tryParse(loc.replaceAll("Program", "").trim());
+        if (parsed != null && parsed > 0) {
+          pSNo = parsed;
+        }
+      }
+
+      // 4. Try from sequence name (e.g. "Sequence 4.1" -> 4)
+      if (pSNo <= 0 || !programNameMap.containsKey(pSNo)) {
+        final match = RegExp(r'(\d+)\.\d+').firstMatch(name);
+        if (match != null) {
+          int? fromName = int.tryParse(match.group(1)!);
+          if (fromName != null && fromName > 0) {
+            pSNo = fromName;
+          }
+        }
+      }
+
+      // If still not resolved or invalid, default to 1
+      if (pSNo <= 0) {
+        pSNo = 1;
+      }
+
       String progName = programNameMap[pSNo] ?? 'Program $pSNo';
       String key = "${pSNo}_$name";
       uniqueProgNames.add(progName);
@@ -692,7 +822,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         List sequenceDatas = irrigation['SequenceData'] ?? [];
         List headUnits = irrigation['HeadUnit'] ?? [];
         List pumps = irrigation['Pump'] ?? [];
-        List durationQtys = irrigation['IrrigationDuration_Quantity'] ?? [];
+        List durationQtys = irrigation['IrrigationQuantityCompleted'] ?? [];
         List durationCompleteds =
             irrigation['IrrigationDurationCompleted'] ?? [];
         List qtyCompleteds = irrigation['IrrigationQuantityCompleted'] ?? [];
@@ -812,40 +942,20 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   ? qtyCompleteds[i].toString().trim()
                   : '0';
 
-          int actualDurFromTimes = 0;
-          if (i < actualStartTimes.length &&
-              i < actualStopTimes.length &&
-              actualStartTimes[i] != null &&
-              actualStopTimes[i] != null) {
-            actualDurFromTimes = _parseDurationSeconds(
-                actualStartTimes[i].toString(), actualStopTimes[i].toString());
-          }
-
-          int durationQtySec = _parseDurationToSeconds(durationQtyStr);
           int durCompletedSec = _parseDurationToSeconds(durationCompletedStr);
 
-          // Determine the effective duration:
-          // Priority 1: If actual start and end times are available, use the calculated duration (e.g. 13:21:41 to 13:54:38 -> 32m 57s)
-          // Priority 2: If durationCompleted is reported (> 1 second to avoid 1s dummy placeholder), use it
-          // Priority 3: Fallback to planned/set duration
-          int effectiveDurSec = 0;
-          if (actualDurFromTimes > 0) {
-            effectiveDurSec = actualDurFromTimes;
-          } else if (durCompletedSec > 1) {
-            effectiveDurSec = durCompletedSec;
-          } else if (durCompletedSec > 0 && durationQtySec == 0) {
-            effectiveDurSec = durCompletedSec;
-          } else {
-            effectiveDurSec = durationQtySec;
+          // Directly use IrrigationDurationCompleted (ignoring <= 1s placeholder like 00:00:01 when unrun).
+          // Do not calculate or sum duration from ActualStartTime and ActualEndTime.
+          int completedDurSec = durCompletedSec > 1 ? durCompletedSec : 0;
+
+          // Parse completed quantity strictly from IrrigationQuantityCompleted.
+          // NEVER fall back to planned IrrigationDuration_Quantity.
+          num completedQtyVal = _parseQuantity(qtyCompletedStr);
+          if (completedQtyVal < 0) {
+            completedQtyVal = 0;
           }
 
-          num qtyCompletedVal = _parseQuantity(qtyCompletedStr);
-          if (qtyCompletedVal == 0 && !durationQtyStr.contains(':')) {
-            qtyCompletedVal = _parseQuantity(durationQtyStr);
-          }
-
-          var seqDataVal =
-              (i < sequenceDatas.length) ? sequenceDatas[i] : null;
+          var seqDataVal = (i < sequenceDatas.length) ? sequenceDatas[i] : null;
           String valveName = _resolveValveNames(seqDataVal);
 
           String rowKey = "${pSNo}_$seqName";
@@ -887,15 +997,77 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             () => SequenceDayData(),
           );
 
-          dayData.durationQtySeconds += effectiveDurSec;
-          dayData.durationCompletedSeconds +=
-              (actualDurFromTimes > 0 ? actualDurFromTimes : durCompletedSec);
-          dayData.quantityCompleted += qtyCompletedVal;
-          if (effectiveDurSec > 0 ||
-              qtyCompletedVal > 0 ||
-              durationQtySec > 0 ||
-              durCompletedSec > 0) {
-            dayData.hasRun = true;
+          // When a sequence runs multiple times on the same date (e.g. 4.10 ran 00:07:10 and 00:30:00),
+          // accumulate the completed durations and quantities for that date to display the total (e.g. 00:37:10 and 44600 L).
+          dayData.durationCompletedSeconds += completedDurSec;
+          dayData.quantityCompleted += completedQtyVal;
+          dayData.durationQtySeconds = dayData.durationCompletedSeconds;
+          dayData.hasRun = (dayData.durationCompletedSeconds > 0 ||
+              dayData.quantityCompleted > 0);
+
+          String actualStart =
+              (i < actualStartTimes.length && actualStartTimes[i] != null)
+                  ? actualStartTimes[i].toString().trim()
+                  : '';
+          String actualEnd =
+              (i < actualStopTimes.length && actualStopTimes[i] != null)
+                  ? actualStopTimes[i].toString().trim()
+                  : '';
+
+          int planDurSec = _parseDurationToSeconds(durationQtyStr);
+          num planQtyNum = _parseQuantity(durationQtyStr);
+
+          dayData.runs.add(
+            SequenceRunEntry(
+              actualStartTime: (actualStart.isNotEmpty && actualStart != '-')
+                  ? actualStart
+                  : '-',
+              actualEndTime:
+                  (actualEnd.isNotEmpty && actualEnd != '-') ? actualEnd : '-',
+              plannedDurationQty:
+                  (durationQtyStr.isNotEmpty && durationQtyStr != '-')
+                      ? durationQtyStr
+                      : '-',
+              durationCompletedSeconds: completedDurSec,
+              quantityCompleted: completedQtyVal,
+            ),
+          );
+
+          if (planDurSec > 0) {
+            dayData.plannedDurationSeconds += planDurSec;
+            dayData.plannedDurationQty = SequenceDayData._formatSecondsToHMS(
+                dayData.plannedDurationSeconds);
+          } else if (planQtyNum > 0) {
+            dayData.plannedQuantityNum += planQtyNum;
+            dayData.plannedDurationQty =
+                _formatQuantity(dayData.plannedQuantityNum);
+          } else if (durationQtyStr.isNotEmpty && durationQtyStr != '-') {
+            if (dayData.plannedDurationQty == '-' ||
+                dayData.plannedDurationQty.isEmpty) {
+              dayData.plannedDurationQty = durationQtyStr;
+            } else if (!dayData.plannedDurationQty
+                .split(', ')
+                .contains(durationQtyStr)) {
+              dayData.plannedDurationQty += ", $durationQtyStr";
+            }
+          }
+
+          if (actualStart.isNotEmpty && actualStart != '-') {
+            if (dayData.actualStartTime == '-' ||
+                dayData.actualStartTime.isEmpty) {
+              dayData.actualStartTime = actualStart;
+            } else if (!dayData.actualStartTime
+                .split(', ')
+                .contains(actualStart)) {
+              dayData.actualStartTime += ", $actualStart";
+            }
+          }
+          if (actualEnd.isNotEmpty && actualEnd != '-') {
+            if (dayData.actualEndTime == '-' || dayData.actualEndTime.isEmpty) {
+              dayData.actualEndTime = actualEnd;
+            } else if (!dayData.actualEndTime.split(', ').contains(actualEnd)) {
+              dayData.actualEndTime += ", $actualEnd";
+            }
           }
 
           // For raw export
@@ -910,28 +1082,26 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               headUnit: headUnitStr,
               pump: pumpStr,
               durationQty: durationQtyStr,
-              qtyCompleted: qtyCompletedVal > 0
-                  ? (qtyCompletedVal % 1 == 0
-                      ? qtyCompletedVal.toInt().toString()
-                      : qtyCompletedVal.toString())
+              qtyCompleted: completedQtyVal > 0
+                  ? _formatQuantity(completedQtyVal, withUnit: false)
                   : qtyCompletedStr,
               durationCompleted: durationCompletedStr,
-              durationSeconds: effectiveDurSec,
-              durationStr: _formatDuration(effectiveDurSec),
-              hasRun: true,
+              durationSeconds: completedDurSec,
+              durationStr: _formatDuration(completedDurSec),
+              hasRun: (completedDurSec > 0 || completedQtyVal > 0),
             ),
           );
         }
       }
     }
 
-    // 4. Calculate total durations and quantities for each row
+    // 4. Calculate total durations and quantities for each row using completed values
     List<SequenceRowData> rows = rowsMap.values.toList();
     for (var r in rows) {
       int sumSec = 0;
       num sumQty = 0;
       for (var d in r.dayEntries.values) {
-        sumSec += d.durationQtySeconds;
+        sumSec += d.durationCompletedSeconds;
         sumQty += d.quantityCompleted;
       }
       r.totalDurationSeconds = sumSec;
@@ -989,6 +1159,95 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     }).toList();
   }
 
+  int _extractChannelNumber(dynamic sNoVal, [int fallback = 1]) {
+    if (sNoVal == null) return fallback;
+    String s = sNoVal.toString().trim();
+    if (s.isEmpty || s == '-') return fallback;
+    if (s.contains('.')) {
+      var parts = s.split('.');
+      if (parts.length > 1) {
+        int? sub = int.tryParse(parts[1]);
+        if (sub != null && sub > 0) return sub;
+      }
+    }
+    double? d = double.tryParse(s);
+    if (d != null) {
+      if (d >= 10.0) {
+        int sub = ((d - d.truncate()) * 1000).round();
+        if (sub > 0) return sub;
+      }
+      int direct = d.toInt();
+      if (direct > 0 && direct < 100) return direct;
+    }
+    int? direct = int.tryParse(s);
+    if (direct != null && direct > 0) {
+      if (direct >= 10000) return direct % 1000;
+      return direct;
+    }
+    return fallback;
+  }
+
+  String _resolveChannelDisplayName({
+    required dynamic sNo,
+    required bool isCentral,
+    required int chIdx,
+  }) {
+    int chNum = _extractChannelNumber(sNo, chIdx + 1);
+    String sNoStr = sNo?.toString().trim() ?? '';
+    double? sNoVal = double.tryParse(sNoStr);
+
+    String name = '';
+
+    // 1. Try exact matches in _channelNameMap
+    if (sNoStr.isNotEmpty) {
+      name = _channelNameMap[sNoStr] ?? '';
+    }
+    if (name.isEmpty && sNoVal != null) {
+      name = _channelNameMap[sNoVal.toStringAsFixed(3)] ??
+          _channelNameMap[sNoVal.toString()] ??
+          '';
+    }
+
+    // 2. Try channel index matching (e.g. channel number 1, 2, 3, 4)
+    if (name.isEmpty) {
+      name = _channelNameMap[chNum.toString()] ??
+          _channelNameMap["Channel $chNum"] ??
+          _channelNameMap["channel_$chNum"] ??
+          '';
+    }
+
+    // 3. Try matching in _fertilizerChannelsFromConfig
+    if (name.isEmpty) {
+      for (var c in _fertilizerChannelsFromConfig) {
+        if (c['sNo'] == null) continue;
+        String cSNoStr = c['sNo'].toString();
+        double? cSNoVal = (c['sNo'] is num)
+            ? (c['sNo'] as num).toDouble()
+            : double.tryParse(cSNoStr);
+        int cChNum = _extractChannelNumber(c['sNo'], -1);
+
+        if (cSNoStr == sNoStr ||
+            (sNoVal != null &&
+                cSNoVal != null &&
+                (cSNoVal - sNoVal).abs() < 0.0001) ||
+            (cChNum == chNum && cChNum > 0)) {
+          String cName = (c['name'] ?? '').toString().trim();
+          if (cName.isNotEmpty) {
+            name = cName;
+            break;
+          }
+        }
+      }
+    }
+
+    // 4. Default fallback: Channel 1, Channel 2, Channel 3, Channel 4 (or Local Channel 1..)
+    if (name.isEmpty) {
+      name = isCentral ? "Channel $chNum" : "Local Channel $chNum";
+    }
+
+    return name;
+  }
+
   void _populateConfigNames(List<dynamic> objs) {
     _fertilizerChannelsFromConfig.clear();
     for (var item in objs) {
@@ -1008,26 +1267,58 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             _channelNameMap[sNum.toInt().toString()] = name;
             _channelNameMap[sNum.toDouble().toString()] = name;
             _channelNameMap[sNum.toStringAsFixed(3)] = name;
+            int chNum = _extractChannelNumber(sNo, -1);
+            if (chNum > 0) {
+              _channelNameMap["channel_$chNum"] = name;
+              _channelNameMap["Channel $chNum"] = name;
+              if (sNum >= 10) {
+                _channelNameMap[chNum.toString()] = name;
+              }
+            }
           }
         }
 
-        if (objectId == AppConstants.channelObjectId ||
-            objectName.toLowerCase().contains('channel')) {
-          _fertilizerChannelsFromConfig.add(Map<String, dynamic>.from(item));
+        bool isChannel = objectId == AppConstants.channelObjectId ||
+            objectName.toLowerCase().contains('channel') ||
+            name.toLowerCase().contains('channel');
+        if (isChannel && sNo != null) {
+          bool exists = _fertilizerChannelsFromConfig.any((c) =>
+              c['sNo']?.toString() == sNo.toString() ||
+              double.tryParse(c['sNo']?.toString() ?? '') ==
+                  double.tryParse(sNo.toString()));
+          if (!exists) {
+            _fertilizerChannelsFromConfig.add(Map<String, dynamic>.from(item));
+          }
         }
       } else if (item is ConfigObject) {
         _registerConfigName(item.sNo, item.name);
         _channelNameMap[item.sNo.toString()] = item.name;
         _channelNameMap[item.sNo.toInt().toString()] = item.name;
         _channelNameMap[item.sNo.toStringAsFixed(3)] = item.name;
-        if (item.objectId == AppConstants.channelObjectId ||
-            item.objectName.toLowerCase().contains('channel')) {
-          _fertilizerChannelsFromConfig.add({
-            'objectId': item.objectId,
-            'sNo': item.sNo,
-            'name': item.name,
-            'objectName': item.objectName,
-          });
+        int chNum = _extractChannelNumber(item.sNo, -1);
+        if (chNum > 0) {
+          _channelNameMap["channel_$chNum"] = item.name;
+          _channelNameMap["Channel $chNum"] = item.name;
+          if (item.sNo >= 10) {
+            _channelNameMap[chNum.toString()] = item.name;
+          }
+        }
+        bool isChannel = item.objectId == AppConstants.channelObjectId ||
+            item.objectName.toLowerCase().contains('channel') ||
+            item.name.toLowerCase().contains('channel');
+        if (isChannel) {
+          bool exists = _fertilizerChannelsFromConfig.any((c) =>
+              c['sNo']?.toString() == item.sNo.toString() ||
+              double.tryParse(c['sNo']?.toString() ?? '') ==
+                  double.tryParse(item.sNo.toString()));
+          if (!exists) {
+            _fertilizerChannelsFromConfig.add({
+              'objectId': item.objectId,
+              'sNo': item.sNo,
+              'name': item.name,
+              'objectName': item.objectName,
+            });
+          }
         }
       }
     }
@@ -1045,9 +1336,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   Future<void> _fetchConfigNames() async {
     try {
+      int customerId =
+          widget.userData['customerId'] ?? widget.userData['userId'] ?? 1002;
+      int controllerId = widget.userData['controllerId'] ?? 3382;
       var body = {
-        "userId": widget.userData['customerId'] ?? 1002,
-        "controllerId": widget.userData['controllerId'] ?? 3382,
+        "userId": customerId,
+        "controllerId": controllerId,
       };
       var response = await IrrigationRepository().getUserNames(body);
       if (response.statusCode == 200) {
@@ -1058,19 +1352,100 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
             if (data['configObject'] is List) {
               _populateConfigNames(data['configObject']);
             }
+            // Parse fertilizerChannel from configMaker / getAsDefault
+            var rawChannels = data['fertilizerChannel'] ??
+                data['fertilizer_channel'] ??
+                data['channel'] ??
+                data['channels'] ??
+                data['configMaker']?['fertilizerChannel'];
+            if (rawChannels is List) {
+              for (var ch in rawChannels) {
+                if (ch is Map) {
+                  var sNo = ch['sNo'] ?? ch['commonDetails']?['sNo'];
+                  String name =
+                      (ch['name'] ?? ch['commonDetails']?['name'] ?? '')
+                          .toString();
+                  if (sNo != null) {
+                    bool exists = _fertilizerChannelsFromConfig.any((c) =>
+                        c['sNo']?.toString() == sNo.toString() ||
+                        double.tryParse(c['sNo']?.toString() ?? '') ==
+                            double.tryParse(sNo.toString()));
+                    if (!exists) {
+                      _fertilizerChannelsFromConfig.add({
+                        'sNo': sNo,
+                        'name': name.isNotEmpty ? name : "Channel $sNo",
+                        'objectId': AppConstants.channelObjectId,
+                        'objectName': 'Fertilizer Channel',
+                      });
+                    }
+                    if (name.isNotEmpty) {
+                      _registerConfigName(sNo, name);
+                      _channelNameMap[sNo.toString()] = name;
+                      var sNum = num.tryParse(sNo.toString());
+                      if (sNum != null) {
+                        _channelNameMap[sNum.toInt().toString()] = name;
+                        _channelNameMap[sNum.toDouble().toString()] = name;
+                        _channelNameMap[sNum.toStringAsFixed(3)] = name;
+                        int chNum = _extractChannelNumber(sNo, -1);
+                        if (chNum > 0) {
+                          _channelNameMap["channel_$chNum"] = name;
+                          _channelNameMap["Channel $chNum"] = name;
+                          if (sNum >= 10) {
+                            _channelNameMap[chNum.toString()] = name;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            // Parse fertilizerSite from configMaker / getAsDefault
+            var rawSites = data['fertilizerSite'] ??
+                data['fertilizer_site'] ??
+                data['configMaker']?['fertilizerSite'];
+            if (rawSites is List) {
+              for (var site in rawSites) {
+                if (site is Map && site['channel'] is List) {
+                  for (var ch in site['channel']) {
+                    if (ch is Map) {
+                      var sNo = ch['sNo'];
+                      if (sNo != null) {
+                        String name = (ch['name'] ??
+                                _channelNameMap[sNo.toString()] ??
+                                '')
+                            .toString();
+                        bool exists = _fertilizerChannelsFromConfig.any((c) =>
+                            c['sNo']?.toString() == sNo.toString() ||
+                            double.tryParse(c['sNo']?.toString() ?? '') ==
+                                double.tryParse(sNo.toString()));
+                        if (!exists) {
+                          _fertilizerChannelsFromConfig.add({
+                            'sNo': sNo,
+                            'name': name.isNotEmpty ? name : "Channel $sNo",
+                            'objectId': AppConstants.channelObjectId,
+                            'objectName': 'Fertilizer Channel',
+                          });
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
             if (data['valve'] is List) {
               for (var v in data['valve']) {
                 if (v is Map) {
-                  _registerConfigName(v['sNo'],
-                      (v['name'] ?? v['valveName'] ?? '').toString());
+                  _registerConfigName(
+                      v['sNo'], (v['name'] ?? v['valveName'] ?? '').toString());
                 }
               }
             }
             if (data['valves'] is List) {
               for (var v in data['valves']) {
                 if (v is Map) {
-                  _registerConfigName(v['sNo'],
-                      (v['name'] ?? v['valveName'] ?? '').toString());
+                  _registerConfigName(
+                      v['sNo'], (v['name'] ?? v['valveName'] ?? '').toString());
                 }
               }
             }
@@ -1084,6 +1459,113 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
   void _parseCumulativeApiResponse(Map<String, dynamic> responseData) {
     Map<String, CumulativeRowData> rowsMap = {};
+
+    // 1. Detect active channel sNos strictly from CentralFertilizerChannel and LocalFertilizerChannel
+    Set<String> seenCentralSNos = {};
+    Set<String> seenLocalSNos = {};
+
+    if (responseData['log'] is List) {
+      for (var logEntry in responseData['log']) {
+        var irr = logEntry['irrigation'];
+        if (irr is Map) {
+          if (irr['CentralFertilizerChannel'] is List) {
+            for (var c in irr['CentralFertilizerChannel']) {
+              if (c != null) {
+                for (var s in c.toString().split('_')) {
+                  String st = s.trim();
+                  if (st.isNotEmpty &&
+                      st != '-' &&
+                      double.tryParse(st) != null) {
+                    seenCentralSNos.add(st);
+                  }
+                }
+              }
+            }
+          } else if (irr['CentralFertilizerChannel'] != null) {
+            for (var s
+                in irr['CentralFertilizerChannel'].toString().split('_')) {
+              String st = s.trim();
+              if (st.isNotEmpty && st != '-' && double.tryParse(st) != null) {
+                seenCentralSNos.add(st);
+              }
+            }
+          }
+
+          if (irr['LocalFertilizerChannel'] is List) {
+            for (var c in irr['LocalFertilizerChannel']) {
+              if (c != null) {
+                for (var s in c.toString().split('_')) {
+                  String st = s.trim();
+                  if (st.isNotEmpty &&
+                      st != '-' &&
+                      double.tryParse(st) != null) {
+                    seenLocalSNos.add(st);
+                  }
+                }
+              }
+            }
+          } else if (irr['LocalFertilizerChannel'] != null) {
+            for (var s in irr['LocalFertilizerChannel'].toString().split('_')) {
+              String st = s.trim();
+              if (st.isNotEmpty && st != '-' && double.tryParse(st) != null) {
+                seenLocalSNos.add(st);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    List<double> centralSNos = seenCentralSNos
+        .map((s) => double.tryParse(s))
+        .whereType<double>()
+        .toList()
+      ..sort();
+
+    List<double> localSNos = seenLocalSNos
+        .map((s) => double.tryParse(s))
+        .whereType<double>()
+        .toList()
+      ..sort();
+
+    // 2. Pre-populate rowsMap strictly with the channel sNos present in CentralFertilizerChannel & LocalFertilizerChannel
+    for (int idx = 0; idx < centralSNos.length; idx++) {
+      double sNoVal = centralSNos[idx];
+      String sNoStr = sNoVal.toStringAsFixed(3);
+      int chNum = _extractChannelNumber(sNoStr, idx + 1);
+      String name = _resolveChannelDisplayName(
+        sNo: sNoVal,
+        isCentral: true,
+        chIdx: chNum - 1,
+      );
+      String rowKey = "C_$sNoStr";
+      rowsMap[rowKey] = CumulativeRowData(
+        key: rowKey,
+        channelName: name,
+        channelCategory: "Central Fertilizer",
+        channelSNo: sNoVal,
+        dayEntries: {},
+      );
+    }
+
+    for (int idx = 0; idx < localSNos.length; idx++) {
+      double sNoVal = localSNos[idx];
+      String sNoStr = sNoVal.toStringAsFixed(3);
+      int chNum = _extractChannelNumber(sNoStr, idx + 1);
+      String name = _resolveChannelDisplayName(
+        sNo: sNoVal,
+        isCentral: false,
+        chIdx: chNum - 1,
+      );
+      String rowKey = "L_$sNoStr";
+      rowsMap[rowKey] = CumulativeRowData(
+        key: rowKey,
+        channelName: name,
+        channelCategory: "Local Fertilizer",
+        channelSNo: sNoVal,
+        dayEntries: {},
+      );
+    }
 
     // Parse log entries using CentralFertilizerChannel and LocalFertilizerChannel
     if (responseData['log'] != null && responseData['log'] is List) {
@@ -1106,6 +1588,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         List recordDates = irrigation['Date'] ?? [];
         List programSNos = irrigation['ProgramS_No'] ?? [];
 
+        List centralChannels = [];
+        if (irrigation['CentralFertilizerChannel'] is List) {
+          centralChannels = irrigation['CentralFertilizerChannel'];
+        } else if (irrigation['CentralFertilizerChannel'] != null) {
+          centralChannels = [irrigation['CentralFertilizerChannel']];
+        }
+
         List centralDurations = [];
         if (irrigation['CentralFertilizerChannelDuration'] is List) {
           centralDurations = irrigation['CentralFertilizerChannelDuration'];
@@ -1118,20 +1607,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           centralQuantities = irrigation['CentralFertilizerChannelQuantity'];
         } else if (irrigation['CentralFertilizerChannelQuantity'] != null) {
           centralQuantities = [irrigation['CentralFertilizerChannelQuantity']];
-        }
-
-        List centralChannels = [];
-        if (irrigation['CentralFertilizerChannel'] is List) {
-          centralChannels = irrigation['CentralFertilizerChannel'];
-        } else if (irrigation['CentralFertilizerChannel'] != null) {
-          centralChannels = [irrigation['CentralFertilizerChannel']];
-        }
-
-        List centralNames = [];
-        if (irrigation['CentralFertChannelName'] is List) {
-          centralNames = irrigation['CentralFertChannelName'];
-        } else if (irrigation['CentralFertChannelName'] != null) {
-          centralNames = [irrigation['CentralFertChannelName']];
         }
 
         List centralDurationsCompleted = [];
@@ -1156,6 +1631,13 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           ];
         }
 
+        List localChannels = [];
+        if (irrigation['LocalFertilizerChannel'] is List) {
+          localChannels = irrigation['LocalFertilizerChannel'];
+        } else if (irrigation['LocalFertilizerChannel'] != null) {
+          localChannels = [irrigation['LocalFertilizerChannel']];
+        }
+
         List localDurations = [];
         if (irrigation['LocalFertilizerChannelDuration'] is List) {
           localDurations = irrigation['LocalFertilizerChannelDuration'];
@@ -1168,20 +1650,6 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           localQuantities = irrigation['LocalFertilizerChannelQuantity'];
         } else if (irrigation['LocalFertilizerChannelQuantity'] != null) {
           localQuantities = [irrigation['LocalFertilizerChannelQuantity']];
-        }
-
-        List localChannels = [];
-        if (irrigation['LocalFertilizerChannel'] is List) {
-          localChannels = irrigation['LocalFertilizerChannel'];
-        } else if (irrigation['LocalFertilizerChannel'] != null) {
-          localChannels = [irrigation['LocalFertilizerChannel']];
-        }
-
-        List localNames = [];
-        if (irrigation['LocalFertChannelName'] is List) {
-          localNames = irrigation['LocalFertChannelName'];
-        } else if (irrigation['LocalFertChannelName'] != null) {
-          localNames = [irrigation['LocalFertChannelName']];
         }
 
         List localDurationsCompleted = [];
@@ -1206,15 +1674,25 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           ];
         }
 
+        List actualStartTimes = irrigation['ActualStartTime'] ?? [];
+        List actualStopTimes = irrigation['ActualEndTime'] ?? [];
+
+        // Determine how many log entries in this record (by Date or channel arrays)
         int baseLength = [
           recordDates.length,
           programSNos.length,
+          actualStartTimes.length,
+          actualStopTimes.length,
           centralChannels.length,
           centralDurations.length,
           centralQuantities.length,
+          centralDurationsCompleted.length,
+          centralQuantitiesCompleted.length,
           localChannels.length,
           localDurations.length,
           localQuantities.length,
+          localDurationsCompleted.length,
+          localQuantitiesCompleted.length,
         ].fold(0, (max, len) => len > max ? len : max);
 
         if (baseLength == 0) baseLength = 1;
@@ -1234,84 +1712,74 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           }
           String itemDateKey = DateFormat('yyyy-MM-dd').format(itemParsedDate);
 
-          // Central Fertilizer
-          dynamic cChanVal = (i < centralChannels.length)
-              ? centralChannels[i]
-              : (centralChannels.isNotEmpty ? centralChannels[0] : null);
-          dynamic cDurVal = (i < centralDurations.length)
-              ? centralDurations[i]
-              : (centralDurations.isNotEmpty ? centralDurations[0] : null);
-          dynamic cQtyVal = (i < centralQuantities.length)
-              ? centralQuantities[i]
-              : (centralQuantities.isNotEmpty ? centralQuantities[0] : null);
-          dynamic cNameVal = (i < centralNames.length)
-              ? centralNames[i]
-              : (centralNames.isNotEmpty ? centralNames[0] : null);
+          String actualStart =
+              (i < actualStartTimes.length && actualStartTimes[i] != null)
+                  ? actualStartTimes[i].toString().trim()
+                  : '-';
+          String actualEnd =
+              (i < actualStopTimes.length && actualStopTimes[i] != null)
+                  ? actualStopTimes[i].toString().trim()
+                  : '-';
+
+          // Central Fertilizer — chanVal drives channel sNos, Duration/Quantity arrays drive planned & completed
+          dynamic cChanVal =
+              (i < centralChannels.length) ? centralChannels[i] : null;
+          dynamic cDurVal =
+              (i < centralDurations.length) ? centralDurations[i] : null;
+          dynamic cQtyVal =
+              (i < centralQuantities.length) ? centralQuantities[i] : null;
           dynamic cDurCompVal = (i < centralDurationsCompleted.length)
               ? centralDurationsCompleted[i]
-              : (centralDurationsCompleted.isNotEmpty
-                  ? centralDurationsCompleted[0]
-                  : null);
+              : null;
           dynamic cQtyCompVal = (i < centralQuantitiesCompleted.length)
               ? centralQuantitiesCompleted[i]
-              : (centralQuantitiesCompleted.isNotEmpty
-                  ? centralQuantitiesCompleted[0]
-                  : null);
+              : null;
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
             itemDateKey: itemDateKey,
             isCentral: true,
             chanVal: cChanVal,
-            durVal: cDurVal,
-            qtyVal: cQtyVal,
-            nameVal: cNameVal,
+            plannedDurVal: cDurVal,
+            plannedQtyVal: cQtyVal,
             durCompletedVal: cDurCompVal,
             qtyCompletedVal: cQtyCompVal,
+            actualStart: actualStart,
+            actualEnd: actualEnd,
           );
 
-          // Local Fertilizer
-          dynamic lChanVal = (i < localChannels.length)
-              ? localChannels[i]
-              : (localChannels.isNotEmpty ? localChannels[0] : null);
-          dynamic lDurVal = (i < localDurations.length)
-              ? localDurations[i]
-              : (localDurations.isNotEmpty ? localDurations[0] : null);
-          dynamic lQtyVal = (i < localQuantities.length)
-              ? localQuantities[i]
-              : (localQuantities.isNotEmpty ? localQuantities[0] : null);
-          dynamic lNameVal = (i < localNames.length)
-              ? localNames[i]
-              : (localNames.isNotEmpty ? localNames[0] : null);
+          // Local Fertilizer — chanVal drives channel sNos, Duration/Quantity arrays drive planned & completed
+          dynamic lChanVal =
+              (i < localChannels.length) ? localChannels[i] : null;
+          dynamic lDurVal =
+              (i < localDurations.length) ? localDurations[i] : null;
+          dynamic lQtyVal =
+              (i < localQuantities.length) ? localQuantities[i] : null;
           dynamic lDurCompVal = (i < localDurationsCompleted.length)
               ? localDurationsCompleted[i]
-              : (localDurationsCompleted.isNotEmpty
-                  ? localDurationsCompleted[0]
-                  : null);
+              : null;
           dynamic lQtyCompVal = (i < localQuantitiesCompleted.length)
               ? localQuantitiesCompleted[i]
-              : (localQuantitiesCompleted.isNotEmpty
-                  ? localQuantitiesCompleted[0]
-                  : null);
+              : null;
 
           _processFertilizerChannels(
             rowsMap: rowsMap,
             itemDateKey: itemDateKey,
             isCentral: false,
             chanVal: lChanVal,
-            durVal: lDurVal,
-            qtyVal: lQtyVal,
-            nameVal: lNameVal,
+            plannedDurVal: lDurVal,
+            plannedQtyVal: lQtyVal,
             durCompletedVal: lDurCompVal,
             qtyCompletedVal: lQtyCompVal,
+            actualStart: actualStart,
+            actualEnd: actualEnd,
           );
         }
       }
     }
 
     // Calculate total duration and quantity per row
-    List<CumulativeRowData> rows = rowsMap.values.toList();
-    for (var r in rows) {
+    for (var r in rowsMap.values) {
       int sumSec = 0;
       num sumQty = 0;
       for (var d in r.dayEntries.values) {
@@ -1321,6 +1789,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       r.totalDurationSeconds = sumSec;
       r.totalQuantity = sumQty;
     }
+
+    // rowsMap contains strictly the channels present in CentralFertilizerChannel and LocalFertilizerChannel
+    List<CumulativeRowData> rows = rowsMap.values.toList();
 
     // Sort rows: Central Fertilizer first, then Local Fertilizer, then by channelSNo
     rows.sort((a, b) {
@@ -1365,116 +1836,82 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     required String itemDateKey,
     required bool isCentral,
     required dynamic chanVal,
-    required dynamic durVal,
-    required dynamic qtyVal,
-    required dynamic nameVal,
-    dynamic durCompletedVal,
-    dynamic qtyCompletedVal,
+    required dynamic plannedDurVal,
+    required dynamic plannedQtyVal,
+    required dynamic durCompletedVal,
+    required dynamic qtyCompletedVal,
+    String actualStart = '-',
+    String actualEnd = '-',
   }) {
+    // Extract underscore-separated parts from a single value or list of values
     List<String> extractParts(dynamic val) {
       List<String> parts = [];
-      if (val != null) {
-        if (val is List) {
-          for (var e in val) {
-            if (e != null) {
-              String s = e.toString().trim();
-              if (s.contains('_')) {
-                parts.addAll(s.split('_'));
-              } else if (s.isNotEmpty) {
-                parts.add(s);
-              }
+      if (val == null) return parts;
+      if (val is List) {
+        for (var e in val) {
+          if (e != null) {
+            String s = e.toString().trim();
+            if (s.isNotEmpty && s != 'null') {
+              parts.addAll(s.split('_').map((p) => p.trim()));
             }
           }
-        } else {
-          String s = val.toString().trim();
-          if (s.isNotEmpty) {
-            parts = s.split('_');
-          }
+        }
+      } else {
+        String s = val.toString().trim();
+        if (s.isNotEmpty && s != 'null') {
+          parts.addAll(s.split('_').map((p) => p.trim()));
         }
       }
-      return parts.map((e) => e.trim()).toList();
+      return parts;
     }
 
-    // 1. Extract channel sNos from chanVal (CentralFertilizerChannel or LocalFertilizerChannel)
-    List<String> chParts = extractParts(chanVal);
+    // 1. Extract channel sNos strictly from CentralFertilizerChannel / LocalFertilizerChannel
+    //    Each element is e.g. "10.001_10.002_10.003_10.004"; skip "-" or non-numeric parts
+    List<String> chParts = extractParts(chanVal)
+        .where((p) => p.isNotEmpty && p != '-' && double.tryParse(p) != null)
+        .toList();
 
-    // 2. Extract durations from durVal
-    List<String> dParts = extractParts(durVal);
-    List<String> dCompParts = extractParts(durCompletedVal);
-
-    // 3. Extract quantities from qtyVal
-    List<String> qParts = extractParts(qtyVal);
-    List<String> qCompParts = extractParts(qtyCompletedVal);
-
-    // 4. Extract names if any
-    List<String> nParts = extractParts(nameVal);
-
+    // If channel list is empty (e.g. LocalFertilizerChannel: ["-"]), nothing to display
     if (chParts.isEmpty) return;
 
+    // 2. Extract completed duration/quantity parts (same underscore-separated format)
+    List<String> dCompParts = extractParts(durCompletedVal);
+    List<String> qCompParts = extractParts(qtyCompletedVal);
+    List<String> dPlanParts = extractParts(plannedDurVal);
+    List<String> qPlanParts = extractParts(plannedQtyVal);
+
+    // 3. For each channel sNo (by index), look up name from getAsDefault config and accumulate data
     for (int chIdx = 0; chIdx < chParts.length; chIdx++) {
-      String explicitSNo = chParts[chIdx];
-      if (explicitSNo.isEmpty || explicitSNo == '_') continue;
-
-      double? parsedSNo = double.tryParse(explicitSNo);
-      if (parsedSNo == null) continue;
-
-      double sNoVal = parsedSNo;
+      String sNoRaw = chParts[chIdx];
+      double sNoVal = double.parse(sNoRaw); // safe: filtered above
       String sNoStr = sNoVal.toStringAsFixed(3);
 
-      String d = chIdx < dParts.length ? dParts[chIdx] : '';
-      String q = chIdx < qParts.length ? qParts[chIdx] : '';
+      // Completed duration at this index
       String dComp = chIdx < dCompParts.length ? dCompParts[chIdx] : '';
-      String qComp = chIdx < qCompParts.length ? qCompParts[chIdx] : '';
-      String explicitName = chIdx < nParts.length ? nParts[chIdx] : '';
-
       int durCompSec = _parseDurationToSeconds(dComp);
-      int durPlanSec = _parseDurationToSeconds(d);
-      int durSec = durCompSec > 0 ? durCompSec : durPlanSec;
+      int durSec = durCompSec > 1 ? durCompSec : 0;
 
-      num qtyCompNum = _parseQuantity(qComp);
-      num qtyPlanNum = _parseQuantity(q);
-      num qtyValNum = qtyCompNum > 0 ? qtyCompNum : qtyPlanNum;
+      // Completed quantity at this index
+      String qComp = chIdx < qCompParts.length ? qCompParts[chIdx] : '';
+      num qtyValNum = _parseQuantity(qComp);
+      if (qtyValNum < 0) qtyValNum = 0;
 
-      // Determine display name (matching from configmaker / names)
-      String channelName = '';
-      if (explicitName.isNotEmpty && explicitName != '_') {
-        channelName = explicitName;
-      } else if (_channelNameMap.containsKey(sNoStr) &&
-          _channelNameMap[sNoStr]!.isNotEmpty) {
-        channelName = _channelNameMap[sNoStr]!;
-      } else if (_channelNameMap.containsKey(sNoVal.toString()) &&
-          _channelNameMap[sNoVal.toString()]!.isNotEmpty) {
-        channelName = _channelNameMap[sNoVal.toString()]!;
-      } else {
-        int sInt = sNoVal.toInt();
-        if (_channelNameMap.containsKey(sInt.toString()) &&
-            _channelNameMap[sInt.toString()]!.isNotEmpty) {
-          channelName = _channelNameMap[sInt.toString()]!;
-        } else {
-          // Look up in _fertilizerChannelsFromConfig
-          Map<String, dynamic>? match;
-          for (var c in _fertilizerChannelsFromConfig) {
-            if (c['sNo'] != null) {
-              String cSNo = c['sNo'].toString();
-              if (cSNo == sNoStr ||
-                  cSNo == sNoVal.toString() ||
-                  double.tryParse(cSNo) == sNoVal) {
-                match = c;
-                break;
-              }
-            }
-          }
-          if (match != null &&
-              match['name'] != null &&
-              match['name'].toString().isNotEmpty) {
-            channelName = match['name'].toString();
-          } else {
-            channelName = isCentral
-                ? "Channel ${chIdx + 1}"
-                : "Local Channel ${chIdx + 1}";
-          }
-        }
-      }
+      // Planned duration at this index
+      String dPlan = chIdx < dPlanParts.length ? dPlanParts[chIdx] : '';
+      int planDurSec = _parseDurationToSeconds(dPlan);
+
+      // Planned quantity at this index
+      String qPlan = chIdx < qPlanParts.length ? qPlanParts[chIdx] : '';
+      num planQtyNum = _parseQuantity(qPlan);
+      if (planQtyNum < 0) planQtyNum = 0;
+
+      // Resolve display name strictly from getAsDefault config (_fertilizerChannelsFromConfig / _channelNameMap)
+      // or default to Channel 1, Channel 2, Channel 3, Channel 4 (not Channel 10)
+      String channelName = _resolveChannelDisplayName(
+        sNo: sNoVal,
+        isCentral: isCentral,
+        chIdx: chIdx,
+      );
 
       String category = isCentral ? "Central Fertilizer" : "Local Fertilizer";
       String rowKey = "${isCentral ? 'C' : 'L'}_$sNoStr";
@@ -1495,11 +1932,68 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         () => CumulativeDayData(),
       );
 
-      // Duplicate value sum for same day
+      String formattedRunPlanDur = planDurSec > 0
+          ? SequenceDayData._formatSecondsToHMS(planDurSec)
+          : (dPlan.isNotEmpty && dPlan != '-' && dPlan != '00:00:00'
+              ? dPlan
+              : '-');
+      String formattedRunPlanQty = planQtyNum > 0
+          ? (planQtyNum % 1 == 0 ? "${planQtyNum.toInt()} L" : "$planQtyNum L")
+          : (qPlan.isNotEmpty && qPlan != '-' && qPlan != '0'
+              ? "$qPlan L"
+              : '-');
+
+      if (durSec > 0 || qtyValNum > 0 || planDurSec > 0 || planQtyNum > 0) {
+        dayData.hasRun = true;
+        dayData.runs.add(
+          CumulativeRunEntry(
+            actualStartTime: actualStart,
+            actualEndTime: actualEnd,
+            plannedDuration: formattedRunPlanDur,
+            plannedQuantity: formattedRunPlanQty,
+            plannedDurationSeconds: planDurSec,
+            plannedQuantityNum: planQtyNum,
+            durationSeconds: durSec,
+            quantity: qtyValNum,
+          ),
+        );
+      }
+
+      // Accumulate completed runs for that channel on this date
       dayData.durationSeconds += durSec;
       dayData.quantity += qtyValNum;
-      if (durSec > 0 || qtyValNum > 0) {
-        dayData.hasRun = true;
+
+      // Accumulate planned duration & quantity for that channel on this date
+      if (planDurSec > 0) {
+        dayData.plannedDurationSeconds += planDurSec;
+        dayData.plannedDuration =
+            SequenceDayData._formatSecondsToHMS(dayData.plannedDurationSeconds);
+      } else if (dPlan.isNotEmpty &&
+          dPlan != '-' &&
+          dPlan != 'null' &&
+          dPlan != '00:00:00') {
+        if (dayData.plannedDuration == '-' || dayData.plannedDuration.isEmpty) {
+          dayData.plannedDuration = dPlan;
+        } else if (!dayData.plannedDuration.split(', ').contains(dPlan)) {
+          dayData.plannedDuration += ", $dPlan";
+        }
+      }
+
+      if (planQtyNum > 0) {
+        dayData.plannedQuantityNum += planQtyNum;
+        dayData.plannedQuantity = _formatQuantity(dayData.plannedQuantityNum);
+      } else if (qPlan.isNotEmpty &&
+          qPlan != '-' &&
+          qPlan != 'null' &&
+          qPlan != '0') {
+        String formattedQ = (double.tryParse(qPlan) != null)
+            ? _formatQuantity(double.parse(qPlan))
+            : "$qPlan L";
+        if (dayData.plannedQuantity == '-' || dayData.plannedQuantity.isEmpty) {
+          dayData.plannedQuantity = formattedQ;
+        } else if (!dayData.plannedQuantity.split(', ').contains(formattedQ)) {
+          dayData.plannedQuantity += ", $formattedQ";
+        }
       }
     }
   }
@@ -1707,7 +2201,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
-          daySum += r.dayEntries[dKey]!.durationQtySeconds;
+          daySum += r.dayEntries[dKey]!.durationCompletedSeconds;
           dayQty += r.dayEntries[dKey]!.quantityCompleted;
         }
       }
@@ -1907,7 +2401,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
-          daySum += r.dayEntries[dKey]!.durationQtySeconds;
+          daySum += r.dayEntries[dKey]!.durationCompletedSeconds;
           dayQty += r.dayEntries[dKey]!.quantityCompleted;
         }
       }
@@ -3169,7 +3663,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -3429,11 +3923,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               return Container(
                 width: colDateWidth,
@@ -3467,7 +3957,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -3611,13 +4101,12 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   }) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
-    String qtyStr = row.totalQuantity > 0
-        ? (row.totalQuantity % 1 == 0
-            ? "${row.totalQuantity.toInt()} L"
-            : "${row.totalQuantity} L")
-        : '-';
-    String formattedText =
-        "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr";
+    bool hasData = row.totalDurationSeconds > 0 || row.totalQuantity > 0;
+    String qtyStr =
+        row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : '-';
+    String formattedText = hasData
+        ? "${_formatDuration(row.totalDurationSeconds)} /\n$qtyStr"
+        : "- /\n-";
 
     return Container(
       width: colTotalWidth,
@@ -3650,8 +4139,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       : (MediaQuery.of(context).size.width < 1100
                           ? 12.5
                           : 13.0),
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF15803D),
+                  fontWeight: hasData ? FontWeight.bold : FontWeight.w500,
+                  color: hasData
+                      ? const Color(0xFF15803D)
+                      : const Color(0xFF94A3B8),
                 ),
               ),
             ),
@@ -3683,11 +4174,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               final double screenWidth = MediaQuery.of(context).size.width;
               final double fontSize =
@@ -3969,11 +4456,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
     );
 
-    String qtyStr = row.totalQuantity > 0
-        ? (row.totalQuantity % 1 == 0
-            ? "${row.totalQuantity.toInt()} L"
-            : "${row.totalQuantity} L")
-        : "-";
+    String qtyStr =
+        row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : "-";
 
     Widget quantityBadge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -4128,204 +4612,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               // Expanded Date-wise Duration, Quantity & Total breakdown
               if (isExpanded) ...[
                 const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF1F5F9),
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(5)),
-                          border: Border(
-                            bottom:
-                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                          ),
-                        ),
-                        child: const Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Date",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Duration",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F766E),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Quantity",
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Date Rows
-                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
-                        Builder(builder: (context) {
-                          DateTime d = _dateColumns[dIdx];
-                          String dKey = DateFormat('yyyy-MM-dd').format(d);
-                          CumulativeDayData? dayData = row.dayEntries[dKey];
-
-                          bool hasRun = dayData != null && dayData.hasRun;
-                          int durSec = dayData?.durationSeconds ?? 0;
-                          num qty = dayData?.quantity ?? 0;
-
-                          String durStr = (hasRun && durSec > 0)
-                              ? _formatDuration(durSec)
-                              : (hasRun && dayData.durationStr != '00:00:00'
-                                  ? dayData.durationStr
-                                  : '-');
-                          String dayQtyStr = (hasRun && qty > 0)
-                              ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
-                              : '-';
-
-                          Color rowBg = dIdx % 2 == 0
-                              ? Colors.white
-                              : const Color(0xFFF8FAFC);
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            color: rowBg,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    DateFormat('dd/MM/yyyy').format(d),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: hasRun
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      color: hasRun
-                                          ? const Color(0xFF1E293B)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    durStr,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: durStr != '-'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: durStr != '-'
-                                          ? const Color(0xFF0F766E)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    dayQtyStr,
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: dayQtyStr != '-'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: dayQtyStr != '-'
-                                          ? const Color(0xFF166534)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      // Total Footer Row
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 7),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF0FDF4),
-                          borderRadius:
-                              BorderRadius.vertical(bottom: Radius.circular(5)),
-                          border: Border(
-                            top: BorderSide(
-                                color: Color(0xFFBBF7D0), width: 1.5),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Total",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                _formatDuration(row.totalDurationSeconds),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F766E),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                qtyStr,
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildDateWiseChannelTable(row),
               ],
             ],
           );
@@ -4377,7 +4664,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       num dayQty = 0;
       for (var r in filteredRows) {
         if (r.dayEntries.containsKey(dKey)) {
-          daySum += r.dayEntries[dKey]!.durationQtySeconds;
+          daySum += r.dayEntries[dKey]!.durationCompletedSeconds;
           dayQty += r.dayEntries[dKey]!.quantityCompleted;
         }
       }
@@ -4403,9 +4690,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           );
         }
 
-        // Base Column Widths (Program/Sequence, Date column, Total column)
+        // Base Column Widths (Program/Sequence, Date sub-columns: Duration/Quantity & StartTime/EndTime, Total column)
         const double baseSeqWidth = 170;
-        const double baseDateColWidth = 145;
+        const double baseDurQtyColWidth = 115;
+        const double baseTimeColWidth = 145;
+        const double baseDateColWidth = baseDurQtyColWidth + baseTimeColWidth;
         const double baseTotalWidth = 145;
 
         final double naturalTableWidth = baseSeqWidth +
@@ -4418,7 +4707,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 : 1.0;
 
         final double colSeqWidth = baseSeqWidth * scale;
-        final double colDateWidth = baseDateColWidth * scale;
+        final double colDurQtyWidth = baseDurQtyColWidth * scale;
+        final double colTimeWidth = baseTimeColWidth * scale;
+        final double colDateWidth = colDurQtyWidth + colTimeWidth;
         final double colTotalWidth = baseTotalWidth * scale;
         final double dateAreaWidth = colDateWidth * _dateColumns.length;
 
@@ -4602,15 +4893,19 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                               ],
                             ),
 
-                            // SUB-HEADER ROW: Single "Duration / Quantity" per date
+                            // SUB-HEADER ROW: "Duration / Quantity" & "Start Time / End Time" per date
                             Row(
                               children: [
                                 for (int dIdx = 0;
                                     dIdx < _dateColumns.length;
-                                    dIdx++)
+                                    dIdx++) ...[
                                   _buildSubHeaderCell(
-                                      "Duration /\nQuantity", colDateWidth,
+                                      "Duration /\nQuantity", colDurQtyWidth,
                                       height: 48),
+                                  _buildSubHeaderCell(
+                                      "Start Time /\nEnd Time", colTimeWidth,
+                                      height: 48),
+                                ],
                               ],
                             ),
 
@@ -4645,7 +4940,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                           _buildDateOnlySequenceDataRow(
                                             filteredRows[rIdx],
                                             rIdx,
-                                            colDateWidth,
+                                            colDurQtyWidth,
+                                            colTimeWidth,
                                           ),
                                       ],
                                     ),
@@ -4658,7 +4954,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             _buildDailyFooterTotalRow(
                               dailyTotals,
                               dailyTotalQuantities,
-                              colDateWidth,
+                              colDurQtyWidth,
+                              colTimeWidth,
                             ),
                             const SizedBox(height: 15),
                           ],
@@ -4761,7 +5058,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         ),
                       ),
                       child: Text(
-                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+                        "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -4794,7 +5091,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     num grandTotalQuantity,
   ) {
     const double colSeqWidth = 155;
-    const double colDateWidth = 140;
+    const double colDurQtyWidth = 115;
+    const double colTimeWidth = 145;
+    const double colDateWidth = colDurQtyWidth + colTimeWidth; // 260
     const double colTotalWidth = 140;
     final double totalTableWidth =
         colSeqWidth + (colDateWidth * _dateColumns.length) + colTotalWidth;
@@ -4911,10 +5210,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       _buildSubHeaderCell(
                           "Program /\nValve /\nSequence", colSeqWidth,
                           height: 48),
-                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                      for (int dIdx = 0;
+                          dIdx < _dateColumns.length;
+                          dIdx++) ...[
                         _buildSubHeaderCell(
-                            "Duration /\nQuantity", colDateWidth,
+                            "Duration /\nQuantity", colDurQtyWidth,
                             height: 48),
+                        _buildSubHeaderCell(
+                            "Start Time /\nEnd Time", colTimeWidth,
+                            height: 48),
+                      ],
                       _buildSubHeaderCell(
                           "Total\nDuration /\nQuantity", colTotalWidth,
                           isTotalCol: true, height: 48),
@@ -4927,7 +5232,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       filteredRows[rIdx],
                       rIdx,
                       colSeqWidth,
-                      colDateWidth,
+                      colDurQtyWidth,
+                      colTimeWidth,
                       colTotalWidth,
                     ),
 
@@ -4938,7 +5244,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     grandTotalSeconds,
                     grandTotalQuantity,
                     colSeqWidth,
-                    colDateWidth,
+                    colDurQtyWidth,
+                    colTimeWidth,
                     colTotalWidth,
                   ),
                   const SizedBox(height: 15),
@@ -4955,7 +5262,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     SequenceRowData row,
     int rowIndex,
     double colSeqWidth,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
     double colTotalWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
@@ -4971,12 +5279,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildPinnedLeftSequenceDataRow(row, rowIndex, colSeqWidth),
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDateWidth,
+              colDurQtyWidth,
             ),
+            _buildDateTimeSequenceBlock(
+              row,
+              _dateColumns[dIdx],
+              colTimeWidth,
+            ),
+          ],
           _buildPinnedTotalDataRow(
             row,
             rowIndex,
@@ -4993,7 +5307,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     int grandTotalSeconds,
     num grandTotalQuantity,
     double colSeqWidth,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
     double colTotalWidth,
   ) {
     return Container(
@@ -5026,20 +5341,16 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               ),
             ),
           ),
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               return Container(
-                width: colDateWidth,
+                width: colDurQtyWidth,
                 height: 46,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -5061,6 +5372,27 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               );
             }),
+            Container(
+              width: colTimeWidth,
+              height: 46,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: const BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+              ),
+              child: const Text(
+                "-",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ),
+          ],
           Container(
             width: colTotalWidth,
             height: 46,
@@ -5070,7 +5402,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               color: Color(0xFFDCFCE7),
             ),
             child: Text(
-              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? (grandTotalQuantity % 1 == 0 ? '${grandTotalQuantity.toInt()} L' : '$grandTotalQuantity L') : '-'}",
+              "${_formatDuration(grandTotalSeconds)} /\n${grandTotalQuantity > 0 ? _formatQuantity(grandTotalQuantity) : '-'}",
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -5236,7 +5568,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDateOnlySequenceDataRow(
     SequenceRowData row,
     int rowIndex,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
   ) {
     Color rowBg = rowIndex % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
 
@@ -5250,12 +5583,18 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             _buildDateSequenceBlock(
               row,
               _dateColumns[dIdx],
-              colDateWidth,
+              colDurQtyWidth,
             ),
+            _buildDateTimeSequenceBlock(
+              row,
+              _dateColumns[dIdx],
+              colTimeWidth,
+            ),
+          ],
         ],
       ),
     );
@@ -5274,19 +5613,25 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     for (var d in _dateColumns) {
       String dKey = DateFormat('yyyy-MM-dd').format(d);
       if (row.dayEntries.containsKey(dKey)) {
-        rowTotalSeconds += row.dayEntries[dKey]!.durationQtySeconds;
+        rowTotalSeconds += row.dayEntries[dKey]!.durationCompletedSeconds;
         rowTotalQuantity += row.dayEntries[dKey]!.quantityCompleted;
       }
     }
 
-    String qtyTotalStr = rowTotalQuantity > 0
-        ? (rowTotalQuantity % 1 == 0
-            ? "${rowTotalQuantity.toInt()} L"
-            : "$rowTotalQuantity L")
-        : '-';
+    String qtyTotalStr =
+        rowTotalQuantity > 0 ? _formatQuantity(rowTotalQuantity) : '-';
 
-    String formattedText =
-        "${_formatDuration(rowTotalSeconds)} /\n$qtyTotalStr";
+    String formattedText;
+    bool hasRunAnyDay = rowTotalSeconds > 0 || rowTotalQuantity > 0;
+    if (!hasRunAnyDay) {
+      formattedText = "- /\n-";
+    } else if (rowTotalSeconds > 0 && rowTotalQuantity == 0) {
+      formattedText = "${_formatDuration(rowTotalSeconds)} /\n-";
+    } else if (rowTotalSeconds == 0 && rowTotalQuantity > 0) {
+      formattedText = "- /\n$qtyTotalStr";
+    } else {
+      formattedText = "${_formatDuration(rowTotalSeconds)} /\n$qtyTotalStr";
+    }
 
     if (isPinned) {
       return Container(
@@ -5320,8 +5665,11 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         : (MediaQuery.of(context).size.width < 1100
                             ? 12.5
                             : 13.0),
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF15803D),
+                    fontWeight:
+                        hasRunAnyDay ? FontWeight.bold : FontWeight.w500,
+                    color: hasRunAnyDay
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF94A3B8),
                   ),
                 ),
               ),
@@ -5351,8 +5699,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           fontSize: MediaQuery.of(context).size.width < 650
               ? 12.0
               : (MediaQuery.of(context).size.width < 1100 ? 12.5 : 13.0),
-          fontWeight: FontWeight.bold,
-          color: const Color(0xFF15803D),
+          fontWeight: hasRunAnyDay ? FontWeight.bold : FontWeight.w500,
+          color:
+              hasRunAnyDay ? const Color(0xFF15803D) : const Color(0xFF94A3B8),
         ),
       ),
     );
@@ -5371,9 +5720,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     if (dayData != null && dayData.hasRun) {
       String dur = dayData.durationQtyStr;
       String qty = dayData.quantityCompleted > 0
-          ? (dayData.quantityCompleted % 1 == 0
-              ? "${dayData.quantityCompleted.toInt()} L"
-              : "${dayData.quantityCompleted} L")
+          ? _formatQuantity(dayData.quantityCompleted)
           : '-';
       cellText = "$dur /\n$qty";
       isBold = dur != '00:00:00' || qty != '-';
@@ -5387,6 +5734,137 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       isBold: isBold,
       maxLines: 2,
       height: 64,
+    );
+  }
+
+  List<String> _extractStartEndPairs(SequenceDayData? dayData) {
+    if (dayData == null) return [];
+    List<String> pairs = [];
+
+    void processStartEnd(String sRaw, String eRaw) {
+      if ((sRaw.isEmpty || sRaw == '-') && (eRaw.isEmpty || eRaw == '-')) {
+        return;
+      }
+      List<String> starts = sRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((s) => s.trim())
+          .toList();
+      List<String> ends = eRaw
+          .replaceAll(', ', '_')
+          .replaceAll(',', '_')
+          .split('_')
+          .map((e) => e.trim())
+          .toList();
+
+      int count = math.max(starts.length, ends.length);
+      for (int k = 0; k < count; k++) {
+        String s =
+            (k < starts.length && starts[k].isNotEmpty) ? starts[k] : '-';
+        String e = (k < ends.length && ends[k].isNotEmpty) ? ends[k] : '-';
+        if (s == '-' && e == '-') continue;
+        String pair = "$s - $e";
+        if (!pairs.contains(pair)) {
+          pairs.add(pair);
+        }
+      }
+    }
+
+    if (dayData.runs.isNotEmpty) {
+      for (var run in dayData.runs) {
+        processStartEnd(run.actualStartTime, run.actualEndTime);
+      }
+    }
+
+    if (pairs.isEmpty) {
+      processStartEnd(dayData.actualStartTime, dayData.actualEndTime);
+    }
+
+    return pairs;
+  }
+
+  Widget _buildDateTimeSequenceBlock(
+    SequenceRowData row,
+    DateTime date,
+    double colTimeWidth,
+  ) {
+    String dKey = DateFormat('yyyy-MM-dd').format(date);
+    SequenceDayData? dayData = row.dayEntries[dKey];
+    List<String> pairs = _extractStartEndPairs(dayData);
+
+    if (pairs.isEmpty) {
+      return Container(
+        width: colTimeWidth,
+        height: 64,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+        ),
+        child: const Text(
+          "-",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF94A3B8),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: colTimeWidth,
+      height: 64,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: const BoxDecoration(
+        border: Border(right: BorderSide(color: Color(0xFFE2E8F0), width: 1)),
+      ),
+      child: pairs.length <= 2
+          ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                for (int i = 0; i < pairs.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 2),
+                  Text(
+                    pairs[i],
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ],
+              ],
+            )
+          : SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  for (String p in pairs)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1.0),
+                      child: Text(
+                        p,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -5433,7 +5911,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
   Widget _buildDailyFooterTotalRow(
     Map<String, int> dailyTotals,
     Map<String, num> dailyTotalQuantities,
-    double colDateWidth,
+    double colDurQtyWidth,
+    double colTimeWidth,
   ) {
     return Container(
       height: 46,
@@ -5446,24 +5925,20 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       ),
       child: Row(
         children: [
-          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+          for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++) ...[
             Builder(builder: (context) {
               String dKey = DateFormat('yyyy-MM-dd').format(_dateColumns[dIdx]);
               int daySumSec = dailyTotals[dKey] ?? 0;
               num daySumQty = dailyTotalQuantities[dKey] ?? 0;
               String dayTotalFormatted = _formatDuration(daySumSec);
-              String qtyStr = daySumQty > 0
-                  ? (daySumQty % 1 == 0
-                      ? "${daySumQty.toInt()} L"
-                      : "$daySumQty L")
-                  : '-';
+              String qtyStr = daySumQty > 0 ? _formatQuantity(daySumQty) : '-';
 
               final double screenWidth = MediaQuery.of(context).size.width;
               final double fontSize =
                   screenWidth < 650 ? 12.0 : (screenWidth < 1100 ? 12.5 : 13.0);
 
               return Container(
-                width: colDateWidth,
+                width: colDurQtyWidth,
                 height: 46,
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -5485,6 +5960,27 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 ),
               );
             }),
+            Container(
+              width: colTimeWidth,
+              height: 46,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: const BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+              ),
+              child: const Text(
+                "-",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF166534),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -5672,9 +6168,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       child: _buildSummaryCard(
                         title: "Total Quantity",
                         value: grandTotalQuantity > 0
-                            ? (grandTotalQuantity % 1 == 0
-                                ? "${grandTotalQuantity.toInt()} L"
-                                : "$grandTotalQuantity L")
+                            ? _formatQuantity(grandTotalQuantity)
                             : "-",
                         icon: Icons.water_drop_outlined,
                         color: const Color(0xFF16A34A),
@@ -5725,9 +6219,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                   child: _buildSummaryCard(
                     title: "Total Quantity",
                     value: grandTotalQuantity > 0
-                        ? (grandTotalQuantity % 1 == 0
-                            ? "${grandTotalQuantity.toInt()} L"
-                            : "$grandTotalQuantity L")
+                        ? _formatQuantity(grandTotalQuantity)
                         : "-",
                     icon: Icons.water_drop_outlined,
                     color: const Color(0xFF16A34A),
@@ -5911,6 +6403,367 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
     );
   }
 
+  Widget _buildDateWiseSequenceTable(
+    SequenceRowData row, {
+    void Function(VoidCallback)? onStateChange,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double minTableWidth = 460.0;
+        Widget tableContent = Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(5)),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Date",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Start Time",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "End Time",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ),
+                    // Expanded(
+                    //   flex: 3,
+                    //   child: Text(
+                    //     "Duration / Qty",
+                    //     textAlign: TextAlign.center,
+                    //     style: TextStyle(
+                    //       fontSize: 11,
+                    //       fontWeight: FontWeight.bold,
+                    //       color: Color(0xFF0F766E),
+                    //     ),
+                    //   ),
+                    // ),
+                  ],
+                ),
+              ),
+              // Date Rows
+              for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                Builder(builder: (context) {
+                  DateTime d = _dateColumns[dIdx];
+                  String dKey = DateFormat('yyyy-MM-dd').format(d);
+                  SequenceDayData? dayData = row.dayEntries[dKey];
+
+                  bool hasRun = dayData != null && dayData.hasRun;
+
+                  String startStr = (hasRun &&
+                          dayData.actualStartTime.isNotEmpty &&
+                          dayData.actualStartTime != '-')
+                      ? dayData.actualStartTime
+                      : '-';
+                  String endStr = (hasRun &&
+                          dayData.actualEndTime.isNotEmpty &&
+                          dayData.actualEndTime != '-')
+                      ? dayData.actualEndTime
+                      : '-';
+                  String setDurQtyStr = (hasRun &&
+                          dayData.plannedDurationQty.isNotEmpty &&
+                          dayData.plannedDurationQty != '-')
+                      ? dayData.plannedDurationQty
+                      : '-';
+
+                  Color rowBg =
+                      dIdx % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    color: rowBg,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(d),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  hasRun ? FontWeight.w600 : FontWeight.normal,
+                              color: hasRun
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            startStr.replaceAll('_', ', '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: startStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: startStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            endStr.replaceAll('_', ', '),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: endStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: endStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        // Expanded(
+                        //   flex: 3,
+                        //   child: Text(
+                        //     setDurQtyStr,
+                        //     textAlign: TextAlign.center,
+                        //     style: TextStyle(
+                        //       fontSize: 11,
+                        //       fontWeight: setDurQtyStr != '-'
+                        //           ? FontWeight.w600
+                        //           : FontWeight.normal,
+                        //       color: setDurQtyStr != '-'
+                        //           ? const Color(0xFF0F766E)
+                        //           : const Color(0xFF94A3B8),
+                        //     ),
+                        //   ),
+                        // ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < minTableWidth) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: minTableWidth,
+              child: tableContent,
+            ),
+          );
+        }
+        return tableContent;
+      },
+    );
+  }
+
+  Widget _buildDateWiseChannelTable(
+    CumulativeRowData row, {
+    void Function(VoidCallback)? onStateChange,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double minTableWidth = 380.0;
+        Widget tableContent = Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(5)),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFFCBD5E1), width: 1),
+                  ),
+                ),
+                child: const Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Date",
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Duration",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        "Quantity",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF166534),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Date Rows
+              for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
+                Builder(builder: (context) {
+                  DateTime d = _dateColumns[dIdx];
+                  String dKey = DateFormat('yyyy-MM-dd').format(d);
+                  CumulativeDayData? dayData = row.dayEntries[dKey];
+
+                  bool hasRun = dayData != null && dayData.hasRun;
+
+                  String setDurStr = (dayData != null &&
+                          dayData.plannedDuration.isNotEmpty &&
+                          dayData.plannedDuration != '-')
+                      ? dayData.plannedDuration
+                      : '-';
+                  String setQtyStr = (dayData != null &&
+                          dayData.plannedQuantity.isNotEmpty &&
+                          dayData.plannedQuantity != '-')
+                      ? dayData.plannedQuantity
+                      : '-';
+
+                  Color rowBg =
+                      dIdx % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC);
+
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    color: rowBg,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(d),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight:
+                                  hasRun ? FontWeight.w600 : FontWeight.normal,
+                              color: hasRun
+                                  ? const Color(0xFF1E293B)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            setDurStr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: setDurStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: setDurStr != '-'
+                                  ? const Color(0xFF0F766E)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            setQtyStr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: setQtyStr != '-'
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: setQtyStr != '-'
+                                  ? const Color(0xFF166534)
+                                  : const Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+
+        if (constraints.maxWidth < minTableWidth) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: minTableWidth,
+              child: tableContent,
+            ),
+          );
+        }
+        return tableContent;
+      },
+    );
+  }
+
   void _showIndividualSequenceGraphDialog(
     BuildContext context,
     SequenceRowData row,
@@ -5924,8 +6777,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final double dialogWidth = math.min(
-              MediaQuery.of(context).size.width * 0.92,
-              750.0,
+              MediaQuery.of(context).size.width * 0.95,
+              800.0,
             );
 
             return Dialog(
@@ -5941,8 +6794,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 constraints: BoxConstraints(
                   maxWidth: dialogWidth,
                   maxHeight: math.min(
-                    MediaQuery.of(context).size.height * 0.85,
-                    540.0,
+                    MediaQuery.of(context).size.height * 0.9,
+                    720.0,
                   ),
                 ),
                 child: Padding(
@@ -6009,91 +6862,106 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       const Divider(height: 1, color: Color(0xFFE2E8F0)),
                       const SizedBox(height: 10),
 
-                      // Metric Summary Badges
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildSummaryBadge(
-                            icon: Icons.timer_outlined,
-                            label: "Total Duration",
-                            value: _formatDuration(row.totalDurationSeconds),
-                            color: const Color(0xFF00897B),
-                            bgColor: const Color(0xFFE0F2F1),
-                          ),
-                          _buildSummaryBadge(
-                            icon: Icons.water_drop_outlined,
-                            label: "Total Quantity",
-                            value: row.totalQuantity > 0
-                                ? (row.totalQuantity % 1 == 0
-                                    ? "${row.totalQuantity.toInt()} L"
-                                    : "${row.totalQuantity} L")
-                                : "-",
-                            color: const Color(0xFF166534),
-                            bgColor: const Color(0xFFF0FDF4),
-                          ),
-                          _buildSummaryBadge(
-                            icon: Icons.calendar_today_outlined,
-                            label: "Total Days",
-                            value: "${_dateColumns.length} Days",
-                            color: const Color(0xFF475569),
-                            bgColor: const Color(0xFFF1F5F9),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Controls: Metric & Chart Type Selector
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildMetricTab(
-                                  label: "Duration (mins)",
-                                  icon: Icons.timer_outlined,
-                                  activeColor: const Color(0xFF0D9488),
-                                  isSelected: localMetric == 'Duration',
-                                  onTap: () {
-                                    setDialogState(
-                                        () => localMetric = 'Duration');
-                                  },
-                                ),
-                                _buildMetricTab(
-                                  label: "Quantity",
-                                  icon: Icons.water_drop_outlined,
-                                  activeColor: const Color(0xFF16A34A),
-                                  isSelected: localMetric == 'Quantity',
-                                  onTap: () {
-                                    setDialogState(
-                                        () => localMetric = 'Quantity');
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Chart Area: Static Y-axis and horizontal scrolling
+                      // Dialog Body: scrollable
                       Expanded(
-                        child: _buildSfChart(
-                          [row],
-                          overrideMetric: localMetric,
-                          overrideChartType: localChartType,
-                          overrideScrollController:
-                              _seqDialogGraphScrollController,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Metric Summary Badges
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _buildSummaryBadge(
+                                    icon: Icons.timer_outlined,
+                                    label: "Total Duration",
+                                    value: _formatDuration(
+                                        row.totalDurationSeconds),
+                                    color: const Color(0xFF00897B),
+                                    bgColor: const Color(0xFFE0F2F1),
+                                  ),
+                                  _buildSummaryBadge(
+                                    icon: Icons.water_drop_outlined,
+                                    label: "Total Quantity",
+                                    value: row.totalQuantity > 0
+                                        ? _formatQuantity(row.totalQuantity)
+                                        : "-",
+                                    color: const Color(0xFF166534),
+                                    bgColor: const Color(0xFFF0FDF4),
+                                  ),
+                                  _buildSummaryBadge(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: "Total Days",
+                                    value: "${_dateColumns.length} Days",
+                                    color: const Color(0xFF475569),
+                                    bgColor: const Color(0xFFF1F5F9),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Controls: Metric & Chart Type Selector
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    padding: const EdgeInsets.all(2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildMetricTab(
+                                          label: "Duration (mins)",
+                                          icon: Icons.timer_outlined,
+                                          activeColor: const Color(0xFF0D9488),
+                                          isSelected: localMetric == 'Duration',
+                                          onTap: () {
+                                            setDialogState(
+                                                () => localMetric = 'Duration');
+                                          },
+                                        ),
+                                        _buildMetricTab(
+                                          label: "Quantity",
+                                          icon: Icons.water_drop_outlined,
+                                          activeColor: const Color(0xFF16A34A),
+                                          isSelected: localMetric == 'Quantity',
+                                          onTap: () {
+                                            setDialogState(
+                                                () => localMetric = 'Quantity');
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Chart Area: Static Y-axis and horizontal scrolling
+                              SizedBox(
+                                height: 240,
+                                child: _buildSfChart(
+                                  [row],
+                                  overrideMetric: localMetric,
+                                  overrideChartType: localChartType,
+                                  overrideScrollController:
+                                      _seqDialogGraphScrollController,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Date Wise Table Below Chart:
+                              _buildDateWiseSequenceTable(row,
+                                  onStateChange: setDialogState),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -6120,8 +6988,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final double dialogWidth = math.min(
-              MediaQuery.of(context).size.width * 0.92,
-              750.0,
+              MediaQuery.of(context).size.width * 0.95,
+              800.0,
             );
 
             return Dialog(
@@ -6137,8 +7005,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                 constraints: BoxConstraints(
                   maxWidth: dialogWidth,
                   maxHeight: math.min(
-                    MediaQuery.of(context).size.height * 0.85,
-                    540.0,
+                    MediaQuery.of(context).size.height * 0.9,
+                    720.0,
                   ),
                 ),
                 child: Padding(
@@ -6202,91 +7070,106 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                       const Divider(height: 1, color: Color(0xFFE2E8F0)),
                       const SizedBox(height: 10),
 
-                      // Metric Summary Badges
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildSummaryBadge(
-                            icon: Icons.timer_outlined,
-                            label: "Total Duration",
-                            value: _formatDuration(row.totalDurationSeconds),
-                            color: const Color(0xFF00897B),
-                            bgColor: const Color(0xFFE0F2F1),
-                          ),
-                          _buildSummaryBadge(
-                            icon: Icons.water_drop_outlined,
-                            label: "Total Quantity",
-                            value: row.totalQuantity > 0
-                                ? (row.totalQuantity % 1 == 0
-                                    ? "${row.totalQuantity.toInt()} L"
-                                    : "${row.totalQuantity} L")
-                                : "-",
-                            color: const Color(0xFF166534),
-                            bgColor: const Color(0xFFF0FDF4),
-                          ),
-                          _buildSummaryBadge(
-                            icon: Icons.calendar_today_outlined,
-                            label: "Total Days",
-                            value: "${_dateColumns.length} Days",
-                            color: const Color(0xFF475569),
-                            bgColor: const Color(0xFFF1F5F9),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Controls: Metric & Chart Type Selector
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildMetricTab(
-                                  label: "Duration (mins)",
-                                  icon: Icons.timer_outlined,
-                                  activeColor: const Color(0xFF0D9488),
-                                  isSelected: localMetric == 'Duration',
-                                  onTap: () {
-                                    setDialogState(
-                                        () => localMetric = 'Duration');
-                                  },
-                                ),
-                                _buildMetricTab(
-                                  label: "Quantity",
-                                  icon: Icons.water_drop_outlined,
-                                  activeColor: const Color(0xFF16A34A),
-                                  isSelected: localMetric == 'Quantity',
-                                  onTap: () {
-                                    setDialogState(
-                                        () => localMetric = 'Quantity');
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Chart Area: Static Y-axis and horizontal scrolling
+                      // Dialog Body: scrollable
                       Expanded(
-                        child: _buildCumulativeSfChart(
-                          [row],
-                          overrideMetric: localMetric,
-                          overrideChartType: localChartType,
-                          overrideScrollController:
-                              _chanDialogGraphScrollController,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Metric Summary Badges
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _buildSummaryBadge(
+                                    icon: Icons.timer_outlined,
+                                    label: "Total Duration",
+                                    value: _formatDuration(
+                                        row.totalDurationSeconds),
+                                    color: const Color(0xFF00897B),
+                                    bgColor: const Color(0xFFE0F2F1),
+                                  ),
+                                  _buildSummaryBadge(
+                                    icon: Icons.water_drop_outlined,
+                                    label: "Total Quantity",
+                                    value: row.totalQuantity > 0
+                                        ? _formatQuantity(row.totalQuantity)
+                                        : "-",
+                                    color: const Color(0xFF166534),
+                                    bgColor: const Color(0xFFF0FDF4),
+                                  ),
+                                  _buildSummaryBadge(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: "Total Days",
+                                    value: "${_dateColumns.length} Days",
+                                    color: const Color(0xFF475569),
+                                    bgColor: const Color(0xFFF1F5F9),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Controls: Metric & Chart Type Selector
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    padding: const EdgeInsets.all(2),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _buildMetricTab(
+                                          label: "Duration (mins)",
+                                          icon: Icons.timer_outlined,
+                                          activeColor: const Color(0xFF0D9488),
+                                          isSelected: localMetric == 'Duration',
+                                          onTap: () {
+                                            setDialogState(
+                                                () => localMetric = 'Duration');
+                                          },
+                                        ),
+                                        _buildMetricTab(
+                                          label: "Quantity",
+                                          icon: Icons.water_drop_outlined,
+                                          activeColor: const Color(0xFF16A34A),
+                                          isSelected: localMetric == 'Quantity',
+                                          onTap: () {
+                                            setDialogState(
+                                                () => localMetric = 'Quantity');
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              // Chart Area: Static Y-axis and horizontal scrolling
+                              SizedBox(
+                                height: 240,
+                                child: _buildCumulativeSfChart(
+                                  [row],
+                                  overrideMetric: localMetric,
+                                  overrideChartType: localChartType,
+                                  overrideScrollController:
+                                      _chanDialogGraphScrollController,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+
+                              // Date Wise Table Below Chart:
+                              _buildDateWiseChannelTable(row,
+                                  onStateChange: setDialogState),
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -6516,7 +7399,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
       num sumQty = 0;
       for (var r in rows) {
         if (r.dayEntries.containsKey(dKey)) {
-          sumSec += r.dayEntries[dKey]!.durationQtySeconds;
+          sumSec += r.dayEntries[dKey]!.durationCompletedSeconds;
           sumQty += r.dayEntries[dKey]!.quantityCompleted;
         }
       }
@@ -6746,7 +7629,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                                             Text(
                                               isDuration
                                                   ? "Duration: ${p.durationFormatted}"
-                                                  : "Quantity: ${p.quantity > 0 ? (p.quantity % 1 == 0 ? '${p.quantity.toInt()} L' : '${p.quantity} L') : '-'}",
+                                                  : "Quantity: ${p.quantity > 0 ? _formatQuantity(p.quantity) : '-'}",
                                               style: TextStyle(
                                                 color: isDuration
                                                     ? const Color(0xFF2DD4BF)
@@ -6905,11 +7788,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               size: 11, color: Color(0xFF166534)),
           const SizedBox(width: 3),
           Text(
-            row.totalQuantity > 0
-                ? (row.totalQuantity % 1 == 0
-                    ? "${row.totalQuantity.toInt()} L"
-                    : "${row.totalQuantity} L")
-                : "-",
+            row.totalQuantity > 0 ? _formatQuantity(row.totalQuantity) : "-",
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -7051,206 +7930,7 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
               // Expanded Date-wise Duration, Quantity & Total breakdown
               if (isExpanded) ...[
                 const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Column(
-                    children: [
-                      // Header
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF1F5F9),
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(5)),
-                          border: Border(
-                            bottom:
-                                BorderSide(color: Color(0xFFCBD5E1), width: 1),
-                          ),
-                        ),
-                        child: const Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Date",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF475569),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Duration",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F766E),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Quantity",
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Date Rows
-                      for (int dIdx = 0; dIdx < _dateColumns.length; dIdx++)
-                        Builder(builder: (context) {
-                          DateTime d = _dateColumns[dIdx];
-                          String dKey = DateFormat('yyyy-MM-dd').format(d);
-                          SequenceDayData? dayData = row.dayEntries[dKey];
-
-                          bool hasRun = dayData != null && dayData.hasRun;
-                          int durSec = dayData?.durationQtySeconds ?? 0;
-                          num qty = dayData?.quantityCompleted ?? 0;
-
-                          String durStr = (hasRun && durSec > 0)
-                              ? _formatDuration(durSec)
-                              : (hasRun && dayData.durationQtyStr != '00:00:00'
-                                  ? dayData.durationQtyStr
-                                  : '-');
-                          String qtyStr = (hasRun && qty > 0)
-                              ? (qty % 1 == 0 ? "${qty.toInt()} L" : "$qty L")
-                              : '-';
-
-                          Color rowBg = dIdx % 2 == 0
-                              ? Colors.white
-                              : const Color(0xFFF8FAFC);
-
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            color: rowBg,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    DateFormat('dd/MM/yyyy').format(d),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: hasRun
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      color: hasRun
-                                          ? const Color(0xFF1E293B)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    durStr,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: durStr != '-'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: durStr != '-'
-                                          ? const Color(0xFF0F766E)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    qtyStr,
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: qtyStr != '-'
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      color: qtyStr != '-'
-                                          ? const Color(0xFF166534)
-                                          : const Color(0xFF94A3B8),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      // Total Footer Row
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 7),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF0FDF4),
-                          borderRadius:
-                              BorderRadius.vertical(bottom: Radius.circular(5)),
-                          border: Border(
-                            top: BorderSide(
-                                color: Color(0xFFBBF7D0), width: 1.5),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Expanded(
-                              flex: 3,
-                              child: Text(
-                                "Total",
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                _formatDuration(row.totalDurationSeconds),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F766E),
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 3,
-                              child: Text(
-                                row.totalQuantity > 0
-                                    ? "${row.totalQuantity} L"
-                                    : "-",
-                                textAlign: TextAlign.right,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF166534),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _buildDateWiseSequenceTable(row),
               ],
             ],
           );
@@ -7282,7 +7962,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
           .where((e) =>
               e.objectId == 5 &&
               (e.controllerId == targetControllerId ||
-                  ((nodeControllerId == 0 || nodeControllerId == controllerId) &&
+                  ((nodeControllerId == 0 ||
+                          nodeControllerId == controllerId) &&
                       (e.controllerId == 0 ||
                           e.controllerId == null ||
                           e.controllerId == controllerId))))
@@ -7290,9 +7971,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
 
       if (targetPumps.isEmpty &&
           (nodeControllerId == 0 || nodeControllerId == controllerId)) {
-        targetPumps = masterData.configObjects
-            .where((e) => e.objectId == 5)
-            .toList();
+        targetPumps =
+            masterData.configObjects.where((e) => e.objectId == 5).toList();
       }
 
       if (targetPumps.isNotEmpty) {
@@ -7488,10 +8168,10 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                             e.controllerId == null ||
                             e.controllerId == controllerId))));
 
-        bool hasMotor3Run = hourlyList.any(
-            (h) => _parseDurationToSeconds(h.motorRunTime3) > 0);
-        bool hasMotor2Run = hourlyList.any(
-            (h) => _parseDurationToSeconds(h.motorRunTime2) > 0);
+        bool hasMotor3Run =
+            hourlyList.any((h) => _parseDurationToSeconds(h.motorRunTime3) > 0);
+        bool hasMotor2Run =
+            hourlyList.any((h) => _parseDurationToSeconds(h.motorRunTime2) > 0);
 
         int numPumps = pumpNames.isNotEmpty ? pumpNames.length : 1;
         if (!hasConfiguredPumps) {
@@ -9109,7 +9789,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     style: TextStyle(
                       fontSize: fontSize,
                       height: 1.15,
-                      fontWeight: hasPowerOn ? FontWeight.bold : FontWeight.w500,
+                      fontWeight:
+                          hasPowerOn ? FontWeight.bold : FontWeight.w500,
                       color: hasPowerOn
                           ? const Color(0xFF0F172A)
                           : const Color(0xFF94A3B8),
@@ -9124,7 +9805,8 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                     style: TextStyle(
                       fontSize: fontSize,
                       height: 1.15,
-                      fontWeight: hasPowerOff ? FontWeight.bold : FontWeight.w500,
+                      fontWeight:
+                          hasPowerOff ? FontWeight.bold : FontWeight.w500,
                       color: hasPowerOff
                           ? const Color(0xFF0F172A)
                           : const Color(0xFF94A3B8),
@@ -9219,8 +9901,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         style: TextStyle(
                           fontSize: fontSize,
                           height: 1.15,
-                          fontWeight:
-                              powerOnSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: powerOnSec > 0
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           color: powerOnSec > 0
                               ? const Color(0xFF0F172A)
                               : const Color(0xFF94A3B8),
@@ -9235,8 +9918,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         style: TextStyle(
                           fontSize: fontSize,
                           height: 1.15,
-                          fontWeight:
-                              powerOffSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: powerOffSec > 0
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           color: powerOffSec > 0
                               ? const Color(0xFF0F172A)
                               : const Color(0xFF94A3B8),
@@ -9392,8 +10076,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         style: TextStyle(
                           fontSize: fontSize,
                           height: 1.15,
-                          fontWeight:
-                              powerOnSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: powerOnSec > 0
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           color: powerOnSec > 0
                               ? const Color(0xFF0F172A)
                               : const Color(0xFF94A3B8),
@@ -9408,8 +10093,9 @@ class _ZoneLogState extends State<ZoneLog> with AutomaticKeepAliveClientMixin {
                         style: TextStyle(
                           fontSize: fontSize,
                           height: 1.15,
-                          fontWeight:
-                              powerOffSec > 0 ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: powerOffSec > 0
+                              ? FontWeight.bold
+                              : FontWeight.w500,
                           color: powerOffSec > 0
                               ? const Color(0xFF0F172A)
                               : const Color(0xFF94A3B8),

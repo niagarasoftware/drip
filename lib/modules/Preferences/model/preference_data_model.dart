@@ -103,7 +103,22 @@ class WidgetSetting {
         ))
     )  {
       int noOfPumpLimit = isAquaCulture ? 4 : 3;
-      value = json['value'] is bool ? List<bool>.filled(noOfPumpLimit, singlePhase ? true : false) : json['value'];
+      if (json['value'] is bool) {
+        if (singlePhase) {
+          value = [json['value'] == true, false, false];
+        } else {
+          value = List<bool>.filled(noOfPumpLimit, json['value'] == true);
+        }
+      } else if (json['value'] is List && singlePhase) {
+        List<bool> boolList = List<bool>.from(json['value']);
+        if (boolList.length >= 3) {
+          value = [boolList[0], false, false];
+        } else {
+          value = boolList;
+        }
+      } else {
+        value = json['value'];
+      }
     } else {
       switch (json['widgetTypeId']) {
         case 1:

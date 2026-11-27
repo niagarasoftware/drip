@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:syncfusion_flutter_datepicker/datepicker.dart';
 
 import 'package:oro_drip_irrigation/Constants/constants.dart';
+import 'package:oro_drip_irrigation/Widgets/custom_buttons.dart';
 import 'package:oro_drip_irrigation/models/customer/site_model.dart';
 import 'package:oro_drip_irrigation/utils/constants.dart';
 import 'package:oro_drip_irrigation/modules/PumpController/state_management/pump_controller_provider.dart';
@@ -68,8 +70,33 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   late DateTime _selectedDate;
   late DateTime _weekStartDate;
 
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
+
   int _selectedPumpIndex = 0;
   int _activeNodeControllerId = 0;
+
+  final ScrollController _deviceScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _deviceScrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToPump(int index) {
+    if (_deviceScrollController.hasClients) {
+      final double targetOffset = (index * 160.0).clamp(
+        0.0,
+        _deviceScrollController.position.maxScrollExtent,
+      );
+      _deviceScrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
 
   String get waterMeterName {
     for (var obj in widget.masterData.configObjects) {
@@ -147,6 +174,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
   // Voltage Log state
   int _voltageMetricIndex = 0; // 0: Voltage, 1: Current
+  String? _selectedVoltageDate;
 
   bool _isLoading = false;
 
@@ -294,6 +322,23 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     final userId = effectiveUserId;
     final controllerId = effectiveControllerId;
 
+    DateTime fromDate = _selectedDate;
+    DateTime toDate = _selectedDate;
+    if (_powerPeriodIndex == 1) {
+      // Weekly: 7 days going backward from _selectedDate
+      fromDate = _selectedDate.subtract(const Duration(days: 6));
+      toDate = _selectedDate;
+    } else if (_powerPeriodIndex == 2) {
+      // Monthly / Range: custom range if selected, or 30 days backward from _selectedDate
+      if (_customStartDate != null && _customEndDate != null) {
+        fromDate = _customStartDate!;
+        toDate = _customEndDate!;
+      } else {
+        fromDate = _selectedDate.subtract(const Duration(days: 29));
+        toDate = _selectedDate;
+      }
+    }
+
     try {
       await Future.wait([
         provider.getPumpControllerData(
@@ -301,17 +346,24 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
           controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
           selectedIndex: _powerPeriodIndex,
+          customFromDate: _powerPeriodIndex == 2 ? fromDate : null,
+          customToDate: _powerPeriodIndex == 2 ? toDate : null,
         ),
         provider.getUserPumpLog(
           userId,
           controllerId,
           _activeNodeControllerId,
           widget.masterData,
+          false,
+          fromDate,
+          toDate,
         ),
         provider.getUserVoltageLog(
           userId: userId,
           controllerId: controllerId,
           nodeControllerId: _activeNodeControllerId,
+          fromDate: fromDate,
+          toDate: toDate,
         ),
       ]);
 
@@ -344,6 +396,8 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
   void _onDateSelected(DateTime date) {
     setState(() {
       _selectedDate = date;
+      _customStartDate = null;
+      _customEndDate = null;
       _alignWeekStartDate(date);
     });
     _fetchAllData();
@@ -394,23 +448,93 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     }
   }
 
-  void _pickMonth() async {
-    final now = DateTime.now();
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectDateRange(BuildContext context) async {
+    final DateTime fromDate = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+    final DateTime toDate = _customEndDate ?? _selectedDate;
+
+    DateTime tempStart = fromDate;
+    DateTime tempEnd = toDate;
+
+    await showDialog(
       context: context,
-      initialDate: _isFuture(_selectedDate) ? now : _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: now,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Date Picker',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter stateSetter) {
+              return SizedBox(
+                width: 250,
+                height: 280,
+                child: SfDateRangePicker(
+                  selectionMode: DateRangePickerSelectionMode.range,
+                  initialSelectedRange: PickerDateRange(fromDate, toDate),
+                  maxDate: DateTime.now(),
+                  onSelectionChanged: (DateRangePickerSelectionChangedArgs args) {
+                    if (args.value is PickerDateRange) {
+                      final PickerDateRange range = args.value as PickerDateRange;
+                      if (range.startDate != null) {
+                        tempStart = range.startDate!;
+                        tempEnd = range.endDate ?? range.startDate!;
+                      }
+                    }
+                  },
+                ),
+              );
+            },
+          ),
+          actions: [
+            CustomMaterialButton(
+              title: 'Cancel',
+              outlined: true,
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            CustomMaterialButton(
+              title: 'OK',
+              onPressed: () {
+                setState(() {
+                  _customStartDate = tempStart;
+                  _customEndDate = tempEnd;
+                  _selectedDate = tempEnd;
+                  _powerPeriodIndex = 2; // Range mode
+                });
+                Navigator.pop(context);
+                _fetchAllData();
+              },
+            ),
+          ],
+        );
+      },
     );
-    if (picked != null) {
-      _onDateSelected(picked);
-    }
+  }
+
+  void _pickMonth() {
+    _selectDateRange(context);
   }
 
   Future<void> _exportReport(String format) async {
     final provider = context.read<PumpControllerProvider>();
 
-    final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    String dateStr;
+    if (_powerPeriodIndex == 1) {
+      final startWeek = _selectedDate.subtract(const Duration(days: 6));
+      final startStr = DateFormat('yyyy-MM-dd').format(startWeek);
+      final endStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+      dateStr = '$startStr to $endStr';
+    } else if (_powerPeriodIndex == 2) {
+      final start = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+      final end = _customEndDate ?? _selectedDate;
+      final startStr = DateFormat('yyyy-MM-dd').format(start);
+      final endStr = DateFormat('yyyy-MM-dd').format(end);
+      dateStr = '$startStr to $endStr';
+    } else {
+      dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    }
+
     final periodStr = _powerPeriodIndex == 1
         ? 'Weekly'
         : (_powerPeriodIndex == 2 ? 'Monthly' : 'Daily');
@@ -421,11 +545,34 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     List<EventLog> motor2Events = [];
     List<EventLog> motor3Events = [];
 
-    if (provider.pumpLogData.isNotEmpty) {
-      final logData = provider.pumpLogData[0];
-      motor1Events = logData.motor1;
-      motor2Events = logData.motor2;
-      motor3Events = logData.motor3;
+    for (final logData in provider.pumpLogData) {
+      motor1Events.addAll(logData.motor1);
+      motor2Events.addAll(logData.motor2);
+      motor3Events.addAll(logData.motor3);
+    }
+
+    List<MotorDataHourly> exportMotorDataList = provider.motorDataList;
+    if (_powerPeriodIndex != 0) {
+      DateTime fromDate = _selectedDate;
+      DateTime toDate = _selectedDate;
+      if (_powerPeriodIndex == 1) {
+        fromDate = _selectedDate.subtract(const Duration(days: 6));
+        toDate = _selectedDate;
+      } else if (_powerPeriodIndex == 2) {
+        fromDate = _customStartDate ?? _selectedDate.subtract(const Duration(days: 29));
+        toDate = _customEndDate ?? _selectedDate;
+      }
+
+      final dailyLogs = await provider.fetchDailyMotorLogs(
+        userId: effectiveUserId,
+        controllerId: effectiveControllerId,
+        nodeControllerId: _activeNodeControllerId,
+        fromDate: fromDate,
+        toDate: toDate,
+      );
+      if (dailyLogs.isNotEmpty) {
+        exportMotorDataList = dailyLogs;
+      }
     }
 
     final exportData = PumpLogExportData(
@@ -439,12 +586,15 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       motor3Events: motor3Events,
       voltageData: provider.voltageData,
       motorData: _effectiveMotorData(provider),
+      motorDataList: exportMotorDataList,
     );
 
     final String sanitizedDeviceName = currentDeviceName.replaceAll(RegExp(r'[^\w\s\-]'), '_');
     final String fileName = 'Pump_Log_${sanitizedDeviceName}_$dateStr';
 
     final label = format == 'pdf' ? 'PDF' : (format == 'csv' ? 'CSV' : 'Excel');
+
+    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -458,8 +608,6 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     bool success = false;
     if (format == 'pdf') {
       success = await generatePumpLogPDF(exportData, fileName);
-    } else if (format == 'csv') {
-      success = await generatePumpLogCSV(exportData, fileName);
     } else {
       success = await generatePumpLogExcel(exportData, fileName);
     }
@@ -850,16 +998,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                   ],
                 ),
               ),
-              const PopupMenuItem(
-                value: 'csv',
-                child: Row(
-                  children: [
-                    Icon(Icons.description_outlined, color: _kTeal, size: 18),
-                    SizedBox(width: 8),
-                    Text('CSV (.csv)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
+
               const PopupMenuItem(
                 value: 'pdf',
                 child: Row(
@@ -867,7 +1006,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                     Icon(Icons.picture_as_pdf_outlined, color: _kRed, size: 18),
                     SizedBox(width: 8),
                     Text('PDF (.pdf)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ],
+                    ],
                 ),
               ),
             ],
@@ -960,93 +1099,169 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
     if (devices.isEmpty) return const SizedBox.shrink();
 
     if (devices.length > 1) {
+      final bool canGoPrev = _selectedPumpIndex > 0;
+      final bool canGoNext = _selectedPumpIndex < devices.length - 1;
+
       return Container(
         margin: const EdgeInsets.only(bottom: 12),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(devices.length, (index) {
-              final pumpItem = devices[index];
-              final isSelected = _selectedPumpIndex == index;
-              final name = pumpItem['deviceName'] ?? 'Device ${index + 1}';
-              final deviceId = pumpItem['deviceId']?.toString() ?? '';
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedPumpIndex = index;
-                      _activeNodeControllerId = _extractControllerId(pumpItem);
-                    });
-                    _fetchAllData();
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? _kTeal : Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? _kTeal : const Color(0xFFE2E8F0),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected ? Colors.white.withAlpha(50) : const Color(0xFFE0F4F7),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : _kTeal,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$name',
-                              style: TextStyle(
-                                color: isSelected ? Colors.white : _kInk,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            if (deviceId.isNotEmpty) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                'MAC: $deviceId',
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white70 : const Color(0xFF64748B),
-                                  fontSize: 11,
-                                  fontFamily: 'monospace',
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
+        child: Row(
+          children: [
+            // Backward Arrow Button
+            InkWell(
+              onTap: canGoPrev
+                  ? () {
+                      final newIndex = _selectedPumpIndex - 1;
+                      setState(() {
+                        _selectedPumpIndex = newIndex;
+                        _activeNodeControllerId = _extractControllerId(devices[newIndex]);
+                      });
+                      _scrollToPump(newIndex);
+                      _fetchAllData();
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: canGoPrev ? Colors.white : const Color(0xFFF1F5F9),
+                  border: Border.all(
+                    color: canGoPrev ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0),
                   ),
                 ),
-              );
-            }),
-          ),
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  color: canGoPrev ? _kTeal : const Color(0xFF94A3B8),
+                  size: 22,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Horizontal Scrollable Cards List
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _deviceScrollController,
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: List.generate(devices.length, (index) {
+                    final pumpItem = devices[index];
+                    final isSelected = _selectedPumpIndex == index;
+                    final name = pumpItem['deviceName'] ?? 'Device ${index + 1}';
+                    final deviceId = pumpItem['deviceId']?.toString() ?? '';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            _selectedPumpIndex = index;
+                            _activeNodeControllerId = _extractControllerId(pumpItem);
+                          });
+                          _scrollToPump(index);
+                          _fetchAllData();
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? _kTeal : Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? _kTeal : const Color(0xFFE2E8F0),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isSelected ? Colors.white.withAlpha(50) : const Color(0xFFE0F4F7),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : _kTeal,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '$name',
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : _kInk,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (deviceId.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'MAC: $deviceId',
+                                      style: TextStyle(
+                                        color: isSelected ? Colors.white70 : const Color(0xFF64748B),
+                                        fontSize: 11,
+                                        fontFamily: 'monospace',
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Forward Arrow Button
+            InkWell(
+              onTap: canGoNext
+                  ? () {
+                      final newIndex = _selectedPumpIndex + 1;
+                      setState(() {
+                        _selectedPumpIndex = newIndex;
+                        _activeNodeControllerId = _extractControllerId(devices[newIndex]);
+                      });
+                      _scrollToPump(newIndex);
+                      _fetchAllData();
+                    }
+                  : null,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: canGoNext ? Colors.white : const Color(0xFFF1F5F9),
+                  border: Border.all(
+                    color: canGoNext ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: canGoNext ? _kTeal : const Color(0xFF94A3B8),
+                  size: 22,
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -2335,6 +2550,23 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
         return aHour.compareTo(bHour);
       });
 
+    final List<String> availableDates = [];
+    for (final r in voltageData) {
+      final String? dStr = r['date']?.toString() ?? r['logDate']?.toString();
+      if (dStr != null && dStr.isNotEmpty && !availableDates.contains(dStr)) {
+        availableDates.add(dStr);
+      }
+    }
+    availableDates.sort((a, b) => b.compareTo(a));
+
+    final String activeDate = (_selectedVoltageDate != null && availableDates.contains(_selectedVoltageDate))
+        ? _selectedVoltageDate!
+        : (availableDates.isNotEmpty ? availableDates.first : '');
+
+    final List<Map<String, dynamic>> chartData = availableDates.length > 1
+        ? voltageData.where((d) => (d['date']?.toString() ?? d['logDate']?.toString()) == activeDate).toList()
+        : voltageData;
+
     final bool hasEnergyData = voltageData.isNotEmpty && voltageData[0]['totalInstantEnergy'] != null;
 
     final List<String> toggleLabels = hasEnergyData
@@ -2394,7 +2626,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       if (showY) '${prefix}Y',
       if (showB) '${prefix}B',
     ];
-    final axisRange = _voltageAxisRange(voltageData, plottedKeys, safeIndex == 0);
+    final axisRange = _voltageAxisRange(chartData.isNotEmpty ? chartData : voltageData, plottedKeys, safeIndex == 0);
     final String unit = safeIndex == 0 ? ' V' : (safeIndex == 1 ? ' A' : '');
 
     return _card(
@@ -2405,11 +2637,45 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _cardTitle('VOLTAGE LOG'),
-              _buildToggle(
-                labels: toggleLabels,
-                selected: safeIndex,
-                hPad: 12,
-                onChanged: (i) => setState(() => _voltageMetricIndex = i),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  if (availableDates.length > 1)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE3F1F3),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: _kTeal.withValues(alpha: 0.3)),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: activeDate,
+                          isDense: true,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kTeal),
+                          icon: const Icon(Icons.arrow_drop_down, color: _kTeal, size: 18),
+                          items: [
+                            for (final dStr in availableDates)
+                              DropdownMenuItem(
+                                value: dStr,
+                                child: Text('Date: $dStr'),
+                              ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) setState(() => _selectedVoltageDate = val);
+                          },
+                        ),
+                      ),
+                    ),
+                  _buildToggle(
+                    labels: toggleLabels,
+                    selected: safeIndex,
+                    hPad: 12,
+                    onChanged: (i) => setState(() => _voltageMetricIndex = i),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2417,14 +2683,16 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
 
           Center(
             child: Text(
-              '$label Graph',
+              availableDates.length > 1 && activeDate.isNotEmpty
+                  ? '$label Graph — $activeDate'
+                  : '$label Graph',
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: _kInk),
             ),
           ),
           const SizedBox(height: 4),
 
           SizedBox(
-            height: 230,
+            height: 250,
             child: voltageData.isEmpty
                 ? Center(
               child: Text(
@@ -2435,7 +2703,7 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
               ),
             )
                 : SfCartesianChart(
-              key: ValueKey('voltage_chart_${provider.selectedDate}_${voltageData.length}_$safeIndex'),
+              key: ValueKey('voltage_chart_${activeDate}_${chartData.length}_$safeIndex'),
               margin: EdgeInsets.zero,
               primaryXAxis: const NumericAxis(
                 minimum: 0,
@@ -2464,11 +2732,11 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
                 format: 'series.name\nHour point.x : point.y$unit',
               ),
               series: <CartesianSeries<Map<String, dynamic>, num>>[
-                if (showR) _voltageSeries(voltageData, '${prefix}R', isSinglePhaseModel ? 'Current' : '$label R', _kRed),
+                if (showR) _voltageSeries(chartData, '${prefix}R', isSinglePhaseModel ? 'Current' : '$label R', _kRed),
                 if (showY)
-                  _voltageSeries(voltageData, '${prefix}Y', '$label Y', const Color(0xFFF9A825)),
+                  _voltageSeries(chartData, '${prefix}Y', '$label Y', const Color(0xFFF9A825)),
                 if (showB)
-                  _voltageSeries(voltageData, '${prefix}B', isSinglePhaseModel ? 'Voltage' : '$label B', const Color(0xFF1E88E5)),
+                  _voltageSeries(chartData, '${prefix}B', isSinglePhaseModel ? 'Voltage' : '$label B', const Color(0xFF1E88E5)),
               ],
             ),
           ),
@@ -2523,38 +2791,77 @@ class _PumpLogDashboardScreenState extends State<PumpLogDashboardScreen> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Column(
-        children: [
-          Row(
+    // Group rows by date
+    final Map<String, List<Map<String, dynamic>>> grouped = {};
+    for (final r in voltageData) {
+      final String d = r['date']?.toString() ?? r['logDate']?.toString() ?? '';
+      grouped.putIfAbsent(d, () => []).add(r);
+    }
+
+    Widget buildSingleDateTable(String dateLabel, List<Map<String, dynamic>> rows) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              headerCell('Hours', const Color(0xFFB9D3D5), 5),
-              if (showR) headerCell(isSinglePhaseModel ? 'Current' : 'R', const Color(0xFFFFB4AB), 4),
-              if (showY) headerCell('Y', const Color(0xFFFFE69C), 4),
-              if (showB) headerCell(isSinglePhaseModel ? 'Voltage' : 'B', const Color(0xFFA9DDF8), 4),
+              if (dateLabel.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  color: const Color(0xFFE3F1F3),
+                  child: Text(
+                    'Date: $dateLabel',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _kTeal),
+                  ),
+                ),
+              Row(
+                children: [
+                  headerCell('Hours', const Color(0xFFB9D3D5), 5),
+                  if (showR) headerCell(isSinglePhaseModel ? 'Current' : 'R', const Color(0xFFFFB4AB), 4),
+                  if (showY) headerCell('Y', const Color(0xFFFFE69C), 4),
+                  if (showB) headerCell(isSinglePhaseModel ? 'Voltage' : 'B', const Color(0xFFA9DDF8), 4),
+                ],
+              ),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                itemCount: rows.length,
+                itemBuilder: (context, index) {
+                  final row = rows[index];
+                  return Row(
+                    children: [
+                      bodyCell('${row['hour']}', 5),
+                      if (showR) bodyCell(_cellText(row['${prefix}R']), 4),
+                      if (showY) bodyCell(_cellText(row['${prefix}Y']), 4),
+                      if (showB) bodyCell(_cellText(row['${prefix}B']), 4),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 190),
-            child: ListView.builder(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: voltageData.length,
-              itemBuilder: (context, index) {
-                final row = voltageData[index];
-                return Row(
-                  children: [
-                    bodyCell('${row['hour']}', 5),
-                    if (showR) bodyCell(_cellText(row['${prefix}R']), 4),
-                    if (showY) bodyCell(_cellText(row['${prefix}Y']), 4),
-                    if (showB) bodyCell(_cellText(row['${prefix}B']), 4),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
+        ),
+      );
+    }
+
+    final bool multiDate = grouped.length > 1;
+    final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 500),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            for (final dStr in sortedDates)
+              buildSingleDateTable(multiDate ? dStr : '', grouped[dStr]!),
+          ],
+        ),
       ),
     );
   }

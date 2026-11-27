@@ -87,25 +87,122 @@ class FertigationDetailSections extends StatelessWidget {
         const Divider(height: 20, thickness: 1, color: Color(0xFFE7EEEE)),
 
         // 4. GENERAL (start/stop reason, times)
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final formattedStart = _formatTimesOrReasons(cardModel.startTime);
+            final formattedStop = _formatTimesOrReasons(cardModel.stopTime);
+            final formattedStartReason = _formatTimesOrReasons(cardModel.startReason);
+            final formattedStopReason = _formatTimesOrReasons(cardModel.stopReason);
+
+            final bool isMultiTime = formattedStart.contains(',') || formattedStop.contains(',');
+
+            if (!isMultiTime && constraints.maxWidth > 380) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Start Time: $formattedStart',
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Stop Time: $formattedStop',
+                          textAlign: TextAlign.end,
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Start Reason: $formattedStartReason',
+                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Stop Reason: $formattedStopReason',
+                          textAlign: TextAlign.end,
+                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Start Time: ${cardModel.startTime}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                Text('Stop Time: ${cardModel.stopTime}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: 'Start Time: ',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 12),
+                        ),
+                        TextSpan(
+                          text: formattedStart,
+                          style: const TextStyle(color: Colors.black87, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: 'Stop Time: ',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 12),
+                        ),
+                        TextSpan(
+                          text: formattedStop,
+                          style: const TextStyle(color: Colors.black87, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Start Reason: $formattedStartReason',
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Stop Reason: $formattedStopReason',
+                        textAlign: TextAlign.end,
+                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(child: Text('Start Reason: ${cardModel.startReason}', style: const TextStyle(fontSize: 12, color: Colors.black54))),
-                Expanded(child: Text('Stop Reason: ${cardModel.stopReason}', style: const TextStyle(fontSize: 12, color: Colors.black54), textAlign: TextAlign.end)),
-              ],
-            ),
-          ],
+            );
+          },
         ),
       ],
     );
@@ -261,5 +358,16 @@ class FertigationDetailSections extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _formatTimesOrReasons(String raw) {
+    if (raw.isEmpty || raw == '—' || raw == '-') return '—';
+    final parts = raw
+        .split('_')
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty && p != '-')
+        .toList();
+    if (parts.isEmpty) return '—';
+    return parts.join(', ');
   }
 }

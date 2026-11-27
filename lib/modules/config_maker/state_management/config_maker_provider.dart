@@ -137,8 +137,11 @@ class ConfigMakerProvider extends ChangeNotifier{
     serialNumber = 0;
     notifyListeners();
   }
-
+// from line 142 to 144 newly added for the issue faced on config maker payload updating for different sites.
   void reInitialize(){
+    masterData = {};
+    configMakerDataFromHttp = {};
+    defaultDataFromHttp = {};
     listOfSampleObjectModel.clear();
     listOfObjectModelConnection.clear();
     listOfDeviceModel.clear();
@@ -296,8 +299,8 @@ class ConfigMakerProvider extends ChangeNotifier{
       if (kDebugMode) {
         print('jsonData : $jsonData');
       }
-      Map<String, dynamic> defaultData = jsonData['data']['default'];
-      Map<String, dynamic> configMakerData = jsonData['data']['configMaker'];
+      Map<String, dynamic> defaultData = jsonData['data'] != null ? (jsonData['data']['default'] ?? {}) : {};
+      Map<String, dynamic> configMakerData = jsonData['data'] != null ? (jsonData['data']['configMaker'] ?? {}) : {};
       configMakerDataFromHttp = configMakerData;
       defaultDataFromHttp = defaultData;
       masterData = masterDataFromSiteConfigure;
@@ -528,7 +531,8 @@ class ConfigMakerProvider extends ChangeNotifier{
               objName = object.objectName;
             }
             int increment = start+1;
-            String stringDecimalNo = '${object.objectId}.${increment < 100 ? '0' : ''}${increment < 10 ? '0' : ''}${start+1}';
+            String stringDecimalNo = '${object.objectId}.${increment.toString().padLeft(3, '0')}';
+            print(double.parse(stringDecimalNo));
             DeviceObjectModel deviceObjectModel = DeviceObjectModel(
               objectId: object.objectId,
               objectName: object.objectName,
@@ -554,7 +558,7 @@ class ConfigMakerProvider extends ChangeNotifier{
               );
             }else if(deviceObjectModel.objectId == AppConstants.sourceObjectId){
               source.add(
-                  SourceModel(commonDetails: deviceObjectModel, inletPump: [], outletPump: [], aerator: [], valves: [], outletValves: [], agitator: [], inletTankValve: [], outletTankValve: [])
+                  SourceModel(commonDetails: deviceObjectModel, inletPump: [], outletPump: [], aerator: [], valves: [], outletValves: [], agitator: [], inletTankValve: [], outletTankValve: [], tankCapacity: 0.0)
               );
             }else if(deviceObjectModel.objectId == AppConstants.pumpObjectId){
               pump.add(
@@ -1321,12 +1325,14 @@ class ConfigMakerProvider extends ChangeNotifier{
     for(var i = 0;i < fertilization.length;i++){
       var fertilizerSite = fertilization[i];
       for(var injector = 0;injector < fertilizerSite.channel.length;injector++){
+        var currentInjector = fertilizerSite.channel[injector];
+        var matchedChannel = channelConfig.firstWhereOrNull((c) => c.commonDetails.sNo == currentInjector.sNo);
         fertilizerInjectorPayload.add({
-          "S_No": fertilizerSite.channel[injector].sNo,
+          "S_No": currentInjector.sNo,
           "FertilizerSite": fertilizerSite.commonDetails.sNo,
           "InjectorNumber": injector + 1,
-          "FertilizationMeter": '',
-          "LevelSensor": '',
+          "FertilizationMeter": matchedChannel != null ? serialNoOrEmpty(matchedChannel.dosingMeter) : '',
+          "LevelSensor": serialNoOrEmpty(currentInjector.level),
         }.entries.map((e) => e.value).join(","));
       }
 
@@ -1359,12 +1365,12 @@ class ConfigMakerProvider extends ChangeNotifier{
       );
       tankValvePayload.add({
         "S_No": tankValve.sNo,
-        "SumpTankLevel": sumpSource == null ? '' : sumpSource.level,
-        "TopTankLevel": tankSource == null ? '' : tankSource.level,
-        "TopTankFloatHigh": tankSource == null ? '' : tankSource.topFloatForInletPump,
-        "TopTankFloatLow": tankSource == null ? '' : tankSource.bottomFloatForInletPump,
-        "SumpTankFloatHigh": sumpSource == null ? '' : sumpSource.topFloatForOutletPump,
-        "SumpTankFloatLow": sumpSource == null ? '' : sumpSource.bottomFloatForOutletPump,
+        "SumpTankLevel": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.level),
+        "TopTankLevel": tankSource == null ? '' : serialNoOrEmpty(tankSource.level),
+        "TopTankFloatHigh": tankSource == null ? '' : serialNoOrEmpty(tankSource.topFloatForInletPump),
+        "TopTankFloatLow": tankSource == null ? '' : serialNoOrEmpty(tankSource.bottomFloatForInletPump),
+        "SumpTankFloatHigh": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.topFloatForOutletPump),
+        "SumpTankFloatLow": sumpSource == null ? '' : serialNoOrEmpty(sumpSource.bottomFloatForOutletPump),
       }.entries.map((e) => e.value).join(","));
     }
     return tankValvePayload.join(";");

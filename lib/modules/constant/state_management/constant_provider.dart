@@ -116,7 +116,7 @@ class ConstantProvider extends ChangeNotifier {
           ? rawModelId
           : int.tryParse(rawModelId?.toString() ?? '');
       userData['modelId'] = modelId;
-      configObjectDataFromHttp = configMakerData['data']['configObject'];
+      configObjectDataFromHttp = configMakerData['data'] != null ? configMakerData['data']['configObject'] : [];
 
       Map<String, dynamic> defaultData = constantDataFromHttp['default'];
       deviceList = defaultData['nodeList'];

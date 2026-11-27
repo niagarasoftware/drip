@@ -123,17 +123,25 @@ class PumpControllerProvider extends ChangeNotifier {
   /// [silent] = true is used by the auto-refresh: no loading flag, no artificial delay,
   /// the existing list stays on screen until the new one is ready, and the user's
   /// selected motor tab is preserved.
-  Future<void> getUserPumpLog(userId, controllerId, nodeControllerId,
-      [MasterControllerModel? masterData, bool silent = false]) async {
+  Future<void> getUserPumpLog(
+    userId,
+    controllerId,
+    nodeControllerId, [
+    MasterControllerModel? masterData,
+    bool silent = false,
+    DateTime? fromDate,
+    DateTime? toDate,
+  ]) async {
     final int ticket = ++_pumpLogTicket;
-    final DateTime requestedDate = selectedDate;
+    final DateTime start = fromDate ?? selectedDate;
+    final DateTime end = toDate ?? selectedDate;
 
     final Map<String, dynamic> data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": _apiDate.format(requestedDate),
-      "toDate": _apiDate.format(requestedDate),
+      "fromDate": _apiDate.format(start),
+      "toDate": _apiDate.format(end),
     };
 
     try {
@@ -213,7 +221,7 @@ class PumpControllerProvider extends ChangeNotifier {
       if (res.statusCode == 200 && response['data'] is List) lastPumpLogSync = DateTime.now();
 
       // Only auto-scroll when there is something new (otherwise polling would yank the list).
-      if (grew && (!silent || _isSameDay(requestedDate, DateTime.now()))) {
+      if (grew && (!silent || _isSameDay(start, DateTime.now()))) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (scrollController.hasClients) {
             scrollController.animateTo(
@@ -248,25 +256,31 @@ class PumpControllerProvider extends ChangeNotifier {
     required int controllerId,
     required int nodeControllerId,
     bool silent = false,
+    DateTime? customFromDate,
+    DateTime? customToDate,
   }) async {
     final int ticket = ++_hourlyTicket;
 
-    if (selectedIndex == 1) {
-      dates = List.generate(7, (index) => DateTime.now().subtract(Duration(days: index)));
+    if (customFromDate != null && customToDate != null) {
+      final daysCount = customToDate.difference(customFromDate).inDays + 1;
+      final totalDays = daysCount > 0 ? daysCount : 1;
+      dates = List.generate(totalDays, (index) => customToDate.subtract(Duration(days: index)));
+    } else if (selectedIndex == 1) {
+      dates = List.generate(7, (index) => selectedDate.subtract(Duration(days: index)));
     } else if (selectedIndex == 2) {
-      dates = List.generate(30, (index) => DateTime.now().subtract(Duration(days: index)));
+      dates = List.generate(30, (index) => selectedDate.subtract(Duration(days: index)));
     } else if (selectedIndex == 0) {
-      dates.last = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      dates = [DateTime(selectedDate.year, selectedDate.month, selectedDate.day)];
     } else {
-      dates.last = DateTime.parse(dates.last.toString().split(' ')[0]);
+      dates = [DateTime(selectedDate.year, selectedDate.month, selectedDate.day)];
     }
 
     final data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": _apiDate.format(selectedIndex == 0 ? selectedDate : dates.last),
-      "toDate": _apiDate.format(selectedIndex == 0 ? selectedDate : dates.first),
+      "fromDate": _apiDate.format(dates.last),
+      "toDate": _apiDate.format(dates.first),
       "needSum": selectedIndex != 0
     };
 
@@ -338,6 +352,58 @@ class PumpControllerProvider extends ChangeNotifier {
     }
   }
 
+  Future<List<MotorDataHourly>> fetchDailyMotorLogs({
+    required int userId,
+    required int controllerId,
+    required int nodeControllerId,
+    required DateTime fromDate,
+    required DateTime toDate,
+  }) async {
+    final data = {
+      "userId": userId,
+      "controllerId": controllerId,
+      "nodeControllerId": nodeControllerId,
+      "fromDate": _apiDate.format(fromDate),
+      "toDate": _apiDate.format(toDate),
+      "needSum": false
+    };
+
+    try {
+      final res = await repository.getUserPumpHourlyLog(
+          data, nodeControllerId != 0 && nodeControllerId != controllerId);
+      if (res.statusCode == 200) {
+        final response = jsonDecode(res.body);
+        final rawData = response['data'];
+        List rawList = [];
+        if (rawData is List) {
+          rawList = rawData;
+        } else if (rawData is Map) {
+          if (rawData['log'] is List) {
+            rawList = rawData['log'];
+          } else if (rawData['data'] is List) {
+            rawList = rawData['data'];
+          } else {
+            rawList = [rawData];
+          }
+        }
+
+        final List<MotorDataHourly> list = rawList
+            .map((item) => MotorDataHourly.fromJson(Map<String, dynamic>.from(item as Map)))
+            .toList();
+
+        final Map<String, MotorDataHourly> dailyMap = {};
+        for (final item in list) {
+          final String d = item.date.isNotEmpty ? item.date : _apiDate.format(fromDate);
+          dailyMap[d] = item;
+        }
+        return dailyMap.values.toList();
+      }
+    } catch (e) {
+      log("fetchDailyMotorLogs error: $e");
+    }
+    return [];
+  }
+
   // ---------------------------------------------------------------------------
   // VOLTAGE / CURRENT   (api/v1/user/log/pumpVoltage|nodePumpVoltage/get)
   // ---------------------------------------------------------------------------
@@ -348,17 +414,21 @@ class PumpControllerProvider extends ChangeNotifier {
     required int controllerId,
     required int nodeControllerId,
     bool silent = false,
+    DateTime? fromDate,
+    DateTime? toDate,
   }) async {
     final int ticket = ++_voltageTicket;
-    final DateTime requestedDate = selectedDate;
-    final String reqDateStr = _apiDate.format(requestedDate);
+    final DateTime start = fromDate ?? selectedDate;
+    final DateTime end = toDate ?? selectedDate;
+    final String startStr = _apiDate.format(start);
+    final String endStr = _apiDate.format(end);
 
     final Map<String, dynamic> data = {
       "userId": userId,
       "controllerId": controllerId,
       "nodeControllerId": nodeControllerId,
-      "fromDate": reqDateStr,
-      "toDate": reqDateStr,
+      "fromDate": startStr,
+      "toDate": endStr,
     };
     log("getUserVoltageLog request: $data silent=$silent");
 
@@ -379,18 +449,31 @@ class PumpControllerProvider extends ChangeNotifier {
 
       if (res.statusCode == 200) {
         final raw = response['data'];
-        final bool isToday = _isSameDay(requestedDate, DateTime.now());
+        final bool isSingleDay = _isSameDay(start, end);
+        final bool isToday = isSingleDay && _isSameDay(start, DateTime.now());
         final int nowHour = DateTime.now().hour;
+        final String todayStr = _apiDate.format(DateTime.now());
 
-        List<dynamic>? hourlyItems;
+        List<Map<String, dynamic>> extractedRows = [];
 
         if (raw is Map) {
+          final String? dateStr = raw['date'] ?? raw['logDate'] ?? raw['fromDate'] ?? raw['createdDate'];
+          List? details;
           if (raw['voltageDetails'] is List) {
-            hourlyItems = raw['voltageDetails'] as List;
+            details = raw['voltageDetails'] as List;
           } else if (raw['data'] is List) {
-            hourlyItems = raw['data'] as List;
+            details = raw['data'] as List;
           } else {
-            hourlyItems = [raw];
+            details = [raw];
+          }
+          for (final item in details) {
+            if (item is Map) {
+              final row = Map<String, dynamic>.from(item);
+              if (dateStr != null && !row.containsKey('date')) {
+                row['date'] = dateStr;
+              }
+              extractedRows.add(row);
+            }
           }
         } else if (raw is List && raw.isNotEmpty) {
           final first = raw[0];
@@ -399,67 +482,73 @@ class PumpControllerProvider extends ChangeNotifier {
                   first.containsKey('voltageR') ||
                   first.containsKey('voltage1') ||
                   first.containsKey('vR'))) {
-            hourlyItems = raw;
-          } else {
-            Map<String, dynamic>? targetEntry;
-
-            for (final entry in raw) {
-              if (entry is! Map) continue;
-              if (entry['voltageDetails'] is List) {
-                final rawDate =
-                    entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
-                if (rawDate == null) {
-                  targetEntry = Map<String, dynamic>.from(entry);
-                  break;
-                }
-                final String dateStr = rawDate.toString().trim();
-                if (dateStr.contains(reqDateStr)) {
-                  targetEntry = Map<String, dynamic>.from(entry);
-                  break;
-                }
-                targetEntry ??= Map<String, dynamic>.from(entry);
+            for (final item in raw) {
+              if (item is Map) {
+                extractedRows.add(Map<String, dynamic>.from(item));
               }
             }
-
-            if (targetEntry != null && targetEntry['voltageDetails'] is List) {
-              hourlyItems = targetEntry['voltageDetails'] as List;
-            } else {
-              hourlyItems = raw;
+          } else {
+            for (final entry in raw) {
+              if (entry is! Map) continue;
+              final String? dStr =
+                  entry['date'] ?? entry['logDate'] ?? entry['fromDate'] ?? entry['createdDate'];
+              final List? details = entry['voltageDetails'] is List
+                  ? entry['voltageDetails'] as List
+                  : (entry['data'] is List ? entry['data'] as List : null);
+              if (details != null) {
+                for (final item in details) {
+                  if (item is Map) {
+                    final row = Map<String, dynamic>.from(item);
+                    if (dStr != null && !row.containsKey('date')) {
+                      row['date'] = dStr;
+                    }
+                    extractedRows.add(row);
+                  }
+                }
+              }
             }
           }
         }
 
-        if (hourlyItems != null && hourlyItems.isNotEmpty) {
-          for (final item in hourlyItems) {
-            if (item is! Map) continue;
-            final row = Map<String, dynamic>.from(item);
-            final int? hour = _parseHour(row['hour']);
-            if (hour == null || hour < 0 || hour > 23) continue;
-            if (isToday && hour > nowHour) continue; // never show hours that have not happened
-            row['hour'] = hour; // normalise: always an int
-            newVoltage.add(row);
-          }
+        for (final row in extractedRows) {
+          final int? hour = _parseHour(row['hour']);
+          if (hour == null || hour < 0 || hour > 23) continue;
+          final String? rowDate = row['date']?.toString();
+          if ((isToday || rowDate == todayStr) && hour > nowHour) continue;
+          row['hour'] = hour;
+          newVoltage.add(row);
+        }
 
+        if (isSingleDay) {
           // One row per hour, in hour order. If the server sends an hour twice, the later one wins.
           final Map<int, Map<String, dynamic>> byHour = {};
           for (final r in newVoltage) {
             byHour[r['hour'] as int] = r;
           }
           newVoltage = (byHour.keys.toList()..sort()).map((h) => byHour[h]!).toList();
-
-          if (newVoltage.isEmpty) {
-            newMessage = 'No data available for the selected date.';
-          } else {
-            lastVoltageSync = DateTime.now();
-          }
         } else {
-          newMessage = 'No data available for the selected date.';
+          // Multi-day: sort by date (descending / newest first: e.g. 17th -> 16th -> 15th) and then hour (ascending).
+          newVoltage.sort((a, b) {
+            final da = a['date']?.toString() ?? '';
+            final db = b['date']?.toString() ?? '';
+            final cmp = db.compareTo(da);
+            if (cmp != 0) return cmp;
+            final ha = (a['hour'] as int? ?? 0);
+            final hb = (b['hour'] as int? ?? 0);
+            return ha.compareTo(hb);
+          });
+        }
+
+        if (newVoltage.isEmpty) {
+          newMessage = 'No data available for the selected period.';
+        } else {
+          lastVoltageSync = DateTime.now();
         }
       } else {
         newMessage = 'Failed to load data: ${response['message']}';
       }
 
-      log("getUserVoltageLog applied for $reqDateStr: ${newVoltage.length} rows, msg='$newMessage'");
+      log("getUserVoltageLog applied for $startStr to $endStr: ${newVoltage.length} rows, msg='$newMessage'");
       voltageData = newVoltage;
       voltageMessage = newMessage;
     } catch (e, stackTrace) {

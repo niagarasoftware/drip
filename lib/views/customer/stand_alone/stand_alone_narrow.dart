@@ -292,6 +292,24 @@ class _StandAloneNarrowState extends State<StandAloneNarrow> with SingleTickerPr
   Widget displayLineOrSequence(MasterControllerModel masterData, StandAloneViewModel vm, int ddPosition){
 
     bool isNova = [...AppConstants.ecoGemModelList].contains(masterData.modelId);
+    bool isAerator = [...AppConstants.aquacultureModelList].contains(masterData.modelId);
+
+    if(isAerator) {
+      final aerator = masterData.irrigationLine
+          .expand((line) => line.aeratorSources)
+          .expand((ws) => ws.aeratorPump)
+          .toList();
+
+      final allAerator = aerator.fold<Map<double, PumpModel>>({}, (map, pump) {
+        map[pump.sNo] = pump;
+        return map;
+      }).values.toList();
+
+      return AeratorCard(
+        pumps: allAerator,
+        onChanged: (pump, val) => setState(() => pump.selected = val),
+      );
+    }
 
     final sourcePumps = masterData.irrigationLine
         .expand((line) => line.inletSources)

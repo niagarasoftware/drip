@@ -601,9 +601,15 @@ class _ProgramLibraryScreenNewState extends State<ProgramLibraryScreenNew> {
   }
 
   void createProgram(BuildContext context, IrrigationProgramMainProvider programProvider) {
+    bool isAQua = AppConstants.aquacultureModelList.contains(widget.modelId);
+
     final programs = programProvider.programLibrary!.program;
     final nonEmptyPrograms = programs.where((element) => element.programName.isNotEmpty).length;
     final programLimit = programProvider.programLibrary!.programLimit;
+    if (isAQua){
+      print("print aguva program:${programs[0].programName}  ${programs[1].programName}   ${widget.modelId}");
+    }
+    print("print aguva program:$programs  ${widget.modelId}");
 
     if (nonEmptyPrograms >= programLimit) {
       _showLimitExceededDialog(context);
@@ -648,13 +654,21 @@ class _ProgramLibraryScreenNewState extends State<ProgramLibraryScreenNew> {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: provider.programLibrary!.defaultProgramTypes
-                    .map(
-                      (e) => RadioListTile(
-                    title: Text(e),
+                 .where((e) {
+            if (isAQua) {
+            return e != 'Irrigation Program';
+            } else{
+              return true;
+            }
+            }).map(
+                      (e) {
+                        return RadioListTile(
+                    title: Text(e ),
                     value: e,
                     groupValue: provider.selectedProgramType,
                     onChanged: (newValue) => provider.updateProgramName(newValue, 'programType'),
-                  ),
+                  );
+                      },
                 )
                     .toList(),
               ),

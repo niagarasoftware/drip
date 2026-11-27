@@ -3,8 +3,6 @@ import 'dart:html' as html;
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart';
-
-import 'pump_log_csv_builder.dart';
 import 'pump_log_excel_builder.dart';
 import 'pump_log_pdf_builder.dart';
 
@@ -35,16 +33,6 @@ Future<bool> generatePumpLogExcel(PumpLogExportData data, String name) async {
   }
 }
 
-Future<bool> generatePumpLogCSV(PumpLogExportData data, String name) async {
-  try {
-    final csvStr = generatePumpLogCsvString(data);
-    _download(utf8.encode(csvStr), '$name.csv', 'text/csv;charset=utf-8');
-    return true;
-  } catch (e, stackTrace) {
-    print('Error generating CSV web: $e\n$stackTrace');
-    return false;
-  }
-}
 
 Future<bool> generatePumpLogPDF(PumpLogExportData data, String name) async {
   try {

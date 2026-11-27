@@ -11,6 +11,7 @@ import '../../StateManagement/mqtt_payload_provider.dart';
 import '../../repository/repository.dart';
 import '../../services/bluetooth/bluetooth_ble_service.dart';
 import '../../services/bluetooth/bluetooth_classic_service.dart';
+import '../../services/bluetooth/hotspot_websocket_service.dart';
 import '../../services/communication_service.dart';
 import '../../services/mqtt_service.dart';
 import '../../utils/constants.dart';
@@ -23,6 +24,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
 
   final BluetoothClassicService bluetoothClassicService = BluetoothClassicService();
   final BluetoothBleService bluetoothBleService = BluetoothBleService();
+  final HotspotWebSocketService hotspotService = HotspotWebSocketService();
 
   late MqttPayloadProvider mqttProvider;
   StreamSubscription<MqttConnectionState>? mqttSubscription;
@@ -72,6 +74,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     NetworkUtils.connectionStream.listen((connected) {
       if (_disposed) return;
       if (connected) {
+        if (hotspotService.isConnected) return; // hotspot mode: MQTT is not usable
         if (mqttService.isConnected) return;
         if (mqttInitialized) {
           restartMqttSession();
@@ -110,6 +113,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       bluetoothClassicService.initializeClassicService(state: mqttProvider);
       bluetoothBleService.initializeBleService(state: mqttProvider);
+      hotspotService.initializeHotspotService(state: mqttProvider);
     }
 
     mqttSubscription?.cancel();
@@ -310,25 +314,57 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
       String type, bool preserveSelection) {
     final newSiteList = SiteModel.fromJson(jsonData, type);
 
-    if (preserveSelection && mySiteList.data.isNotEmpty) {
-      mySiteList.data[sIndex].master[mIndex] =
-      newSiteList.data[sIndex].master[mIndex];
-    } else {
-      mySiteList = newSiteList;
-      updateSite(sIndex, mIndex, lIndex);
+    // logic changed for the site issue that cause payload update to different site
+    int? activeControllerId;
+    if (mySiteList.data.isNotEmpty &&
+        sIndex < mySiteList.data.length &&
+        mIndex < mySiteList.data[sIndex].master.length) {
+      activeControllerId = mySiteList.data[sIndex].master[mIndex].controllerId;
     }
 
-    final master = mySiteList.data[sIndex].master[mIndex];
-    mqttProvider.saveUnits(Unit.toJsonList(master.units));
+    mySiteList = newSiteList;
 
-    final live = master.live;
-    mqttProvider.updateReceivedPayload(
-      live != null ? jsonEncode(live) : _defaultPayload(),
-      true,
-    );
+    if (activeControllerId != null) {
+      bool found = false;
+      for (int s = 0; s < mySiteList.data.length; s++) {
+        final masters = mySiteList.data[s].master;
+        for (int m = 0; m < masters.length; m++) {
+          if (masters[m].controllerId == activeControllerId) {
+            sIndex = s;
+            mIndex = m;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (!found) {
+        sIndex = 0;
+        mIndex = 0;
+      }
+    } else {
+      sIndex = 0;
+      mIndex = 0;
+    }
 
-    wifiStrength = live?.cM['WifiStrength'] ?? 0;
-  }
+    if (mySiteList.data.isNotEmpty &&
+        sIndex < mySiteList.data.length &&
+        mIndex < mySiteList.data[sIndex].master.length) {
+      updateSite(sIndex, mIndex, lIndex);
+
+      final master = mySiteList.data[sIndex].master[mIndex];
+      mqttProvider.saveUnits(Unit.toJsonList(master.units));
+
+      final live = master.live;
+      mqttProvider.updateReceivedPayload(
+        live != null ? jsonEncode(live) : _defaultPayload(),
+        true,
+      );
+
+      wifiStrength = live?.cM['WifiStrength'] ?? 0;
+    }
+  }  // still here
+
 
   String _defaultPayload() => '''
   {
@@ -426,7 +462,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
   // ---------------------- REFRESH & COMMANDS ------------------------
 
   Future<void> onRefreshClicked() async {
-    if (!mqttService.isConnected) {
+    if (!mqttService.isConnected && !hotspotService.isConnected) {
       debugPrint("MQTT not connected — attempting to connect and abort refresh to avoid publish while connecting.");
       _initializeMqttConnection();
       return;
@@ -458,7 +494,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
   }
 
   Future<void> onFertilizerLiveSync() async {
-    if (!mqttService.isConnected) {
+    if (!mqttService.isConnected && !hotspotService.isConnected) {
       debugPrint("MQTT not connected — attempting to connect and abort refresh to avoid publish while connecting.");
       _initializeMqttConnection();
       return;
@@ -569,6 +605,7 @@ class CustomerScreenControllerViewModel extends ChangeNotifier {
     mqttProvider.removeListener(_onPayloadReceived);
     mqttSubscription?.cancel();
     mqttService.disConnect();
+    if (!kIsWeb) hotspotService.disconnect();
     super.dispose();
   }
 }
